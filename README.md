@@ -12,8 +12,8 @@
   <p><code>Predatory precision. Lightning speed.</code></p>
 
   <p>
-    <a href="https://leopard.vercel.app">
-      <img src="https://img.shields.io/badge/Live-leopard.vercel.app-FFB400?style=for-the-badge&logo=vercel&logoColor=black&labelColor=111111" alt="Live Site" />
+    <a href="https://leopardai.vercel.app">
+      <img src="https://img.shields.io/badge/Live-leopardai.vercel.app-FFB400?style=for-the-badge&logo=vercel&logoColor=black&labelColor=111111" alt="Live Site" />
     </a>
     &nbsp;
     <img src="https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=nextdotjs&logoColor=white&labelColor=111111" alt="Next.js" />
