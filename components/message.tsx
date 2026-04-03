@@ -97,7 +97,16 @@ function ThinkingBlock({
   content: string;
   isStreaming?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [hasFinished, setHasFinished] = useState(false);
+
+  // Auto-collapse when streaming stops (or when final answer starts)
+  useEffect(() => {
+    if (!isStreaming && !hasFinished) {
+      setExpanded(false);
+      setHasFinished(true);
+    }
+  }, [isStreaming, hasFinished]);
 
   return (
     <div className="mb-3">
@@ -109,12 +118,11 @@ function ThinkingBlock({
         <span className="font-mono">
           {isStreaming ? "Thinking…" : "Thought process"}
         </span>
-        {!isStreaming &&
-          (expanded ? (
-            <ChevronDown className="h-3 w-3" />
-          ) : (
-            <ChevronRight className="h-3 w-3" />
-          ))}
+        {expanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
         {isStreaming && (
           <div className="flex gap-[2px] ml-1">
             {[0, 1, 2].map((i) => (
@@ -133,7 +141,7 @@ function ThinkingBlock({
         )}
       </button>
       <AnimatePresence>
-        {(expanded || isStreaming) && (
+        {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}

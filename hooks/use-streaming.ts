@@ -84,7 +84,15 @@ export function useStreaming({ chatId, userId, onComplete }: UseStreamingProps) 
 
               try {
                 const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content || "";
+                // The proxy backend transforms the response to { content: "..." }
+                // but we also support raw OpenAI-style { choices: [{ delta: { content: "..." } }] }
+                let content = "";
+                
+                if (parsed.content !== undefined) {
+                  content = parsed.content;
+                } else if (parsed.choices?.[0]?.delta?.content !== undefined) {
+                  content = parsed.choices[0].delta.content;
+                }
                 
                 if (content) {
                   if (isThinking) setIsThinking(false);

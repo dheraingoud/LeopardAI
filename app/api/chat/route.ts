@@ -200,6 +200,9 @@ function streamResponse(nimRes: Response): Response {
       if (!reader) { ctrl.close(); return; }
 
       let buffer = "";
+      let hasStartedReasoning = false;
+      let hasFinishedReasoning = false;
+
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -212,15 +215,39 @@ function streamResponse(nimRes: Response): Response {
             const trimmed = line.trim();
             if (!trimmed) continue;
             if (trimmed === "data: [DONE]") {
+              if (hasStartedReasoning && !hasFinishedReasoning) {
+                 ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ content: "\n</think>\n\n" })}\n\n`));
+                 hasFinishedReasoning = true;
+              }
               ctrl.enqueue(encoder.encode("data: [DONE]\n\n"));
               continue;
             }
             if (trimmed.startsWith("data: ")) {
               try {
                 const json = JSON.parse(trimmed.slice(6));
+                const reason = json.choices?.[0]?.delta?.reasoning_content;
                 const token = json.choices?.[0]?.delta?.content;
-                if (token) {
-                  ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ content: token })}\n\n`));
+                
+                let outputStr = "";
+                
+                if (reason) {
+                  if (!hasStartedReasoning) {
+                    outputStr += "<think>\n";
+                    hasStartedReasoning = true;
+                  }
+                  outputStr += reason;
+                }
+                
+                if (token !== undefined && token !== null) {
+                  if (hasStartedReasoning && !hasFinishedReasoning) {
+                    outputStr += "\n</think>\n\n";
+                    hasFinishedReasoning = true;
+                  }
+                  outputStr += token;
+                }
+
+                if (outputStr) {
+                  ctrl.enqueue(encoder.encode(`data: ${JSON.stringify({ content: outputStr })}\n\n`));
                 }
               } catch { /* skip malformed chunk */ }
             }
