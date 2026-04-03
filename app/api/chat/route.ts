@@ -70,7 +70,19 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "NVIDIA_API_KEY not configured on server" }, { status: 500 });
     }
 
-    const modelId = model || FALLBACK_MODEL;
+    // Map frontend short IDs to full NIM strings
+    const MODEL_MAP: Record<string, string> = {
+      "llama-3-70b": "meta/llama-3.3-70b-instruct",
+      "step-3.5-flash": "stepfun-ai/step-3.5-flash",
+      "minimax-m2.5": "minimaxai/minimax-m2.5",
+      "kimi-k2.5": "moonshotai/kimi-k2.5",
+      "deepseek-v3.2": "deepseek-ai/deepseek-v3.2",
+      "qwen-300b": "qwen/qwen3.5-397b-a17b",
+      "glm5": "z-ai/glm5"
+    };
+
+    const frontendModel = model || "llama-3-70b";
+    const modelId = MODEL_MAP[frontendModel] || frontendModel || FALLBACK_MODEL;
     const timeout = getTimeout(modelId);
 
     // Inject system prompt as first message for better formatting
