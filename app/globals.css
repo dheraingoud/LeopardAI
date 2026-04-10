@@ -4,29 +4,88 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Font Face Declarations with Fallbacks ─── */
+/* Primary monospace font: Iosevka Charon */
+@font-face {
+  font-family: "Iosevka Charon";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: local("Iosevka Charon"), local("IosevkaCharon");
+  /* Size-adjusted fallback to match monospace metrics */
+  ascent-override: 88%;
+  descent-override: 12%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
+}
+
+/* Signature font: Momo Signature */
+@font-face {
+  font-family: "Momo Signature";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Momo Signature"), local("MomoSignature");
+}
+
+/* Font_metrics-adjusted fallback stack for Iosevka Charon */
+/* SF Mono matched to Iosevka metrics for minimal layout shift */
+@font-face {
+  font-family: "Iosevka Charon Fallback";
+  font-style: normal;
+  font-weight: 400;
+  src: local("SF Mono"), local("SFMono-Regular"), local("Menlo"), local("Monaco");
+  ascent-override: 89%;
+  descent-override: 11%;
+  line-gap-override: 0%;
+  size-adjust: 102%;
+}
+
 /* ─── Google Fonts loaded via <link> in layout.tsx ─── */
 
 /* ─── Tailwind v4 Theme ─── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Iosevka Charon", "SF Mono", "Fira Code", monospace;
-  --font-mono: "Iosevka Charon", "SF Mono", monospace;
+  --font-sans: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-mono: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
   --font-heading: var(--font-sans);
 
   /* Leopard brand colors */
   --color-leopard-amber: #ffb400;
   --color-leopard-amber-dim: #b37e00;
   --color-leopard-amber-glow: #ffb40040;
+  --color-leopard-amber-subtle: rgba(255, 180, 0, 0.08);
+  --color-leopard-amber-muted: rgba(255, 180, 0, 0.15);
   --color-leopard-black: #000000;
   --color-leopard-surface: #0a0a0a;
   --color-leopard-surface-elevated: #111111;
   --color-leopard-surface-glass: rgba(255, 255, 255, 0.03);
-  --color-leopard-border: rgba(255, 255, 255, 0.06);
+  --color-leopard-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-leopard-border: rgba(255, 255, 255, 0.12);
+  --color-leopard-border-strong: rgba(255, 255, 255, 0.18);
   --color-leopard-border-bright: rgba(255, 180, 0, 0.15);
   --color-leopard-text: #f5f5f5;
   --color-leopard-text-muted: #737373;
   --color-leopard-text-dim: #525252;
+
+  /* Shadow system */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(255, 180, 0, 0.15);
+  --shadow-glow-intense: 0 0 40px rgba(255, 180, 0, 0.25);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
 
   /* Shadcn mappings */
   --color-sidebar-ring: var(--sidebar-ring);
@@ -84,8 +143,8 @@
   --accent: #ffb400;
   --accent-foreground: #000000;
   --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.06);
-  --input: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
   --ring: #ffb400;
   --chart-1: #ffb400;
   --chart-2: #ff8c00;
@@ -99,8 +158,12 @@
   --sidebar-primary-foreground: #000000;
   --sidebar-accent: rgba(255, 180, 0, 0.08);
   --sidebar-accent-foreground: #ffb400;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #ffb400;
+
+  /* Typography System */
+  --font-display: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
 }
 
 /* Keep .dark class identical for shadcn compatibility */
@@ -120,8 +183,8 @@
   --accent: #ffb400;
   --accent-foreground: #000000;
   --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.06);
-  --input: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
   --ring: #ffb400;
   --sidebar: #050505;
   --sidebar-foreground: #f5f5f5;
@@ -129,7 +192,7 @@
   --sidebar-primary-foreground: #000000;
   --sidebar-accent: rgba(255, 180, 0, 0.08);
   --sidebar-accent-foreground: #ffb400;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #ffb400;
 }
 
@@ -148,7 +211,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Iosevka Charon", "SF Mono", "Fira Code", monospace;
+    font-family: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
     overflow-x: hidden;
   }
 
@@ -189,14 +252,14 @@
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(40px) saturate(1.8);
   -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .glass-elevated {
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(60px) saturate(2);
   -webkit-backdrop-filter: blur(60px) saturate(2);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
               inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
@@ -216,7 +279,7 @@
   );
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
               inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -230,7 +293,7 @@
   );
   backdrop-filter: blur(80px) saturate(2.2);
   -webkit-backdrop-filter: blur(80px) saturate(2.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4),
               0 0 0 0.5px rgba(255, 255, 255, 0.08) inset,
               0 1px 0 rgba(255, 255, 255, 0.06) inset;
@@ -342,7 +405,7 @@
   animation: grain 8s steps(10) infinite;
   pointer-events: none;
   z-index: 1000;
-  opacity: 0.4;
+  opacity: 0.25;
 }
 
 /* ─── Momo Signature font (loaded via HTML link tag) ─── */
@@ -360,7 +423,7 @@ pre {
 }
 
 pre code {
-  font-family: "Iosevka Charon", "SF Mono", "Fira Code", monospace !important;
+  font-family: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace !important;
   font-size: 13px;
   line-height: 1.65;
   white-space: pre-wrap !important;
@@ -371,7 +434,7 @@ pre code {
 /* Standalone pre blocks (not inside CodeBlock component) */
 .markdown-body > pre {
   background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.75rem;
   padding: 1rem 1.25rem;
 }
@@ -426,7 +489,7 @@ pre code {
 }
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 0.5em 0.75em;
   text-align: left;
 }
@@ -538,4 +601,127 @@ pre code {
   .markdown-body h1 { font-size: 1.4em; }
   .markdown-body h2 { font-size: 1.2em; }
   .markdown-body h3 { font-size: 1.1em; }
+}
+
+/* ─── Typography System ─── */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-display-lg {
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.text-display-md {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.text-display-sm {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ─── Transition Curves ─── */
+:root {
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* ─── Staggered Animations ─── */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-stagger > * {
+  animation: fade-in-up 600ms var(--ease-out) backwards;
+}
+
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 240ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 320ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 400ms; }
+.animate-stagger > *:nth-child(7) { animation-delay: 480ms; }
+.animate-stagger > *:nth-child(8) { animation-delay: 560ms; }
+
+.animate-stagger-scale > * {
+  animation: scale-in 600ms var(--ease-spring) backwards;
+}
+
+.animate-stagger-scale > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger-scale > *:nth-child(2) { animation-delay: 80ms; }
+.animate-stagger-scale > *:nth-child(3) { animation-delay: 160ms; }
+.animate-stagger-scale > *:nth-child(4) { animation-delay: 240ms; }
+.animate-stagger-scale > *:nth-child(5) { animation-delay: 320ms; }
+
+/* ─── Premium Hover States ─── */
+.hover-lift {
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+.hover-lift:hover {
+  transform: scale(1.02);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.15);
+}
+
+.hover-border-amber:hover {
+  border-color: rgba(255, 180, 0, 0.15);
+}
+
+.hover-lift-glow {
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out);
+}
+
+.hover-lift-glow:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.15);
+  border-color: rgba(255, 180, 0, 0.15);
+}
+
+/* ─── Enhanced Glass Classes ─── */
+.glass-premium {
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-amber-subtle {
+  background: rgba(255, 180, 0, 0.03);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 180, 0, 0.08);
 }

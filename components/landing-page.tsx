@@ -182,7 +182,7 @@ export default function LandingPage() {
             <Link href="/sign-in">
               <Button
                 size="lg"
-                className="bg-[#ffb400] text-black hover:bg-[#e6a300] font-mono text-base h-12 px-10 glow-amber-intense hover:scale-[1.03] transition-all"
+                className="bg-[#ffb400] text-black hover:bg-[#e6a300] font-body text-base h-12 px-10 glow-amber-intense hover-lift-glow transition-all"
               >
                 Start Chatting
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -233,7 +233,7 @@ export default function LandingPage() {
           <p className="text-[10px] font-mono text-[#ffb400] uppercase tracking-[0.2em] mb-2">
             Built for speed
           </p>
-          <h2 className="text-xl sm:text-2xl font-mono text-white font-semibold">
+          <h2 className="text-xl sm:text-2xl font-display text-white font-semibold">
             Everything you need, nothing you don&apos;t
           </h2>
         </motion.div>
@@ -243,7 +243,7 @@ export default function LandingPage() {
             <motion.div
               key={f.title}
               variants={fadeUp}
-              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-6 transition-all duration-300 hover:border-[#ffb40018] hover:bg-white/[0.025]"
+              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-6 transition-all duration-300 hover:border-[#ffb40018] hover:bg-white/[0.025] hover-lift"
             >
               <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,0,0.04)_0%,transparent_60%)] pointer-events-none" />
               <div className="relative z-10">

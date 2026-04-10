@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo, useRef, useEffect } from "react";
+import { memo, useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +17,7 @@ import {
   Code as CodeIcon,
 } from "lucide-react";
 import { detectArtifacts } from "@/lib/artifact-detector";
+import { executeCode, ExecutionResult } from "@/lib/code-executor";
 import type { Artifact } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ interface MessageProps {
   streamedContent?: string;
   onOpenArtifact?: (artifact: Artifact) => void;
   onRegenerate?: () => void;
+  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
   isLast?: boolean;
   userAvatar?: string;
 }
@@ -103,6 +105,7 @@ function ThinkingBlock({
   // Auto-collapse when streaming stops (or when final answer starts)
   useEffect(() => {
     if (!isStreaming && !hasFinished) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpanded(false);
       setHasFinished(true);
     }
@@ -159,16 +162,55 @@ function ThinkingBlock({
   );
 }
 
+/* ─── Execution Panel for code output ─── */
+
+function ExecutionPanel({ result }: { result: ExecutionResult }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-2 rounded-lg border border-white/[0.06] bg-[#0a0a0a] overflow-hidden"
+    >
+      <div className="px-3 py-2 flex items-center gap-2">
+        {result.status === 'success' && (
+          <>
+            <Check className="h-3 w-3 text-green-400" />
+            <span className="text-[11px] font-mono text-green-400">Success</span>
+            <span className="text-[10px] font-mono text-[#505050]">{result.duration}ms</span>
+          </>
+        )}
+        {result.status === 'error' && (
+          <span className="text-[11px] font-mono text-red-400">Error</span>
+        )}
+        {result.status === 'timeout' && (
+          <span className="text-[11px] font-mono text-yellow-400">Timeout</span>
+        )}
+      </div>
+      {(result.output || result.error) && (
+        <div className="px-3 py-2 border-t border-white/[0.04] bg-black/20">
+          <pre className="text-[11px] font-mono text-[#737373] whitespace-pre-wrap overflow-x-auto">
+            {result.output || result.error}
+          </pre>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 /* ─── Code Block with header, copy, preview ─── */
 
 function CodeBlock({
   code,
   lang,
   onPreview,
+  onQuickAction,
+  isRunning,
 }: {
   code: string;
   lang: string;
   onPreview?: (code: string, lang: string) => void;
+  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
+  isRunning?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const lines = code.split("\n");
@@ -176,17 +218,18 @@ function CodeBlock({
   const isPreviewable =
     ["html", "jsx", "tsx", "react", "svg", "markdown", "md", "mermaid", "csv"].includes(lang) &&
     lineCount > 3;
+  const isExecutable = ["javascript", "js", "typescript", "ts", "jsx", "tsx"].includes(lang);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
-    toast.success("Copied");
+    toast.success("Copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="relative my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0c0c0c]">
-      {/* Header bar — like the reference image */}
+      {/* Header bar — with quick actions */}
       <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
           <CodeIcon className="h-3.5 w-3.5 text-[#505050]" />
@@ -194,25 +237,54 @@ function CodeBlock({
             {lang || "Code"}
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          {isPreviewable && onPreview && (
+        <div className="flex items-center gap-1">
+          {/* Run button - only for executable languages */}
+          {isExecutable && (
             <button
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-mono text-[#ffb400] bg-[#ffb40008] hover:bg-[#ffb40018] border border-[#ffb40020] transition-colors"
-              onClick={() => onPreview(code, lang)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#22c55e] hover:bg-[#22c55e15] transition-colors disabled:opacity-50"
+              onClick={() => onQuickAction?.("run", code, lang)}
+              disabled={isRunning}
+              title="Run code"
             >
               <Play className="h-3 w-3" />
-              Preview
+              {isRunning ? "..." : "Run"}
             </button>
           )}
+          {/* Explain button */}
           <button
-            className="flex items-center justify-center h-7 w-7 rounded-md text-[#505050] hover:text-white hover:bg-white/[0.06] transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+            onClick={() => onQuickAction?.("explain", code, lang)}
+            title="Explain this code"
+          >
+            <Brain className="h-3 w-3" />
+          </button>
+          {/* Tests button */}
+          <button
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+            onClick={() => onQuickAction?.("tests", code, lang)}
+            title="Generate tests"
+          >
+            <Sparkles className="h-3 w-3" />
+          </button>
+          {/* Preview button */}
+          {isPreviewable && onPreview && (
+            <button
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#ffb400] bg-[#ffb40008] hover:bg-[#ffb40015] transition-colors"
+              onClick={() => onPreview(code, lang)}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </button>
+          )}
+          {/* Copy button */}
+          <button
+            className="flex items-center justify-center h-6 w-6 rounded-md text-[#505050] hover:text-white hover:bg-white/[0.06] hover-lift transition-colors"
             onClick={handleCopy}
             title="Copy code"
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-400" />
+              <Check className="h-3 w-3 text-green-400" />
             ) : (
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-3 w-3" />
             )}
           </button>
         </div>
@@ -222,7 +294,7 @@ function CodeBlock({
         <pre
           style={{
             margin: 0,
-            padding: "16px",
+            padding: "20px",
             background: "transparent",
             border: "none",
             borderRadius: 0,
@@ -236,7 +308,7 @@ function CodeBlock({
               display: "block",
               whiteSpace: "pre",
               fontFamily: '"Iosevka Charon", "SF Mono", "Fira Code", monospace',
-              fontSize: "13px",
+              fontSize: "14px",
               lineHeight: "1.65",
               color: "#d4d4d4",
               tabSize: 2,
@@ -260,20 +332,20 @@ export function ThinkingIndicator() {
       exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
       className="max-w-3xl mx-auto"
     >
-      <div className="flex items-start gap-3 py-6">
-        <div className="h-7 w-7 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0">
-          <Sparkles className="h-3.5 w-3.5 text-black" />
+      <div className="flex items-start gap-4 py-8">
+        <div className="h-8 w-8 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0">
+          <Sparkles className="h-4 w-4 text-black" />
         </div>
         <div className="flex flex-col gap-2 pt-0.5">
           <span className="text-[13px] font-medium text-[#e5e5e5]">
             Leopard
           </span>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <div className="flex gap-[3px]">
               {[0, 1, 2].map((i) => (
                 <motion.div
                   key={i}
-                  className="w-[6px] h-[6px] rounded-full bg-[#ffb400]"
+                  className="w-[7px] h-[7px] rounded-full bg-[#ffb400]"
                   animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
                   transition={{
                     duration: 1,
@@ -284,7 +356,7 @@ export function ThinkingIndicator() {
                 />
               ))}
             </div>
-            <span className="text-[13px] text-[#505050]">Thinking…</span>
+            <span className="text-[14px] text-[#505050]">Working on it…</span>
           </div>
         </div>
       </div>
@@ -296,18 +368,33 @@ export function ThinkingIndicator() {
 
 function MessageComponent({
   message,
-  index,
   isStreaming,
   streamedContent,
   onOpenArtifact,
   onRegenerate,
+  onQuickAction,
   isLast,
-  userAvatar,
 }: MessageProps) {
   const isUser = message.role === "user";
   const rawContent =
     isStreaming && streamedContent ? streamedContent : message.content;
   const [msgCopied, setMsgCopied] = useState(false);
+
+  // Code execution state
+  const [executionResults, setExecutionResults] = useState<Record<string, ExecutionResult>>({});
+  const [runningBlock, setRunningBlock] = useState<string | null>(null);
+
+  // Run code handler
+  const handleRunCode = async (code: string, lang: string) => {
+    const blockId = `${lang}-${code.slice(0, 20).replace(/\s/g, '_')}`;
+    setRunningBlock(blockId);
+    try {
+      const result = await executeCode(code);
+      setExecutionResults(prev => ({ ...prev, [blockId]: result }));
+    } finally {
+      setRunningBlock(null);
+    }
+  };
 
   const { thinking, response: displayContent } = useMemo(
     () =>
@@ -325,7 +412,7 @@ function MessageComponent({
   const handleCopyMessage = () => {
     navigator.clipboard.writeText(displayContent);
     setMsgCopied(true);
-    toast.success("Copied");
+    toast.success("Copied to clipboard");
     setTimeout(() => setMsgCopied(false), 2000);
   };
 
@@ -354,10 +441,10 @@ function MessageComponent({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
-        className="flex justify-end py-2"
+        className="flex justify-end py-3"
       >
-        <div className="max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 bg-[#1a1a1a] border border-white/[0.06] text-[#e5e5e5]">
-          <p className="text-[14px] leading-[1.6] whitespace-pre-wrap">
+        <div className="max-w-[80%] rounded-2xl rounded-br-md px-5 py-3 bg-[#1a1a1a] border border-white/[0.08] text-[#e5e5e5]">
+          <p className="text-[15px] leading-[1.6] whitespace-pre-wrap">
             {displayContent}
           </p>
         </div>
@@ -371,18 +458,18 @@ function MessageComponent({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: 0.03, ease: [0.25, 1, 0.5, 1] }}
-      className="group py-4"
+      className="group py-5"
     >
       <div className="flex items-start gap-3">
         {/* Avatar */}
-        <div className="h-7 w-7 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0 mt-0.5">
-          <Sparkles className="h-3.5 w-3.5 text-black" />
+        <div className="h-8 w-8 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0 mt-0.5">
+          <Sparkles className="h-4 w-4 text-black" />
         </div>
 
         <div className="flex-1 min-w-0">
           {/* Name */}
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[13px] font-medium text-[#e5e5e5]">
+            <span className="text-[14px] font-medium text-[#e5e5e5]">
               Leopard
             </span>
           </div>
@@ -397,7 +484,7 @@ function MessageComponent({
 
           {/* Main response */}
           {displayContent && (
-            <div className="markdown-body text-[14px] leading-[1.75] text-[#d4d4d4]">
+            <div className="markdown-body text-[15px] leading-[1.75] text-[#d4d4d4]">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -425,13 +512,18 @@ function MessageComponent({
                       const langMatch = className.match(/language-(\w+)/);
                       const lang = langMatch ? langMatch[1] : "";
                       const rawText = extractText(codeProps?.children).replace(/\n$/, "");
-                      return (
-                        <CodeBlock
-                          code={rawText}
-                          lang={lang}
-                          onPreview={handlePreview}
-                        />
-                      );
+      const blockId = `${lang}-${rawText.slice(0, 20).replace(/s/g, "_")}`;
+      return (
+        <CodeBlock
+          code={rawText}
+          lang={lang}
+          onPreview={handlePreview}
+          onQuickAction={onQuickAction}
+          onRun={() => handleRunCode(rawText, lang)}
+          executionResult={executionResults[blockId]}
+          isRunning={runningBlock === blockId}
+        />
+      );
                     }
                     // Fallback: plain pre block
                     return (
@@ -441,7 +533,7 @@ function MessageComponent({
                           background: "rgba(255,255,255,0.03)",
                           border: "1px solid rgba(255,255,255,0.06)",
                           borderRadius: "12px",
-                          padding: "16px",
+                          padding: "20px",
                           margin: "16px 0",
                         }}
                         {...props}
@@ -528,7 +620,7 @@ function MessageComponent({
           {!isStreaming && displayContent && (
             <div className="flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <button
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] hover-lift transition-colors"
                 onClick={handleCopyMessage}
               >
                 {msgCopied ? (
@@ -544,10 +636,10 @@ function MessageComponent({
 
               {isLast && onRegenerate && (
                 <button
-                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] hover-lift transition-colors"
                   onClick={onRegenerate}
                 >
-                  <RefreshCw className="h-3 w-3" /> Retry
+                  <RefreshCw className="h-3 w-3" /> Regenerate
                 </button>
               )}
 

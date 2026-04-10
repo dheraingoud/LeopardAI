@@ -18,6 +18,7 @@ interface MessageListProps {
   streamedContent?: string;
   onOpenArtifact?: (artifact: Artifact) => void;
   onRegenerate?: () => void;
+  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
   userAvatar?: string;
 }
 
@@ -28,6 +29,7 @@ export default function MessageList({
   streamedContent,
   onOpenArtifact,
   onRegenerate,
+  onQuickAction,
   userAvatar,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,7 @@ export default function MessageList({
       className="flex-1 overflow-y-auto overflow-x-hidden"
       style={{ minHeight: 0 }}
     >
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-3xl mx-auto px-8 py-8">
         {messages.map((msg, i) => {
           const isLast = i === messages.length - 1;
           const isLastAssistant = isLast && msg.role === "assistant";
@@ -59,6 +61,7 @@ export default function MessageList({
               }
               onOpenArtifact={onOpenArtifact}
               onRegenerate={isLastAssistant ? onRegenerate : undefined}
+              onQuickAction={onQuickAction}
               isLast={isLastAssistant}
               userAvatar={userAvatar}
             />
@@ -70,7 +73,7 @@ export default function MessageList({
           {isThinking && <ThinkingIndicator />}
         </AnimatePresence>
 
-        <div ref={bottomRef} className="h-4" />
+        <div ref={bottomRef} className="h-8" />
       </div>
     </div>
   );

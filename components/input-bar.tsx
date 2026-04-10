@@ -11,7 +11,6 @@ import {
   Zap,
   Paperclip,
   X,
-  Image as ImageIcon,
   FileText,
 } from "lucide-react";
 import {
@@ -73,8 +72,10 @@ export default function InputBar({
     if (chatModel) {
       const found = MODELS.find((m) => m.id === chatModel);
       if (found && found.available) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedModel(found);
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedModel(MODELS.find((m) => m.available) || MODELS[0]);
       }
     }
@@ -199,18 +200,70 @@ export default function InputBar({
     }
   };
 
+  // Detect if pasted text looks like code
+  const detectCodePaste = (text: string): AttachedFile | null => {
+    if (text.length < 100) return null;
+
+    // Code patterns to detect
+    const codePatterns = [
+      /\b(function|const|let|var|import|export|class|def|func|fn)\b/,
+      /\{[\s\S]*\}/,
+      /\[[\s\S]*\]/,
+      /(return|if|else|for|while)\s*\(/,
+      /=>\s*\{/,
+      /^\s*(public|private|async)\s+/m,
+    ];
+
+    const isCode = codePatterns.some(p => p.test(text));
+    if (!isCode) return null;
+
+    // Derive extension
+    let ext = 'js';
+    if (/import\s+React|JSX|<\w+[^>]*>/.test(text)) ext = 'tsx';
+    else if (/\bdef\s+\w+\s*\(|import\s+\w+\s+from/.test(text)) ext = 'py';
+    else if (/\bfunc\s+\w+|package\s+\w+/.test(text)) ext = 'go';
+    else if (/interface\s+\w+|type\s+\w+\s*=/.test(text)) ext = 'ts';
+    else if (/<\?php|function\s+\w+\s*\(/.test(text)) ext = 'php';
+
+    return {
+      name: `pasted-code.${ext}`,
+      type: 'text/plain',
+      size: text.length,
+      textContent: text,
+    };
+  };
+
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
     const files: File[] = [];
+
     for (let i = 0; i < items.length; i++) {
       if (items[i].kind === "file") {
         const file = items[i].getAsFile();
         if (file) files.push(file);
       }
     }
+
+    // Handle image files
     if (files.length > 0) {
       e.preventDefault();
       await handleFiles(files);
+      // Warn about text models and images
+      if (files.some(f => f.type.startsWith('image/'))) {
+        toast.warning('Text models cannot analyze images. Describe the image for better results.');
+      }
+      return;
+    }
+
+    // Check for code in text clipboard
+    const text = e.clipboardData.getData('text');
+    if (text) {
+      const codeAttachment = detectCodePaste(text);
+      if (codeAttachment) {
+        e.preventDefault();
+        setAttachedFiles(prev => [...prev, codeAttachment].slice(0, 5));
+        toast.success('Code detected - added as attachment');
+      }
     }
   };
 
@@ -252,13 +305,13 @@ export default function InputBar({
 
         {/* Attached files preview */}
         {attachedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-4 pt-3">
+          <div className="flex flex-wrap gap-3 px-5 pt-4">
             {attachedFiles.map((file, i) => (
               <motion.div
                 key={`${file.name}-${i}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative group/file flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] max-w-[200px]"
+                className="relative group/file flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] max-w-[200px]"
               >
                 {file.preview ? (
                   <img
@@ -279,9 +332,9 @@ export default function InputBar({
                 </div>
                 <button
                   onClick={() => removeFile(i)}
-                  className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-[#1a1a1a] border border-white/[0.08] flex items-center justify-center opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-red-500/20"
+                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-[#1a1a1a] border border-white/[0.08] flex items-center justify-center opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-red-500/20"
                 >
-                  <X className="h-2.5 w-2.5 text-[#808080]" />
+                  <X className="h-3 w-3 text-[#808080]" />
                 </button>
               </motion.div>
             ))}
@@ -289,7 +342,7 @@ export default function InputBar({
         )}
 
         {/* Textarea */}
-        <div className="px-4 pt-3 pb-2">
+        <div className="px-5 pt-4 pb-3">
           <TextareaAutosize
             ref={textareaRef}
             value={message}
@@ -309,15 +362,15 @@ export default function InputBar({
         </div>
 
         {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-3 pb-2.5">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center gap-2">
             {/* Attach file */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-[#3a3a3a] hover:text-[#808080] hover:bg-white/[0.04] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#a3a3a3] hover:bg-white/[0.06] transition-colors"
               title="Attach file"
             >
-              <Paperclip className="h-3.5 w-3.5" />
+              <Paperclip className="h-4 w-4" />
             </button>
             <input
               ref={fileInputRef}
@@ -342,10 +395,10 @@ export default function InputBar({
                       : "text-red-400/60 bg-red-500/5 border border-red-500/10"
                   )}
                 >
-                  <Zap className="h-3 w-3 text-[#ffb400]" />
+                  <Zap className="h-3.5 w-3.5 text-[#ffb400]" />
                   <span className="hidden sm:inline">{selectedModel.name}</span>
                   <span className="sm:hidden">{selectedModel.name.split(" ")[0]}</span>
-                  <ChevronDown className="h-3 w-3 text-[#555]" />
+                  <ChevronDown className="h-3.5 w-3.5 text-[#606060]" />
                 </span>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -429,30 +482,30 @@ export default function InputBar({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[#2a2a2a] font-mono hidden sm:block">
+            <span className="text-xs text-[#404040] font-body hidden sm:block">
               <kbd className="text-[#3a3a3a]">↵</kbd> send
             </span>
             {isStreaming ? (
               <button
                 onClick={onStop}
-                className="h-7 w-7 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/15"
+                className="h-8 w-8 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/15"
                 title="Stop"
               >
-                <Square className="h-3 w-3 fill-current" />
+                <Square className="h-3.5 w-3.5 fill-current" />
               </button>
             ) : (
               <button
                 onClick={handleSend}
                 disabled={!canSend}
                 className={cn(
-                  "h-7 w-7 flex items-center justify-center rounded-lg transition-all duration-150",
+                  "h-8 w-8 flex items-center justify-center rounded-lg transition-all duration-150",
                   canSend
-                    ? "bg-[#ffb400] text-black hover:bg-[#e6a300]"
-                    : "bg-white/[0.04] text-[#2a2a2a] cursor-not-allowed"
+                    ? "bg-[#ffb400] text-black hover:bg-[#e6a300] hover-lift-glow"
+                    : "bg-white/[0.04] text-[#404040] cursor-not-allowed"
                 )}
                 title="Send"
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               </button>
             )}
           </div>

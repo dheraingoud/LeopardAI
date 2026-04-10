@@ -17,6 +17,7 @@ import { useSidebar } from "@/app/app/layout";
 import { MODELS } from "@/types";
 import type { Artifact } from "@/types";
 import { toast } from "sonner";
+import { buildQuickActionPrompt } from "@/lib/quick-actions";
 
 export default function ChatPage() {
   const params = useParams();
@@ -94,11 +95,13 @@ export default function ChatPage() {
         resolvedModel.id
       );
     }
-  }, [messages?.length, chat]); // chat is needed here
+  }, [messages?.length, chat, isStreaming, stream]);
 
   // Reset guard on chat change
   useEffect(() => {
     hasAutoStreamed.current = false;
+    // Reset artifact when navigating to new chat
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtifact(null);
   }, [chatId]);
 
@@ -219,6 +222,33 @@ export default function ChatPage() {
     stream(ctx, resolvedModel.id);
   };
 
+  // Quick action handler for Explain, Tests, Run buttons
+  const handleQuickAction = useCallback(
+    async (action: "explain" | "tests" | "run", code: string, lang: string) => {
+      if (!user || !chat) return;
+
+      const prompt = buildQuickActionPrompt(action, code, lang);
+      const resolvedModel =
+        MODELS.find((m) => m.id === chat.model && m.available) ||
+        MODELS.find((m) => m.available) ||
+        MODELS[0];
+
+      await sendMessage({
+        chatId: chatId as Id<"chats">,
+        userId: user.id,
+        role: "user",
+        content: prompt,
+      });
+
+      const allMessages = [
+        ...(messages || []).map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: prompt },
+      ];
+      stream(allMessages, resolvedModel.id);
+    },
+    [user, chat, chatId, messages, sendMessage, stream]
+  );
+
   // Loading state
   if (chat === undefined || messages === undefined) {
     return (
@@ -238,7 +268,7 @@ export default function ChatPage() {
               />
             ))}
           </div>
-          <p className="text-[12px] text-[#3a3a3a] font-mono">
+          <p className="text-sm text-[#505050] font-body">
             Loading conversation…
           </p>
         </div>
@@ -280,20 +310,20 @@ export default function ChatPage() {
       {/* Chat column */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-3 sm:px-6 h-12 border-b border-white/[0.04] shrink-0 bg-[#020202]">
+        <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b border-white/[0.08] shrink-0 bg-[#020202]">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <h2 className="text-[12.5px] font-mono font-medium text-[#d4d4d4] truncate">
-              {chat.title === "New Chat" ? "New conversation" : chat.title}
+            <h2 className="text-sm font-body font-medium text-[#e5e5e5] truncate">
+              {chat.title === "New Chat" ? "Start a conversation" : chat.title}
             </h2>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[9px] font-mono text-[#505050] bg-white/[0.02] px-2 py-0.5 rounded border border-white/[0.04] hidden sm:inline-flex uppercase tracking-tighter">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-body text-[#606060] bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.08] hidden sm:inline-flex uppercase tracking-tighter">
               {currentModel.name}
             </span>
             {/* Export button */}
             <button
               onClick={handleExport}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-[#3a3a3a] hover:text-[#d4d4d4] hover:bg-white/[0.04] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#e5e5e5] hover:bg-white/[0.06] transition-colors"
               title="Export as Markdown"
             >
               <Download className="h-3.5 w-3.5" />
@@ -301,7 +331,7 @@ export default function ChatPage() {
             {/* Share button */}
             <button
               onClick={handleShare}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-[#3a3a3a] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
               title="Share chat"
             >
               <Share2 className="h-3.5 w-3.5" />
@@ -317,18 +347,19 @@ export default function ChatPage() {
           streamedContent={streamedContent}
           onOpenArtifact={handleOpenArtifact}
           onRegenerate={handleRegenerate}
+              onQuickAction={handleQuickAction}
           userAvatar={user?.imageUrl}
         />
 
         {/* Input */}
-        <div className="py-2.5 sm:py-4 shrink-0 bg-gradient-to-t from-black to-transparent">
+        <div className="py-4 sm:py-6 shrink-0 bg-gradient-to-t from-black to-transparent">
           <InputBar
             onSend={handleSend}
             onStop={stopGeneration}
             isStreaming={isStreaming}
             chatModel={chat.model}
           />
-          <p className="text-center text-[9px] text-[#202020] mt-3 font-mono uppercase tracking-[0.2em] pointer-events-none">
+          <p className="text-center text-[10px] text-[#303030] mt-4 font-body uppercase tracking-[0.2em] pointer-events-none">
             Powered by NVIDIA & Claude
           </p>
         </div>

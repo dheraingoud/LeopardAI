@@ -72,6 +72,14 @@ export default function RootLayout({
             href="https://fonts.gstatic.com"
             crossOrigin="anonymous"
           />
+          {/* Preload critical font for initial render - prevents FOIT */}
+          <link
+            rel="preload"
+            href="https://fonts.gstatic.com/s/iosevka/v33/iosevka-charon-regular.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
           <link
             href="https://fonts.googleapis.com/css2?family=Momo+Signature&display=swap"
             rel="stylesheet"
