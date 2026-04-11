@@ -30,9 +30,9 @@ export default function ChatPage() {
   const hasAutoStreamed = useRef(false);
 
   // Queries
-  const chat = useQuery(api.chats.get, { 
+  const chat = useQuery(api.chats.get, {
     chatId: chatId as Id<"chats">,
-    userId: user?.id 
+    userId: user?.id
   });
   const messages = useQuery(api.messages.list, {
     chatId: chatId as Id<"chats">,
@@ -137,7 +137,7 @@ export default function ChatPage() {
     if (!messages || !chat) return;
     const lines: string[] = [
       `# ${chat.title}`,
-      `*Exported from Leopard AI — ${new Date().toLocaleString()}*`,
+      `*Exported from Leopard AI - ${new Date().toLocaleString()}*`,
       "",
       "---",
       "",
@@ -171,7 +171,7 @@ export default function ChatPage() {
         );
         toast.success("Share link copied!");
       } else {
-        const shareId = await shareChat({ 
+        const shareId = await shareChat({
           chatId: chatId as Id<"chats">,
           userId: user.id
         });
@@ -249,6 +249,32 @@ export default function ChatPage() {
     [user, chat, chatId, messages, sendMessage, stream]
   );
 
+  // Handle empty state suggestion click
+  const handleEmptyStateSelect = useCallback(
+    async (prompt: string) => {
+      if (!user || !chat) return;
+
+      const resolvedModel =
+        MODELS.find((m) => m.id === chat.model && m.available) ||
+        MODELS.find((m) => m.available) ||
+        MODELS[0];
+
+      await sendMessage({
+        chatId: chatId as Id<"chats">,
+        userId: user.id,
+        role: "user",
+        content: prompt,
+      });
+
+      const allMessages = [
+        ...(messages || []).map((m) => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: prompt },
+      ];
+      stream(allMessages, resolvedModel.id);
+    },
+    [user, chat, chatId, messages, sendMessage, stream]
+  );
+
   // Loading state
   if (chat === undefined || messages === undefined) {
     return (
@@ -289,7 +315,7 @@ export default function ChatPage() {
           <p className="text-[#303030] text-xs px-10">
             This conversation is either private or has been deleted.
           </p>
-          <Button 
+          <Button
             className="mt-6 h-8 text-[11px] font-mono bg-[#ffb400] text-black hover:bg-[#ffb400dd]"
             onClick={() => router.push('/app')}
           >
@@ -308,7 +334,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-1 min-h-0 bg-black">
       {/* Chat column */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b border-white/[0.08] shrink-0 bg-[#020202]">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -347,26 +373,26 @@ export default function ChatPage() {
           streamedContent={streamedContent}
           onOpenArtifact={handleOpenArtifact}
           onRegenerate={handleRegenerate}
-              onQuickAction={handleQuickAction}
+          onQuickAction={handleQuickAction}
           userAvatar={user?.imageUrl}
+          onEmptyStateSelect={handleEmptyStateSelect}
         />
 
-        {/* Input */}
-        <div className="py-4 sm:py-6 shrink-0 bg-gradient-to-t from-black to-transparent">
+        {/* Floating Input */}
+        <div className="absolute bottom-0 inset-x-0 z-20 p-4 sm:p-6 pointer-events-none">
+        <div className="max-w-3xl mx-auto pointer-events-auto">
           <InputBar
             onSend={handleSend}
             onStop={stopGeneration}
             isStreaming={isStreaming}
             chatModel={chat.model}
           />
-          <p className="text-center text-[10px] text-[#303030] mt-4 font-body uppercase tracking-[0.2em] pointer-events-none">
-            Powered by NVIDIA & Claude
-          </p>
         </div>
       </div>
 
       {/* Canvas panel */}
       <CanvasPanel artifact={artifact} onClose={handleCloseCanvas} />
     </div>
+  </div>
   );
 }

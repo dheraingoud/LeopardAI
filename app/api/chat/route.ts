@@ -72,7 +72,8 @@ export async function POST(req: NextRequest) {
 
     // Map frontend short IDs to full NIM strings
     const MODEL_MAP: Record<string, string> = {
-      "llama-3-70b": "meta/llama-3.3-70b-instruct",
+      "gemma-4-31b": "google/gemma-4-31b-it",
+  "llama-3-70b": "meta/llama-3.3-70b-instruct",
       "step-3.5-flash": "stepfun-ai/step-3.5-flash",
       "minimax-m2.5": "minimaxai/minimax-m2.5",
       "kimi-k2.5": "moonshotai/kimi-k2.5",
@@ -145,7 +146,7 @@ interface NIMResult {
 async function callNIM(
   apiKey: string,
   modelId: string,
-  messages: any[],
+  messages: Array<{ role: string; content: string }>,
   temperature: number,
   maxTokens: number,
   timeout: number
@@ -180,9 +181,9 @@ async function callNIM(
     }
 
     return { response: nimRes };
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
-    if (err.name === "AbortError") {
+    if (err instanceof Error && err.name === "AbortError") {
       return { timedOut: true };
     }
     throw err;

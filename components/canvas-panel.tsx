@@ -196,6 +196,7 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
   // Reset state when artifact changes
   useEffect(() => {
     if (artifact) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setViewMode(canPreview ? "preview" : "code");
       setIframeKey((k) => k + 1);
     }

@@ -117,7 +117,7 @@ export function useStreaming({ chatId, userId, onComplete }: UseStreamingProps) 
                     }
                   }
                 }
-              } catch (e) {
+              } catch (_e) {
                 /* chunk parsing failed, ignore */
               }
             }
@@ -131,7 +131,7 @@ export function useStreaming({ chatId, userId, onComplete }: UseStreamingProps) 
         
         await touchChat({ chatId });
         onComplete?.(fullContent);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error.name === "AbortError") return;
         console.error("Streaming error:", error);
         toast.error(error.message || "Something went wrong.");

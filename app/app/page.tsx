@@ -52,7 +52,7 @@ export default function AppHomePage() {
   };
 
   const handlePromptClick = (prompt: { title: string; description: string }) => {
-    handleSend(`${prompt.title} ${prompt.description}`, "llama-3-70b");
+    handleSend(`${prompt.title} ${prompt.description}`, "minimax-m2.5");
   };
 
   return (

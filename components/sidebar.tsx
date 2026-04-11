@@ -104,7 +104,7 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
     const id = await createChat({
       userId: user.id,
       title: "New Chat",
-      model: "llama-3-70b",
+      model: "minimax-m2.5",
     });
     if (isMobile && onClose) onClose();
     router.push(`/app/chat/${id}`);
@@ -134,21 +134,38 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
   // ─── Collapsed sidebar (Desktop only) ───
   if (!sidebarOpen && !isMobile) {
     return (
-      <div className="flex flex-col items-center py-4 w-[60px] border-r border-white/[0.08] bg-[#050505]">
-        <button
-          className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-white hover:bg-white/5 mb-3 transition-colors"
-          onClick={onToggle}
-          title="Expand sidebar"
-        >
-          <PanelLeft className="h-5 w-5" />
-        </button>
-        <button
-          className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] hover-lift transition-colors"
-          onClick={handleNewChat}
-          title="New chat"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+      <div className="flex flex-col items-center justify-between py-4 w-[60px] border-r border-white/[0.08] bg-[#050505] h-full">
+        <div className="flex flex-col items-center gap-3">
+          <button
+            className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-white hover:bg-white/5 transition-colors"
+            onClick={onToggle}
+            title="Expand sidebar"
+          >
+            <PanelLeft className="h-5 w-5" />
+          </button>
+          <button
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] transition-colors"
+            onClick={handleNewChat}
+            title="New chat"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <Link
+            href="/app/settings"
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+            title="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
+          <button className="h-9 w-9 rounded-full overflow-hidden ring-1 ring-white/10" title="Profile">
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={user?.imageUrl} />
+              <AvatarFallback>U</AvatarFallback>
+            </Avatar>
+          </button>
+        </div>
       </div>
     );
   }

@@ -21,6 +21,7 @@ import { executeCode, ExecutionResult } from "@/lib/code-executor";
 import type { Artifact } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { parseFileAttachments, AttachmentCard } from "./attachment-card";
 
 /* ─── Types ─── */
 
@@ -55,7 +56,7 @@ function extractText(node: any): string {
   return "";
 }
 
-/* ─── Parse <think> tags from model output ─── */
+/* ─── Parse _kses tags from model output ─── */
 
 function parseThinking(content: string): {
   thinking: string | null;
@@ -172,17 +173,19 @@ function ExecutionPanel({ result }: { result: ExecutionResult }) {
       className="mt-2 rounded-lg border border-white/[0.06] bg-[#0a0a0a] overflow-hidden"
     >
       <div className="px-3 py-2 flex items-center gap-2">
-        {result.status === 'success' && (
+        {result.status === "success" && (
           <>
             <Check className="h-3 w-3 text-green-400" />
             <span className="text-[11px] font-mono text-green-400">Success</span>
-            <span className="text-[10px] font-mono text-[#505050]">{result.duration}ms</span>
+            <span className="text-[10px] font-mono text-[#505050]">
+              {result.duration}ms
+            </span>
           </>
         )}
-        {result.status === 'error' && (
+        {result.status === "error" && (
           <span className="text-[11px] font-mono text-red-400">Error</span>
         )}
-        {result.status === 'timeout' && (
+        {result.status === "timeout" && (
           <span className="text-[11px] font-mono text-yellow-400">Timeout</span>
         )}
       </div>
@@ -209,7 +212,11 @@ function CodeBlock({
   code: string;
   lang: string;
   onPreview?: (code: string, lang: string) => void;
-  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
+  onQuickAction?: (
+    action: "explain" | "tests" | "run",
+    code: string,
+    lang: string
+  ) => void;
   isRunning?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
@@ -228,12 +235,12 @@ function CodeBlock({
   };
 
   return (
-    <div className="relative my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0c0c0c]">
+    <div className="relative my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0c0c0c] hover:border-white/[0.15] transition-colors duration-300">
       {/* Header bar — with quick actions */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/[0.06] transition-colors duration-200 hover:bg-white/[0.05]">
         <div className="flex items-center gap-2">
           <CodeIcon className="h-3.5 w-3.5 text-[#505050]" />
-          <span className="text-[12px] font-mono text-[#707070] capitalize">
+          <span className="text-[12px] font-mono text-[#707070] capitalize px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/[0.03]">
             {lang || "Code"}
           </span>
         </div>
@@ -277,7 +284,7 @@ function CodeBlock({
           )}
           {/* Copy button */}
           <button
-            className="flex items-center justify-center h-6 w-6 rounded-md text-[#505050] hover:text-white hover:bg-white/[0.06] hover-lift transition-colors"
+            className="flex items-center justify-center h-6 w-6 rounded-md text-[#505050] hover:text-white hover:bg-white/[0.06] hover-lift transition-all duration-200 ease-in-out"
             onClick={handleCopy}
             title="Copy code"
           >
@@ -332,10 +339,7 @@ export function ThinkingIndicator() {
       exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
       className="max-w-3xl mx-auto"
     >
-      <div className="flex items-start gap-4 py-8">
-        <div className="h-8 w-8 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0">
-          <Sparkles className="h-4 w-4 text-black" />
-        </div>
+      <div className="flex items-start gap-3 py-5">
         <div className="flex flex-col gap-2 pt-0.5">
           <span className="text-[13px] font-medium text-[#e5e5e5]">
             Leopard
@@ -381,28 +385,35 @@ function MessageComponent({
   const [msgCopied, setMsgCopied] = useState(false);
 
   // Code execution state
-  const [executionResults, setExecutionResults] = useState<Record<string, ExecutionResult>>({});
+  const [executionResults, setExecutionResults] = useState<
+    Record<string, ExecutionResult>
+  >({});
   const [runningBlock, setRunningBlock] = useState<string | null>(null);
 
   // Run code handler
   const handleRunCode = async (code: string, lang: string) => {
-    const blockId = `${lang}-${code.slice(0, 20).replace(/\s/g, '_')}`;
+    const blockId = `${lang}-${code.slice(0, 20).replace(/\s/g, "_")}`;
     setRunningBlock(blockId);
     try {
       const result = await executeCode(code);
-      setExecutionResults(prev => ({ ...prev, [blockId]: result }));
+      setExecutionResults((prev) => ({ ...prev, [blockId]: result }));
     } finally {
       setRunningBlock(null);
     }
   };
 
-  const { thinking, response: displayContent } = useMemo(
-    () =>
-      isUser
-        ? { thinking: null, response: rawContent }
-        : parseThinking(rawContent),
-    [rawContent, isUser]
+  // Extract attachments and clean content
+  const { attachments, cleanContent } = useMemo(
+    () => parseFileAttachments(rawContent),
+    [rawContent]
   );
+
+  const { thinking, response: displayContent } = useMemo(() => {
+    const { thinking, response } = parseThinking(cleanContent);
+    return isUser
+      ? { thinking: null, response: cleanContent }
+      : { thinking, response };
+  }, [cleanContent, isUser]);
 
   const artifacts = useMemo(
     () => (!isUser && displayContent ? detectArtifacts(displayContent) : []),
@@ -443,10 +454,26 @@ function MessageComponent({
         transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
         className="flex justify-end py-3"
       >
-        <div className="max-w-[80%] rounded-2xl rounded-br-md px-5 py-3 bg-[#1a1a1a] border border-white/[0.08] text-[#e5e5e5]">
-          <p className="text-[15px] leading-[1.6] whitespace-pre-wrap">
-            {displayContent}
-          </p>
+        <div className="max-w-[80%] rounded-2xl px-5 py-3 bg-[#1a1a1a] bg-gradient-to-r from-[#ffb40008] to-transparent border border-white/[0.08] text-[#e5e5e5] shadow-sm">
+          {/* Render attachments as cards */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {attachments.map((att, i) => (
+                <AttachmentCard
+                  key={`${att.filename}-${i}`}
+                  filename={att.filename}
+                  language={att.language}
+                  content={att.content}
+                />
+              ))}
+            </div>
+          )}
+          {/* Render clean message text */}
+          {displayContent && (
+            <p className="text-[15px] leading-[1.6] whitespace-pre-wrap">
+              {displayContent}
+            </p>
+          )}
         </div>
       </motion.div>
     );
@@ -461,11 +488,6 @@ function MessageComponent({
       className="group py-5"
     >
       <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className="h-8 w-8 rounded-full flex items-center justify-center bg-gradient-to-br from-[#ffb400] to-[#e6920a] shrink-0 mt-0.5">
-          <Sparkles className="h-4 w-4 text-black" />
-        </div>
-
         <div className="flex-1 min-w-0">
           {/* Name */}
           <div className="flex items-center gap-2 mb-1.5">
@@ -482,9 +504,23 @@ function MessageComponent({
             />
           )}
 
+          {/* Render attachments as cards */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {attachments.map((att, i) => (
+                <AttachmentCard
+                  key={`${att.filename}-${i}`}
+                  filename={att.filename}
+                  language={att.language}
+                  content={att.content}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Main response */}
           {displayContent && (
-            <div className="markdown-body text-[15px] leading-[1.75] text-[#d4d4d4]">
+            <div className="markdown-body text-[15px] leading-[1.75] text-[#d4d4d4] backdrop-blur-sm bg-white/[0.02] border border-white/[0.06] rounded-2xl px-4 py-3">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -501,7 +537,9 @@ function MessageComponent({
                         ? (codeChild as Record<string, unknown>)
                         : null;
                     const codeProps =
-                      codeObj && typeof codeObj.props === "object" && codeObj.props
+                      codeObj &&
+                      typeof codeObj.props === "object" &&
+                      codeObj.props
                         ? (codeObj.props as Record<string, unknown>)
                         : null;
                     const className =
@@ -512,18 +550,16 @@ function MessageComponent({
                       const langMatch = className.match(/language-(\w+)/);
                       const lang = langMatch ? langMatch[1] : "";
                       const rawText = extractText(codeProps?.children).replace(/\n$/, "");
-      const blockId = `${lang}-${rawText.slice(0, 20).replace(/s/g, "_")}`;
-      return (
-        <CodeBlock
-          code={rawText}
-          lang={lang}
-          onPreview={handlePreview}
-          onQuickAction={onQuickAction}
-          onRun={() => handleRunCode(rawText, lang)}
-          executionResult={executionResults[blockId]}
-          isRunning={runningBlock === blockId}
-        />
-      );
+                      const blockId = `${lang}-${rawText.slice(0, 20).replace(/s/g, "_")}`;
+                      return (
+                        <CodeBlock
+                          code={rawText}
+                          lang={lang}
+                          onPreview={handlePreview}
+                          onQuickAction={onQuickAction}
+                          isRunning={runningBlock === blockId}
+                        />
+                      );
                     }
                     // Fallback: plain pre block
                     return (

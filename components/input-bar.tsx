@@ -81,7 +81,6 @@ export default function InputBar({
     }
   }, [chatModel]);
 
-  // Keyboard shortcuts: Cmd+N (new chat) and Cmd+K (focus search) are handled at layout level
   // Focus shortcut: pressing / focuses the input
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
@@ -281,10 +280,12 @@ export default function InputBar({
         onDrop={handleDrop}
         className={cn(
           "rounded-2xl border transition-all duration-200 relative",
-          "bg-[#0e0e0e]",
+          "bg-[#0a0a0a]/80 backdrop-blur-md",
+          "shadow-[0_8px_40px_rgba(0,0,0,0.5),0_2px_12px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
+          "focus-within:ring-1 focus-within:ring-[#ffb40015]",
           isDragOver
-            ? "border-[#ffb400] shadow-[0_0_0_2px_rgba(255,180,0,0.15)]"
-            : "border-white/[0.06] focus-within:border-[#ffb40025] focus-within:shadow-[0_0_0_1px_rgba(255,180,0,0.08)]"
+            ? "border-[#ffb400] shadow-[0_0_0_2px_rgba(255,180,0,0.2),0_8px_40px_rgba(255,180,0,0.1)]"
+            : "border-white/[0.08] focus-within:border-[#ffb40030] focus-within:shadow-[0_0_0_2px_rgba(255,180,0,0.1),0_0_20px_rgba(255,180,0,0.1),0_8px_40px_rgba(0,0,0,0.5)]"
         )}
       >
         {/* Drag overlay */}
@@ -303,9 +304,9 @@ export default function InputBar({
           )}
         </AnimatePresence>
 
-        {/* Attached files preview */}
+        {/* Attached files preview - positioned above the main pill */}
         {attachedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-3 px-5 pt-4">
+          <div className="flex flex-wrap gap-3 px-4 pt-3">
             {attachedFiles.map((file, i) => (
               <motion.div
                 key={`${file.name}-${i}`}
@@ -341,174 +342,168 @@ export default function InputBar({
           </div>
         )}
 
-        {/* Textarea */}
-        <div className="px-5 pt-4 pb-3">
-          <TextareaAutosize
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={placeholder}
-            disabled={disabled || isStreaming}
-            minRows={1}
-            maxRows={8}
-            className={cn(
-              "w-full resize-none bg-transparent text-[14px] text-[#e5e5e5] placeholder:text-[#3a3a3a]",
-              "outline-none leading-[1.6]",
-              "disabled:opacity-50"
-            )}
+        {/* Main input pill - single line compact layout */}
+        <div className="flex items-end gap-2 p-3">
+          {/* Attach file button - left */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="h-9 min-w-9 w-9 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#a3a3a3] hover:bg-white/[0.06] transition-colors shrink-0"
+            title="Attach file"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.txt,.md,.json,.csv,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.rs,.go,.sql,.yaml,.yml,.xml,.sh"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) handleFiles(e.target.files);
+              e.target.value = ""; // reset
+            }}
           />
-        </div>
 
-        {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-4 pb-3">
-          <div className="flex items-center gap-2">
-            {/* Attach file */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#a3a3a3] hover:bg-white/[0.06] transition-colors"
-              title="Attach file"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,.txt,.md,.json,.csv,.html,.css,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.rs,.go,.sql,.yaml,.yml,.xml,.sh"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files) handleFiles(e.target.files);
-                e.target.value = ""; // reset
-              }}
+          {/* Textarea - middle, takes remaining space */}
+          <div className="flex-1 min-w-0">
+            <TextareaAutosize
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={placeholder}
+              disabled={disabled || isStreaming}
+              minRows={1}
+              maxRows={8}
+              className={cn(
+                "w-full resize-none bg-transparent text-[14px] text-[#e5e5e5] placeholder:text-[#3a3a3a]",
+                "outline-none leading-[1.6]",
+                "disabled:opacity-50"
+              )}
             />
+          </div>
 
-            {/* Model selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[11px] font-mono cursor-pointer select-none transition-all",
-                    selectedModel.available
-                      ? "text-[#888] hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06]"
-                      : "text-red-400/60 bg-red-500/5 border border-red-500/10"
-                  )}
-                >
-                  <Zap className="h-3.5 w-3.5 text-[#ffb400]" />
-                  <span className="hidden sm:inline">{selectedModel.name}</span>
-                  <span className="sm:hidden">{selectedModel.name.split(" ")[0]}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-[#606060]" />
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side="top"
-                sideOffset={8}
-                className="border-white/[0.08] bg-[#0a0a0a] shadow-[0_10px_40px_rgba(0,0,0,0.6)] w-[320px] sm:w-[340px] z-[60] p-1"
+          {/* Model selector - right side */}
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[11px] font-mono cursor-pointer select-none transition-all shrink-0",
+                  selectedModel.available
+                    ? "text-[#888] hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06]"
+                    : "text-red-400/60 bg-red-500/5 border border-red-500/10"
+                )}
               >
-                <div className="px-2.5 py-1.5 mb-1">
-                  <p className="text-[10px] font-mono text-[#505050] uppercase tracking-widest">
-                    Models
-                  </p>
-                </div>
-                {MODELS.map((model) => (
-                  <DropdownMenuItem
-                    key={model.id}
-                    disabled={!model.available}
-                    className={cn(
-                      "text-xs gap-3 py-2.5 px-2.5 rounded-lg transition-colors mb-0.5 cursor-pointer",
-                      !model.available && "opacity-35 cursor-not-allowed",
-                      selectedModel.id === model.id && model.available
-                        ? "bg-[#ffb40006] border border-[#ffb40010]"
-                        : model.available
-                        ? "hover:bg-white/[0.03]"
-                        : ""
-                    )}
-                    onClick={() => {
-                      if (model.available) setSelectedModel(model);
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "text-[12px] font-medium",
-                            !model.available
-                              ? "text-[#404040]"
-                              : selectedModel.id === model.id
-                              ? "text-[#ffb400]"
-                              : "text-[#d4d4d4]"
-                          )}
-                        >
-                          {model.name}
-                        </span>
-                        <span className="text-[10px] text-[#404040]">
-                          {model.provider}
-                        </span>
-                        {model.badge && model.available && (
-                          <span className="text-[8px] px-1.5 py-[1px] rounded-full bg-[#ffb40008] text-[#ffb400] border border-[#ffb40012]">
-                            {model.badge}
-                          </span>
-                        )}
-                        {!model.available && (
-                          <span className="text-[8px] px-1.5 py-[1px] rounded-full bg-red-500/5 text-red-400/40 border border-red-500/8 flex items-center gap-0.5">
-                            <AlertCircle className="h-2 w-2" /> Offline
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-[#3a3a3a] mt-0.5 truncate">
-                        {model.description}
-                      </p>
-                    </div>
-                    {model.available && (
+                <Zap className="h-3.5 w-3.5 text-[#ffb400]" />
+                <span className="hidden sm:inline">{selectedModel.name}</span>
+                <span className="sm:hidden">{selectedModel.name.split(" ")[0]}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-[#606060]" />
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              side="top"
+              sideOffset={8}
+              className="border-white/[0.08] backdrop-blur-md bg-[#0a0a0a]/90 shadow-[0_10px_40px_rgba(0,0,0,0.6)] w-[320px] sm:w-[340px] z-[60] p-1"
+            >
+              <div className="px-2.5 py-1.5 mb-1">
+                <p className="text-[10px] font-mono text-[#505050] uppercase tracking-widest">
+                  Models
+                </p>
+              </div>
+              {MODELS.map((model) => (
+                <DropdownMenuItem
+                  key={model.id}
+                  disabled={!model.available}
+                  className={cn(
+                    "text-xs gap-3 py-2.5 px-2.5 rounded-lg transition-colors mb-0.5 cursor-pointer",
+                    !model.available && "opacity-35 cursor-not-allowed",
+                    selectedModel.id === model.id && model.available
+                      ? "bg-[#ffb40006] border border-[#ffb40010]"
+                      : model.available
+                      ? "hover:bg-white/[0.03]"
+                      : ""
+                  )}
+                  onClick={() => {
+                    if (model.available) setSelectedModel(model);
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
                       <span
                         className={cn(
-                          "text-[9px] px-1.5 py-0.5 rounded-full shrink-0 border",
-                          model.speed === "fast"
-                            ? "bg-emerald-500/8 text-emerald-400/80 border-emerald-500/10"
-                            : model.speed === "slow"
-                            ? "bg-red-500/8 text-red-400/80 border-red-500/10"
-                            : "bg-amber-500/8 text-amber-400/80 border-amber-500/10"
+                          "text-[12px] font-medium",
+                          !model.available
+                            ? "text-[#404040]"
+                            : selectedModel.id === model.id
+                            ? "text-[#ffb400]"
+                            : "text-[#d4d4d4]"
                         )}
                       >
-                        {model.speed}
+                        {model.name}
                       </span>
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                      <span className="text-[10px] text-[#404040]">
+                        {model.provider}
+                      </span>
+                      {model.badge && model.available && (
+                        <span className="text-[8px] px-1.5 py-[1px] rounded-full bg-[#ffb40008] text-[#ffb400] border border-[#ffb40012]">
+                          {model.badge}
+                        </span>
+                      )}
+                      {!model.available && (
+                        <span className="text-[8px] px-1.5 py-[1px] rounded-full bg-red-500/5 text-red-400/40 border border-red-500/8 flex items-center gap-0.5">
+                          <AlertCircle className="h-2 w-2" /> Offline
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-[#3a3a3a] mt-0.5 truncate">
+                      {model.description}
+                    </p>
+                  </div>
+                  {model.available && (
+                    <span
+                      className={cn(
+                        "text-[9px] px-1.5 py-0.5 rounded-full shrink-0 border",
+                        model.speed === "fast"
+                          ? "bg-emerald-500/8 text-emerald-400/80 border-emerald-500/10"
+                          : model.speed === "slow"
+                          ? "bg-red-500/8 text-red-400/80 border-red-500/10"
+                          : "bg-amber-500/8 text-amber-400/80 border-amber-500/10"
+                      )}
+                    >
+                      {model.speed}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#404040] font-body hidden sm:block">
-              <kbd className="text-[#3a3a3a]">↵</kbd> send
-            </span>
-            {isStreaming ? (
-              <button
-                onClick={onStop}
-                className="h-8 w-8 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/15"
-                title="Stop"
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!canSend}
-                className={cn(
-                  "h-8 w-8 flex items-center justify-center rounded-lg transition-all duration-150",
-                  canSend
-                    ? "bg-[#ffb400] text-black hover:bg-[#e6a300] hover-lift-glow"
-                    : "bg-white/[0.04] text-[#404040] cursor-not-allowed"
-                )}
-                title="Send"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+          {/* Send/Stop button */}
+          {isStreaming ? (
+            <button
+              onClick={onStop}
+              className="h-9 min-w-9 w-9 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/15 shrink-0"
+              title="Stop"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className={cn(
+                "h-9 min-w-9 w-9 flex items-center justify-center rounded-lg transition-all duration-150 shrink-0",
+                canSend
+                  ? "bg-[#ffb400] text-black hover:bg-[#e6a300] hover:-translate-y-0.5 active:translate-y-0"
+                  : "bg-white/[0.04] text-[#404040] cursor-not-allowed"
+              )}
+              title="Send"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

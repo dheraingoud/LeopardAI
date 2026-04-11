@@ -68,6 +68,28 @@ export interface StreamingState {
 
 export const MODELS: Model[] = [
   {
+    id: "gemma-4-31b",
+    nimId: "google/gemma-4-31b-it",
+    name: "Gemma 4 31B",
+    provider: "Google",
+    description: "Latest Gemma with thinking mode — excellent reasoning and code.",
+    contextWindow: 128000,
+    speed: "medium",
+    badge: "Thinking",
+    available: true,
+  },
+  {
+    id: "minimax-m2.5",
+    nimId: "minimaxai/minimax-m2.5",
+    name: "MiniMax M2.5",
+    provider: "MiniMax",
+    description: "Flash-speed inference optimized for agentic software tasks.",
+    contextWindow: 128000,
+    speed: "fast",
+    badge: "Default",
+    available: true,
+  },
+  {
     id: "llama-3-70b",
     nimId: "meta/llama-3.3-70b-instruct",
     name: "Llama 3.3 70B",
@@ -75,7 +97,7 @@ export const MODELS: Model[] = [
     description: "Fastest open-weight model — superior code and instruction following.",
     contextWindow: 128000,
     speed: "fast",
-    badge: "Default",
+    badge: "Fast",
     available: true,
   },
   {
@@ -87,17 +109,6 @@ export const MODELS: Model[] = [
     contextWindow: 128000,
     speed: "fast",
     badge: "New",
-    available: true,
-  },
-  {
-    id: "minimax-m2.5",
-    nimId: "minimaxai/minimax-m2.5",
-    name: "MiniMax M2.5",
-    provider: "MiniMax",
-    description: "Flash-speed inference optimized for agentic software tasks.",
-    contextWindow: 128000,
-    speed: "fast",
-    badge: "Flash",
     available: true,
   },
   {

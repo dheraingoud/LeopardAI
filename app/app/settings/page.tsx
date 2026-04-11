@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const chats = useQuery(api.chats.list, user ? { userId: user.id } : "skip");
   const [sendWithEnter, setSendWithEnter] = useState(true);
   const [streaming, setStreaming] = useState(true);
-  const defaultModel = dbUser?.defaultModel || "glm5";
+  const defaultModel = dbUser?.defaultModel || "minimax-m2.5";
 
   const handleModelChange = async (modelId: string | null) => {
     if (!user || !modelId) return;

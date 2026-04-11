@@ -10,11 +10,10 @@ import {
 import { useUser } from "@clerk/nextjs";
 import Sidebar from "@/components/sidebar";
 import { Menu } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const SidebarContext = createContext({
   collapsed: false,
-  setCollapsed: (v: boolean) => {},
+  setCollapsed: () => {},
   autoCollapse: () => {},
   restoreCollapse: () => {},
 });
@@ -22,7 +21,7 @@ const SidebarContext = createContext({
 export const useSidebar = () => useContext(SidebarContext);
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const [preCollapseState, setPreCollapseState] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
