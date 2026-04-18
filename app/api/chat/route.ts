@@ -115,11 +115,11 @@ interface TimedChunkResult {
 type MessageForNim =
   | { role: "system" | "user" | "assistant"; content: string }
   | {
-      role: "system" | "user" | "assistant";
-      content: Array<
-        { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
-      >;
-    };
+    role: "system" | "user" | "assistant";
+    content: Array<
+      { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
+    >;
+  };
 
 function getTimeout(model: string): number {
   const override = MODEL_TIMEOUT_OVERRIDES[model];
@@ -155,11 +155,11 @@ function toSafeMessages(input: unknown): IncomingMessage[] {
     const urlsRaw = (raw as { imageUrls?: unknown }).imageUrls;
     const imageUrls = Array.isArray(urlsRaw)
       ? urlsRaw
-          .filter(
-            (v): v is string =>
-              typeof v === "string" && (/^https?:\/\//.test(v) || /^data:image\//.test(v)),
-          )
-          .slice(0, MAX_IMAGES_PER_MESSAGE)
+        .filter(
+          (v): v is string =>
+            typeof v === "string" && (/^https?:\/\//.test(v) || /^data:image\//.test(v)),
+        )
+        .slice(0, MAX_IMAGES_PER_MESSAGE)
       : [];
 
     output.push({ role, content, imageUrls: imageUrls.length > 0 ? imageUrls : undefined });
@@ -642,12 +642,12 @@ export async function POST(req: NextRequest) {
       if (!sourceVideoUrl) {
         return streamSingleMessage(
           "Video models stay in chat, but they require a source video URL or video data URL in your message.\n\n" +
-            "Example:\n" +
-            "https://example.com/clip.mp4\n" +
-            "Make this clip cinematic and sharper.\n\n" +
-            "For advanced controls, use:\n" +
-            "- /app/playground/cosmos-reason2-8b\n" +
-            "- /app/playground/cosmos-transfer2.5-2b",
+          "Example:\n" +
+          "https://example.com/clip.mp4\n" +
+          "Make this clip cinematic and sharper.\n\n" +
+          "For advanced controls, use:\n" +
+          "- /app/playground/cosmos-reason2-8b\n" +
+          "- /app/playground/cosmos-transfer2.5-2b",
         );
       }
 
@@ -692,7 +692,7 @@ export async function POST(req: NextRequest) {
     }
 
     const contextBudget = getContextBudget(getModelContextWindow(modelId));
-  const nimMessages = buildNimMessages(messages, modelId, contextBudget);
+    const nimMessages = buildNimMessages(messages, modelId, contextBudget);
     const timeout = getTimeout(modelId);
 
     const result = await callNIM(apiKey, modelId, nimMessages, temperature, maxTokens, timeout);
@@ -734,18 +734,18 @@ export async function POST(req: NextRequest) {
 
     if (result.error) {
       if (result.error.status === 400) {
-      const halfBudget = Math.floor(contextBudget * 0.5);
-      const truncated = buildNimMessages(messages, modelId, halfBudget);
-      const retry = await callNIM(apiKey, modelId, truncated, temperature, maxTokens, timeout);
-      if (!retry.error && !retry.timedOut && retry.response) {
-        return streamWithNotice(retry.response, `*[Context exceeded — using truncated history]*`);
+        const halfBudget = Math.floor(contextBudget * 0.5);
+        const truncated = buildNimMessages(messages, modelId, halfBudget);
+        const retry = await callNIM(apiKey, modelId, truncated, temperature, maxTokens, timeout);
+        if (!retry.error && !retry.timedOut && retry.response) {
+          return streamWithNotice(retry.response, `*[Context exceeded — using truncated history]*`);
+        }
+        return Response.json(
+          { error: "Conversation too long for this model's context window.", code: "CONTEXT_OVERFLOW", suggestion: "Start a new conversation or compact this one." },
+          { status: 400 },
+        );
       }
-      return Response.json(
-        { error: "Conversation too long for this model's context window.", code: "CONTEXT_OVERFLOW", suggestion: "Start a new conversation or compact this one." },
-        { status: 400 },
-      );
-    }
-    return Response.json({ error: result.error.message }, { status: result.error.status });
+      return Response.json({ error: result.error.message }, { status: result.error.status });
     }
 
     return streamResponse(result.response!);

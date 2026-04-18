@@ -115,7 +115,7 @@ export default function Sidebar({
     const id = await createChat({
       userId: user.id,
       title: "New Chat",
-      model: "minimax-m2.5",
+      model: "minimax-m2.7",
     });
     if (isMobile && onClose) onClose();
     router.push(`/app/chat/${id}`);

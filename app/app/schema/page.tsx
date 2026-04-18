@@ -545,8 +545,18 @@ export default function SchemaVisualizerPage() {
   const mergeIntoWorkspace = useCallback(
     (workspaceId: string, incoming: SqlSchemaFile[]) => {
       updateWorkspace(workspaceId, (workspace) => {
+        let newName = workspace.name;
+        if (workspace.files.length === 0 && incoming.length > 0 && incoming[0].name !== "adhoc-schema.sql") {
+            if (incoming.length === 1) {
+              newName = incoming[0].name.replace(/\.[^/.]+$/, "");
+            } else {
+              newName = `${incoming[0].name.replace(/\.[^/.]+$/, "")} (+${incoming.length - 1})`;
+            }
+        }
+
         const mergedFiles = mergeFiles(workspace.files, incoming);
-        return recomputeWorkspace(workspace, mergedFiles);
+        const nextWorkspace = recomputeWorkspace(workspace, mergedFiles);
+        return { ...nextWorkspace, name: newName };
       });
     },
     [recomputeWorkspace, updateWorkspace],
@@ -1482,6 +1492,7 @@ export default function SchemaVisualizerPage() {
                 onSend={handleAskSchema}
                 placeholder="Ask this schema: joins, constraints, missing indexes, migration risks..."
                 textOnlyModels
+                chatModel="minimax-m2.7"
               />
             </div>
           </div>

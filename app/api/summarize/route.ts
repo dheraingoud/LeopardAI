@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 
 const NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const SUMMARIZE_MODEL = "minimaxai/minimax-m2.5";
+const SUMMARIZE_MODEL = "minimaxai/minimax-m2.7";
 const SUMMARIZE_TIMEOUT = 15_000;
 
 const SUMMARIZE_SYSTEM_PROMPT = `You are a concise conversation summarizer. Summarize the following conversation in 200-400 words. Preserve key decisions, code changes, the user's goal, and any important technical details. Omit pleasantries and repetition. Output only the summary, no preamble.`;

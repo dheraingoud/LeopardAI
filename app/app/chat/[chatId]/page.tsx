@@ -53,7 +53,7 @@ export default function ChatPage() {
 
   const contextBudget = useContextBudget({
     messages: (messages || []).map(m => ({ role: m.role, content: m.content })),
-    modelId: chat?.model || "minimax-m2.5",
+    modelId: chat?.model || "minimax-m2.7",
   });
 
   // Mutations

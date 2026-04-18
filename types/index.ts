@@ -71,6 +71,19 @@ export interface StreamingState {
 
 export const MODELS: Model[] = [
   {
+    id: "minimax-m2.7",
+    nimId: "minimaxai/minimax-m2.7",
+    name: "MiniMax M2.7",
+    provider: "MiniMax",
+    description: "Next-gen MiniMax model with faster, more stable coding performance.",
+    contextWindow: 128000,
+    speed: "fast",
+    modality: "text",
+    costMultiplier: "1.5x",
+    badge: "Default",
+    available: true,
+  },
+  {
     id: "gemma-4-31b",
     nimId: "google/gemma-4-31b-it",
     name: "Gemma 4 31B",
@@ -93,20 +106,7 @@ export const MODELS: Model[] = [
     speed: "fast",
     modality: "text",
     costMultiplier: "1.5x",
-    badge: "Default",
-    available: true,
-  },
-  {
-    id: "minimax-m2.7",
-    nimId: "minimaxai/minimax-m2.7",
-    name: "MiniMax M2.7",
-    provider: "MiniMax",
-    description: "Next-gen MiniMax model with faster, more stable coding performance.",
-    contextWindow: 128000,
-    speed: "fast",
-    modality: "text",
-    costMultiplier: "1.5x",
-    badge: "Self_Improving",
+    badge: "Legacy",
     available: true,
   },
   {

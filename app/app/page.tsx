@@ -71,7 +71,7 @@ export default function AppHomePage() {
   };
 
   const handlePromptClick = (prompt: { title: string; description: string }) => {
-    handleSend(`${prompt.title} ${prompt.description}`, "minimax-m2.5");
+    handleSend(`${prompt.title} ${prompt.description}`, "minimax-m2.7");
   };
 
   return (
@@ -132,7 +132,7 @@ export default function AppHomePage() {
           variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5 } } }}
           className="pt-2"
         >
-          <InputBar onSend={handleSend} />
+          <InputBar onSend={handleSend} chatModel="minimax-m2.7" />
         </motion.div>
       </motion.div>
     </div>
