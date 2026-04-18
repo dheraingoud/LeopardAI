@@ -11,10 +11,19 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 
+  schemaSessions: defineTable({
+    chatId: v.id("chats"),
+    workspaceData: v.string(), // Stringified workspace
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_chat", ["chatId"]),
+
   chats: defineTable({
     userId: v.string(),
     title: v.string(),
     model: v.string(),
+    type: v.optional(v.string()), // 'chat', 'sql', 'playground', 'audit', etc.
+    workspaceId: v.optional(v.string()), // For routing to specific workspaces
     shared: v.boolean(),
     shareId: v.optional(v.string()),
     createdAt: v.number(),

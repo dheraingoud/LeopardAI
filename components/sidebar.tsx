@@ -9,6 +9,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
+  Cpu,
+  GraduationCap,
   Plus,
   Search,
   Settings,
@@ -16,6 +18,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   MessageSquare,
+  Network,
   MoreHorizontal,
   Pencil,
   LogOut,
@@ -58,9 +61,16 @@ interface SidebarProps {
   onToggle?: () => void;
   /** Force collapse on mobile overlay close */
   onClose?: () => void;
+  /** When true on desktop, render sidebar as overlay over content */
+  overlayDesktop?: boolean;
 }
 
-export default function Sidebar({ collapsed = false, onToggle, onClose }: SidebarProps) {
+export default function Sidebar({
+  collapsed = false,
+  onToggle,
+  onClose,
+  overlayDesktop = false,
+}: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useUser();
@@ -111,9 +121,21 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
     router.push(`/app/chat/${id}`);
   };
 
-  const handleChatClick = (chatId: string) => {
-    if (isMobile && onClose) onClose();
-    router.push(`/app/chat/${chatId}`);
+  const handleChatClick = (chatId: string, type?: string, workspaceId?: string) => {
+    if ((isMobile || overlayDesktop) && onClose) onClose();
+    if (type === "sql") {
+      router.push(`/app/schema?chatId=${chatId}${workspaceId ? `&workspaceId=${workspaceId}` : ''}`);
+    } else if (type === "playground") {
+      router.push(`/app/playground/${workspaceId}?chatId=${chatId}`);
+    } else if (type === "audit") {
+      router.push(`/app/audit?chatId=${chatId}`);
+    } else if (type === "ai-dev") {
+      router.push(`/app/ai-dev?chatId=${chatId}`);
+    } else if (type === "teaching") {
+      router.push(`/app/teaching?chatId=${chatId}`);
+    } else {
+      router.push(`/app/chat/${chatId}`);
+    }
   };
 
   const handleRename = async (chatId: string) => {
@@ -155,6 +177,34 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
           >
             <Plus className="h-5 w-5" />
           </button>
+          <Link
+            href="/app/schema"
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] transition-colors"
+            title="Schema visualizer"
+          >
+            <Network className="h-4.5 w-4.5" />
+          </Link>
+          <Link
+            href="/app/audit"
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-emerald-300 hover:bg-emerald-400/10 transition-colors"
+            title="Auditor workspace"
+          >
+            <Search className="h-4.5 w-4.5" />
+          </Link>
+          <Link
+            href="/app/ai-dev"
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-sky-300 hover:bg-sky-400/10 transition-colors"
+            title="AI Dev workspace"
+          >
+            <Cpu className="h-4.5 w-4.5" />
+          </Link>
+          <Link
+            href="/app/teaching"
+            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-amber-300 hover:bg-amber-400/10 transition-colors"
+            title="Teaching workspace"
+          >
+            <GraduationCap className="h-4.5 w-4.5" />
+          </Link>
         </div>
         <div className="flex flex-col items-center gap-2">
           <Link
@@ -224,6 +274,70 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
             className="h-10 pl-10 text-sm bg-white/[0.03] border-white/[0.08] focus:border-[#ffb40030] focus:ring-[#ffb40020] placeholder:text-[#505050]"
           />
         </div>
+
+        <Link
+          href="/app/schema"
+          onClick={() => {
+            if ((isMobile || overlayDesktop) && onClose) onClose();
+          }}
+          className={cn(
+            "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+            pathname.startsWith("/app/schema")
+              ? "border-[#ffb40040] bg-[#ffb40012] text-[#ffcf66]"
+              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+          )}
+        >
+          <Network className="h-4 w-4" />
+          <span>Schema Visualizer</span>
+        </Link>
+
+        <Link
+          href="/app/audit"
+          onClick={() => {
+            if ((isMobile || overlayDesktop) && onClose) onClose();
+          }}
+          className={cn(
+            "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+            pathname.startsWith("/app/audit")
+              ? "border-emerald-300/45 bg-emerald-400/12 text-emerald-200"
+              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+          )}
+        >
+          <Search className="h-4 w-4" />
+          <span>Auditor Workspace</span>
+        </Link>
+
+        <Link
+          href="/app/ai-dev"
+          onClick={() => {
+            if ((isMobile || overlayDesktop) && onClose) onClose();
+          }}
+          className={cn(
+            "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+            pathname.startsWith("/app/ai-dev")
+              ? "border-sky-300/45 bg-sky-400/12 text-sky-200"
+              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+          )}
+        >
+          <Cpu className="h-4 w-4" />
+          <span>AI Dev Learner</span>
+        </Link>
+
+        <Link
+          href="/app/teaching"
+          onClick={() => {
+            if ((isMobile || overlayDesktop) && onClose) onClose();
+          }}
+          className={cn(
+            "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
+            pathname.startsWith("/app/teaching")
+              ? "border-amber-300/45 bg-amber-400/12 text-amber-200"
+              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+          )}
+        >
+          <GraduationCap className="h-4 w-4" />
+          <span>Teaching Space</span>
+        </Link>
       </div>
 
       <Separator className="bg-white/[0.08]" />
@@ -247,8 +361,23 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
                   {bucket}
                 </p>
                 <AnimatePresence>
-                  {items.map((chat: { _id: string; title: string; updatedAt: number }) => {
-                    const isActive = pathname === `/app/chat/${chat._id}`;
+                  {items.map((chat: any) => {
+                    // Check if current route matches this chat
+                    const isActive = pathname === `/app/chat/${chat._id}` || 
+                                     (pathname.startsWith("/app/schema") && chat.type === 'sql') ||
+                                     (pathname.startsWith("/app/audit") && chat.type === 'audit') ||
+                                     (pathname.startsWith("/app/ai-dev") && chat.type === 'ai-dev') ||
+                                     (pathname.startsWith("/app/teaching") && chat.type === 'teaching') ||
+                                     (pathname.startsWith("/app/playground") && chat.type === 'playground');
+
+                    // Determine icon based on chat type
+                    let ChatIcon = MessageSquare;
+                    if (chat.type === "sql") ChatIcon = Network;
+                    else if (chat.type === "audit") ChatIcon = Search;
+                    else if (chat.type === "ai-dev") ChatIcon = Cpu;
+                    else if (chat.type === "teaching") ChatIcon = GraduationCap;
+                    else if (chat.type === "playground") ChatIcon = Cpu; // Replace with playground icon
+
                     return (
                       <motion.div
                         key={chat._id}
@@ -276,11 +405,11 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
                           <div
                             role="button"
                             tabIndex={0}
-                            onClick={() => handleChatClick(chat._id)}
+                            onClick={() => handleChatClick(chat._id, chat.type, chat.workspaceId)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
-                                handleChatClick(chat._id);
+                                handleChatClick(chat._id, chat.type, chat.workspaceId);
                               }
                             }}
                             className={cn(
@@ -294,7 +423,7 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
                             {isActive && (
                               <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-[#ffb400] rounded-full" />
                             )}
-                            <MessageSquare
+                            <ChatIcon
                               className={cn(
                                 "h-4 w-4 shrink-0",
                                 isActive ? "text-[#ffb400]" : "text-[#606060]"
@@ -387,7 +516,11 @@ export default function Sidebar({ collapsed = false, onToggle, onClose }: Sideba
     <div
       className={cn(
         "bg-[#050505] border-r border-white/[0.04] shrink-0",
-        isMobile ? "sidebar-mobile" : "flex flex-col h-full"
+        isMobile
+          ? "sidebar-mobile"
+          : overlayDesktop
+            ? "fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] flex flex-col h-full shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+            : "flex flex-col h-full"
       )}
       style={{ width: isMobile ? undefined : 280 }}
     >

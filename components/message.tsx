@@ -17,8 +17,8 @@ import {
   Code as CodeIcon,
 } from "lucide-react";
 import { detectArtifacts } from "@/lib/artifact-detector";
-import { executeCode, ExecutionResult } from "@/lib/code-executor";
 import { hydrateMessageImages } from "@/lib/image-cache";
+import type { QuickAction } from "@/lib/quick-actions";
 import { MODELS, type Artifact } from "@/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ interface MessageProps {
   streamedContent?: string;
   onOpenArtifact?: (artifact: Artifact) => void;
   onRegenerate?: () => void;
-  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
+  onQuickAction?: (action: QuickAction, code: string, lang: string) => void;
   isLast?: boolean;
   userAvatar?: string;
 }
@@ -90,6 +90,35 @@ function parseThinking(content: string): {
   }
 
   return { thinking: null, response: content };
+}
+
+function artifactTypeFromLanguage(language?: string): Artifact["type"] {
+  const lang = (language || "").toLowerCase();
+  if (["tsx", "jsx", "react"].includes(lang)) return "react";
+  if (lang === "html") return "html";
+  if (lang === "svg") return "svg";
+  if (["markdown", "md"].includes(lang)) return "markdown";
+  if (lang === "csv") return "csv";
+  if (lang === "mermaid") return "mermaid";
+  if (lang === "json") return "json";
+  return "code";
+}
+
+function buildAttachmentArtifact(
+  messageId: string | undefined,
+  filename: string,
+  language: string,
+  content: string,
+  index: number,
+): Artifact {
+  const inferredLanguage = language || filename.split(".").pop() || "text";
+  return {
+    id: `attachment-${messageId || "msg"}-${index}`,
+    type: artifactTypeFromLanguage(inferredLanguage),
+    title: filename,
+    content,
+    language: inferredLanguage,
+  };
 }
 
 /* ─── Collapsible Thinking Block ─── */
@@ -164,43 +193,6 @@ function ThinkingBlock({
   );
 }
 
-/* ─── Execution Panel for code output ─── */
-
-function ExecutionPanel({ result }: { result: ExecutionResult }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mt-2 rounded-lg border border-white/[0.06] bg-[#0a0a0a] overflow-hidden"
-    >
-      <div className="px-3 py-2 flex items-center gap-2">
-        {result.status === "success" && (
-          <>
-            <Check className="h-3 w-3 text-green-400" />
-            <span className="text-[11px] font-mono text-green-400">Success</span>
-            <span className="text-[10px] font-mono text-[#505050]">
-              {result.duration}ms
-            </span>
-          </>
-        )}
-        {result.status === "error" && (
-          <span className="text-[11px] font-mono text-red-400">Error</span>
-        )}
-        {result.status === "timeout" && (
-          <span className="text-[11px] font-mono text-yellow-400">Timeout</span>
-        )}
-      </div>
-      {(result.output || result.error) && (
-        <div className="px-3 py-2 border-t border-white/[0.04] bg-black/20">
-          <pre className="text-[11px] font-mono text-[#737373] whitespace-pre-wrap overflow-x-auto">
-            {result.output || result.error}
-          </pre>
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
 /* ─── Code Block with header, copy, preview ─── */
 
 function CodeBlock({
@@ -208,17 +200,11 @@ function CodeBlock({
   lang,
   onPreview,
   onQuickAction,
-  isRunning,
 }: {
   code: string;
   lang: string;
   onPreview?: (code: string, lang: string) => void;
-  onQuickAction?: (
-    action: "explain" | "tests" | "run",
-    code: string,
-    lang: string
-  ) => void;
-  isRunning?: boolean;
+  onQuickAction?: (action: QuickAction, code: string, lang: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const lines = code.split("\n");
@@ -251,21 +237,12 @@ function CodeBlock({
             <button
               className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#22c55e] hover:bg-[#22c55e15] transition-colors disabled:opacity-50"
               onClick={() => onQuickAction?.("run", code, lang)}
-              disabled={isRunning}
               title="Run code"
             >
               <Play className="h-3 w-3" />
-              {isRunning ? "..." : "Run"}
+              Run
             </button>
           )}
-          {/* Explain button */}
-          <button
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
-            onClick={() => onQuickAction?.("explain", code, lang)}
-            title="Explain this code"
-          >
-            <Brain className="h-3 w-3" />
-          </button>
           {/* Tests button */}
           <button
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
@@ -273,6 +250,20 @@ function CodeBlock({
             title="Generate tests"
           >
             <Sparkles className="h-3 w-3" />
+          </button>
+          <button
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+            onClick={() => onQuickAction?.("flow-current", code, lang)}
+            title="Generate current flowchart"
+          >
+            Flow
+          </button>
+          <button
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+            onClick={() => onQuickAction?.("audit", code, lang)}
+            title="Audit code"
+          >
+            Audit
           </button>
           {/* Preview button */}
           {isPreviewable && onPreview && (
@@ -382,29 +373,15 @@ function MessageComponent({
 }: MessageProps) {
   const isUser = message.role === "user";
   const [hydratedContent, setHydratedContent] = useState(message.content);
-  const rawContent = isStreaming && streamedContent ? streamedContent : hydratedContent;
+  const baseContent = message._id ? hydratedContent : message.content;
+  const rawContent = isStreaming && streamedContent ? streamedContent : baseContent;
   const [msgCopied, setMsgCopied] = useState(false);
 
-  // Code execution state
-  const [executionResults, setExecutionResults] = useState<
-    Record<string, ExecutionResult>
-  >({});
-  const [runningBlock, setRunningBlock] = useState<string | null>(null);
-
   useEffect(() => {
-    if (isStreaming) {
-      // Keep live stream content as-is while tokens are arriving.
-      if (streamedContent !== undefined) {
-        setHydratedContent(streamedContent);
-      }
-      return;
-    }
+    if (isStreaming) return;
 
     const messageId = message._id ? String(message._id) : null;
-    if (!messageId) {
-      setHydratedContent(message.content);
-      return;
-    }
+    if (!messageId) return;
 
     let disposed = false;
     void hydrateMessageImages(messageId, message.content)
@@ -418,19 +395,15 @@ function MessageComponent({
     return () => {
       disposed = true;
     };
-  }, [isStreaming, streamedContent, message._id, message.content]);
+  }, [isStreaming, message._id, message.content]);
 
-  // Run code handler
-  const handleRunCode = async (code: string, lang: string) => {
-    const blockId = `${lang}-${code.slice(0, 20).replace(/\s/g, "_")}`;
-    setRunningBlock(blockId);
-    try {
-      const result = await executeCode(code);
-      setExecutionResults((prev) => ({ ...prev, [blockId]: result }));
-    } finally {
-      setRunningBlock(null);
+  // Auto-open flowchart once streaming finishes
+  const [wasStreaming, setWasStreaming] = useState(isStreaming);
+  useEffect(() => {
+    if (isStreaming) {
+      setWasStreaming(true);
     }
-  };
+  }, [isStreaming]);
 
   // Extract attachments and clean content
   const { attachments, cleanContent } = useMemo(
@@ -477,6 +450,18 @@ function MessageComponent({
     [displayContent, isUser]
   );
 
+  useEffect(() => {
+    if (wasStreaming && !isStreaming) {
+      if (artifacts.length > 0) {
+        const flows = artifacts.filter(a => a.type === "mermaid");
+        if (flows.length > 0 && onOpenArtifact) {
+          onOpenArtifact(flows[0]);
+        }
+      }
+      setWasStreaming(false); // Prevents re-running
+    }
+  }, [isStreaming, wasStreaming, artifacts, onOpenArtifact]);
+
   const handleCopyMessage = () => {
     navigator.clipboard.writeText(displayContent);
     setMsgCopied(true);
@@ -511,7 +496,7 @@ function MessageComponent({
         transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
         className="flex justify-end py-3"
       >
-        <div className="max-w-[80%] rounded-2xl px-5 py-3 bg-[#1a1a1a] border border-white/[0.08] text-[#e5e5e5] shadow-sm">
+        <div className="max-w-[80%] rounded-2xl border border-[#ffb40024] bg-[linear-gradient(145deg,#1f1607_0%,#171006_50%,#110c05_100%)] px-5 py-3 text-[#f6e8cc] shadow-[0_10px_30px_rgba(0,0,0,0.32)]">
           {userImageUrls.length > 0 && (
             <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 mb-2">
               {userImageUrls.map((url, idx) => (
@@ -536,6 +521,11 @@ function MessageComponent({
                   filename={att.filename}
                   language={att.language}
                   content={att.content}
+                  onOpenCanvas={() =>
+                    onOpenArtifact?.(
+                      buildAttachmentArtifact(message._id ? String(message._id) : undefined, att.filename, att.language, att.content, i),
+                    )
+                  }
                 />
               ))}
             </div>
@@ -590,6 +580,11 @@ function MessageComponent({
                   filename={att.filename}
                   language={att.language}
                   content={att.content}
+                  onOpenCanvas={() =>
+                    onOpenArtifact?.(
+                      buildAttachmentArtifact(message._id ? String(message._id) : undefined, att.filename, att.language, att.content, i),
+                    )
+                  }
                 />
               ))}
             </div>
@@ -597,7 +592,7 @@ function MessageComponent({
 
           {/* Main response */}
           {displayContent && (
-            <div className="markdown-body text-[15px] leading-[1.75] text-[#d4d4d4] border border-white/[0.06] rounded-2xl px-4 py-3">
+            <div className="markdown-body text-[15px] leading-[1.75] text-[#dedede]">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 urlTransform={(url) => url}
@@ -628,14 +623,12 @@ function MessageComponent({
                       const langMatch = className.match(/language-(\w+)/);
                       const lang = langMatch ? langMatch[1] : "";
                       const rawText = extractText(codeProps?.children).replace(/\n$/, "");
-                      const blockId = `${lang}-${rawText.slice(0, 20).replace(/\s/g, "_")}`;
                       return (
                         <CodeBlock
                           code={rawText}
                           lang={lang}
                           onPreview={handlePreview}
                           onQuickAction={onQuickAction}
-                          isRunning={runningBlock === blockId}
                         />
                       );
                     }

@@ -42,12 +42,16 @@ export const create = mutation({
     userId: v.string(),
     title: v.string(),
     model: v.string(),
+    type: v.optional(v.string()), // 'chat', 'sql', 'playground', 'audit', 'ai-dev', 'teaching'
+    workspaceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("chats", {
       userId: args.userId,
       title: args.title,
       model: args.model,
+      type: args.type || "chat",
+      workspaceId: args.workspaceId,
       shared: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
