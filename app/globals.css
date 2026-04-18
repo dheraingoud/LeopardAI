@@ -1,0 +1,753 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Font Face Declarations with Fallbacks ─── */
+/* Primary monospace font: Iosevka Charon */
+@font-face {
+  font-family: "Iosevka Charon";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: local("Iosevka Charon"), local("IosevkaCharon");
+  /* Size-adjusted fallback to match monospace metrics */
+  ascent-override: 88%;
+  descent-override: 12%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
+}
+
+/* Signature font: Momo Signature */
+@font-face {
+  font-family: "Momo Signature";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Momo Signature"), local("MomoSignature");
+}
+
+/* Font_metrics-adjusted fallback stack for Iosevka Charon */
+/* SF Mono matched to Iosevka metrics for minimal layout shift */
+@font-face {
+  font-family: "Iosevka Charon Fallback";
+  font-style: normal;
+  font-weight: 400;
+  src: local("SF Mono"), local("SFMono-Regular"), local("Menlo"), local("Monaco");
+  ascent-override: 89%;
+  descent-override: 11%;
+  line-gap-override: 0%;
+  size-adjust: 102%;
+}
+
+/* ─── Google Fonts loaded via <link> in layout.tsx ─── */
+
+/* ─── Tailwind v4 Theme ─── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-mono: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-heading: var(--font-sans);
+
+  /* Leopard brand colors */
+  --color-leopard-amber: #ffb400;
+  --color-leopard-amber-dim: #b37e00;
+  --color-leopard-amber-glow: #ffb40040;
+  --color-leopard-amber-subtle: rgba(255, 180, 0, 0.08);
+  --color-leopard-amber-muted: rgba(255, 180, 0, 0.15);
+  --color-leopard-black: #000000;
+  --color-leopard-surface: #0a0a0a;
+  --color-leopard-surface-elevated: #111111;
+  --color-leopard-surface-glass: rgba(255, 255, 255, 0.03);
+  --color-leopard-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-leopard-border: rgba(255, 255, 255, 0.12);
+  --color-leopard-border-strong: rgba(255, 255, 255, 0.18);
+  --color-leopard-border-bright: rgba(255, 180, 0, 0.15);
+  --color-leopard-text: #f5f5f5;
+  --color-leopard-text-muted: #737373;
+  --color-leopard-text-dim: #525252;
+
+  /* Shadow system */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(255, 180, 0, 0.15);
+  --shadow-glow-intense: 0 0 40px rgba(255, 180, 0, 0.25);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  /* Shadcn mappings */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ─── Dark Theme (Leopard is dark-only) ─── */
+:root {
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #111111;
+  --popover-foreground: #f5f5f5;
+  --primary: #ffb400;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1a1a1a;
+  --muted-foreground: #737373;
+  --accent: #ffb400;
+  --accent-foreground: #000000;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #ffb400;
+  --chart-1: #ffb400;
+  --chart-2: #ff8c00;
+  --chart-3: #e67300;
+  --chart-4: #cc5500;
+  --chart-5: #993d00;
+  --radius: 0.75rem;
+  --sidebar: #050505;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #ffb400;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(255, 180, 0, 0.08);
+  --sidebar-accent-foreground: #ffb400;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #ffb400;
+
+  /* Typography System */
+  --font-display: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* Keep .dark class identical for shadcn compatibility */
+.dark {
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #111111;
+  --popover-foreground: #f5f5f5;
+  --primary: #ffb400;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1a1a1a;
+  --muted-foreground: #737373;
+  --accent: #ffb400;
+  --accent-foreground: #000000;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #ffb400;
+  --sidebar: #050505;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #ffb400;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(255, 180, 0, 0.08);
+  --sidebar-accent-foreground: #ffb400;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #ffb400;
+}
+
+/* ─── Base Styles ─── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(255, 180, 0, 0.25);
+    color: #fff;
+  }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 180, 0, 0.2);
+}
+
+/* ─── Leopard Texture Background ─── */
+.leopard-texture {
+  background-image: radial-gradient(ellipse 8px 6px at 20px 20px, rgba(255, 180, 0, 0.03) 0%, transparent 100%),
+                    radial-gradient(ellipse 6px 8px at 60px 50px, rgba(255, 180, 0, 0.025) 0%, transparent 100%),
+                    radial-gradient(ellipse 10px 7px at 100px 30px, rgba(255, 180, 0, 0.02) 0%, transparent 100%),
+                    radial-gradient(ellipse 7px 9px at 40px 80px, rgba(255, 180, 0, 0.03) 0%, transparent 100%),
+                    radial-gradient(ellipse 8px 6px at 120px 70px, rgba(255, 180, 0, 0.025) 0%, transparent 100%);
+  background-size: 140px 100px;
+}
+
+/* ─── Liquid Glass (Apple-style) ─── */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-elevated {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(60px) saturate(2);
+  -webkit-backdrop-filter: blur(60px) saturate(2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-amber {
+  background: rgba(255, 180, 0, 0.04);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid rgba(255, 180, 0, 0.1);
+}
+
+.glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  backdrop-filter: blur(40px) saturate(1.5);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.glass-intense {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(255, 180, 0, 0.03) 100%
+  );
+  backdrop-filter: blur(80px) saturate(2.2);
+  -webkit-backdrop-filter: blur(80px) saturate(2.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4),
+              0 0 0 0.5px rgba(255, 255, 255, 0.08) inset,
+              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+/* ─── Amber Glow Effects ─── */
+.glow-amber {
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.15),
+              0 0 60px rgba(255, 180, 0, 0.05);
+}
+
+.glow-amber-intense {
+  box-shadow: 0 0 30px rgba(255, 180, 0, 0.25),
+              0 0 80px rgba(255, 180, 0, 0.1),
+              0 0 120px rgba(255, 180, 0, 0.05);
+}
+
+.text-glow-amber {
+  text-shadow: 0 0 20px rgba(255, 180, 0, 0.3),
+               0 0 40px rgba(255, 180, 0, 0.15);
+}
+
+/* ─── Keyframe Animations ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseAmber {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 180, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 180, 0, 0.3),
+                0 0 80px rgba(255, 180, 0, 0.1);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-5%, -10%); }
+  20% { transform: translate(-15%, 5%); }
+  30% { transform: translate(7%, -25%); }
+  40% { transform: translate(-5%, 25%); }
+  50% { transform: translate(-15%, 10%); }
+  60% { transform: translate(15%, 0%); }
+  70% { transform: translate(0%, 15%); }
+  80% { transform: translate(3%, 35%); }
+  90% { transform: translate(-10%, 10%); }
+}
+
+@keyframes spotShift {
+  0%   { background-position: 0% 0%; }
+  25%  { background-position: 50% 25%; }
+  50%  { background-position: 25% 50%; }
+  75%  { background-position: 75% 75%; }
+  100% { background-position: 0% 0%; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+.animate-pulse-amber {
+  animation: pulseAmber 3s ease-in-out infinite;
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* ─── Noise Grain Overlay ─── */
+.noise-overlay::before {
+  content: '';
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  animation: grain 8s steps(10) infinite;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.25;
+}
+
+/* ─── Momo Signature font (loaded via HTML link tag) ─── */
+.font-signature {
+  font-family: "Momo Signature", cursive;
+  font-weight: 400;
+  font-style: normal;
+}
+
+/* ─── Code Block Styling ─── */
+pre {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+pre code {
+  font-family: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace !important;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  display: block;
+}
+
+/* Standalone pre blocks (not inside CodeBlock component) */
+.markdown-body > pre {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+}
+
+/* ─── Markdown Content ─── */
+.markdown-body {
+  color: #e5e5e5;
+  line-height: 1.7;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  color: #f5f5f5;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.markdown-body p {
+  margin-bottom: 1em;
+}
+.markdown-body a {
+  color: #ffb400;
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.markdown-body blockquote {
+  border-left: 3px solid rgba(255, 180, 0, 0.3);
+  padding-left: 1em;
+  color: #a3a3a3;
+  margin: 1em 0;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+.markdown-body li {
+  margin-bottom: 0.3em;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.markdown-body th {
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 600;
+}
+
+/* ─── Streaming cursor ─── */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '▊';
+  color: #ffb400;
+  animation: blink 0.8s step-end infinite;
+  margin-left: 2px;
+}
+
+/* ─── Mobile Responsiveness ─── */
+
+/* Prevent iOS zoom on input focus */
+@media (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile sidebar overlay */
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+  }
+  .sidebar-mobile {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 50;
+    width: 280px;
+    max-width: 85vw;
+  }
+}
+
+/* Canvas panel full-width on mobile */
+@media (max-width: 768px) {
+  .canvas-mobile {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    z-index: 50;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+}
+
+/* Smooth scrolling everywhere */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Thin custom scrollbar for chat */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Responsive text in markdown */
+@media (max-width: 640px) {
+  .markdown-body {
+    font-size: 13px;
+  }
+  .markdown-body h1 { font-size: 1.4em; }
+  .markdown-body h2 { font-size: 1.2em; }
+  .markdown-body h3 { font-size: 1.1em; }
+}
+
+/* ─── Typography System ─── */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-display-lg {
+  font-size: 3rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.text-display-md {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.text-display-sm {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ─── Transition Curves ─── */
+:root {
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* ─── Staggered Animations ─── */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-stagger > * {
+  animation: fade-in-up 600ms var(--ease-out) backwards;
+}
+
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 240ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 320ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 400ms; }
+.animate-stagger > *:nth-child(7) { animation-delay: 480ms; }
+.animate-stagger > *:nth-child(8) { animation-delay: 560ms; }
+
+.animate-stagger-scale > * {
+  animation: scale-in 600ms var(--ease-spring) backwards;
+}
+
+.animate-stagger-scale > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger-scale > *:nth-child(2) { animation-delay: 80ms; }
+.animate-stagger-scale > *:nth-child(3) { animation-delay: 160ms; }
+.animate-stagger-scale > *:nth-child(4) { animation-delay: 240ms; }
+.animate-stagger-scale > *:nth-child(5) { animation-delay: 320ms; }
+
+/* ─── Premium Hover States ─── */
+.hover-lift {
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+.hover-lift:hover {
+  transform: scale(1.02);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.15);
+}
+
+.hover-border-amber:hover {
+  border-color: rgba(255, 180, 0, 0.15);
+}
+
+.hover-lift-glow {
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out), border-color 200ms var(--ease-out);
+}
+
+.hover-lift-glow:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 20px rgba(255, 180, 0, 0.15);
+  border-color: rgba(255, 180, 0, 0.15);
+}
+
+/* ─── Enhanced Glass Classes ─── */
+.glass-premium {
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-amber-subtle {
+  background: rgba(255, 180, 0, 0.03);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 180, 0, 0.08);
+}
+
+/* ─── macOS-style thin scrollbars ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
