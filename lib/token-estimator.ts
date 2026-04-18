@@ -62,7 +62,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "moonshotai/kimi-k2.5": 128000,
   "deepseek-ai/deepseek-v3.2": 128000,
   "qwen/qwen3.5-397b-a17b": 128000,
-  "z-ai/glm5": 128000,
+  "z-ai/glm-5.1": 128000,
   "meta/llama-3.2-11b-vision-instruct": 128000,
   "meta/llama-3.2-90b-vision-instruct": 128000,
   "microsoft/phi-3-vision-128k-instruct": 128000,
@@ -70,7 +70,9 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "nvidia/cosmos-reason2-8b": 131072,
   "nvidia/cosmos-transfer2_5-2b": 131072,
   "stabilityai/stable-diffusion-3_5-large": 1,
+  "black-forest-labs/flux_2-klein_4b": 1,
   "black-forest-labs/flux_2-klein-4b": 1,
+  "stabilityai/sdxl": 1,
   "stabilityai/stable-diffusion-xl-base-1.0": 1,
 };
 
@@ -83,7 +85,7 @@ const ALIAS_TO_NIM: Record<string, string> = {
   "kimi-k2.5": "moonshotai/kimi-k2.5",
   "deepseek-v3.2": "deepseek-ai/deepseek-v3.2",
   "qwen-300b": "qwen/qwen3.5-397b-a17b",
-  "glm5": "z-ai/glm5",
+  "glm-5.1": "z-ai/glm-5.1",
   "llama-3.2-11b-vision": "meta/llama-3.2-11b-vision-instruct",
   "llama-3.2-90b-vision": "meta/llama-3.2-90b-vision-instruct",
   "phi-3-vision-128k": "microsoft/phi-3-vision-128k-instruct",
@@ -91,8 +93,8 @@ const ALIAS_TO_NIM: Record<string, string> = {
   "cosmos-reason2-8b": "nvidia/cosmos-reason2-8b",
   "cosmos-transfer2.5-2b": "nvidia/cosmos-transfer2_5-2b",
   "sd-3.5-large": "stabilityai/stable-diffusion-3_5-large",
-  "flux-2-klein-4b": "black-forest-labs/flux_2-klein-4b",
-  "stable-diffusion-xl-base": "stabilityai/stable-diffusion-xl-base-1.0",
+  "flux-2-klein-4b": "black-forest-labs/flux_2-klein_4b",
+  "stable-diffusion-xl-base": "stabilityai/sdxl",
 };
 
 export function getModelContextWindow(modelId: string): number {

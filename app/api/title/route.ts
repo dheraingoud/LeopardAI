@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "z-ai/glm5",
+        model: "z-ai/glm-5.1",
         messages: [
           {
             role: "system",

@@ -33,7 +33,7 @@ const FEATURES = [
   {
     icon: Layers,
     title: "6-Model Engine",
-    desc: "Route prompts to GLM-5, Kimi K2.5, DeepSeek V3.2, Qwen 300B, Llama 3 70B, or MiniMax M2.5 — one click.",
+    desc: "Route prompts to GLM 5.1, Kimi K2.5, DeepSeek V3.2, Qwen 300B, Llama 3 70B, or MiniMax M2.5 with one click.",
     stat: "6",
     statLabel: "models",
   },

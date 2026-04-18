@@ -18,11 +18,11 @@ import { MODELS } from "@/types";
 import type { Artifact } from "@/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { buildQuickActionPrompt } from "@/lib/quick-actions";
+import { buildQuickActionPrompt, type QuickAction } from "@/lib/quick-actions";
 import { persistImagesForMessage, sanitizeMessageForStorage } from "@/lib/image-cache";
 import { applySlidingWindow } from "@/lib/context-manager";
 import { useContextBudget } from "@/hooks/use-context-budget";
-import ContextUsageBar from "@/components/context-usage-bar";
+import { estimateConversationTokens, getModelBudget } from "@/lib/token-estimator";
 
 interface SendOptions {
   inlineImages?: string[];
@@ -35,6 +35,9 @@ export default function ChatPage() {
   const chatId = params.chatId as string;
   const { user } = useUser();
   const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const [nextContextOverride, setNextContextOverride] = useState<
+    Array<{ role: "user" | "assistant" | "system"; content: string }> | null
+  >(null);
   const { autoCollapse, restoreCollapse } = useSidebar();
 
   const hasAutoStreamed = useRef(false);
@@ -110,7 +113,7 @@ export default function ChatPage() {
         resolvedModel.id
       );
     }
-  }, [messages?.length, chat, isStreaming, stream]);
+  }, [messages, messages?.length, chat, isStreaming, stream]);
 
   // Reset guard on chat change
   useEffect(() => {
@@ -118,6 +121,7 @@ export default function ChatPage() {
     // Reset artifact when navigating to new chat
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setArtifact(null);
+    setNextContextOverride(null);
   }, [chatId]);
 
   // Global keyboard shortcuts
@@ -202,15 +206,16 @@ export default function ChatPage() {
 
   const handleCompact = useCallback(async () => {
     if (!messages || !chat) return;
-    const model = MODELS.find(m => m.id === chat.model) || MODELS[0];
     const tokenMessages = messages.map(m => ({ role: m.role, content: m.content }));
     const budget = contextBudget.maxTokens;
     const result = applySlidingWindow(tokenMessages, budget);
     if (result.droppedCount === 0) {
+      setNextContextOverride(null);
       toast.info("Conversation is within context limits — no compaction needed.");
       return;
     }
-    toast.success(`Compacted: removed ${result.droppedCount} older messages, saved ~${Math.round((result.originalTokenCount - result.compactedTokenCount) / 1000)}K tokens.`);
+    setNextContextOverride(result.messages as Array<{ role: "user" | "assistant" | "system"; content: string }>);
+    toast.success(`Compacted: removed ${result.droppedCount} older messages, saved ~${Math.round((result.originalTokenCount - result.compactedTokenCount) / 1000)}K tokens for the next response.`);
   }, [messages, chat, contextBudget.maxTokens]);
 
   const handleSend = async (message: string, modelId: string, options?: SendOptions) => {
@@ -245,16 +250,31 @@ export default function ChatPage() {
       await persistImagesForMessage(String(userMessageId), sanitized.images);
     }
 
+    const baseMessages = nextContextOverride || (messages || []).map((m) => ({ role: m.role, content: m.content }));
+
     const allMessages = [
-      ...(messages || []).map((m) => ({ role: m.role, content: m.content })),
+      ...baseMessages,
       {
         role: "user" as const,
         content: message,
         imageUrls: options?.inlineImages,
       },
     ];
+
+    const modelBudget = getModelBudget(modelId);
+    const estimatedTokens = estimateConversationTokens(allMessages);
+    const streamMessages =
+      modelBudget > 0 && estimatedTokens > modelBudget
+        ? applySlidingWindow(allMessages, modelBudget).messages
+        : allMessages;
+
+    if (streamMessages.length < allMessages.length) {
+      toast.message("Auto-compacted context for this send to avoid context window overflow.");
+    }
+
+    setNextContextOverride(null);
     stream(
-      allMessages,
+      streamMessages,
       modelId,
       options?.imageAspectRatio ? { imageAspectRatio: options.imageAspectRatio } : undefined,
     );
@@ -266,15 +286,21 @@ export default function ChatPage() {
       MODELS.find((m) => m.id === chat.model && m.available) ||
       MODELS.find((m) => m.available) ||
       MODELS[0];
-    const ctx = messages
+    const ctx = nextContextOverride || messages
       .slice(0, -1)
       .map((m) => ({ role: m.role, content: m.content }));
-    stream(ctx, resolvedModel.id);
+
+    const budget = getModelBudget(resolvedModel.id);
+    const usage = estimateConversationTokens(ctx);
+    const streamCtx = budget > 0 && usage > budget ? applySlidingWindow(ctx, budget).messages : ctx;
+
+    setNextContextOverride(null);
+    stream(streamCtx, resolvedModel.id);
   };
 
   // Quick action handler for Explain, Tests, Run buttons
   const handleQuickAction = useCallback(
-    async (action: "explain" | "tests" | "run", code: string, lang: string) => {
+    async (action: QuickAction, code: string, lang: string) => {
       if (!user || !chat) return;
 
       const prompt = buildQuickActionPrompt(action, code, lang);
@@ -294,7 +320,14 @@ export default function ChatPage() {
         ...(messages || []).map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: prompt },
       ];
-      stream(allMessages, resolvedModel.id);
+
+      const budget = getModelBudget(resolvedModel.id);
+      const usage = estimateConversationTokens(allMessages);
+      const streamMessages = budget > 0 && usage > budget
+        ? applySlidingWindow(allMessages, budget).messages
+        : allMessages;
+
+      stream(streamMessages, resolvedModel.id);
     },
     [user, chat, chatId, messages, sendMessage, stream]
   );
@@ -320,7 +353,14 @@ export default function ChatPage() {
         ...(messages || []).map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: prompt },
       ];
-      stream(allMessages, resolvedModel.id);
+
+      const budget = getModelBudget(resolvedModel.id);
+      const usage = estimateConversationTokens(allMessages);
+      const streamMessages = budget > 0 && usage > budget
+        ? applySlidingWindow(allMessages, budget).messages
+        : allMessages;
+
+      stream(streamMessages, resolvedModel.id);
     },
     [user, chat, chatId, messages, sendMessage, stream]
   );
@@ -440,17 +480,18 @@ export default function ChatPage() {
         {/* Floating Input */}
         <div className="absolute bottom-0 inset-x-0 z-20 p-4 sm:p-6 pointer-events-none">
           <div className="max-w-3xl mx-auto pointer-events-auto">
-            <ContextUsageBar
-              percentUsed={contextBudget.percentUsed}
-              usedTokens={contextBudget.usedTokens}
-              maxTokens={contextBudget.maxTokens}
-              className="mb-2"
-            />
             <InputBar
+              key={`${chatId}-${chat.model}`}
               onSend={handleSend}
               onStop={stopGeneration}
+              onCompact={handleCompact}
               isStreaming={isStreaming}
               chatModel={chat.model}
+              contextUsage={{
+                percentUsed: contextBudget.percentUsed,
+                usedTokens: contextBudget.usedTokens,
+                maxTokens: contextBudget.maxTokens,
+              }}
             />
           </div>
         </div>

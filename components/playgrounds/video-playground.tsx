@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { motion } from "framer-motion";
 import { ChevronDown, Download, Loader2, Orbit, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +58,21 @@ function splitReasoning(text: string) {
   };
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Unable to read file"));
+      }
+    };
+    reader.onerror = () => reject(new Error("Unable to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function statusProgress(status: JobStatus | null) {
   if (!status) return 0;
   if (status === "queued") return 24;
@@ -63,12 +81,17 @@ function statusProgress(status: JobStatus | null) {
 }
 
 export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygroundProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useUser();
+  const effectiveUserId = userId || user?.id || "anonymous";
   const [prompt, setPrompt] = useState("Convert this simulation into a cinematic photoreal output.");
   const [negativePrompt, setNegativePrompt] = useState("flicker, artifacts, blur, low detail");
   const [model, setModel] = useState(defaultModelId);
   const [question, setQuestion] = useState("Check whether the observed motion obeys physically plausible constraints.");
   const [sourceVideoUrl, setSourceVideoUrl] = useState("");
   const [sourceVideoPreview, setSourceVideoPreview] = useState<string | null>(null);
+  const [sourceVideoData, setSourceVideoData] = useState<string | null>(null);
   const [resolution, setResolution] = useState<Resolution>("480p");
   const [steps, setSteps] = useState(35);
   const [cfgScale, setCfgScale] = useState(7.5);
@@ -155,9 +178,12 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
         if (payload.status === "done") {
           if (payload.result?.kind === "video") {
-            setVideoUrl(payload.result.url);
+            const resolvedVideoUrl = payload.result.url;
+            setVideoUrl(resolvedVideoUrl);
             setResultText("");
-            addVideoHistory(payload.result.url);
+            if (!resolvedVideoUrl.startsWith("data:video/")) {
+              addVideoHistory(resolvedVideoUrl);
+            }
           } else {
             setResultText(payload.result?.payload || "{}");
             setVideoUrl(null);
@@ -248,18 +274,24 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
   }, []);
 
   const queue = async () => {
+    const sourcePayload = sourceVideoUrl.trim() || sourceVideoData || "";
+
     if (isReasonModel) {
       if (!question.trim()) {
         toast.error("Question is required");
         return;
       }
-      if (!sourceVideoUrl.trim() && !sourceVideoPreview) {
+      if (!sourcePayload) {
         toast.error("Video URL or upload is required");
         return;
       }
     } else {
       if (!prompt.trim()) {
         toast.error("Prompt is required");
+        return;
+      }
+      if (!sourcePayload) {
+        toast.error("Source video URL or upload is required");
         return;
       }
     }
@@ -269,9 +301,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
     setVideoUrl(null);
 
     try {
-      const activePrompt = isReasonModel
-        ? `${question.trim()}\n\nVideo source: ${sourceVideoUrl || "uploaded-local-preview"}\nFPS: ${fps}`
-        : prompt.trim();
+      const activePrompt = isReasonModel ? question.trim() : prompt.trim();
 
       const endpoint = isReasonModel ? "/api/analyze/video" : "/api/generate/video";
 
@@ -281,8 +311,8 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
         body: JSON.stringify({
           prompt: activePrompt,
           model,
-          userId,
-          sourceVideoUrl: sourceVideoUrl || undefined,
+          userId: effectiveUserId,
+          sourceVideoUrl: sourcePayload || undefined,
           question: isReasonModel ? question.trim() : undefined,
           fps: isReasonModel ? fps : undefined,
           maxTokens: isReasonModel ? maxTokens : undefined,
@@ -358,7 +388,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
     document.body.removeChild(anchor);
   };
 
-  const uploadSourceVideo = (file: File | null) => {
+  const uploadSourceVideo = async (file: File | null) => {
     if (!file) return;
     if (sourcePreviewObjectRef.current) {
       URL.revokeObjectURL(sourcePreviewObjectRef.current);
@@ -369,16 +399,27 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
     sourcePreviewObjectRef.current = nextObjectUrl;
     setSourceVideoPreview(nextObjectUrl);
     setSourceVideoUrl("");
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setSourceVideoData(dataUrl);
+    } catch {
+      setSourceVideoData(null);
+      toast.error("Unable to read uploaded video file");
+    }
   };
 
   const renderReasonPlayground = () => (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4">
         <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#848484]">Input</p>
           <input
             value={sourceVideoUrl}
-            onChange={(event) => setSourceVideoUrl(event.target.value)}
+            onChange={(event) => {
+              setSourceVideoUrl(event.target.value);
+              setSourceVideoData(null);
+            }}
             placeholder="Paste a video URL"
             className="w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-[#d8d8d8]"
           />
@@ -386,7 +427,9 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             type="file"
             accept="video/*"
             className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-xs text-[#d8d8d8]"
-            onChange={(event) => uploadSourceVideo(event.target.files?.[0] || null)}
+            onChange={(event) => {
+              void uploadSourceVideo(event.target.files?.[0] || null);
+            }}
           />
           {(sourceVideoPreview || sourceVideoUrl) && (
             <video
@@ -399,12 +442,12 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#848484]">Questions</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1">
             {QUESTION_CHIPS.map((chip) => (
               <button
                 key={chip}
                 onClick={() => setQuestion(chip)}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-[#bcbcbc] hover:text-white"
+                className="min-h-10 shrink-0 snap-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-[#bcbcbc] hover:text-white"
               >
                 {chip}
               </button>
@@ -447,19 +490,21 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
           </label>
         </div>
 
-        <button
-          onClick={() => {
-            void queue();
-          }}
-          disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black disabled:opacity-60"
-        >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Orbit className="h-3.5 w-3.5" />}
-          Analyze
-        </button>
+        <div className="sticky bottom-0 z-20 -mx-1 px-1 pb-1 pt-2 bg-[linear-gradient(180deg,rgba(17,17,17,0)_0%,rgba(17,17,17,0.9)_45%,rgba(17,17,17,1)_100%)]">
+          <button
+            onClick={() => {
+              void queue();
+            }}
+            disabled={loading}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black shadow-[0_10px_30px_rgba(118,196,66,0.25)] disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Orbit className="h-3.5 w-3.5" />}
+            Analyze
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 space-y-4 min-h-[560px]">
+      <div className="min-w-0 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 space-y-4 min-h-[560px]">
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-widest text-[#848484]">Reasoning Trace</p>
@@ -514,13 +559,16 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
   );
 
   const renderTransferPlayground = () => (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4 max-h-[78vh] overflow-y-auto">
         <div>
           <label className="mb-1 block text-[10px] uppercase tracking-widest text-[#848484]">Source video</label>
           <input
             value={sourceVideoUrl}
-            onChange={(event) => setSourceVideoUrl(event.target.value)}
+            onChange={(event) => {
+              setSourceVideoUrl(event.target.value);
+              setSourceVideoData(null);
+            }}
             placeholder="https://..."
             className="mb-2 w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-[#d8d8d8]"
           />
@@ -528,7 +576,9 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             type="file"
             accept="video/*"
             className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-xs text-[#d8d8d8]"
-            onChange={(event) => uploadSourceVideo(event.target.files?.[0] || null)}
+            onChange={(event) => {
+              void uploadSourceVideo(event.target.files?.[0] || null);
+            }}
           />
           {(sourceVideoPreview || sourceVideoUrl) && (
             <video
@@ -689,19 +739,21 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
         <p className="text-[11px] text-amber-300/80">~2-10 min generation time depending on source clip and controls.</p>
 
-        <button
-          onClick={() => {
-            void queue();
-          }}
-          disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black disabled:opacity-60"
-        >
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Orbit className="h-3.5 w-3.5" />}
-          {status === "queued" || status === "processing" ? "Queued" : "Generate Video"}
-        </button>
+        <div className="sticky bottom-0 z-20 -mx-1 px-1 pb-1 pt-2 bg-[linear-gradient(180deg,rgba(17,17,17,0)_0%,rgba(17,17,17,0.9)_45%,rgba(17,17,17,1)_100%)]">
+          <button
+            onClick={() => {
+              void queue();
+            }}
+            disabled={loading}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black shadow-[0_10px_30px_rgba(118,196,66,0.25)] disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Orbit className="h-3.5 w-3.5" />}
+            {status === "queued" || status === "processing" ? "Queued" : "Generate Video"}
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         <div
           className={`rounded-2xl border bg-[#0e0e0e] p-4 min-h-[360px] transition ${
             status === "processing" || status === "queued"
@@ -742,11 +794,13 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
           <p className="text-[10px] uppercase tracking-widest text-[#7e7e7e]">Queue Status</p>
           <p className="text-xs text-[#b7b7b7]">{statusLabel}</p>
           <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div
+            <motion.div
               className={`h-full transition-all duration-700 ${
                 status === "failed" ? "bg-red-400/80" : "bg-[#76c442]"
               }`}
-              style={{ width: `${statusProgress(status)}%` }}
+              initial={{ width: "0%" }}
+              animate={{ width: `${statusProgress(status)}%` }}
+              transition={{ duration: 0.65, ease: "easeOut" }}
             />
           </div>
           {statusUrl && (
@@ -763,13 +817,13 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
         <div className="rounded-xl border border-white/10 bg-black/25 p-3">
           <p className="mb-2 text-[10px] uppercase tracking-widest text-[#7e7e7e]">Generation History</p>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1">
             {history.length === 0 && <p className="text-xs text-[#686868]">No generations yet.</p>}
             {history.map((record) => (
               <button
                 key={record.id}
                 onClick={() => setVideoUrl(record.url)}
-                className="min-w-[180px] rounded-lg border border-white/10 bg-black/35 p-2 text-left"
+                className="min-w-[180px] shrink-0 snap-start rounded-lg border border-white/10 bg-black/35 p-2 text-left"
               >
                 <video src={record.url} className="h-20 w-full rounded-md object-cover border border-white/10" />
                 <p className="mt-1 truncate text-[10px] text-[#c5c5c5]">{record.prompt}</p>
@@ -785,28 +839,44 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
-            onClick={() => setModel("cosmos-reason2-8b")}
+            onClick={() => {
+              if (model === "cosmos-reason2-8b") return;
+              setModel("cosmos-reason2-8b");
+              const fromChat = searchParams.get("fromChat");
+              const target = fromChat
+                ? `/app/playground/cosmos-reason2-8b?fromChat=${encodeURIComponent(fromChat)}`
+                : "/app/playground/cosmos-reason2-8b";
+              router.replace(target);
+            }}
             className={`rounded-full px-3 py-1.5 transition ${
               model === "cosmos-reason2-8b"
                 ? "bg-[#76c44220] border border-[#76c44250] text-[#bde29d]"
                 : "bg-white/[0.03] border border-white/10 text-[#a9a9a9]"
             }`}
           >
-            🔬 Cosmos Reason2 8B
+            Cosmos Reason2 8B
           </button>
           <button
-            onClick={() => setModel("cosmos-transfer2.5-2b")}
+            onClick={() => {
+              if (model === "cosmos-transfer2.5-2b") return;
+              setModel("cosmos-transfer2.5-2b");
+              const fromChat = searchParams.get("fromChat");
+              const target = fromChat
+                ? `/app/playground/cosmos-transfer2.5-2b?fromChat=${encodeURIComponent(fromChat)}`
+                : "/app/playground/cosmos-transfer2.5-2b";
+              router.replace(target);
+            }}
             className={`rounded-full px-3 py-1.5 transition ${
               model === "cosmos-transfer2.5-2b"
                 ? "bg-[#76c44220] border border-[#76c44250] text-[#bde29d]"
                 : "bg-white/[0.03] border border-white/10 text-[#a9a9a9]"
             }`}
           >
-            🎬 Cosmos Transfer2.5 2B
+            Cosmos Transfer2.5 2B
           </button>
         </div>
       </div>

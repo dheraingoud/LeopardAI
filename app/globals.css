@@ -47,9 +47,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-sans: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
   --font-mono: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
-  --font-heading: var(--font-sans);
+  --font-heading: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
 
   /* Leopard brand colors */
   --color-leopard-amber: #ffb400;
@@ -162,8 +162,8 @@
   --sidebar-ring: #ffb400;
 
   /* Typography System */
-  --font-display: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-display: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
 }
 
 /* Keep .dark class identical for shadcn compatibility */
@@ -211,7 +211,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
+    font-family: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
     overflow-x: hidden;
   }
 

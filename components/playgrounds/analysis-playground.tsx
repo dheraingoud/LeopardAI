@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { ChevronDown, Loader2, ScanEye } from "lucide-react";
 import { toast } from "sonner";
 
@@ -165,7 +166,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr]">
       <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4">
         <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#7e7e7e]">Input</p>
@@ -198,12 +199,12 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
 
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#7e7e7e]">Questions</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1">
             {PRESET_QUESTIONS.map((question) => (
               <button
                 key={question}
                 onClick={() => setPrompt(question)}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] text-[#bbbbbb] hover:text-white"
+                className="min-h-10 shrink-0 snap-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-[#bbbbbb] hover:text-white"
               >
                 {question}
               </button>
@@ -231,7 +232,6 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
             >
               <option value="llama-3.2-11b-vision">Llama 3.2 11B Vision</option>
               <option value="llama-3.2-90b-vision">Llama 3.2 90B Vision</option>
-              <option value="phi-3-vision-128k">Phi-3 Vision 128K</option>
               <option value="nemotron-nano-vl-8b">Nemotron Nano VL 8B</option>
             </select>
           </label>
@@ -280,14 +280,19 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
           )}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4 min-h-[220px]">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="rounded-xl border border-white/10 bg-black/20 p-4 min-h-[220px]"
+        >
           <p className="text-[11px] uppercase tracking-widest text-[#7f7f7f] mb-2">Final Answer</p>
           {finalAnswer ? (
             <p className="text-sm leading-7 text-[#d8d8d8] whitespace-pre-wrap">{finalAnswer}</p>
           ) : (
             <p className="text-sm text-[#666]">Analysis output will appear here.</p>
           )}
-        </div>
+        </motion.div>
 
         <div className="text-xs text-[#8a8a8a]">
           Tokens: {estimatedUsage.input} in / {estimatedUsage.output} out | Model: {model}

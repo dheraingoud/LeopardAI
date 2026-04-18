@@ -21,7 +21,6 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
-  TabsContent,
 } from "@/components/ui/tabs";
 
 interface PromptLibraryProps {
@@ -68,6 +67,43 @@ const CATEGORIES: Category[] = [
         title: "Convert to TypeScript",
         description: "Proper types, interfaces, and generics",
         text: "Convert this JavaScript code to TypeScript with proper type annotations, interfaces, and generics:\n\n",
+      },
+    ],
+  },
+  {
+    id: "dev-roles",
+    label: "Dev Roles",
+    icon: Code2,
+    prompts: [
+      {
+        title: "SQL Developer Mode",
+        description: "Schema review, query plan, index strategy, migration safety",
+        text: "Act as a senior SQL developer. Analyze this schema/query workload, then provide: 1) current execution flow, 2) bottlenecks, 3) optimized SQL and indexes, 4) migration-safe rollout plan, 5) validation queries.\n\n",
+      },
+      {
+        title: "Frontend Architecture Review",
+        description: "State flow, rendering hotspots, UX and a11y issues",
+        text: "Act as a frontend architect. Review this UI/code and return: 1) current component flow, 2) render-performance issues, 3) a11y gaps, 4) optimized architecture, 5) implementation steps with risk notes.\n\n",
+      },
+      {
+        title: "Core Backend Design",
+        description: "API boundaries, consistency, retries, observability",
+        text: "Act as a backend systems engineer. For this feature/service, provide: 1) current request/data flow, 2) failure points, 3) resilient architecture (idempotency/retries/timeouts), 4) observability plan, 5) phased rollout strategy.\n\n",
+      },
+      {
+        title: "AI Engineer Evaluation",
+        description: "Prompting, context strategy, eval plan and failure modes",
+        text: "Act as an AI engineer. Evaluate this prompt/pipeline and provide: 1) current context flow, 2) token-pressure risks, 3) improved orchestration, 4) eval set + metrics, 5) fallback strategy for degraded model behavior.\n\n",
+      },
+      {
+        title: "Audit and Compliance Lens",
+        description: "Threat model, controls, evidence and audit-ready report",
+        text: "Act as a technical auditor. Produce: 1) control map for this system, 2) high-risk findings by severity, 3) remediation steps, 4) evidence checklist, 5) audit-ready summary with residual risk.\n\n",
+      },
+      {
+        title: "Professor Teaching Mode",
+        description: "Stepwise teaching with examples and assessment",
+        text: "Act as a professor. Teach this topic from fundamentals to advanced using: 1) concept map, 2) worked examples, 3) common misconceptions, 4) short quiz with answers, 5) project-style exercise.\n\n",
       },
     ],
   },
@@ -179,8 +215,6 @@ export function PromptLibrary({
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id);
 
-  const allVisible = CATEGORIES.every((cat) => cat.prompts.length > 0);
-
   const getFilteredPrompts = (prompts: Prompt[]) => {
     if (!query) return prompts;
     const q = query.toLowerCase();
@@ -271,7 +305,7 @@ export function PromptLibrary({
                       transition={{ duration: 0.15 }}
                       className="grid grid-cols-2 gap-2"
                     >
-                      {filtered.map((prompt, i) => (
+                      {filtered.map((prompt) => (
                         <PromptCard
                           key={prompt.title}
                           prompt={prompt}

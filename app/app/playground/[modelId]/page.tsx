@@ -7,6 +7,7 @@ import VideoPlayground from "@/components/playgrounds/video-playground";
 
 interface PageProps {
   params: Promise<{ modelId: string }>;
+  searchParams?: Promise<{ fromChat?: string | string[] }>;
 }
 
 const MODEL_ALIASES: Record<string, string> = {
@@ -72,8 +73,12 @@ function resolveModel(modelId: string) {
   };
 }
 
-export default async function PlaygroundModelPage({ params }: PageProps) {
+export default async function PlaygroundModelPage({ params, searchParams }: PageProps) {
   const { modelId } = await params;
+  const resolvedSearch = searchParams ? await searchParams : undefined;
+  const rawFromChat = resolvedSearch?.fromChat;
+  const fromChat = Array.isArray(rawFromChat) ? rawFromChat[0] : rawFromChat;
+  const closeHref = fromChat ? `/app/chat/${encodeURIComponent(fromChat)}` : "/app";
   const { model, isCanonical } = resolveModel(modelId);
 
   if (!model) {
@@ -81,14 +86,17 @@ export default async function PlaygroundModelPage({ params }: PageProps) {
   }
 
   if (!isCanonical) {
-    redirect(`/app/playground/${model.id}`);
+    const canonicalHref = fromChat
+      ? `/app/playground/${model.id}?fromChat=${encodeURIComponent(fromChat)}`
+      : `/app/playground/${model.id}`;
+    redirect(canonicalHref);
   }
 
   const modality = model.modality || "text";
 
   return (
-    <main className="h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+    <main className="h-full min-h-0 overflow-y-auto overflow-x-hidden">
+      <div className="mx-auto w-full max-w-6xl min-w-0 space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
             <p className="text-xs font-mono uppercase tracking-wider text-[#8a8a8a]">Model Playground</p>
@@ -96,7 +104,7 @@ export default async function PlaygroundModelPage({ params }: PageProps) {
             <p className="text-sm text-[#9a9a9a]">{model.description}</p>
           </div>
           <Link
-            href="/app"
+            href={closeHref}
             className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-[#d7d7d7] hover:text-white hover:bg-white/[0.06]"
           >
             Close

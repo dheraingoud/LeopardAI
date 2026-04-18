@@ -1,13 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles, PenLine, Code, Lightbulb } from "lucide-react";
+import { Sparkles, PenLine, Code, Lightbulb, Database, Cpu } from "lucide-react";
 
 const SUGGESTIONS = [
-  { icon: Sparkles, text: "Explain a concept", prompt: "Explain " },
-  { icon: PenLine, text: "Help me write", prompt: "Help me write " },
-  { icon: Code, text: "Debug my code", prompt: "Help me debug this code:\n" },
-  { icon: Lightbulb, text: "Brainstorm ideas", prompt: "Help me brainstorm ideas for " },
+  { icon: Sparkles, text: "Trace Current Flow", prompt: "Map the current flow of this codebase in steps and return a Mermaid diagram:\n" },
+  { icon: Code, text: "Optimize Architecture", prompt: "Propose the most efficient architecture for this implementation with tradeoffs:\n" },
+  { icon: Database, text: "SQL Tuning", prompt: "Audit and optimize this SQL/query plan:\n" },
+  { icon: Cpu, text: "Backend Reliability", prompt: "Review this backend path for reliability, retries, timeouts, and idempotency:\n" },
+  { icon: PenLine, text: "Teach This Topic", prompt: "Teach this like a professor with examples, misconceptions, and a quiz:\n" },
+  { icon: Lightbulb, text: "Audit Report", prompt: "Generate an auditor-style severity report for this implementation:\n" },
 ];
 
 interface EmptyStateProps {
@@ -31,7 +33,7 @@ export default function EmptyState({ onSelect }: EmptyStateProps) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
         {SUGGESTIONS.map(({ icon: Icon, text, prompt }, i) => (
           <motion.button
             key={text}

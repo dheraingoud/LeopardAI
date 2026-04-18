@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { motion } from "framer-motion";
 import {
   Download,
   History,
@@ -98,6 +100,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygroundProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useUser();
+  const effectiveUserId = userId || user?.id || "anonymous";
   const [prompt, setPrompt] = useState(
     "A cinematic close-up of a leopard in rain, neon reflections, shallow depth of field",
   );
@@ -122,6 +127,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
   const [fallbackNotice, setFallbackNotice] = useState("");
   const [historyOpen, setHistoryOpen] = useState(true);
   const [history, setHistory] = useState<GenerationRecord[]>([]);
+  const [fluxLiveArmed, setFluxLiveArmed] = useState(false);
   const [inpaintSourceData, setInpaintSourceData] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState(24);
   const [isErasingMask, setIsErasingMask] = useState(false);
@@ -214,7 +220,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
         prompt: cleanPrompt,
         negativePrompt: negativePrompt.trim(),
         model,
-        userId,
+        userId: effectiveUserId,
         width: resolvedSize.width,
         height: resolvedSize.height,
         steps,
@@ -322,13 +328,16 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
       sourceImageData,
       steps,
       stylePreset,
-      userId,
+      effectiveUserId,
     ],
   );
 
   const randomizeSeed = useCallback(() => {
     setSeed(Math.floor(Math.random() * 2_147_483_647));
-  }, []);
+    if (isFlux) {
+      setFluxLiveArmed(true);
+    }
+  }, [isFlux]);
 
   const downloadImage = useCallback(() => {
     if (!imageUrl) {
@@ -524,16 +533,15 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
   }, [history, historyStorageKey]);
 
   useEffect(() => {
-    //
-    // FLUX auto-preview disabled + dead-code cleanup
+    if (!isFlux || fluxMode !== "text-to-image" || !fluxLiveArmed) return;
+    if (!prompt.trim()) return;
 
-    // removed: setTimeout + requestGeneration call
-      //
-    // removed: requestGeneration({ livePreview: true }) call
-    // setTimeout(..., 800) removed
+    const timer = window.setTimeout(() => {
+      void requestGeneration({ livePreview: true });
+    }, 800);
 
-    // cleanup removed (no timer)
-  }, [cfgScale, fluxMode, isFlux, prompt, requestGeneration, seed, steps]);
+    return () => window.clearTimeout(timer);
+  }, [cfgScale, fluxLiveArmed, fluxMode, isFlux, prompt, requestGeneration, seed, steps]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -573,6 +581,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
     setResolvedModelId(null);
     setFallbackNotice("");
     setErrorText("");
+    setFluxLiveArmed(false);
   }, [model]);
 
   const currentModelLabel = formatModelLabel(model);
@@ -591,12 +600,17 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
       )}
 
       {imageUrl && (
-        <div className="group relative">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="group relative"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
             alt="Generated output"
-            className="max-h-[560px] w-auto rounded-xl border border-white/10 shadow-2xl transition-opacity duration-300"
+            className="h-auto max-h-[560px] max-w-full rounded-xl border border-white/10 shadow-2xl transition-opacity duration-300"
           />
           <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-end gap-2 px-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             <button
@@ -616,7 +630,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               <Share2 className="h-4 w-4" />
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -635,7 +649,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
       </div>
 
       {historyOpen && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
           {history.length === 0 && (
             <p className="text-xs text-[#666] py-4">No generations yet.</p>
           )}
@@ -644,7 +658,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             <button
               key={record.id}
               onClick={() => applyHistory(record)}
-              className="group min-w-[120px] rounded-lg border border-white/10 bg-[#0f0f0f] p-1.5 text-left hover:border-[#ffb40040]"
+              className="group min-w-[130px] snap-start rounded-lg border border-white/10 bg-[#0f0f0f] p-1.5 text-left hover:border-[#ffb40040]"
               title={record.prompt}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -696,7 +710,10 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
         <label className="mb-1.5 block text-[11px] uppercase tracking-wider text-[#858585]">Prompt</label>
         <textarea
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            setPrompt(event.target.value);
+            setFluxLiveArmed(true);
+          }}
           placeholder="Write your prompt here — preview updates as you type"
           rows={3}
           className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e9e9e9] outline-none focus:border-[#ffb40055]"
@@ -716,7 +733,10 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                   min={1}
                   max={12}
                   value={steps}
-                  onChange={(event) => setSteps(clampNumber(parseNumber(event.target.value, 4), 1, 12))}
+                  onChange={(event) => {
+                    setSteps(clampNumber(parseNumber(event.target.value, 4), 1, 12));
+                    setFluxLiveArmed(true);
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
                 />
               </label>
@@ -728,7 +748,10 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                   max={12}
                   step={0.1}
                   value={cfgScale}
-                  onChange={(event) => setCfgScale(clampNumber(parseNumber(event.target.value, 3.5), 1, 12))}
+                  onChange={(event) => {
+                    setCfgScale(clampNumber(parseNumber(event.target.value, 3.5), 1, 12));
+                    setFluxLiveArmed(true);
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
                 />
               </label>
@@ -739,7 +762,10 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                     type="number"
                     min={0}
                     value={seed}
-                    onChange={(event) => setSeed(Math.max(0, Math.round(parseNumber(event.target.value, 0))))}
+                    onChange={(event) => {
+                      setSeed(Math.max(0, Math.round(parseNumber(event.target.value, 0))));
+                      setFluxLiveArmed(true);
+                    }}
                     className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
                   />
                   <button
@@ -890,7 +916,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[#d8d8d8]">
@@ -915,7 +941,11 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                 if (model === entry.id) return;
                 setModel(entry.id);
                 setErrorText("");
-                router.replace(`/app/playground/${entry.id}`);
+                const fromChat = searchParams.get("fromChat");
+                const target = fromChat
+                  ? `/app/playground/${entry.id}?fromChat=${encodeURIComponent(fromChat)}`
+                  : `/app/playground/${entry.id}`;
+                router.replace(target);
               }}
               className={`rounded-full px-3 py-1.5 text-xs transition ${
                 model === entry.id
@@ -944,8 +974,8 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
       {isFlux ? (
         renderFluxStudio()
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4 space-y-4 max-h-[72vh] overflow-y-auto">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4 space-y-4 md:max-h-[72vh] overflow-y-auto">
             <div>
               <label className="mb-1 block text-xs text-[#8a8a8a] font-mono uppercase tracking-wider">Prompt</label>
               <textarea
@@ -1124,22 +1154,24 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               </div>
             )}
 
-            <button
-              onClick={() => {
-                if (loading) {
-                  cancelActiveGeneration();
-                  return;
-                }
-                void requestGeneration();
-              }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {loading ? "Cancel" : "Generate"}
-            </button>
+            <div className="sticky bottom-0 z-20 -mx-1 px-1 pb-1 pt-2 bg-[linear-gradient(180deg,rgba(26,26,26,0)_0%,rgba(26,26,26,0.9)_45%,rgba(26,26,26,1)_100%)]">
+              <button
+                onClick={() => {
+                  if (loading) {
+                    cancelActiveGeneration();
+                    return;
+                  }
+                  void requestGeneration();
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#76c442] px-3 py-2 text-xs font-semibold text-black shadow-[0_10px_30px_rgba(118,196,66,0.25)] disabled:opacity-60"
+              >
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {loading ? "Cancel" : "Generate"}
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             {renderCanvas()}
             <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-[#8c8c8c] flex flex-wrap items-center justify-between gap-2">
               <span>

@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import Message, { ThinkingIndicator } from "@/components/message";
+import type { QuickAction } from "@/lib/quick-actions";
 import EmptyState from "@/components/empty-state";
 import type { Artifact } from "@/types";
 
@@ -19,7 +20,7 @@ interface MessageListProps {
   streamedContent?: string;
   onOpenArtifact?: (artifact: Artifact) => void;
   onRegenerate?: () => void;
-  onQuickAction?: (action: "explain" | "tests" | "run", code: string, lang: string) => void;
+  onQuickAction?: (action: QuickAction, code: string, lang: string) => void;
   userAvatar?: string;
   onEmptyStateSelect?: (prompt: string) => void;
 }

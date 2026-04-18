@@ -20,6 +20,7 @@ interface AttachmentCardProps {
   language?: string;
   size?: number;
   isPreview?: boolean;
+  onOpenCanvas?: () => void;
 }
 
 const LANGUAGE_ICONS: Record<string, typeof Code> = {
@@ -42,6 +43,14 @@ const LANGUAGE_LABELS: Record<string, string> = {
   py: "Python",
   json: "JSON",
   md: "Markdown",
+  txt: "Text",
+  csv: "CSV",
+  tsv: "TSV",
+  doc: "Word",
+  docx: "Word",
+  xls: "Excel",
+  xlsx: "Excel",
+  pdf: "PDF",
   html: "HTML",
   css: "CSS",
 };
@@ -63,15 +72,23 @@ export function AttachmentCard({
   language,
   size,
   isPreview = false,
+  onOpenCanvas,
 }: AttachmentCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const ext = language || getFileExtension(filename);
   const Icon = LANGUAGE_ICONS[ext] || FileText;
-  const label = LANGUAGE_LABELS[ext] || ext.toUpperCase() || "File";
+  const label = LANGUAGE_LABELS[ext] || "Document";
+  const extensionTag = ext ? ext.toUpperCase() : "FILE";
+  const contentAvailable = content.trim().length > 0;
 
   const handleCopy = () => {
+    if (!contentAvailable) {
+      toast.info("No text content is available to copy for this attachment.");
+      return;
+    }
+
     navigator.clipboard.writeText(content);
     setCopied(true);
     toast.success("Copied to clipboard");
@@ -79,6 +96,11 @@ export function AttachmentCard({
   };
 
   const handleDownload = () => {
+    if (!contentAvailable) {
+      toast.info("Binary attachment metadata is available, but raw content is not stored.");
+      return;
+    }
+
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -88,8 +110,19 @@ export function AttachmentCard({
     URL.revokeObjectURL(url);
   };
 
-  const lineCount = content.split("\n").length;
-  const canExpand = !isPreview && lineCount > 5;
+  const lineCount = contentAvailable ? content.split("\n").length : 0;
+  const canExpand = contentAvailable && !isPreview && lineCount > 5 && !onOpenCanvas;
+
+  const handlePrimaryAction = () => {
+    if (onOpenCanvas) {
+      onOpenCanvas();
+      return;
+    }
+
+    if (canExpand) {
+      setExpanded((prev) => !prev);
+    }
+  };
 
   return (
     <motion.div
@@ -98,6 +131,7 @@ export function AttachmentCard({
       className={cn(
         "my-3 rounded-xl border overflow-hidden",
         "bg-[#0c0c0c] border-white/[0.08]",
+        onOpenCanvas && "cursor-pointer hover:border-[#ffb40050] hover:bg-[#131313]",
         expanded && "border-[#ffb40020]"
       )}
     >
@@ -106,21 +140,22 @@ export function AttachmentCard({
         className={cn(
           "flex items-center justify-between px-4 py-3",
           "bg-white/[0.02]",
-          canExpand && "cursor-pointer hover:bg-white/[0.04]",
+          (canExpand || onOpenCanvas) && "cursor-pointer hover:bg-white/[0.04]",
           "transition-colors"
         )}
-        onClick={() => canExpand && setExpanded(!expanded)}
+        onClick={handlePrimaryAction}
       >
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-[#ffb40010] flex items-center justify-center">
-            <Icon className="h-4 w-4 text-[#ffb400]" />
+          <div className="h-9 w-9 rounded-lg border border-white/[0.08] bg-white/[0.03] flex items-center justify-center">
+            <Icon className="h-4 w-4 text-[#cfcfcf]" />
           </div>
           <div>
-            <p className="text-[13px] font-medium text-[#e5e5e5]">{filename}</p>
+            <p className="text-[14px] font-medium text-[#f0f0f0]">{filename}</p>
             <p className="text-[11px] text-[#505050]">
-              {label}
+              {label} • {extensionTag}
               {size && ` • ${formatFileSize(size)}`}
               {lineCount > 0 && ` • ${lineCount} lines`}
+              {onOpenCanvas && " • open in canvas"}
             </p>
           </div>
         </div>
@@ -140,25 +175,28 @@ export function AttachmentCard({
               e.stopPropagation();
               handleDownload();
             }}
-            className="p-2 rounded-md hover:bg-white/[0.06] text-[#505050] hover:text-[#a3a3a3] transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border border-white/[0.12] px-2.5 py-1.5 text-[12px] text-[#e6e6e6] hover:bg-white/[0.06] transition-colors"
             title="Download file"
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3.5 w-3.5" />
+            Download
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCopy();
-            }}
-            className="p-2 rounded-md hover:bg-white/[0.06] text-[#505050] hover:text-[#a3a3a3] transition-colors"
-            title="Copy content"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-400" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </button>
+          {contentAvailable && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopy();
+              }}
+              className="p-2 rounded-md hover:bg-white/[0.06] text-[#505050] hover:text-[#a3a3a3] transition-colors"
+              title="Copy content"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -201,7 +239,7 @@ export function parseFileAttachments(content: string): {
   // ```
   const codeBlockWithFile = /```(\w+)\n\/\/\s+([^\n]+)\n([\s\S]*?)```/g;
 
-  const cleanContent = content.replace(codeBlockWithFile, (match, language, filename, codeContent) => {
+  const withoutCodeAttachments = content.replace(codeBlockWithFile, (match, language, filename, codeContent) => {
     // Check if this looks like a file attachment (has extension)
     if (filename && filename.includes(".")) {
       attachments.push({
@@ -212,6 +250,22 @@ export function parseFileAttachments(content: string): {
       return "";
     }
     return match;
+  });
+
+  // Also parse plain file markers produced by non-text attachments: [File: name.ext (size)]
+  const fileTagPattern = /\[File:\s*([^\]\n]+?)\]/g;
+  const cleanContent = withoutCodeAttachments.replace(fileTagPattern, (_match, rawValue: string) => {
+    const normalized = String(rawValue).trim();
+    const stripped = normalized.replace(/\s*\([^)]*\)\s*$/, "");
+    const filename = stripped.trim();
+    if (!filename || !filename.includes(".")) return _match;
+
+    attachments.push({
+      filename,
+      language: getFileExtension(filename),
+      content: "",
+    });
+    return "";
   });
 
   return { attachments, cleanContent };

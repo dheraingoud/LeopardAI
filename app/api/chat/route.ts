@@ -22,8 +22,7 @@ const STREAM_IDLE_TIMEOUT_MS = 20_000;
 const STREAM_HEARTBEAT_MS = 10_000;
 
 const MODEL_TIMEOUT_OVERRIDES: Record<string, number> = {
-  "google/gemma-4-31b-it": 90_000,
-  "microsoft/phi-3-vision-128k-instruct": 60_000,
+  "google/gemma-4-31b-it": 120_000,
 };
 
 const FALLBACK_MODEL = "meta/llama-3.3-70b-instruct";
@@ -50,15 +49,14 @@ const MODEL_MAP: Record<string, string> = {
   "minimax-m2.5": "minimaxai/minimax-m2.5",
   "minimax-m2.7": "minimaxai/minimax-m2.7",
   "sd-3.5-large": "stabilityai/stable-diffusion-3_5-large",
-  "flux-2-klein-4b": "black-forest-labs/flux_2-klein-4b",
-  "stable-diffusion-xl-base": "stabilityai/stable-diffusion-xl-base-1.0",
+  "flux-2-klein-4b": "black-forest-labs/flux_2-klein_4b",
+  "stable-diffusion-xl-base": "stabilityai/sdxl",
   "kimi-k2.5": "moonshotai/kimi-k2.5",
   "deepseek-v3.2": "deepseek-ai/deepseek-v3.2",
   "qwen-300b": "qwen/qwen3.5-397b-a17b",
-  "glm5": "z-ai/glm5",
+  "glm-5.1": "z-ai/glm-5.1",
   "llama-3.2-11b-vision": "meta/llama-3.2-11b-vision-instruct",
   "llama-3.2-90b-vision": "meta/llama-3.2-90b-vision-instruct",
-  "phi-3-vision-128k": "microsoft/phi-3-vision-128k-instruct",
   "nemotron-nano-vl-8b": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
   "cosmos-reason2-8b": "nvidia/cosmos-reason2-8b",
   "cosmos-transfer2.5-2b": "nvidia/cosmos-transfer2_5-2b",
@@ -73,7 +71,7 @@ const FAST_MODELS = new Set([
 ]);
 
 const SLOW_MODELS = new Set([
-  "z-ai/glm5",
+  "z-ai/glm-5.1",
   "qwen/qwen3.5-397b-a17b",
   "meta/llama-3.2-90b-vision-instruct",
   "nvidia/cosmos-transfer2_5-2b",
@@ -82,14 +80,13 @@ const SLOW_MODELS = new Set([
 const VISION_MODELS = new Set([
   "meta/llama-3.2-11b-vision-instruct",
   "meta/llama-3.2-90b-vision-instruct",
-  "microsoft/phi-3-vision-128k-instruct",
   "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
 ]);
 
 const GENERATION_ONLY_MODELS = new Set([
   "stabilityai/stable-diffusion-3_5-large",
-  "black-forest-labs/flux_2-klein-4b",
-  "stabilityai/stable-diffusion-xl-base-1.0",
+  "black-forest-labs/flux_2-klein_4b",
+  "stabilityai/sdxl",
 ]);
 
 const VIDEO_MODELS = new Set([
@@ -549,6 +546,33 @@ function resolveImageDimensions(aspectRatio: ImageAspectRatio, requestedModel?: 
   return IMAGE_ASPECT_RATIO_SIZES[aspectRatio] || IMAGE_ASPECT_RATIO_SIZES["1:1"];
 }
 
+function extractVideoSourceUrl(input: string): string | null {
+  const markdownLinkMatch = input.match(/\((https?:\/\/[^)\s]+|data:video\/[^)\s]+)\)/i);
+  if (markdownLinkMatch?.[1]) return markdownLinkMatch[1].trim();
+
+  const dataUrlMatch = input.match(/data:video\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\r\n]+/i);
+  if (dataUrlMatch?.[0]) return dataUrlMatch[0].trim();
+
+  const urlMatches = input.match(/https?:\/\/[^\s)]+/gi) || [];
+  for (const match of urlMatches) {
+    const normalized = match.trim().replace(/[.,!?]$/, "");
+    if (/(\.mp4|\.mov|\.webm|\.m3u8)(\?|$)/i.test(normalized) || /video/i.test(normalized)) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function stripVideoSourceFromPrompt(input: string, source: string): string {
+  return input
+    .replace(source, "")
+    .replace(/source\s*video\s*:\s*/gi, "")
+    .replace(/video\s*url\s*:\s*/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const contentLength = req.headers.get("content-length");
@@ -614,13 +638,34 @@ export async function POST(req: NextRequest) {
     }
 
     if (VIDEO_MODELS.has(modelId)) {
+      const sourceVideoUrl = extractVideoSourceUrl(latestPrompt);
+      if (!sourceVideoUrl) {
+        return streamSingleMessage(
+          "Video models stay in chat, but they require a source video URL or video data URL in your message.\n\n" +
+            "Example:\n" +
+            "https://example.com/clip.mp4\n" +
+            "Make this clip cinematic and sharper.\n\n" +
+            "For advanced controls, use:\n" +
+            "- /app/playground/cosmos-reason2-8b\n" +
+            "- /app/playground/cosmos-transfer2.5-2b",
+        );
+      }
+
+      const strippedPrompt = stripVideoSourceFromPrompt(latestPrompt, sourceVideoUrl);
+      const videoPrompt = strippedPrompt ||
+        (modelId === "nvidia/cosmos-reason2-8b"
+          ? "Analyze the source video for physical consistency."
+          : "Generate a cinematic transfer from the source video.");
+
       const videoResponse = await fetch(new URL("/api/generate/video", req.url), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: latestPrompt,
+          prompt: videoPrompt,
           model: requestedModel,
           userId,
+          sourceVideoUrl,
+          question: modelId === "nvidia/cosmos-reason2-8b" ? videoPrompt : undefined,
         }),
       });
 
@@ -709,3 +754,4 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+

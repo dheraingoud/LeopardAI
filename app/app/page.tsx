@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Code, BookOpen, Database, Bug } from "lucide-react";
 import InputBar from "@/components/input-bar";
 import { SUGGESTED_PROMPTS } from "@/types";
+import { persistImagesForMessage, sanitizeMessageForStorage } from "@/lib/image-cache";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   code: Code,
@@ -22,7 +23,11 @@ export default function AppHomePage() {
   const createChat = useMutation(api.chats.create);
   const sendMessage = useMutation(api.messages.send);
 
-  const handleSend = async (message: string, model: string) => {
+  const handleSend = async (
+    message: string,
+    model: string,
+    options?: { inlineImages?: string[] },
+  ) => {
     if (!user) return;
 
     // Create chat in Convex (fast call)
@@ -32,19 +37,33 @@ export default function AppHomePage() {
       model,
     });
 
+    const imageMarkdown = (options?.inlineImages || [])
+      .map((url) => `![Attached image](${url})`)
+      .join("\n\n");
+
+    const contentForStorage = imageMarkdown
+      ? `${message}\n\n${imageMarkdown}`.trim()
+      : message;
+
+    const sanitized = sanitizeMessageForStorage(contentForStorage);
+
     // Send the first message in the background
-    await sendMessage({ 
-      chatId, 
-      userId: user.id, // Mandatory check fixed
-      role: "user", 
-      content: message 
+    const userMessageId = await sendMessage({
+      chatId,
+      userId: user.id,
+      role: "user",
+      content: sanitized.content,
     });
+
+    if (sanitized.images.length > 0) {
+      await persistImagesForMessage(String(userMessageId), sanitized.images);
+    }
 
     // Auto-title in background
     fetch("/api/title", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message: message || "New Chat" }),
     }).catch(() => {});
 
     // Redirect to the chat page

@@ -13,7 +13,7 @@ const MODEL_MAP: Record<string, string> = {
   "kimi-k2.5": "moonshotai/kimi-k2.5",
   "deepseek-v3.2": "deepseek-ai/deepseek-v3.2",
   "qwen-300b": "qwen/qwen3.5-397b-a17b",
-  glm5: "z-ai/glm5",
+  "glm-5.1": "z-ai/glm-5.1",
 };
 
 async function parseBody(

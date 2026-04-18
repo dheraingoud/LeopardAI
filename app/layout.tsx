@@ -39,7 +39,7 @@ export default function RootLayout({
           colorInputBackground: "rgba(255,255,255,0.03)",
           colorInputText: "#f5f5f5",
           borderRadius: "0.75rem",
-          fontFamily: '"Iosevka Charon", monospace',
+          fontFamily: '"Instrument Sans", "Bricolage Grotesque", sans-serif',
         },
         elements: {
           card: "glass-intense !border-white/[0.08]",
@@ -73,6 +73,10 @@ export default function RootLayout({
             crossOrigin="anonymous"
           />
           <link
+            href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,300;10..48,400;10..48,500;10..48,700&family=Instrument+Sans:wght@400;500;600&display=swap"
+            rel="stylesheet"
+          />
+          <link
             href="https://fonts.googleapis.com/css2?family=Momo+Signature&display=swap"
             rel="stylesheet"
           />
@@ -94,7 +98,7 @@ export default function RootLayout({
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(255, 255, 255, 0.06)",
                 color: "#f5f5f5",
-                fontFamily: '"Iosevka Charon", monospace',
+                fontFamily: '"Instrument Sans", "Bricolage Grotesque", sans-serif',
               },
             }}
           />

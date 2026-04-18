@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import Sidebar from "@/components/sidebar";
 import { SidebarProvider } from "@/hooks/sidebar-context";
@@ -12,9 +13,17 @@ import { Menu } from "lucide-react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded } = useUser();
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [preCollapseState, setPreCollapseState] = useState(false);
+  const [canvasSidebarOpen, setCanvasSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const isPlaygroundRoute = pathname.startsWith("/app/playground/");
+  const isSchemaRoute = pathname.startsWith("/app/schema");
+  const isAiDevRoute = pathname.startsWith("/app/ai-dev");
+  const isTeachingRoute = pathname.startsWith("/app/teaching");
+  const isDesktopCanvasRoute = !isMobile && (isPlaygroundRoute || isSchemaRoute || isAiDevRoute || isTeachingRoute);
+  const effectiveCollapsed = isDesktopCanvasRoute ? !canvasSidebarOpen : collapsed;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -29,7 +38,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const autoCollapse = useCallback(() => {
     setPreCollapseState(collapsed);
-    setCollapsed(true);
+    if (!collapsed) {
+      setCollapsed(true);
+    }
   }, [collapsed]);
 
   const restoreCollapse = useCallback(() => {
@@ -39,10 +50,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isLoaded) return null;
 
   return (
-    <SidebarProvider value={{ collapsed, setCollapsed, autoCollapse, restoreCollapse }}>
+    <SidebarProvider value={{ collapsed: effectiveCollapsed, setCollapsed, autoCollapse, restoreCollapse }}>
       <div className="flex h-screen w-screen bg-black overflow-hidden relative">
         {/* Mobile Sidebar Overlay */}
-        {isMobile && !collapsed && (
+        {isMobile && !effectiveCollapsed && (
           <div
             className="sidebar-overlay z-40"
             onClick={() => setCollapsed(true)}
@@ -50,12 +61,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
 
         <Sidebar
-          collapsed={collapsed}
-          onToggle={() => setCollapsed(!collapsed)}
-          onClose={() => setCollapsed(true)}
+          collapsed={effectiveCollapsed}
+          overlayDesktop={isDesktopCanvasRoute && canvasSidebarOpen}
+          onToggle={() => {
+            if (isDesktopCanvasRoute) {
+              setCanvasSidebarOpen((prev) => !prev);
+              return;
+            }
+            setCollapsed(!effectiveCollapsed);
+          }}
+          onClose={() => {
+            if (isDesktopCanvasRoute) {
+              setCanvasSidebarOpen(false);
+              return;
+            }
+            setCollapsed(true);
+          }}
         />
 
-        <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-black relative">
+        <main
+          className="flex-1 flex flex-col min-w-0 min-h-0 bg-black relative"
+          onPointerDownCapture={() => {
+            if (isDesktopCanvasRoute && canvasSidebarOpen) {
+              setCanvasSidebarOpen(false);
+            }
+          }}
+        >
           {/* Mobile Header (Hamburger) */}
           {isMobile && (
             <div className="flex items-center px-4 h-12 border-b border-white/[0.04] shrink-0">

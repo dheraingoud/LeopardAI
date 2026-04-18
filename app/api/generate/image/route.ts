@@ -8,8 +8,8 @@ const GENAI_BASE_URLS = [
   "https://integrate.api.nvidia.com/v1/genai",
 ];
 const LEGACY_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const IMAGE_LIMIT_PER_DAY = 5;
-const PROVIDER_TIMEOUT_MS = 12_000;
+const IMAGE_LIMIT_PER_DAY = process.env.NODE_ENV === "development" ? 200 : 5;
+const PROVIDER_TIMEOUT_MS = 60_000;
 
 interface ImageModelConfig {
   nimModel: string;
@@ -31,7 +31,8 @@ const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     nimModel: "stabilityai/stable-diffusion-3_5-large",
     nimFallbackModels: [
       "stabilityai/stable-diffusion-3.5-large",
-      "stabilityai/stable-diffusion-3_5-large",
+      "stable-diffusion-3_5-large",
+      "stable-diffusion-3.5-large",
     ],
     genaiPaths: [
       "stabilityai/stable-diffusion-3_5-large",
@@ -44,22 +45,32 @@ const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
     fallbackReason: "Requested SD 3.5 endpoint unavailable; using SDXL fallback.",
   },
   "flux-2-klein-4b": {
-    nimModel: "black-forest-labs/flux_2-klein-4b",
+    nimModel: "black-forest-labs/flux.2-klein-4b",
     nimFallbackModels: [
+      "black-forest-labs/flux.2-klein-4b",
+      "black-forest-labs/flux_2-klein-4b",
+      "black-forest-labs/flux_2-klein_4b",
       "black-forest-labs/flux_1-dev",
+      "black-forest-labs/flux.1-dev",
     ],
     genaiPaths: [
+      "black-forest-labs/flux.2-klein-4b",
+      "black-forest-labs/flux_2-klein_4b",
       "black-forest-labs/flux_2-klein-4b",
       "black-forest-labs/flux_1-dev",
+      "black-forest-labs/flux.1-dev",
     ],
   },
   "stable-diffusion-xl-base": {
-    nimModel: "stabilityai/stable-diffusion-xl-base-1.0",
+    nimModel: "stabilityai/sdxl",
     nimFallbackModels: [
+      "stabilityai/sdxl",
       "stabilityai/stable-diffusion-xl",
       "stabilityai/stable-diffusion-xl-1.0",
+      "stabilityai/stable-diffusion-xl-base-1.0",
     ],
     genaiPaths: [
+      "stabilityai/sdxl",
       "stabilityai/stable-diffusion-xl",
       "stabilityai/stable-diffusion-xl-base-1.0",
       "stabilityai/stable-diffusion-xl-1.0",
@@ -79,14 +90,19 @@ const IMAGE_MODEL_ALIASES: Record<string, ImageModelId> = {
   "flux-2-klein-4b": "flux-2-klein-4b",
   "flux.2-klein-4b": "flux-2-klein-4b",
   "flux_2-klein-4b": "flux-2-klein-4b",
+  "flux_2-klein_4b": "flux-2-klein-4b",
   "flux_2-klein": "flux-2-klein-4b",
   "flux-2-klien-4b": "flux-2-klein-4b",
   "black-forest-labs/flux.2-klein-4b": "flux-2-klein-4b",
   "black-forest-labs/flux_2-klein-4b": "flux-2-klein-4b",
+  "black-forest-labs/flux_2-klein_4b": "flux-2-klein-4b",
   "black-forest-labs/flux_2-klein": "flux-2-klein-4b",
   "black-forest-labs/flux-2-klein-4b": "flux-2-klein-4b",
+  "black-forest-labs/flux_1-dev": "flux-2-klein-4b",
   "black-forest-labs/flux.1-dev": "flux-2-klein-4b",
   "stable-diffusion-xl-base": "stable-diffusion-xl-base",
+  sdxl: "stable-diffusion-xl-base",
+  "stabilityai/sdxl": "stable-diffusion-xl-base",
   "stabilityai/stable-diffusion-xl": "stable-diffusion-xl-base",
   "stabilityai/stable-diffusion-xl-base-1.0": "stable-diffusion-xl-base",
   "stabilityai/stable-diffusion-xl-1.0": "stable-diffusion-xl-base",
@@ -195,6 +211,21 @@ function uniqueNonEmpty(values: Array<string | undefined>): string[] {
     .filter((value, index, list) => value.length > 0 && list.indexOf(value) === index);
 }
 
+function normalizeFluxCfgScale(value?: number): number | undefined {
+  if (!Number.isFinite(Number(value))) return undefined;
+  const parsed = Number(value);
+  const normalized = parsed > 1 ? parsed / 10 : parsed;
+  return Math.max(0.05, Math.min(1, normalized));
+}
+
+function getModelDimensions(modelId: ImageModelId, width: number, height: number) {
+  if (modelId === "stable-diffusion-xl-base") {
+    return { width: 1024, height: 1024 };
+  }
+
+  return { width, height };
+}
+
 function buildGenAiPayloadVariants(input: {
   prompt: string;
   negativePrompt?: string;
@@ -262,9 +293,14 @@ function buildGenAiPayloadVariants(input: {
   }
 
   if (modelId === "stable-diffusion-xl-base") {
-    detailedPayload.text_prompts = [{ text: prompt }];
+    detailedPayload.text_prompts = [
+      { text: prompt, weight: 1 },
+      ...(negativePrompt ? [{ text: negativePrompt, weight: -1 }] : []),
+    ];
     detailedPayload.cfg_scale = cfgScale ?? 7;
     detailedPayload.samples = 1;
+    delete detailedPayload.prompt;
+    delete detailedPayload.mode;
   }
 
   if (isFlux) {
@@ -273,12 +309,24 @@ function buildGenAiPayloadVariants(input: {
     } else {
       delete detailedPayload.mode;
     }
+
     const fluxImage = editImage || initImage;
     if (fluxImage) {
-      detailedPayload.image = [fluxImage];
+      detailedPayload.image = fluxImage;
       delete detailedPayload.init_image;
       delete detailedPayload.image_strength;
-      delete detailedPayload.mask;
+    }
+
+    if (mask) {
+      detailedPayload.mask = mask;
+    }
+
+    detailedPayload.steps = steps;
+    const normalizedFluxCfg = normalizeFluxCfgScale(cfgScale);
+    if (normalizedFluxCfg !== undefined) {
+      detailedPayload.cfg_scale = Number(normalizedFluxCfg.toFixed(2));
+    } else {
+      delete detailedPayload.cfg_scale;
     }
   }
 
@@ -291,19 +339,46 @@ function buildGenAiPayloadVariants(input: {
     delete minimalPayload.mode;
   }
 
+  if (isFlux) {
+    minimalPayload.steps = steps;
+    const normalizedFluxCfg = normalizeFluxCfgScale(cfgScale);
+    if (normalizedFluxCfg !== undefined) {
+      minimalPayload.cfg_scale = Number(normalizedFluxCfg.toFixed(2));
+    } else {
+      delete minimalPayload.cfg_scale;
+    }
+  }
+
   if (isFlux && (editImage || initImage)) {
-    minimalPayload.image = [editImage || initImage];
+    minimalPayload.image = editImage || initImage;
+  }
+
+  if (isFlux && mask) {
+    minimalPayload.mask = mask;
   }
 
   const textPromptsPayload: Record<string, unknown> = {
     ...minimalPayload,
-    text_prompts: [{ text: prompt, weight: 1 }],
+    text_prompts: [
+      { text: prompt, weight: 1 },
+      ...(negativePrompt ? [{ text: negativePrompt, weight: -1 }] : []),
+    ],
   };
 
   delete textPromptsPayload.prompt;
 
   if (isFlux) {
-    return fluxEditing ? [detailedPayload] : [minimalPayload];
+    const compatibilityPayload: Record<string, unknown> = {
+      ...minimalPayload,
+      num_inference_steps: steps,
+      guidance_scale: cfgScale ?? 3.5,
+    };
+    delete compatibilityPayload.steps;
+    delete compatibilityPayload.cfg_scale;
+
+    return fluxEditing
+      ? [detailedPayload, minimalPayload, compatibilityPayload]
+      : [minimalPayload, detailedPayload, compatibilityPayload];
   }
 
   return [detailedPayload, minimalPayload, textPromptsPayload];
@@ -569,7 +644,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { modelId, config: modelConfig } = resolveModelConfig(body.model);
-    const userId = (body.userId || "anonymous").trim();
+    const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+    const userId = (body.userId || forwardedFor || "anonymous").trim();
     const width = toClampedInt(body.width, 1024, 256, 2048);
     const height = toClampedInt(body.height, 1024, 256, 2048);
     const seed = toClampedInt(body.seed, 0, 0, 2_147_483_647);
@@ -610,6 +686,8 @@ export async function POST(req: NextRequest) {
       resolvedUrl: string;
       providerBase: string | null;
       providerPath: string | null;
+      resolvedWidth: number;
+      resolvedHeight: number;
       source: "genai" | "images";
       diagnostics: unknown;
     };
@@ -626,6 +704,7 @@ export async function POST(req: NextRequest) {
       targetModelId: ImageModelId,
       targetConfig: ImageModelConfig,
     ): Promise<ModelGenerationSuccess | ModelGenerationFailure> => {
+      const { width: targetWidth, height: targetHeight } = getModelDimensions(targetModelId, width, height);
       let resolvedUrl: string | null = null;
       let resolvedProviderBase: string | null = null;
       let resolvedProviderPath: string | null = null;
@@ -642,8 +721,8 @@ export async function POST(req: NextRequest) {
             path,
             prompt,
             negativePrompt,
-            width,
-            height,
+            width: targetWidth,
+            height: targetHeight,
             seed,
             steps,
             cfgScale,
@@ -698,8 +777,8 @@ export async function POST(req: NextRequest) {
           nimModels: fallbackNimModels,
           prompt,
           negativePrompt,
-          width,
-          height,
+          width: targetWidth,
+          height: targetHeight,
           seed,
           steps,
           cfgScale,
@@ -744,6 +823,8 @@ export async function POST(req: NextRequest) {
         resolvedUrl,
         providerBase: resolvedProviderBase,
         providerPath: resolvedProviderPath,
+        resolvedWidth: targetWidth,
+        resolvedHeight: targetHeight,
         source,
         diagnostics,
       };
@@ -839,8 +920,8 @@ export async function POST(req: NextRequest) {
       params: {
         seed,
         steps,
-        width,
-        height,
+        width: successResult.resolvedWidth,
+        height: successResult.resolvedHeight,
         cfgScale,
       },
       usage: {
