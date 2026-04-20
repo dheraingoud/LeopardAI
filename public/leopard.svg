@@ -1,0 +1,11 @@
+<svg width="240" height="140" viewBox="0 0 240 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Eye shape (now filled, not hollow) -->
+  <path d="M20 70C50 20 190 20 220 70C190 120 50 120 20 70Z" fill="#0B0B0B" stroke="#F4B400" stroke-width="4"/>
+
+  <!-- Pupil (clean, no awkward background clash) -->
+  <ellipse cx="120" cy="70" rx="12" ry="24" fill="#F4B400"/>
+
+  <!-- Minimal spots -->
+  <circle cx="70" cy="45" r="3.5" fill="#F4B400"/>
+  <circle cx="170" cy="95" r="3.5" fill="#F4B400"/>
+</svg>
