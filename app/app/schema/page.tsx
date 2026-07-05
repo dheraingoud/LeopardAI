@@ -2,33 +2,26 @@
 
 import {
   type ChangeEvent,
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { compressForStorage, decompressFromStorage } from "@/lib/compress";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
-import { motion } from "framer-motion";
 import {
-  BarChart3,
   Database,
   FileText,
-  Link2,
-  Link2Off,
   PanelLeft,
   PanelLeftClose,
   Plus,
-  Sparkles,
   Upload,
   X,
-  ZoomIn,
-  ZoomOut,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -50,9 +43,89 @@ import {
   parseSchemaFromFiles,
   type SchemaTableNode,
   type SqlSchemaFile,
+  type SchemaColumn,
+  type SchemaEdge,
 } from "@/lib/schema-graph";
 import { persistImagesForMessage, sanitizeMessageForStorage } from "@/lib/image-cache";
 import { buildWorkspaceContextPack } from "@/lib/workspace-context-pack";
+import SchemaVizCanvas from "@/components/schema-viz/SchemaVizCanvas";
+import SchemaChatOverlay from "@/components/schema-chat-overlay";
+import type { ParsedSchema, ParsedTable, ParsedRelationship, ParsedColumn as VizParsedColumn } from "@/lib/schema-viz/types";
+
+// Adapter: Convert legacy SchemaTableNode to ParsedTable
+function adaptTableToParsed(table: SchemaTableNode): ParsedTable {
+  return {
+    id: table.id,
+    name: table.name,
+    schema: table.schema,
+    database: undefined,
+    objectType: "table",
+    columns: table.columns.map((col: SchemaColumn): VizParsedColumn => ({
+      name: col.name,
+      type: col.type,
+      normalizedType: col.type.toLowerCase().includes("int") ? "number" : col.type.toLowerCase().includes("bool") ? "boolean" : col.type.toLowerCase().includes("date") || col.type.toLowerCase().includes("time") ? "date" : col.type.toLowerCase().includes("json") ? "json" : "string",
+      nullable: col.nullable,
+      primaryKey: col.isPrimary,
+      unique: col.isPrimary,
+      identity: false,
+      defaultValue: undefined,
+      checkConstraint: undefined,
+      references: undefined,
+      comment: undefined,
+    })),
+    indexes: [],
+    primaryKeys: table.columns.filter((c) => c.isPrimary).map((c) => c.name),
+    uniqueConstraints: [],
+    checkConstraints: [],
+    comment: undefined,
+    isTemporary: false,
+    definition: undefined,
+    triggers: undefined,
+  };
+}
+
+// Adapter: Convert legacy SchemaEdge to ParsedRelationship
+function adaptEdgeToRelationship(edge: SchemaEdge, index: number): ParsedRelationship {
+  return {
+    id: edge.id || `rel-${index}`,
+    fromTable: edge.source,
+    fromColumn: edge.sourceColumn || "id",
+    toTable: edge.target || edge.floatingTarget || "",
+    toColumn: edge.targetColumn || "id",
+    cardinality: "one-to-many",
+    onDelete: undefined,
+    onUpdate: undefined,
+    constraintName: edge.kind === "floating" ? "(inferred)" : undefined,
+  };
+}
+
+// Adapter: Convert legacy ParsedSchemaGraph to ParsedSchema
+function adaptGraphToSchema(graph: ParsedSchemaGraph, files: SqlSchemaFile[]): ParsedSchema {
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `schema-${Date.now()}`,
+    sourceFile: files[0]?.name || "unknown.sql",
+    dialect: "postgresql",
+    tables: graph.tables.map(adaptTableToParsed),
+    relationships: graph.edges.map((e, i) => adaptEdgeToRelationship(e, i)).filter((r) => r.toTable),
+    enums: [],
+    warnings: graph.diagnostics || [],
+    summary: `${graph.tables.length} tables, ${graph.edges.length} relationships`,
+    stats: {
+      tableCount: graph.tables.length,
+      viewCount: 0,
+      procedureCount: 0,
+      triggerCount: 0,
+      relationshipCount: graph.edges.length,
+      parseTimeMs: 0,
+    },
+  };
+}
+
+// Hook-safe userId getter
+function useUserId(): string | undefined {
+  const { user } = useUser();
+  return user?.id;
+}
 
 interface Position {
   x: number;
@@ -146,10 +219,12 @@ function floatingNodeId(label: string): string {
 function mergeFiles(existing: SqlSchemaFile[], incoming: SqlSchemaFile[]): SqlSchemaFile[] {
   const next = [...existing];
   incoming.forEach((file) => {
-    const duplicate = next.find(
-      (entry) => entry.name === file.name && entry.content.trim() === file.content.trim(),
-    );
-    if (!duplicate && file.content.trim()) {
+    if (!file.content.trim()) return;
+    const existingIndex = next.findIndex((entry) => entry.name === file.name);
+    if (existingIndex >= 0) {
+      // Same name → replace content (deduplicate)
+      next[existingIndex] = { ...next[existingIndex], content: file.content, id: file.id };
+    } else {
       next.push(file);
     }
   });
@@ -308,7 +383,7 @@ function getInitialSchemaState(): { workspaces: SchemaWorkspace[]; activeWorkspa
     const raw = window.localStorage.getItem(SCHEMA_STORAGE_KEY);
     if (!raw) return fallback;
 
-    const parsed = JSON.parse(raw) as StoredSchemaState;
+    const parsed = JSON.parse(decompressFromStorage(raw)) as StoredSchemaState;
     if (!parsed || !Array.isArray(parsed.workspaces) || parsed.workspaces.length === 0) {
       return fallback;
     }
@@ -430,14 +505,12 @@ export default function SchemaVisualizerPage() {
   const [draftName, setDraftName] = useState("adhoc-schema.sql");
   const [sqlDraft, setSqlDraft] = useState("");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [zoom, setZoom] = useState(0.85);
-  const [pan, setPan] = useState<Position>({ x: 120, y: 130 });
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [isPanning, setIsPanning] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const dragRef = useRef<DragState | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (isChatOpen) setLeftPanelOpen(false);
+  }, [isChatOpen]);
+
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) || workspaces[0],
@@ -459,14 +532,14 @@ export default function SchemaVisualizerPage() {
       activeWorkspaceId: activeWorkspace?.id || workspaces[0]?.id || "",
       workspaces: workspaces.map(serializeWorkspace),
     };
-    window.localStorage.setItem(SCHEMA_STORAGE_KEY, JSON.stringify(stateToStore));
+    window.localStorage.setItem(SCHEMA_STORAGE_KEY, compressForStorage(JSON.stringify(stateToStore)));
   }, [activeWorkspace?.id, workspaces]);
 
   // Load from convex if visited from a chat link
   useEffect(() => {
     if (sessionQuery?.workspaceData) {
       try {
-        const parsed = JSON.parse(sessionQuery.workspaceData) as StoredSchemaState;
+        const parsed = JSON.parse(decompressFromStorage(sessionQuery.workspaceData)) as StoredSchemaState;
         if (parsed?.workspaces?.length > 0) {
           const restored = parsed.workspaces.map(restoreWorkspace);
           setWorkspaces(restored);
@@ -501,10 +574,10 @@ export default function SchemaVisualizerPage() {
               type: "sql" 
             });
             setSessionChatId(newChatId);
-            await saveSession({ chatId: newChatId, workspaceData: JSON.stringify(stateToStore) });
+            await saveSession({ chatId: newChatId, workspaceData: compressForStorage(JSON.stringify(stateToStore)) });
           } else {
             // Update existing
-            await saveSession({ chatId: sessionChatId as Id<"chats">, workspaceData: JSON.stringify(stateToStore) });
+            await saveSession({ chatId: sessionChatId as Id<"chats">, workspaceData: compressForStorage(JSON.stringify(stateToStore)) });
           }
         } catch (error) {
           console.error("Failed to sync schema session to Convex:", error);
@@ -726,29 +799,9 @@ export default function SchemaVisualizerPage() {
         return;
       }
 
-      const schemaContext = buildSchemaModelContext(activeWorkspace);
-      const filename = `${activeWorkspace.name.trim() || 'schema'}.sql`;
-      
-      const composedMessage = [
-        message.trim(),
-        "",
-        "```sql",
-        `// ${filename}`,
-        schemaContext,
-        "```",
-        "",
-        "Instruction: answer as a senior SQL/DB engineer. Prioritize exact joins, key constraints, data quality assumptions, and migration safety.",
-      ].join("\n");
-
-      const imageMarkdown = (options?.inlineImages || [])
-        .map((url) => `![Attached image](${url})`)
-        .join("\n\n");
-
-      const contentForStorage = imageMarkdown
-        ? `${composedMessage}\n\n${imageMarkdown}`.trim()
-        : composedMessage;
-
-      const sanitized = sanitizeMessageForStorage(contentForStorage);
+      // Store ONLY the user's clean question — schema context is injected silently
+      const cleanQuestion = message.trim();
+      const sanitized = sanitizeMessageForStorage(cleanQuestion);
 
       let targetChatId = activeWorkspace.linkedQaChatId;
 
@@ -768,14 +821,13 @@ export default function SchemaVisualizerPage() {
         const newWorkspace = { ...activeWorkspace, linkedQaChatId: targetChatId };
         updateWorkspace(activeWorkspace.id, () => newWorkspace);
 
-        // Instantly force save to Convex so it doesn't get lost in the page unmount!
+        // Instantly force save to Convex so it doesn't get lost
         if (sessionChatId) {
           const stateToStore: StoredSchemaState = {
             activeWorkspaceId: newWorkspace.id,
             workspaces: workspaces.map(w => w.id === newWorkspace.id ? serializeWorkspace(newWorkspace) : serializeWorkspace(w)),
           };
-          // Best effort sync
-          saveSession({ chatId: sessionChatId as Id<"chats">, workspaceData: JSON.stringify(stateToStore) }).catch(() => {});
+          saveSession({ chatId: sessionChatId as Id<"chats">, workspaceData: compressForStorage(JSON.stringify(stateToStore)) }).catch(() => {});
         }
       }
 
@@ -790,731 +842,294 @@ export default function SchemaVisualizerPage() {
         await persistImagesForMessage(String(userMessageId), sanitized.images);
       }
 
-      router.push(`/app/chat/${targetChatId}`);
-      toast.success("Opened schema-aware chat.");
+      setIsChatOpen(true);
     },
     [activeWorkspace, createChat, router, sendMessage, user, updateWorkspace, workspaces, sessionChatId, saveSession],
   );
 
-  const tableMap = useMemo(() => {
-    const map = new Map<string, SchemaTableNode>();
-    if (!activeWorkspace) return map;
-    activeWorkspace.graph.tables.forEach((table) => {
-      map.set(table.id, table);
-    });
-    return map;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Adapt legacy graph to ParsedSchema for SchemaVizCanvas
+  const vizSchema = useMemo<ParsedSchema | null>(() => {
+    if (!activeWorkspace || activeWorkspace.graph.tables.length === 0) return null;
+    return adaptGraphToSchema(activeWorkspace.graph, activeWorkspace.files);
   }, [activeWorkspace]);
 
-  const floatingNodes = useMemo(
-    () =>
-      activeWorkspace
-        ? activeWorkspace.graph.floatingTargets.map((target) => ({
-            id: floatingNodeId(target),
-            label: target,
-          }))
-        : [],
-    [activeWorkspace],
-  );
-
-  const floatingSuggestionMap = useMemo(() => {
-    const map = new Map<string, string[]>();
-    if (!activeWorkspace) return map;
-
-    activeWorkspace.graph.edges.forEach((edge) => {
-      if (edge.kind !== "floating" || !edge.floatingTarget) return;
-      const current = map.get(edge.floatingTarget) || [];
-      const merged = Array.from(new Set([...current, ...(edge.suggestedTargetIds || [])])).slice(0, 3);
-      map.set(edge.floatingTarget, merged);
-    });
-
-    return map;
-  }, [activeWorkspace]);
 
   const totalColumns = activeWorkspace
-    ? activeWorkspace.graph.tables.reduce((sum, table) => sum + table.columns.length, 0)
+    ? activeWorkspace.graph.tables.reduce((sum, t) => sum + t.columns.length, 0)
     : 0;
-
-  const canvasSize = useMemo(() => {
-    if (!activeWorkspace) {
-      return { width: 2600, height: 1800 };
-    }
-
-    const entries = Object.entries(activeWorkspace.nodePositions);
-    if (entries.length === 0) {
-      return { width: 2600, height: 1800 };
-    }
-
-    let maxX = 1600;
-    let maxY = 1200;
-
-    entries.forEach(([id, position]) => {
-      const isFloating = id.startsWith("floating:");
-      const width = isFloating ? FLOATING_WIDTH : TABLE_WIDTH;
-      const height = isFloating
-        ? FLOATING_HEIGHT
-        : tableHeight(
-            tableMap.get(id) || {
-              id,
-              name: id,
-              columns: [],
-              sourceFileIds: [],
-            },
-          );
-      maxX = Math.max(maxX, position.x + width + 240);
-      maxY = Math.max(maxY, position.y + height + 240);
-    });
-
-    return {
-      width: Math.max(2200, maxX),
-      height: Math.max(1600, maxY),
-    };
-  }, [activeWorkspace, tableMap]);
-
-  const getSourceAnchor = useCallback(
-    (tableId: string, sourceColumn?: string): Position | null => {
-      if (!activeWorkspace) return null;
-      const pos = activeWorkspace.nodePositions[tableId];
-      const table = tableMap.get(tableId);
-      if (!pos || !table) return null;
-
-      let rowIndex = Math.floor(Math.min(table.columns.length, 8) / 2);
-      if (sourceColumn) {
-        const idx = table.columns.findIndex((column) => column.name === sourceColumn);
-        if (idx >= 0) rowIndex = Math.min(idx, 7);
-      }
-
-      return {
-        x: pos.x + TABLE_WIDTH,
-        y: pos.y + TABLE_HEADER_HEIGHT + 12 + rowIndex * COLUMN_ROW_HEIGHT,
-      };
-    },
-    [activeWorkspace, tableMap],
-  );
-
-  const getTargetAnchor = useCallback(
-    (targetId: string, targetColumn?: string): Position | null => {
-      if (!activeWorkspace) return null;
-      const position = activeWorkspace.nodePositions[targetId];
-      if (!position) return null;
-
-      if (targetId.startsWith("floating:")) {
-        return {
-          x: position.x,
-          y: position.y + FLOATING_HEIGHT / 2,
-        };
-      }
-
-      const table = tableMap.get(targetId);
-      if (!table) return null;
-
-      let rowIndex = Math.floor(Math.min(table.columns.length, 8) / 2);
-      if (targetColumn) {
-        const idx = table.columns.findIndex((column) => column.name === targetColumn);
-        if (idx >= 0) rowIndex = Math.min(idx, 7);
-      }
-
-      return {
-        x: position.x,
-        y: position.y + TABLE_HEADER_HEIGHT + 12 + rowIndex * COLUMN_ROW_HEIGHT,
-      };
-    },
-    [activeWorkspace, tableMap],
-  );
-
-  const edges = useMemo(() => {
-    if (!activeWorkspace) return [];
-
-    return activeWorkspace.graph.edges
-      .map((edge) => {
-        const source = getSourceAnchor(edge.source, edge.sourceColumn);
-        const target = edge.target
-          ? getTargetAnchor(edge.target, edge.targetColumn)
-          : edge.floatingTarget
-            ? getTargetAnchor(floatingNodeId(edge.floatingTarget))
-            : null;
-
-        if (!source || !target) return null;
-
-        const curve = Math.max(90, Math.min(260, Math.abs(target.x - source.x) * 0.45));
-        const path = `M ${source.x} ${source.y} C ${source.x + curve} ${source.y}, ${target.x - curve} ${target.y}, ${target.x} ${target.y}`;
-
-        return {
-          ...edge,
-          source,
-          target,
-          path,
-          labelX: (source.x + target.x) / 2,
-          labelY: (source.y + target.y) / 2,
-        };
-      })
-      .filter(Boolean) as Array<
-      ParsedSchemaGraph["edges"][number] & {
-        source: Position;
-        target: Position;
-        path: string;
-        labelX: number;
-        labelY: number;
-      }
-    >;
-  }, [activeWorkspace, getSourceAnchor, getTargetAnchor]);
-
-  const handleWheel = useCallback(
-    (event: WheelEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      if (!viewportRef.current) return;
-
-      const rect = viewportRef.current.getBoundingClientRect();
-      const cursorX = event.clientX - rect.left;
-      const cursorY = event.clientY - rect.top;
-
-      const nextZoom = Math.min(1.8, Math.max(0.45, zoom + event.deltaY * -0.0013));
-      const worldX = (cursorX - pan.x) / zoom;
-      const worldY = (cursorY - pan.y) / zoom;
-
-      setZoom(nextZoom);
-      setPan({
-        x: cursorX - worldX * nextZoom,
-        y: cursorY - worldY * nextZoom,
-      });
-    },
-    [pan.x, pan.y, zoom],
-  );
-
-  const handleCanvasPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return;
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-schema-node='true']")) return;
-      if (target.closest("[data-canvas-control='true']")) return;
-
-      dragRef.current = {
-        type: "pan",
-        originX: event.clientX,
-        originY: event.clientY,
-        startPan: pan,
-      };
-      setIsPanning(true);
-    },
-    [pan],
-  );
-
-  const handleNodePointerDown = useCallback(
-    (nodeId: string, event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!activeWorkspace || event.button !== 0) return;
-      event.stopPropagation();
-      const current = activeWorkspace.nodePositions[nodeId];
-      if (!current) return;
-
-      dragRef.current = {
-        type: "node",
-        nodeId,
-        originX: event.clientX,
-        originY: event.clientY,
-        startPos: current,
-      };
-      setDraggingNodeId(nodeId);
-    },
-    [activeWorkspace],
-  );
-
-  useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag) return;
-
-      if (drag.type === "pan") {
-        const deltaX = event.clientX - drag.originX;
-        const deltaY = event.clientY - drag.originY;
-        setPan({
-          x: drag.startPan.x + deltaX,
-          y: drag.startPan.y + deltaY,
-        });
-        return;
-      }
-
-      const activeId = activeWorkspaceId;
-      const dx = (event.clientX - drag.originX) / zoom;
-      const dy = (event.clientY - drag.originY) / zoom;
-
-      setWorkspaces((previous) =>
-        previous.map((workspace) => {
-          if (workspace.id !== activeId) return workspace;
-          return {
-            ...workspace,
-            nodePositions: {
-              ...workspace.nodePositions,
-              [drag.nodeId]: {
-                x: drag.startPos.x + dx,
-                y: drag.startPos.y + dy,
-              },
-            },
-          };
-        }),
-      );
-    };
-
-    const onUp = () => {
-      dragRef.current = null;
-      setDraggingNodeId(null);
-      setIsPanning(false);
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [activeWorkspaceId, zoom]);
-
   const unresolvedCount = activeWorkspace
-    ? activeWorkspace.graph.edges.filter((edge) => edge.kind === "floating").length
+    ? activeWorkspace.graph.edges.filter((e) => e.kind === "floating").length
     : 0;
 
   return (
-    <div className="h-full w-full p-2 sm:p-3">
-        <div
-          ref={viewportRef}
-          className={cn(
-            "relative h-full overflow-hidden rounded-2xl border border-white/[0.08] bg-[#090909]",
-            isPanning ? "cursor-grabbing" : "cursor-grab",
-          )}
-          onWheel={handleWheel}
-          onPointerDown={handleCanvasPointerDown}
+    <div className="h-full w-full flex flex-col">
+      {/* ─── Header Bar ─── */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={() => setLeftPanelOpen((prev) => !prev)}
+          title={leftPanelOpen ? "Hide panel" : "Show panel"}
         >
-          <div
-            className="absolute inset-0 opacity-45"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
-              backgroundSize: `${40 * zoom}px ${40 * zoom}px`,
-            }}
-          />
+          {leftPanelOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+        </Button>
 
-          <div
-            className="absolute left-0 top-0"
-            style={{
-              width: canvasSize.width,
-              height: canvasSize.height,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: "0 0",
-            }}
-          >
-            <svg
-              width={canvasSize.width}
-              height={canvasSize.height}
-              className="pointer-events-none absolute inset-0"
-            >
-              {edges.map((edge) => {
-                const floating = edge.kind === "floating";
-                const inferred = edge.kind === "inferred";
-                const stroke = floating
-                  ? "rgba(245, 158, 11, 0.9)"
-                  : inferred
-                    ? "rgba(113, 196, 255, 0.92)"
-                    : "rgba(16, 185, 129, 0.95)";
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-leopard-amber-subtle border border-leopard-border-bright">
+          <Database className="h-3.5 w-3.5 text-leopard-amber" />
+          <span className="text-xs font-semibold tracking-wider text-leopard-amber">DATABASE</span>
+        </div>
 
-                return (
-                  <g key={edge.id}>
-                    <path
-                      d={edge.path}
-                      fill="none"
-                      stroke={stroke}
-                      strokeWidth={floating ? 1.5 : 2}
-                      strokeDasharray={floating ? "6 6" : inferred ? "4 4" : undefined}
-                      opacity={0.8}
-                    />
-                    <circle cx={edge.source.x} cy={edge.source.y} r={2} fill={stroke} />
-                    <circle cx={edge.target.x} cy={edge.target.y} r={2} fill={stroke} />
-                  </g>
-                );
-              })}
-            </svg>
-
-            {activeWorkspace?.graph.tables.map((table) => {
-              const position = activeWorkspace.nodePositions[table.id];
-              if (!position) return null;
-              const height = tableHeight(table);
-              return (
-                <div
-              key={table.id}
-              data-schema-node="true"
-              onPointerDown={(event) => handleNodePointerDown(table.id, event)}
-              className={cn(
-                "absolute rounded-xl border border-white/[0.12] bg-[#111] shadow-2xl",
-                    draggingNodeId === table.id
-                      ? "ring-2 ring-[#ffb40055]"
-                      : "hover:border-[#ffb40045]",
-                  )}
-                  style={{
-                    width: TABLE_WIDTH,
-                    height,
-                    left: position.x,
-                    top: position.y,
-                    touchAction: "none",
-                  }}
-                >
-                  <div className="flex h-11 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-[#1a1a1a] px-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[#ffcf66]">
-                        {table.schema ? `${table.schema}.` : ""}
-                        {table.name}
-                      </p>
-                      <p className="text-[10px] text-[#888]">{table.columns.length} columns</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 px-3 py-2">
-                    {table.columns.slice(0, 8).map((column) => (
-                      <div
-                        key={`${table.id}-${column.name}`}
-                        className="grid grid-cols-[1fr_auto] gap-2 text-[10px] text-[#cecece]"
-                      >
-                        <p className="truncate">
-                          {column.isPrimary ? "PK " : ""}
-                          {column.name}
-                        </p>
-                        <p className="truncate text-right text-[#7f7f7f]">{column.type}</p>
-                      </div>
-                    ))}
-                    {table.columns.length > 8 && (
-                      <p className="pt-1 text-[10px] text-[#7f7f7f]">
-                        +{table.columns.length - 8} more columns
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {floatingNodes.map((floating) => {
-              const position = activeWorkspace?.nodePositions[floating.id];
-              if (!position) return null;
-              const suggestions = floatingSuggestionMap.get(floating.label) || [];
-
-              return (
-                <div
-                  key={floating.id}
-                  data-schema-node="true"
-                  onPointerDown={(event) => handleNodePointerDown(floating.id, event)}
-                  className={cn(
-                    "absolute rounded-xl border border-dashed border-amber-400/50 bg-amber-400/10 px-3 py-2 shadow-[0_12px_26px_rgba(0,0,0,0.38)]",
-                    draggingNodeId === floating.id
-                      ? "ring-2 ring-amber-300/45"
-                      : "hover:border-amber-300/70",
-                  )}
-                  style={{
-                    width: FLOATING_WIDTH,
-                    height: FLOATING_HEIGHT,
-                    left: position.x,
-                    top: position.y,
-                    touchAction: "none",
-                  }}
-                >
-                  <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
-                    <Link2Off className="h-3 w-3" />
-                    unresolved target
-                  </p>
-                  <p className="mt-1.5 truncate font-mono text-xs text-amber-100">{floating.label}</p>
-                  {suggestions.length > 0 && (
-                    <p className="mt-1 truncate text-[10px] text-amber-200/85">
-                      likely: {suggestions.join(" · ")}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-
-            {activeWorkspace &&
-              activeWorkspace.graph.tables.length === 0 &&
-              activeWorkspace.graph.floatingTargets.length === 0 && (
-                <div className="absolute left-[48%] top-[43%] max-w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-dashed border-white/[0.16] bg-black/55 px-5 py-4 text-center">
-                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-[#ffcf66]">
-                    <Database className="h-4 w-4" />
-                    Waiting for SQL files
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-[#939393]">
-                    Upload one file first, then add another to trigger related/unrelated workspace branching.
-                  </p>
-                </div>
-              )}
-          </div>
-
-          <div data-canvas-control="true" className="pointer-events-none absolute left-3 right-3 top-3 z-30 flex flex-wrap items-start justify-between gap-3">
-            {/* Left Header Group (Toggle + Viz Label + Tabs) */}
-            <div className="flex flex-wrap items-center gap-2 pointer-events-auto shrink min-w-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className="h-10 w-10 shrink-0 rounded-xl border-white/[0.12] bg-[#111] shadow-xl text-[#dadada] hover:bg-white/[0.08]"
-                onClick={() => setLeftPanelOpen((prev) => !prev)}
-                title={leftPanelOpen ? "Collapse workspace controls" : "Open workspace controls"}
+        {/* Workspace tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0">
+          {workspaces.map((workspace) => {
+            const active = workspace.id === activeWorkspaceId;
+            return (
+              <div
+                key={workspace.id}
+                className={cn(
+                  "inline-flex items-center rounded-md border pr-0.5 transition-colors shrink-0",
+                  active
+                    ? "border-leopard-border-bright bg-leopard-amber-subtle text-leopard-amber"
+                    : "border-border bg-leopard-surface-glass text-muted-foreground hover:text-foreground",
+                )}
               >
-                {leftPanelOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
-              </Button>
-              
-              <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[#ffb4004d] bg-[#111] px-3 h-10 shadow-xl">
-                <BarChart3 className="h-4 w-4 text-[#f9ca73]" />
-                <span className="text-xs font-semibold tracking-wider text-[#f9f9f9]">SQL VIZ</span>
-              </div>
-
-              <div className="hidden md:flex items-center gap-2 overflow-x-auto rounded-xl border border-white/[0.1] bg-[#111] px-2 h-10 shadow-xl shrink min-w-0 flex-1 max-w-[600px]">
-                {workspaces.map((workspace) => {
-                  const active = workspace.id === activeWorkspaceId;
-                  return (
-                    <div
-                      key={workspace.id}
-                      className={cn(
-                        "inline-flex items-center rounded-full border pr-1 transition-colors shrink-0",
-                        active
-                          ? "border-[#ffb40055] bg-[#ffb40015] text-[#ffcf66]"
-                          : "border-white/[0.12] bg-white/[0.02] text-[#8d8d8d]",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setActiveWorkspaceId(workspace.id)}
-                        className="px-3 py-1 text-xs truncate max-w-[124px]"
-                        title={`${workspace.graph.tables.length} tables · ${workspace.files.length} files`}
-                      >
-                        {workspace.name}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => closeWorkspace(workspace.id)}
-                        className={cn(
-                          "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]",
-                          active ? "text-[#ffd783] hover:bg-[#ffb40020]" : "text-[#7d7d7d] hover:bg-white/[0.06]",
-                        )}
-                        title={`Close ${workspace.name}`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-
                 <button
                   type="button"
-                  onClick={() => {
-                    const workspace = createWorkspace(`Schema ${workspaces.length + 1}`);
-                    setWorkspaces((previous) => [...previous, workspace]);
-                    setActiveWorkspaceId(workspace.id);
-                  }}
-                  className="inline-flex items-center shrink-0 gap-1 rounded-full border border-dashed border-white/[0.18] px-3 py-1 text-xs text-[#8d8d8d] hover:border-[#ffb40045] hover:text-[#ffcf66]"
+                  onClick={() => setActiveWorkspaceId(workspace.id)}
+                  className="px-2.5 py-1 text-xs truncate max-w-[120px]"
+                  title={`${workspace.graph.tables.length} tables · ${workspace.files.length} files`}
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  New Schema
+                  {workspace.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => closeWorkspace(workspace.id)}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] hover:bg-leopard-amber-subtle"
+                  title={`Close ${workspace.name}`}
+                >
+                  <X className="h-3 w-3" />
                 </button>
               </div>
-            </div>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              const workspace = createWorkspace(`Schema ${workspaces.length + 1}`);
+              setWorkspaces((previous) => [...previous, workspace]);
+              setActiveWorkspaceId(workspace.id);
+            }}
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground hover:border-leopard-border-bright hover:text-leopard-amber transition-colors shrink-0"
+          >
+            <Plus className="h-3 w-3" />
+            New
+          </button>
+        </div>
 
-            {/* Right Header Group (Stats + Zoom) */}
-            <div className="flex items-center gap-3 pointer-events-auto shrink-0 flex-wrap justify-end">
-              <div className="hidden items-center gap-1.5 text-xs lg:flex">
-                <div className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#111] shadow-xl px-3 h-10">
-                  <span className="text-[#888]">Tables</span>
-                  <span className="font-semibold text-white">{activeWorkspace?.graph.tables.length || 0}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#111] shadow-xl px-3 h-10">
-                  <span className="text-[#888]">Cols</span>
-                  <span className="font-semibold text-white">{totalColumns}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#111] shadow-xl px-3 h-10">
-                  <span className="text-[#888]">Links</span>
-                  <span className="font-semibold text-white">{activeWorkspace?.graph.edges.length || 0}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-[#111] shadow-xl px-3 h-10">
-                  <span className="text-[#888]">Float</span>
-                  <span className="font-semibold text-[#f6b54f]">{unresolvedCount}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-1.5 rounded-xl border border-white/[0.1] bg-[#111] shadow-xl px-1.5 h-10">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="h-7 w-7 border-white/[0.12] bg-[#222] text-[#d0d0d0] hover:bg-white/10"
-                  onClick={() => setZoom((prev) => Math.max(0.45, prev - 0.1))}
-                  title="Zoom out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="h-7 w-7 border-white/[0.12] bg-[#222] text-[#d0d0d0] hover:bg-white/10"
-                  onClick={() => setZoom((prev) => Math.min(1.8, prev + 0.1))}
-                  title="Zoom in"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-7 border-white/[0.12] bg-[#222] px-2.5 text-xs text-[#d0d0d0] hover:bg-white/10"
-                  onClick={() => {
-                    setPan({ x: 120, y: 130 });
-                    setZoom(0.85);
-                  }}
-                >
-                  Reset
-                </Button>
-              </div>
-            </div>
-          </div>
+        {/* Stats pills */}
+        <div className="hidden lg:flex items-center gap-1.5 text-xs">
+          <span className="px-2 py-1 rounded-md border border-border bg-card">
+            <span className="text-muted-foreground mr-1">Tables</span>
+            <span className="font-semibold text-foreground">{activeWorkspace?.graph.tables.length || 0}</span>
+          </span>
+          <span className="px-2 py-1 rounded-md border border-border bg-card">
+            <span className="text-muted-foreground mr-1">Cols</span>
+            <span className="font-semibold text-foreground">{totalColumns}</span>
+          </span>
+          <span className="px-2 py-1 rounded-md border border-border bg-card">
+            <span className="text-muted-foreground mr-1">Relations</span>
+            <span className="font-semibold text-foreground">{activeWorkspace?.graph.edges.length || 0}</span>
+          </span>
+          {unresolvedCount > 0 && (
+            <span className="px-2 py-1 rounded-md border border-amber-500/30 bg-amber-500/10">
+              <span className="text-amber-400 mr-1">Unresolved</span>
+              <span className="font-semibold text-amber-300">{unresolvedCount}</span>
+            </span>
+          )}
 
-          {leftPanelOpen && (
-            <div data-canvas-control="true" className="absolute left-3 top-[228px] bottom-[102px] z-30 w-[312px] rounded-2xl border border-white/[0.09] bg-black/55 p-3 backdrop-blur-md md:top-[132px]">
-              <div className="h-full overflow-auto pr-1">
-                <section className="rounded-xl border border-white/[0.08] bg-black/35 p-3">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f9f9f]">Schema Input</h2>
-                  <p className="mb-2 text-xs text-[#888]">
-                    Upload SQL/Snowflake files. Floating links stay visible and can still suggest likely table targets.
-                  </p>
+          <div className="w-px h-4 bg-border mx-1" />
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className={cn("h-7 px-3 flex items-center gap-1.5 transition-colors", isChatOpen ? "bg-leopard-amber-subtle text-leopard-amber border-leopard-amber" : "")}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            {isChatOpen ? "Close Assistant" : "Ask AI"}
+          </Button>
+        </div>
+      </div>
+
+      {/* ─── Main Content: Sidebar + Canvas ─── */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left Panel — Supabase-style sidebar */}
+        {leftPanelOpen && (
+          <div className="w-[280px] shrink-0 border-r border-border bg-card flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
+              {/* Upload Section */}
+              <section className="rounded-lg border border-border p-3">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Schema Input</h2>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Upload SQL/Snowflake DDL files to visualize your database schema.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full justify-center text-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload SQL Files
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".sql,.txt,.ddl,.snowflake,.md,.hql,.bq,.bigquery,.tsql,.plsql,.sqlite,.prisma,.csv,.entity.ts"
+                  multiple
+                  className="hidden"
+                  onChange={handleNativeFileSelection}
+                />
+
+                <div className="mt-3 space-y-2">
+                  <Input
+                    value={draftName}
+                    onChange={(event) => setDraftName(event.target.value)}
+                    placeholder="snippet.sql"
+                    className="h-8 text-xs"
+                  />
+                  <Textarea
+                    value={sqlDraft}
+                    onChange={(event) => setSqlDraft(event.target.value)}
+                    placeholder="Paste SQL DDL, references, joins..."
+                    className="min-h-[100px] resize-y text-xs leading-relaxed"
+                  />
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-9 w-full justify-center border-white/[0.12] bg-black/35 text-[#ddd] hover:bg-white/5"
-                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 w-full text-xs"
+                    onClick={handleAddSqlDraft}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload SQL Files
+                    <FileText className="mr-1.5 h-3.5 w-3.5" />
+                    Add SQL Snippet
                   </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".sql,.txt,.ddl,.snowflake,.md"
-                    multiple
-                    className="hidden"
-                    onChange={handleNativeFileSelection}
-                  />
+                </div>
+              </section>
 
-                  <div className="mt-3 space-y-2">
-                    <Input
-                      value={draftName}
-                      onChange={(event) => setDraftName(event.target.value)}
-                      placeholder="snippet.sql"
-                      className="h-8 bg-white/[0.03] text-xs text-white"
-                    />
-                    <Textarea
-                      value={sqlDraft}
-                      onChange={(event) => setSqlDraft(event.target.value)}
-                      placeholder="Paste SQL DDL, references, joins..."
-                      className="min-h-[126px] resize-y bg-white/[0.03] text-xs leading-relaxed text-[#f0f0f0]"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-8 w-full border-white/[0.12] text-xs text-[#ddd] hover:bg-white/5"
-                      onClick={handleAddSqlDraft}
-                    >
-                      <FileText className="mr-1.5 h-3.5 w-3.5" />
-                      Add SQL Snippet
-                    </Button>
+              {/* Loaded Files */}
+              <section className="rounded-lg border border-border p-3">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Loaded Files</h2>
+                {activeWorkspace && activeWorkspace.files.length > 0 ? (
+                  <div className="max-h-40 space-y-1.5 overflow-auto pr-1">
+                    {activeWorkspace.files.map((file) => (
+                      <div key={file.id} className="rounded-md border border-border px-2.5 py-2">
+                        <p className="truncate text-xs font-medium text-foreground">{file.name}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{file.content.length.toLocaleString()} chars</p>
+                      </div>
+                    ))}
                   </div>
-                </section>
-
-                <section className="mt-3 rounded-xl border border-white/[0.08] bg-black/35 p-3">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f9f9f]">Session</h2>
-                  <div className="grid grid-cols-1 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-8 border-white/[0.12] bg-black/35 text-xs text-[#ddd] hover:bg-white/5"
-                      onClick={handleCopySchemaContext}
-                    >
-                      Copy Context Snapshot
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-8 border-red-500/30 bg-red-500/5 text-xs text-red-200 hover:bg-red-500/15"
-                      onClick={handleResetSavedSessions}
-                    >
-                      Reset Saved Sessions
-                    </Button>
-                  </div>
-                </section>
-
-                <section className="mt-3 rounded-xl border border-white/[0.08] bg-black/35 p-3">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f9f9f]">Loaded Files</h2>
-                  {activeWorkspace && activeWorkspace.files.length > 0 ? (
-                    <div className="max-h-52 space-y-2 overflow-auto pr-1">
-                      {activeWorkspace.files.map((file) => (
-                        <div key={file.id} className="rounded-lg border border-white/[0.06] bg-black/25 px-2.5 py-2">
-                          <p className="truncate text-xs font-medium text-[#e8e8e8]">{file.name}</p>
-                          <p className="mt-0.5 text-[11px] text-[#767676]">{file.content.length.toLocaleString()} chars</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="rounded-lg border border-dashed border-white/[0.1] px-3 py-3 text-xs text-[#787878]">
-                      No files loaded in this schema window.
-                    </p>
-                  )}
-                </section>
-
-                {activeWorkspace && activeWorkspace.graph.diagnostics.length > 0 && (
-                  <section className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-300">Parser Notes</p>
-                    <div className="space-y-1 text-xs text-amber-100/80">
-                      {activeWorkspace.graph.diagnostics.slice(0, 10).map((diagnostic) => (
-                        <p key={diagnostic}>• {diagnostic}</p>
-                      ))}
-                    </div>
-                  </section>
+                ) : (
+                  <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">
+                    No files loaded yet.
+                  </p>
                 )}
-              </div>
-            </div>
-          )}
+              </section>
 
-          <div data-canvas-control="true" className="pointer-events-none absolute left-[132px] top-[76px] z-30 hidden md:block">
-            <div className="pointer-events-auto flex items-center gap-2 text-xs text-[#8d8d8d]">
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
-                <Link2 className="h-3 w-3" />
-                known links
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-amber-300">
-                <Link2Off className="h-3 w-3" />
-                floating links
-              </span>
+              {/* Session */}
+              <section className="rounded-lg border border-border p-3">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Session</h2>
+                <div className="grid grid-cols-1 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={handleCopySchemaContext}
+                  >
+                    Copy Context Snapshot
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/15 text-xs"
+                    onClick={handleResetSavedSessions}
+                  >
+                    Reset All Sessions
+                  </Button>
+                </div>
+              </section>
+
+              {/* Parser Notes */}
+              {activeWorkspace && activeWorkspace.graph.diagnostics.length > 0 && (
+                <section className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-amber-500">Parser Notes</p>
+                  <div className="space-y-1 text-xs text-amber-600 dark:text-amber-300">
+                    {activeWorkspace.graph.diagnostics.slice(0, 10).map((diagnostic) => (
+                      <p key={diagnostic}>• {diagnostic}</p>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           </div>
+        )}
 
-          <div data-canvas-control="true" className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center px-3">
-            <div className="pointer-events-auto w-full max-w-4xl">
-              <InputBar
-                onSend={handleAskSchema}
-                placeholder="Ask this schema: joins, constraints, missing indexes, migration risks..."
-                textOnlyModels
-                chatModel="minimax-m2.7"
-              />
-            </div>
+        {/* Canvas Area */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+          {/* ReactFlow Canvas */}
+          <div className="flex-1 min-h-0">
+            {vizSchema ? (
+              <SchemaVizCanvas schema={vizSchema} />
+            ) : (
+              <div className="h-full flex items-center justify-center bg-background">
+                <div className="max-w-[360px] text-center p-6">
+                  <div className="mx-auto mb-4 h-12 w-12 rounded-xl border border-dashed border-border flex items-center justify-center">
+                    <Database className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground mb-2">No schema loaded</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Upload SQL files or paste DDL in the sidebar to visualize your database schema with interactive nodes and relationship edges.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* DB Assistant — flex sibling, properly shares space */}
+        {isChatOpen && (
+          <SchemaChatOverlay
+            chatId={activeWorkspace?.linkedQaChatId}
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            onSendFirstMessage={handleAskSchema}
+            schemaSystemContext={activeWorkspace ? buildSchemaModelContext(activeWorkspace) : undefined}
+          />
+        )}
+      </div>
+
+      {/* Merge Decision Dialog */}
       <Dialog
         open={Boolean(pendingDecision)}
         onOpenChange={(open) => {
           if (!open) setPendingDecision(null);
         }}
       >
-        <DialogContent className="max-w-lg border border-white/[0.15] bg-[#0b0b0b] text-white" showCloseButton={false}>
+        <DialogContent className="max-w-lg" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle className="text-base text-[#ffcf66]">Is this upload related to this schema window?</DialogTitle>
-            <DialogDescription className="text-sm text-[#b8b8b8]">
+            <DialogTitle className="text-base text-leopard-amber">Is this upload related to this schema window?</DialogTitle>
+            <DialogDescription>
               Related merges into the current window. Unrelated opens a new SQL schema window.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-lg border border-white/[0.1] bg-black/35 p-3">
-            <p className="mb-2 text-xs uppercase tracking-[0.12em] text-[#7d7d7d]">Queued Files</p>
-            <div className="space-y-1.5 text-xs text-[#ddd]">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Queued Files</p>
+            <div className="space-y-1.5 text-xs text-foreground">
               {pendingDecision?.files.map((file) => (
                 <p key={file.id} className="truncate">• {file.name}</p>
               ))}
@@ -1526,14 +1141,13 @@ export default function SchemaVisualizerPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="border-white/[0.14] bg-white/[0.02] text-[#e0e0e0] hover:bg-white/[0.07]"
                 onClick={() => handleDecision(true)}
               >
                 Related: Merge into current
               </Button>
               <Button
                 type="button"
-                className="bg-[#ffb400] text-black hover:bg-[#e2a100]"
+                className="bg-leopard-amber text-black hover:bg-leopard-amber/90"
                 onClick={() => handleDecision(false)}
               >
                 Not related: New window

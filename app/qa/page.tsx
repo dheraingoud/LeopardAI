@@ -62,20 +62,20 @@ export default function QaPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-[#0d0d0d] p-4 space-y-3">
+      <section className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-[#0d0d0d] p-4 space-y-3">
         <h2 className="text-sm font-semibold text-[#dedede]">Text QA</h2>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={4}
-          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6] outline-none focus:border-[#ffb40055]"
+          className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333] outline-none focus:border-[#ffb40055]"
         />
 
         <div className="flex items-center gap-3">
           <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-[#c9c9c9]"
+            className="rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-xs text-[#c9c9c9]"
           >
             {textModels.map((entry) => (
               <option key={entry.id} value={entry.id}>
@@ -93,7 +93,7 @@ export default function QaPage() {
           </button>
         </div>
 
-        <pre className="min-h-[120px] rounded-lg border border-white/10 bg-black/30 p-3 text-xs leading-6 text-[#cfcfcf] whitespace-pre-wrap">
+        <pre className="min-h-[120px] rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 p-3 text-xs leading-6 text-[#cfcfcf] whitespace-pre-wrap">
           {result || "Result will appear here"}
         </pre>
       </section>
@@ -105,10 +105,10 @@ export default function QaPage() {
             <Link
               key={entry.id}
               href={`/app/playground/${entry.id}`}
-              className="rounded-xl border border-white/10 bg-[#0d0d0d] p-4 hover:border-[#ffb40055] transition-colors"
+              className="rounded-xl border dark:border-white/10 light:border-black/10 bg-[#0d0d0d] p-4 hover:border-[#ffb40055] transition-colors"
             >
               <p className="text-sm font-semibold text-[#ececec]">{entry.name}</p>
-              <p className="text-xs text-[#7f7f7f] mt-1">{entry.description}</p>
+              <p className="text-xs dark:text-[#7f7f7f] light:text-[#808080] mt-1">{entry.description}</p>
             </Link>
           ))}
         </div>

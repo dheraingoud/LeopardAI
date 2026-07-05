@@ -281,7 +281,7 @@ export function useStreaming({ chatId, userId, onComplete }: UseStreamingProps) 
         console.error("Streaming error:", error);
         const msg = error instanceof Error ? error.message : "Something went wrong.";
       if (msg === "__CONTEXT_OVERFLOW__") {
-        toast.error("Conversation too long for this model. Try starting a new chat or compact this conversation.", { duration: 8000 });
+        toast.error("Context window exceeded", { description: "This conversation is too long for the model's context window.", duration: 10000, action: { label: "New Chat", onClick: () => window.location.href = "/app" } });
       } else {
         toast.error(msg);
       }

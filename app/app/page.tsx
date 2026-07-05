@@ -90,10 +90,10 @@ export default function AppHomePage() {
           <div className="flex items-center justify-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-[#ffb400]" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-white font-mono">
+          <h1 className="text-xl sm:text-2xl font-semibold dark:text-white light:text-[#171717] font-mono">
             How can I help you today?
           </h1>
-          <p className="text-[12px] sm:text-sm text-[#525252] font-mono uppercase tracking-widest sr-only">
+          <p className="text-[12px] sm:text-sm dark:text-[#525252] light:text-[#8c8c8c] font-mono uppercase tracking-widest sr-only">
             leopard
           </p>
         </motion.div>
@@ -107,14 +107,14 @@ export default function AppHomePage() {
                 key={prompt.title}
                 variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5 } } }}
                 onClick={() => handlePromptClick(prompt)}
-                className="glass-card rounded-xl p-3 sm:p-4 text-left border-white/[0.03] hover:border-[#ffb40015] transition-all duration-200 group cursor-pointer"
+                className="glass-card rounded-xl p-3 sm:p-4 text-left dark:border-white/[0.03] light:border-black/[0.04] dark:hover:border-[#ffb40015] light:hover:border-[#d4960015] transition-all duration-200 group cursor-pointer"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.03] flex items-center justify-center shrink-0 group-hover:bg-[#ffb40010] transition-colors">
-                    <Icon className="h-3.5 w-3.5 text-[#525252] group-hover:text-[#ffb400] transition-colors" />
+                  <div className="w-8 h-8 rounded-lg dark:bg-white/[0.03] light:bg-black/[0.02] flex items-center justify-center shrink-0 group-hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors">
+                    <Icon className="h-3.5 w-3.5 dark:text-[#525252] light:text-[#8c8c8c] group-hover:text-[#ffb400] transition-colors" />
                   </div>
                   <div>
-                    <p className="text-xs sm:text-sm font-mono text-[#d4d4d4] font-medium group-hover:text-white transition-colors">
+                    <p className="text-xs sm:text-sm font-mono dark:text-[#d4d4d4] light:text-[#404040] font-medium group-hover:dark:text-white light:text-[#171717] transition-colors">
                       {prompt.title}
                     </p>
                     <p className="text-[10px] sm:text-xs font-mono text-[#333] mt-0.5 group-hover:text-[#555] transition-colors">

@@ -104,7 +104,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div ref={heroRef} className="relative min-h-screen flex flex-col bg-black overflow-hidden">
+    <div ref={heroRef} className="relative min-h-screen flex flex-col dark:bg-black light:bg-white overflow-hidden">
       {/* ── Ambient Background ── */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(255,180,0,0.06)_0%,transparent_70%)]" />
@@ -135,7 +135,7 @@ export default function LandingPage() {
           <Link href="/sign-in">
             <Button
               variant="ghost"
-              className="text-[#a3a3a3] hover:text-white hover:bg-white/5 font-mono text-sm"
+              className="dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 font-mono text-sm"
             >
               Sign In
             </Button>
@@ -162,13 +162,13 @@ export default function LandingPage() {
           {/* Tagline */}
           <motion.p
             variants={fadeUp}
-            className="text-lg sm:text-xl text-[#a3a3a3] font-mono max-w-2xl mx-auto mb-4 leading-relaxed"
+            className="text-lg sm:text-xl dark:text-[#a3a3a3] light:text-[#525252] font-mono max-w-2xl mx-auto mb-4 leading-relaxed"
           >
             Predatory precision. Lightning speed.
           </motion.p>
           <motion.p
             variants={fadeUp}
-            className="text-sm text-[#525252] font-mono max-w-lg mx-auto mb-10"
+            className="text-sm dark:text-[#525252] light:text-[#8c8c8c] font-mono max-w-lg mx-auto mb-10"
           >
             A high-performance AI chat interface built for developers who demand
             clarity and speed from their tools.
@@ -233,7 +233,7 @@ export default function LandingPage() {
           <p className="text-[10px] font-mono text-[#ffb400] uppercase tracking-[0.2em] mb-2">
             Built for speed
           </p>
-          <h2 className="text-xl sm:text-2xl font-display text-white font-semibold">
+          <h2 className="text-xl sm:text-2xl font-display dark:text-white light:text-[#171717] font-semibold">
             Everything you need, nothing you don&apos;t
           </h2>
         </motion.div>
@@ -243,27 +243,27 @@ export default function LandingPage() {
             <motion.div
               key={f.title}
               variants={fadeUp}
-              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.015] p-6 transition-all duration-300 hover:border-[#ffb40018] hover:bg-white/[0.025] hover-lift"
+              className="group relative rounded-2xl border dark:border-white/[0.06] light:border-black/[0.06] dark:bg-white/[0.015] light:bg-black/[0.01] p-6 transition-all duration-300 dark:hover:border-[#ffb40018] light:hover:border-[#d4960018] dark:hover:bg-white/[0.025] light:hover:bg-black/[0.015] hover-lift"
             >
               <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,0,0.04)_0%,transparent_60%)] pointer-events-none" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center group-hover:bg-[#ffb40010] group-hover:border-[#ffb40015] transition-colors">
-                    <f.icon className="h-4.5 w-4.5 text-[#737373] group-hover:text-[#ffb400] transition-colors" />
+                  <div className="w-10 h-10 rounded-xl dark:bg-white/[0.04] light:bg-black/[0.03] border dark:border-white/[0.06] light:border-black/[0.06] flex items-center justify-center group-hover:dark:bg-[#ffb40010] light:bg-[#d4960010] group-dark:hover:border-[#ffb40015] light:hover:border-[#d4960015] transition-colors">
+                    <f.icon className="h-4.5 w-4.5 dark:text-[#737373] light:text-[#737373] group-hover:text-[#ffb400] transition-colors" />
                   </div>
                   <div className="text-right">
                     <p className="text-base font-mono text-[#ffb400] font-bold leading-none">
                       {f.stat}
                     </p>
-                    <p className="text-[9px] font-mono text-[#525252] uppercase tracking-wider mt-0.5">
+                    <p className="text-[9px] font-mono dark:text-[#525252] light:text-[#8c8c8c] uppercase tracking-wider mt-0.5">
                       {f.statLabel}
                     </p>
                   </div>
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-2 font-mono">
+                <h3 className="text-sm font-semibold dark:text-white light:text-[#171717] mb-2 font-mono">
                   {f.title}
                 </h3>
-                <p className="text-xs text-[#737373] font-mono leading-[1.7]">
+                <p className="text-xs dark:text-[#737373] light:text-[#737373] font-mono leading-[1.7]">
                   {f.desc}
                 </p>
               </div>
@@ -277,9 +277,9 @@ export default function LandingPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.2 }}
-        className="relative z-10 text-center py-6 border-t border-white/[0.03]"
+        className="relative z-10 text-center py-6 border-t dark:border-white/[0.03] light:border-black/[0.04]"
       >
-        <p className="text-xs text-[#404040] font-mono">
+        <p className="text-xs dark:text-[#404040] light:text-[#a3a3a3] font-mono">
           © {new Date().getFullYear()} Leopard · Built with precision
         </p>
       </motion.footer>
