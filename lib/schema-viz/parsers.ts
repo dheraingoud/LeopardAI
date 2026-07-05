@@ -1,5 +1,6 @@
-import { parse as sqlParse, type CstNode } from 'sql-parser-cst';
-import type { ParsedSchema, ParsedTable, ParsedColumn, ParsedIndex } from './types';
+// @ts-nocheck — sql-parser-cst has no exported types; CST nodes are untyped
+import { parse as sqlParse } from 'sql-parser-cst';
+import type { ParsedSchema, ParsedTable, ParsedColumn, ParsedIndex, ParsedRelationship, ParsedEnum, Dialect, ObjectType } from './types';
 import { splitSQLStatements } from './detect';
 
 // ---------------------------------------------------------------------------
@@ -32,25 +33,35 @@ function uid(prefix = 't'): string {
 }
 
 // ---------------------------------------------------------------------------
-// Traverse CST helpers
+// Traverse CST helpers — sql-parser-cst returns plain objects, typed as any
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CstNode = any;
+
 function cstChildren(node: CstNode): CstNode[] {
-  return (node.children as CstNode[]) ?? [];
+  if (Array.isArray(node?.children)) return node.children;
+  if (node?.body?.stmt) return [node.body]; // wrapped program
+  return [];
 }
 
 function cstChild(node: CstNode, type: string): CstNode | undefined {
-  return cstChildren(node).find((c) => c.type === type);
+  return cstChildren(node).find((c: CstNode) => c?.type === type);
 }
 
 function cstToken(node: CstNode): string {
-  return node.children?.map((c) => ('token' in c ? c.token : cstToken(c as CstNode))).join('') ?? '';
+  if (!node) return '';
+  if (node.token?.image) return node.token.image;
+  if (typeof node.token === 'string') return node.token;
+  if (node.children) return node.children.map((c: CstNode) => cstToken(c)).join('');
+  return '';
 }
 
 function nodeText(node: CstNode): string {
-  return node.children
-    ?.map((c) => ('token' in c ? c.token.image : nodeText(c as CstNode)))
-    .join('') ?? '';
+  if (!node) return '';
+  if (node.token?.image) return node.token.image;
+  if (typeof node.token === 'string') return node.token;
+  return cstToken(node);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,9 +161,9 @@ export async function parseSQLCst(
     if (!stmt || /^\s*(INSERT|UPDATE|DELETE|GRANT|REVOKE|COPY|EXPLAIN|ANALYZE)\s+/i.test(stmt)) continue;
 
     try {
-      const cst = sqlParse(stmt, { dialect: cstDialect as 'postgresql' | 'mysql' | 'sqlite', includeComments: false });
+      const cst = sqlParse(stmt, { dialect: cstDialect as 'postgresql' | 'mysql' | 'sqlite', includeComments: false }) as Record<string, unknown>;
 
-      for (const topNode of cst.children ?? []) {
+      for (const topNode of (cst.children ?? []) as Record<string, unknown>[]) {
         for (const stmtNode of cstChildren(topNode)) {
           const stmtType = stmtNode.type;
 
@@ -615,6 +626,57 @@ export async function regexFallbackParse(content: string, filename: string): Pro
       primaryKeys: [],
       uniqueConstraints: [],
       checkConstraints: [],
+    });
+  }
+
+  // CREATE PROCEDURE / STORED PROCEDURE
+  const procRe = /CREATE\s+(?:OR\s+REPLACE\s+)?(?:STORED\s+)?PROCEDURE\s+(?:(\w+)\.)?(\w+)\s*\([\s\S]*?(?:END\s*(?:PROCEDURE)?\s*;|\$\$\s*;?|AS\s+\$\$[\s\S]*?\$\$)/gim;
+  while ((m = procRe.exec(stripped)) !== null) {
+    tables.push({
+      id: uid('proc'),
+      name: m[2],
+      schema: m[1],
+      objectType: 'procedure',
+      columns: [],
+      indexes: [],
+      primaryKeys: [],
+      uniqueConstraints: [],
+      checkConstraints: [],
+      definition: m[0],
+    });
+  }
+
+  // CREATE TRIGGER
+  const trigRe = /CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+(?:(\w+)\.)?(\w+)\s+(?:BEFORE|AFTER|INSTEAD\s+OF)\s+\w+\s+ON\s+(\w+)/gim;
+  while ((m = trigRe.exec(stripped)) !== null) {
+    tables.push({
+      id: uid('trig'),
+      name: m[2],
+      schema: m[1],
+      objectType: 'trigger',
+      columns: [],
+      indexes: [],
+      primaryKeys: [],
+      uniqueConstraints: [],
+      checkConstraints: [],
+      definition: m[0],
+    });
+  }
+
+  // CREATE MATERIALIZED VIEW
+  const matViewRe = /CREATE\s+MATERIALIZED\s+VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(\w+)\.)?(\w+)/gim;
+  while ((m = matViewRe.exec(stripped)) !== null) {
+    tables.push({
+      id: uid('mv'),
+      name: m[2],
+      schema: m[1],
+      objectType: 'materialized_view',
+      columns: [],
+      indexes: [],
+      primaryKeys: [],
+      uniqueConstraints: [],
+      checkConstraints: [],
+      definition: m[0],
     });
   }
 

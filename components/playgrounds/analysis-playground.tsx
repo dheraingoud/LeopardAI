@@ -154,12 +154,12 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
     if (imageUrl.startsWith("data:image")) {
       return (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="Uploaded analysis input" className="h-44 w-full rounded-lg object-cover border border-white/10" />
+        <img src={imageUrl} alt="Uploaded analysis input" className="h-44 w-full rounded-lg object-cover border dark:border-white/10 light:border-black/10" />
       );
     }
 
     return (
-      <div className="rounded-lg border border-white/10 bg-black/30 p-2">
+      <div className="rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 p-2">
         <p className="truncate text-xs text-[#bdbdbd]">{imageUrl}</p>
       </div>
     );
@@ -167,22 +167,22 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_1fr]">
-      <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 dark:bg-[#111111] light:bg-[#f0f0f0] p-4 space-y-4">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#7e7e7e]">Input</p>
           {renderInputPreview()}
           <input
             value={imageUrl}
             onChange={(event) => setImageUrl(event.target.value)}
             placeholder="https://... or data:image/..."
-            className="w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-[#d8d8d8]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-xs text-[#d8d8d8]"
           />
           <label className="block">
             <span className="mb-1 block text-[10px] text-[#7c7c7c]">Upload image</span>
             <input
               type="file"
               accept="image/*"
-              className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-xs text-[#d8d8d8]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-xs text-[#d8d8d8]"
               onChange={async (event) => {
                 const file = event.target.files?.[0] || null;
                 if (!file) return;
@@ -204,7 +204,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
               <button
                 key={question}
                 onClick={() => setPrompt(question)}
-                className="min-h-10 shrink-0 snap-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-[#bbbbbb] hover:text-white"
+                className="min-h-10 shrink-0 snap-start rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-1.5 text-[11px] text-[#bbbbbb] hover:dark:text-white light:text-[#171717]"
               >
                 {question}
               </button>
@@ -218,7 +218,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6] outline-none focus:border-[#ffb40055]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333] outline-none focus:border-[#ffb40055]"
           />
         </label>
 
@@ -228,7 +228,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
             <select
               value={model}
               onChange={(event) => setModel(event.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs text-[#c9c9c9]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-2 py-2 text-xs text-[#c9c9c9]"
             >
               <option value="llama-3.2-11b-vision">Llama 3.2 11B Vision</option>
               <option value="llama-3.2-90b-vision">Llama 3.2 90B Vision</option>
@@ -243,7 +243,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
               max={4096}
               value={maxTokens}
               onChange={(event) => setMaxTokens(Math.max(256, Math.min(4096, Number(event.target.value) || 2048)))}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs text-[#c9c9c9]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-2 py-2 text-xs text-[#c9c9c9]"
             />
           </label>
         </div>
@@ -260,8 +260,8 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
         </button>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 min-h-[560px] space-y-4">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 min-h-[560px] space-y-4">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] uppercase tracking-widest text-[#7d7d7d]">Reasoning Trace</p>
             <button
@@ -274,7 +274,7 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
           </div>
 
           {showReasoning && (
-            <pre className="mt-2 max-h-[180px] overflow-auto rounded-lg border-l-2 border-[#ffb40055] bg-black/35 p-3 text-xs leading-6 text-[#c8c8c8] whitespace-pre-wrap font-mono">
+            <pre className="mt-2 max-h-[180px] overflow-auto rounded-lg border-l-2 border-[#ffb40055] dark:bg-black/35 light:bg-white/85 p-3 text-xs leading-6 text-[#c8c8c8] whitespace-pre-wrap font-mono">
               {reasoning || "No reasoning block found."}
             </pre>
           )}
@@ -284,9 +284,9 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="rounded-xl border border-white/10 bg-black/20 p-4 min-h-[220px]"
+          className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-4 min-h-[220px]"
         >
-          <p className="text-[11px] uppercase tracking-widest text-[#7f7f7f] mb-2">Final Answer</p>
+          <p className="text-[11px] uppercase tracking-widest dark:text-[#7f7f7f] light:text-[#808080] mb-2">Final Answer</p>
           {finalAnswer ? (
             <p className="text-sm leading-7 text-[#d8d8d8] whitespace-pre-wrap">{finalAnswer}</p>
           ) : (
@@ -298,30 +298,30 @@ export default function AnalysisPlayground({ defaultModelId }: AnalysisPlaygroun
           Tokens: {estimatedUsage.input} in / {estimatedUsage.output} out | Model: {model}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
-          <p className="text-[10px] uppercase tracking-widest text-[#7f7f7f]">Follow-up</p>
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest dark:text-[#7f7f7f] light:text-[#808080]">Follow-up</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={followUpQuestion}
               onChange={(event) => setFollowUpQuestion(event.target.value)}
               placeholder="Ask a follow-up question"
-              className="flex-1 rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#d8d8d8]"
+              className="flex-1 rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-sm text-[#d8d8d8]"
             />
             <button
               onClick={() => {
                 void runFollowup();
               }}
               disabled={loading}
-              className="rounded-lg bg-white/10 px-3 py-2 text-xs text-[#d8d8d8] hover:bg-white/15"
+              className="rounded-lg dark:bg-white/10 light:bg-black/10 px-3 py-2 text-xs text-[#d8d8d8] hover:bg-white/15"
             >
               Send
             </button>
           </div>
 
           {turns.length > 0 && (
-            <div className="max-h-[180px] overflow-auto rounded-lg border border-white/10 bg-black/25 p-2 space-y-2">
+            <div className="max-h-[180px] overflow-auto rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-2 space-y-2">
               {turns.map((turn) => (
-                <div key={turn.id} className="rounded-md border border-white/10 bg-black/30 p-2">
+                <div key={turn.id} className="rounded-md border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 p-2">
                   <p className="text-[11px] text-[#b8b8b8]">Q: {turn.question}</p>
                   <p className="mt-1 text-xs text-[#8e8e8e] line-clamp-3">A: {turn.answer}</p>
                 </div>

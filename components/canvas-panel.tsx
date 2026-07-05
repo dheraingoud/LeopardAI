@@ -278,24 +278,24 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className={cn(
-            "flex flex-col border-l border-white/[0.06] bg-[#080808] overflow-hidden shrink-0",
+            "flex flex-col border-l dark:border-white/[0.06] light:border-black/[0.06] bg-[#080808] overflow-hidden shrink-0",
             isFullscreen && "fixed inset-0 z-50"
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-3 h-11 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between px-3 h-11 border-b dark:border-white/[0.06] light:border-black/[0.06] shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-5 w-5 rounded flex items-center justify-center bg-[#ffb40010]">
+              <div className="h-5 w-5 rounded flex items-center justify-center dark:bg-[#ffb40010] light:bg-[#d4960010]">
                 {viewMode === "preview" ? (
                   <Eye className="h-3 w-3 text-[#ffb400]" />
                 ) : (
                   <Code className="h-3 w-3 text-[#ffb400]" />
                 )}
               </div>
-              <span className="text-[12px] font-mono text-[#a3a3a3] truncate">
+              <span className="text-[12px] font-mono dark:text-[#a3a3a3] light:text-[#525252] truncate">
                 {artifact.title}
               </span>
-              <span className="text-[9px] font-mono px-1.5 py-[2px] rounded bg-white/[0.04] text-[#606060] border border-white/[0.04] uppercase tracking-wider">
+              <span className="text-[9px] font-mono px-1.5 py-[2px] rounded dark:bg-white/[0.04] light:bg-black/[0.03] text-[#606060] border dark:border-white/[0.04] light:border-black/[0.05] uppercase tracking-wider">
                 {artifact.type}
               </span>
             </div>
@@ -303,27 +303,27 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
               {canPreview && (
                 <button
                   onClick={() => setViewMode(viewMode === "preview" ? "code" : "preview")}
-                  className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+                  className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
                   title={viewMode === "preview" ? "View code" : "View preview"}
                 >
                   {viewMode === "preview" ? <Code className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
               )}
-              <button onClick={handleCopy} className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors" title="Copy">
+              <button onClick={handleCopy} className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors" title="Copy">
                 {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
-              <button onClick={handleDownload} className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors" title="Download">
+              <button onClick={handleDownload} className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors" title="Download">
                 <Download className="h-3.5 w-3.5" />
               </button>
               {canPreview && viewMode === "preview" && (
-                <button onClick={() => setIframeKey((k) => k + 1)} className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors" title="Refresh">
+                <button onClick={() => setIframeKey((k) => k + 1)} className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors" title="Refresh">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               )}
-              <button onClick={() => setIsFullscreen(!isFullscreen)} className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors" title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+              <button onClick={() => setIsFullscreen(!isFullscreen)} className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors" title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
                 {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
               </button>
-              <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded text-[#525252] hover:text-white hover:bg-white/5 transition-colors" title="Close">
+              <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors" title="Close">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -331,7 +331,7 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
 
           {/* Device toolbar (preview mode + visual types only) */}
           {viewMode === "preview" && canPreview && ["react", "html"].includes(artifact.type) && (
-            <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/[0.04] shrink-0">
+            <div className="flex items-center gap-1 px-3 py-1.5 border-b dark:border-white/[0.04] light:border-black/[0.05] shrink-0">
               {(Object.entries(DEVICE_SIZES) as [DeviceSize, typeof DEVICE_SIZES[DeviceSize]][]).map(
                 ([key, val]) => {
                   const Icon = val.icon;
@@ -343,7 +343,7 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
                         "h-6 px-2 flex items-center gap-1 rounded text-[10px] font-mono transition-colors",
                         device === key
                           ? "text-[#ffb400] bg-[#ffb40008] border border-[#ffb40015]"
-                          : "text-[#525252] hover:text-white hover:bg-white/5"
+                          : "dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5"
                       )}
                     >
                       <Icon className="h-3 w-3" />
@@ -358,7 +358,7 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
           {/* Content Area */}
           <div className="flex-1 overflow-hidden">
             {viewMode === "preview" && canPreview ? (
-              <div className="w-full h-full flex items-start justify-center bg-[#111] p-4 overflow-auto">
+              <div className="w-full h-full flex items-start justify-center dark:bg-[#111] light:bg-[#f0f0f0] p-4 overflow-auto">
                 <div
                   className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
                   style={{
@@ -382,8 +382,8 @@ export default function CanvasPanel({ artifact, onClose }: CanvasPanelProps) {
               </div>
             ) : (
               /* Code view — syntax highlighted */
-              <div className="h-full overflow-auto p-4 bg-[#0a0a0a]">
-                <pre className="text-[13px] font-mono text-[#d4d4d4] whitespace-pre-wrap leading-[1.65] selection:bg-[#ffb40030]">
+              <div className="h-full overflow-auto p-4 dark:bg-[#0a0a0a] light:bg-[#fafafa]">
+                <pre className="text-[13px] font-mono dark:text-[#d4d4d4] light:text-[#404040] whitespace-pre-wrap leading-[1.65] selection:dark:bg-[#ffb40030] light:bg-[#d4960030]">
                   <code>{artifact.content}</code>
                 </pre>
               </div>

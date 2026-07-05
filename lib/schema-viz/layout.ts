@@ -2,6 +2,12 @@ import dagre from "dagre";
 import type { Node } from "@xyflow/react";
 import type { ParsedTable } from "./types";
 
+/** Estimated node dimensions must match the actual rendered TableNode sizes */
+const NODE_WIDTH = 340;
+const ROW_HEIGHT = 30;
+const HEADER_HEIGHT = 48;
+const MAX_VISIBLE_ROWS = 20;
+
 export function applyDagreLayout(
   nodes: Node[],
   edges: Array<{ id: string; source: string; target: string }>,
@@ -11,16 +17,19 @@ export function applyDagreLayout(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: direction,
-    ranksep: direction === "LR" ? 120 : 60,
-    nodesep: direction === "LR" ? 40 : 100,
-    edgesep: 20,
-    marginx: 60,
-    marginy: 60,
+    // Generous spacing so tables never overlap and feel "tidy"
+    ranksep: direction === "LR" ? 200 : 120,
+    nodesep: direction === "LR" ? 80 : 140,
+    edgesep: 40,
+    marginx: 80,
+    marginy: 80,
   });
 
   for (const node of nodes) {
     const cols = (node.data?.table as ParsedTable | undefined)?.columns?.length ?? 5;
-    g.setNode(node.id, { width: 268, height: 44 + Math.min(cols, 20) * 29 });
+    const visibleCols = Math.min(cols, MAX_VISIBLE_ROWS);
+    const estimatedHeight = HEADER_HEIGHT + visibleCols * ROW_HEIGHT + (cols > MAX_VISIBLE_ROWS ? 28 : 0);
+    g.setNode(node.id, { width: NODE_WIDTH, height: estimatedHeight });
   }
   for (const e of edges) {
     g.setEdge(e.source, e.target);
@@ -34,7 +43,7 @@ export function applyDagreLayout(
     return {
       ...node,
       position: {
-        x: pos.x - (pos.width ?? 268) / 2,
+        x: pos.x - (pos.width ?? NODE_WIDTH) / 2,
         y: pos.y - (pos.height ?? 100) / 2,
       },
     };

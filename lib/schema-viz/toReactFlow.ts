@@ -11,7 +11,6 @@ export interface TableNodeData {
   isDimmed: boolean;
   theme: SchemaVizTheme;
   onFocus: (id: string) => void;
-  [key: string]: unknown;
 }
 
 export function schemaToReactFlow(
@@ -19,12 +18,12 @@ export function schemaToReactFlow(
   theme: SchemaVizTheme,
   direction: "LR" | "TB" = "LR",
   hiddenObjectTypes: Set<ObjectType>
-): { nodes: Node<TableNodeData>[]; edges: Edge[] } {
+): { nodes: Node[]; edges: Edge[] } {
   const visibleTables = schema.tables.filter(
     (t) => !hiddenObjectTypes.has(t.objectType)
   );
 
-  const rawNodes: Node<TableNodeData>[] = visibleTables.map((table) => ({
+  const rawNodes: Node[] = visibleTables.map((table) => ({
     id: table.id,
     type: "tableNode",
     position: { x: 0, y: 0 },
@@ -35,7 +34,7 @@ export function schemaToReactFlow(
       isDimmed: false,
       theme,
       onFocus: () => {},
-    },
+    } as Record<string, unknown>,
   }));
 
   const edgeRefs = schema.relationships.map((r) => ({
@@ -44,11 +43,7 @@ export function schemaToReactFlow(
     target: r.toTable,
   }));
 
-  const nodes = applyDagreLayout(
-    rawNodes as Node[],
-    edgeRefs,
-    direction
-  ) as Node<TableNodeData>[];
+  const nodes = applyDagreLayout(rawNodes, edgeRefs, direction);
 
   const edges = buildEdges(schema.relationships, new Set(), false, theme);
 
@@ -77,18 +72,11 @@ export function buildEdges(
       label: isInferred ? "~" : undefined,
       labelStyle: { fontSize: 9, fill: theme.textType },
       style: {
-        stroke: isDimmed
-          ? "transparent"
-          : isFocused
-            ? theme.edgeFocused
-            : theme.edgeDefault,
+        stroke: isDimmed ? "transparent" : isFocused ? theme.edgeFocused : theme.edgeDefault,
         strokeWidth: isFocused ? theme.edgeWidthFocused : theme.edgeWidth,
         strokeDasharray: isInferred ? "4 3" : undefined,
-        transition:
-          "stroke 200ms ease, stroke-width 200ms ease, opacity 200ms ease",
-        filter: isFocused
-          ? `drop-shadow(0 0 5px ${theme.edgeFocused})`
-          : "none",
+        transition: "stroke 200ms ease, stroke-width 200ms ease, opacity 200ms ease",
+        filter: isFocused ? `drop-shadow(0 0 5px ${theme.edgeFocused})` : "none",
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,

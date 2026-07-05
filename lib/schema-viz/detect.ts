@@ -12,6 +12,12 @@ export function detectDialect(
 
   if (ext.endsWith('.prisma')) return 'prisma';
   if (ext.endsWith('.entity.ts')) return 'typeorm';
+  if (ext.endsWith('.sqlite') || ext.endsWith('.sqlite.sql')) return 'sqlite';
+  if (ext.endsWith('.snowflake')) return 'snowflake';
+  if (ext.endsWith('.hql')) return 'postgresql'; // HiveQL → parse as pg, regex fallback handles it
+  if (ext.endsWith('.bq') || ext.endsWith('.bigquery')) return 'postgresql';
+  if (ext.endsWith('.tsql')) return 'mysql'; // T-SQL → mysql dialect is closest in CST
+  if (ext.endsWith('.plsql')) return 'postgresql'; // PL/SQL → pg dialect for CST
 
   // TypeORM decorator
   if (/@Entity\s*\(/.test(content)) return 'typeorm';
@@ -19,6 +25,10 @@ export function detectDialect(
   // dbt Jinja blocks
   if (/{{\s*config\s*\(/.test(content) || /{{\s*ref\s*\(/.test(content))
     return 'dbt';
+
+  // T-SQL: GO keyword, NVARCHAR, square-bracket identifiers
+  if (/^\s*GO\s*$/m.test(content) || /\bNVARCHAR\b/i.test(content) || /\[dbo\]/i.test(content))
+    return 'mysql'; // closest CST dialect for T-SQL
 
   // Snowflake: three-part names, $$ dollar quoting, VARIANT/ARRAY type keywords
   if (
@@ -39,8 +49,8 @@ export function detectDialect(
   )
     return 'mysql';
 
-  // SQLite: AUTOINCREMENT, .sqlite.sql extension
-  if (/\bAUTOINCREMENT\b/.test(content) || ext.endsWith('.sqlite.sql'))
+  // SQLite: AUTOINCREMENT
+  if (/\bAUTOINCREMENT\b/.test(content))
     return 'sqlite';
 
   // Default to PostgreSQL

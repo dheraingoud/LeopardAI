@@ -15,7 +15,7 @@ export const list = query({
 export const send = mutation({
   args: {
     chatId: v.id("chats"),
-    userId: v.string(), // Added mandatory userId check
+    userId: v.string(),
     role: v.union(
       v.literal("user"),
       v.literal("assistant"),
@@ -25,19 +25,29 @@ export const send = mutation({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // SECURITY: Ensure chat ownership
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized: You do not own this chat");
-    }
+    try {
+      // SECURITY: Ensure chat ownership
+      const chat = await ctx.db.get(args.chatId);
+      if (!chat || chat.userId !== args.userId) {
+        throw new Error("Unauthorized: You do not own this chat");
+      }
 
-    return await ctx.db.insert("messages", {
-      chatId: args.chatId,
-      role: args.role,
-      content: args.content,
-      model: args.model,
-      createdAt: Date.now(),
-    });
+      return await ctx.db.insert("messages", {
+        chatId: args.chatId,
+        role: args.role,
+        content: args.content,
+        model: args.model,
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      // Log error for debugging but don't expose internal details
+      console.error("[messages:send] error:", error);
+      // Re-throw user-safe error
+      if (error instanceof Error && error.message.includes("Unauthorized")) {
+        throw error;
+      }
+      throw new Error("Failed to send message. Please try again.");
+    }
   },
 });
 

@@ -18,12 +18,13 @@ import "@xyflow/react/dist/style.css";
 
 import type { ParsedSchema, ParsedRelationship } from "@/lib/schema-viz/types";
 import { useSchemaVizStore } from "@/store/schemaVizStore";
-import { schemaToReactFlow, buildEdges, type TableNodeData } from "@/lib/schema-viz/toReactFlow";
+import { schemaToReactFlow, buildEdges } from "@/lib/schema-viz/toReactFlow";
+import type { TableNodeData } from "@/lib/schema-viz/toReactFlow";
 import TableNodeComponent from "./TableNode";
 import { InspectorPanel } from "./InspectorPanel";
 import { SchemaVizToolbar, StatsBar } from "./Toolbar";
 
-const NODE_TYPES = { tableNode: TableNodeComponent };
+const NODE_TYPES = { tableNode: TableNodeComponent } as const;
 
 function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
   const store = useSchemaVizStore();
@@ -36,7 +37,7 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
     layoutDirection,
     setFocusedTable,
   } = store;
-  const { setViewport } = useReactFlow();
+  const { setViewport, fitView } = useReactFlow();
   const hasFocus = focusedTableId !== null;
 
   // Build initial nodes/edges from schema
@@ -45,13 +46,17 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
     [schema, theme, layoutDirection, hiddenObjectTypes]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Re-layout when schema/direction/filters change
+  // Re-layout when schema/direction/filters change, then fit to view
   useEffect(() => {
-    setNodes(initialNodes);
-  }, [initialNodes, setNodes]);
+    setNodes(initialNodes as Node[]);
+    // After nodes update, schedule a fitView so the user always sees everything
+    requestAnimationFrame(() => {
+      fitView({ padding: 0.15, duration: 300 });
+    });
+  }, [initialNodes, setNodes, fitView]);
 
   // Sync focus state into node data without recreating nodes
   useEffect(() => {
@@ -74,9 +79,9 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
               if (node) {
                 setViewport(
                   {
-                    x: -(node.position.x - window.innerWidth / 2 + 130),
-                    y: -(node.position.y - window.innerHeight / 2 + 100),
-                    zoom: 1.1,
+                    x: -(node.position.x - window.innerWidth / 2 + 170),
+                    y: -(node.position.y - window.innerHeight / 2 + 120),
+                    zoom: 1.0,
                   },
                   { duration: 400 }
                 );
@@ -107,6 +112,18 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
 
   const [askAITable, setAskAITable] = useState<ParsedSchema["tables"][0] | null>(null);
 
+  // Keyboard shortcut: press "0" or "Home" to reset the view
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "0" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        fitView({ padding: 0.15, duration: 300 });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [fitView]);
+
   return (
     <div className="w-full h-full relative" style={{ background: theme.canvasBg }}>
       {/* Dim overlay for focus mode */}
@@ -133,14 +150,19 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
         nodeTypes={NODE_TYPES}
         onPaneClick={onPaneClick}
         fitView
-        fitViewOptions={{ padding: 0.12 }}
-        minZoom={0.04}
-        maxZoom={2.5}
-        panOnScroll
-        panOnDrag={[1, 2]}
-        zoomOnPinch
-        zoomOnDoubleClick={false}
-        selectionOnDrag
+        fitViewOptions={{ padding: 0.15, maxZoom: 1.2 }}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.85 }}
+        minZoom={0.05}
+        maxZoom={3.0}
+        /* ---- Zoom & Pan tuning ---- */
+        zoomOnScroll={true}
+        panOnScroll={false}
+        panOnDrag={true}
+        zoomOnPinch={true}
+        zoomOnDoubleClick={true}
+        selectionOnDrag={false}
+        /* Increase scroll-wheel zoom sensitivity (default ~0.5, higher = snappier) */
+        zoomActivationKeyCode={null}
         proOptions={{ hideAttribution: true }}
       >
         <Background
@@ -150,6 +172,8 @@ function SchemaVizInner({ schema }: { schema: ParsedSchema }) {
           color={theme.dotColor}
         />
         <Controls
+          showZoom
+          showFitView
           showInteractive={false}
           style={{
             background: theme.controlsBg,

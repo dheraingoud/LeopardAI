@@ -28,17 +28,17 @@ export interface ModelCapability {
 
 export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 
-export const UTILITY_MODEL = "stepfun/step-3-5-flash";
+export const UTILITY_MODEL = "stepfun-ai/step-3.5-flash";
 
-export const DEFAULT_MODEL = "zhipuai/glm-5-1";
+export const DEFAULT_MODEL = "z-ai/glm-5.1";
 
 // ─── MODEL_REGISTRY ──────────────────────────────────────────────────────────
 // All 12 models: 9 LLMs + 3 VLMs
 
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   // ── LLMs ──────────────────────────────────────────────────────────────────
-  "zhipuai/glm-5-1": {
-    id: "zhipuai/glm-5-1",
+  "z-ai/glm-5.1": {
+    id: "z-ai/glm-5.1",
     displayName: "GLM 5.1",
     speedTier: 3,
     type: "llm",
@@ -61,8 +61,8 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     reasoning: { enabledByDefault: false },
   },
-  "google/gemma-4-31b": {
-    id: "google/gemma-4-31b",
+  "google/gemma-4-31b-it": {
+    id: "google/gemma-4-31b-it",
     displayName: "Gemma 4 31B",
     speedTier: 1.5,
     type: "llm",
@@ -77,24 +77,24 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     reasoning: { enabledByDefault: false },
   },
-  "minimax/minimax-m2.5": {
-    id: "minimax/minimax-m2.5",
+  "minimaxai/minimax-m2.5": {
+    id: "minimaxai/minimax-m2.5",
     displayName: "MiniMax M2.5",
     speedTier: 1,
     type: "llm",
     supportsVision: false,
     reasoning: { enabledByDefault: false },
   },
-  "minimax/minimax-m2.7": {
-    id: "minimax/minimax-m2.7",
+  "minimaxai/minimax-m2.7": {
+    id: "minimaxai/minimax-m2.7",
     displayName: "MiniMax M2.7",
     speedTier: 1,
     type: "llm",
     supportsVision: false,
     reasoning: { enabledByDefault: false },
   },
-  "stepfun/step-3-5-flash": {
-    id: "stepfun/step-3-5-flash",
+  "stepfun-ai/step-3.5-flash": {
+    id: "stepfun-ai/step-3.5-flash",
     displayName: "Step 3.5 Flash",
     speedTier: 1,
     type: "llm",
@@ -131,8 +131,8 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: true,
     reasoning: { enabledByDefault: false },
   },
-  "nvidia/nemotron-nano-vl-8b-v1": {
-    id: "nvidia/nemotron-nano-vl-8b-v1",
+  "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
+    id: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
     displayName: "Nemotron Nano VL 8B",
     speedTier: 1,
     type: "vlm",

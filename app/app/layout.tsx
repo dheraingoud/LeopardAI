@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider value={{ collapsed: effectiveCollapsed, setCollapsed, autoCollapse, restoreCollapse }}>
-      <div className="flex h-screen w-screen bg-black overflow-hidden relative">
+      <div className="flex h-screen w-screen bg-background overflow-hidden relative">
         {/* Mobile Sidebar Overlay */}
         {isMobile && !effectiveCollapsed && (
           <div
@@ -80,7 +80,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
 
         <main
-          className="flex-1 flex flex-col min-w-0 min-h-0 bg-black relative"
+          className="flex-1 flex flex-col min-w-0 min-h-0 bg-background relative"
           onPointerDownCapture={() => {
             if (isDesktopCanvasRoute && canvasSidebarOpen) {
               setCanvasSidebarOpen(false);
@@ -89,10 +89,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         >
           {/* Mobile Header (Hamburger) */}
           {isMobile && (
-            <div className="flex items-center px-4 h-12 border-b border-white/[0.04] shrink-0">
+            <div className="flex items-center px-4 h-12 border-b dark:border-white/[0.04] light:border-black/[0.05] shrink-0">
               <button
                 onClick={() => setCollapsed(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-white"
+                className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717]"
               >
                 <Menu className="h-4.5 w-4.5" />
               </button>

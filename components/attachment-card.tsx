@@ -130,7 +130,7 @@ export function AttachmentCard({
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "my-3 rounded-xl border overflow-hidden",
-        "bg-[#0c0c0c] border-white/[0.08]",
+        "bg-[#0c0c0c] dark:border-white/[0.08] light:border-black/[0.08]",
         onOpenCanvas && "cursor-pointer hover:border-[#ffb40050] hover:bg-[#131313]",
         expanded && "border-[#ffb40020]"
       )}
@@ -139,19 +139,19 @@ export function AttachmentCard({
       <div
         className={cn(
           "flex items-center justify-between px-4 py-3",
-          "bg-white/[0.02]",
-          (canExpand || onOpenCanvas) && "cursor-pointer hover:bg-white/[0.04]",
+          "dark:bg-white/[0.02] light:bg-black/[0.015]",
+          (canExpand || onOpenCanvas) && "cursor-pointer hover:dark:bg-white/[0.04] light:bg-black/[0.03]",
           "transition-colors"
         )}
         onClick={handlePrimaryAction}
       >
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg border border-white/[0.08] bg-white/[0.03] flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.03] light:bg-black/[0.02] flex items-center justify-center">
             <Icon className="h-4 w-4 text-[#cfcfcf]" />
           </div>
           <div>
             <p className="text-[14px] font-medium text-[#f0f0f0]">{filename}</p>
-            <p className="text-[11px] text-[#505050]">
+            <p className="text-[11px] dark:text-[#505050] light:text-[#737373] light:text-[#737373]">
               {label} • {extensionTag}
               {size && ` • ${formatFileSize(size)}`}
               {lineCount > 0 && ` • ${lineCount} lines`}
@@ -175,7 +175,7 @@ export function AttachmentCard({
               e.stopPropagation();
               handleDownload();
             }}
-            className="inline-flex items-center gap-1 rounded-md border border-white/[0.12] px-2.5 py-1.5 text-[12px] text-[#e6e6e6] hover:bg-white/[0.06] transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border dark:border-white/[0.12] light:border-black/[0.1] px-2.5 py-1.5 text-[12px] dark:text-[#e6e6e6] light:text-[#333] hover:dark:bg-white/[0.06] light:bg-black/[0.04] transition-colors"
             title="Download file"
           >
             <Download className="h-3.5 w-3.5" />
@@ -187,7 +187,7 @@ export function AttachmentCard({
                 e.stopPropagation();
                 handleCopy();
               }}
-              className="p-2 rounded-md hover:bg-white/[0.06] text-[#505050] hover:text-[#a3a3a3] transition-colors"
+              className="p-2 rounded-md hover:dark:bg-white/[0.06] light:bg-black/[0.04] dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-[#a3a3a3] light:text-[#525252] transition-colors"
               title="Copy content"
             >
               {copied ? (
@@ -209,8 +209,8 @@ export function AttachmentCard({
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="border-t border-white/[0.06]">
-              <pre className="p-4 text-[13px] font-mono text-[#a3a3a3] overflow-x-auto max-h-[400px] overflow-y-auto">
+            <div className="border-t dark:border-white/[0.06] light:border-black/[0.06]">
+              <pre className="p-4 text-[13px] font-mono dark:text-[#a3a3a3] light:text-[#525252] overflow-x-auto max-h-[400px] overflow-y-auto">
                 <code>{content}</code>
               </pre>
             </div>

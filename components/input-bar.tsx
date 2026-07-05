@@ -505,7 +505,7 @@ export default function InputBar({
         animate={{ maxWidth: dynamicIslandMaxWidth }}
         transition={{ duration: 0.22, ease: [0.2, 0.9, 0.3, 1] }}
       >
-        <div className="relative overflow-hidden rounded-[28px] border border-[#ffb40024] bg-[linear-gradient(160deg,rgba(16,13,9,0.97)_0%,rgba(9,8,7,0.988)_54%,rgba(5,5,5,0.997)_100%)] shadow-[0_14px_32px_rgba(0,0,0,0.46),0_0_14px_rgba(255,180,0,0.06)] backdrop-blur-2xl">
+        <div className="relative overflow-hidden rounded-[28px] border border-leopard-border-bright bg-card shadow-[0_14px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_14px_32px_rgba(0,0,0,0.46),0_0_14px_rgba(255,180,0,0.06)] backdrop-blur-2xl">
           <div
             className="pointer-events-none absolute inset-0"
             style={{
@@ -520,23 +520,23 @@ export default function InputBar({
               {attachedFiles.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
-                  className="relative flex min-w-[145px] items-center gap-2 rounded-lg border border-[#ffb4002f] bg-black/35 px-2.5 py-1.5"
+                  className="relative flex min-w-[145px] items-center gap-2 rounded-lg border border-leopard-border-bright bg-leopard-surface-glass px-2.5 py-1.5"
                 >
                   {file.preview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={file.preview} alt={file.name} className="h-7 w-7 rounded-md object-cover" />
                   ) : (
-                    <FileText className="h-3.5 w-3.5 text-[#efc676]" />
+                    <FileText className="h-3.5 w-3.5 text-leopard-amber" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] text-[#f8ebcf]">{file.name}</p>
-                    <p className="text-[10px] text-[#ba9a59]">
+                    <p className="truncate text-[11px] text-foreground">{file.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
                       {formatFileSize(file.size)}{file.compressed ? " • compact" : ""}
                     </p>
                   </div>
                   <button
                     onClick={() => removeFile(index)}
-                    className="text-[#d8b772] transition hover:text-[#fff1cf]"
+                    className="text-leopard-amber transition hover:text-leopard-amber/80"
                     title="Remove file"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -549,7 +549,7 @@ export default function InputBar({
           <div className="relative flex items-center gap-2 px-3 py-2.5 sm:px-4 sm:py-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#ffb40055] bg-[#2a1d06] text-[#f2cb79] transition hover:bg-[#3a290b] hover:text-[#ffe4a8]"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-leopard-border-bright bg-leopard-amber-subtle text-leopard-amber transition hover:bg-leopard-amber-muted"
               title="Add files"
             >
               <Plus className="h-4 w-4" />
@@ -582,7 +582,7 @@ export default function InputBar({
                 }}
                 placeholder={placeholder}
                 disabled={disabled || isStreaming}
-                className="w-full resize-none bg-transparent py-1.5 text-sm leading-6 text-[#f6ecd8] placeholder:text-[#caa45e] outline-none sm:text-[15px]"
+                className="w-full resize-none bg-transparent py-1.5 text-sm leading-6 text-foreground placeholder:text-muted-foreground outline-none sm:text-[15px]"
               />
             </div>
 
@@ -593,21 +593,21 @@ export default function InputBar({
                   setSelectorOpen(open);
                 }}
               >
-                <DropdownMenuTrigger className="inline-flex max-w-[180px] items-center gap-1.5 rounded-md px-1 py-0.5 text-[12px] font-medium text-[#f2f2f2] transition hover:bg-white/[0.04] hover:text-white focus:outline-none">
+                <DropdownMenuTrigger className="inline-flex max-w-[180px] items-center gap-1.5 rounded-md px-1 py-0.5 text-[12px] font-medium text-foreground transition hover:bg-leopard-surface-glass focus:outline-none">
                   <span className="truncate">{selectedModel.name}</span>
-                  <span className="text-[10px] text-[#c8c8c8]">▾</span>
+                  <span className="text-[10px] text-muted-foreground">▾</span>
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent
                   align="end"
                   side="top"
                   sideOffset={10}
-                  className="w-[min(92vw,300px)] rounded-xl border border-[#ffb4002b] bg-[#0b0b0b]/97 p-1.5 text-[#f7ebcf] shadow-[0_16px_40px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
+                  className="w-[min(92vw,300px)] rounded-xl border border-leopard-border-bright bg-popover p-1.5 text-popover-foreground shadow-[0_16px_40px_rgba(0,0,0,0.25)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
                 >
                   <div className="max-h-[300px] space-y-2 overflow-y-auto px-1 pb-1 pt-0.5">
                     {groups.map((group) => (
                       <div key={group.label}>
-                        <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#cda660]">
+                        <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-leopard-amber">
                           {group.label}
                         </p>
                         <div className="grid grid-cols-1 gap-1">
@@ -620,15 +620,15 @@ export default function InputBar({
                                 "flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-left",
                                 "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-35",
                                 selectedModel.id === model.id
-                                  ? "bg-[#ffb40014]"
-                                  : "hover:bg-white/[0.05]",
+                                  ? "bg-leopard-amber-subtle"
+                                  : "hover:bg-leopard-surface-glass",
                               )}
                             >
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-[12px] text-[#f6e8c9]">{model.name}</p>
-                                <p className="truncate text-[10px] text-[#c7aa70]">{formatContextWindow(model.contextWindow)} ctx</p>
+                                <p className="truncate text-[12px] text-foreground">{model.name}</p>
+                                <p className="truncate text-[10px] text-muted-foreground">{formatContextWindow(model.contextWindow)} ctx</p>
                               </div>
-                              <span className="shrink-0 text-[10px] text-[#e8cb92]">{normalizeMultiplier(model)}</span>
+                              <span className="shrink-0 text-[10px] text-leopard-amber">{normalizeMultiplier(model)}</span>
                             </DropdownMenuItem>
                           ))}
                         </div>
@@ -642,7 +642,7 @@ export default function InputBar({
                 <DropdownMenu open={contextPanelOpen} onOpenChange={setContextPanelOpen}>
                   <div className="group relative">
                     <DropdownMenuTrigger
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/[0.06]"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-leopard-surface-glass"
                       aria-label={`Context usage ${contextLabel}`}
                       title={`${contextUsage?.usedTokens.toLocaleString()} / ${contextUsage?.maxTokens.toLocaleString()} tokens`}
                     >
@@ -667,12 +667,12 @@ export default function InputBar({
                     align="end"
                     side="top"
                     sideOffset={10}
-                    className="w-[300px] rounded-xl border border-[#ffb4002e] bg-[#0b0b0b]/98 p-3 text-[#f5f5f5] shadow-[0_16px_45px_rgba(0,0,0,0.6)]"
+                    className="w-[300px] rounded-xl border border-leopard-border-bright bg-popover p-3 text-popover-foreground shadow-[0_16px_45px_rgba(0,0,0,0.25)] dark:shadow-[0_16px_45px_rgba(0,0,0,0.6)]"
                   >
-                    <p className="text-[13px] font-semibold text-[#f5f5f5]">Context Window</p>
+                    <p className="text-[13px] font-semibold text-foreground">Context Window</p>
                     <div className="mt-1 flex items-center justify-between">
-                      <p className="text-[12px] text-[#f0f0f0]">{contextLabel} tokens</p>
-                      <p className="text-[12px] text-[#d6d6d6]">{contextPercent.toFixed(1)}%</p>
+                      <p className="text-[12px] text-foreground">{contextLabel} tokens</p>
+                      <p className="text-[12px] text-muted-foreground">{contextPercent.toFixed(1)}%</p>
                     </div>
 
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#2a2a2a]">
@@ -682,10 +682,10 @@ export default function InputBar({
                       />
                     </div>
 
-                    <p className="mt-2 text-[11px] text-[#cecece]">Reserved for response: {reservedPct.toFixed(1)}%</p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">Reserved for response: {reservedPct.toFixed(1)}%</p>
 
                     <div className="mt-3 space-y-1 text-[12px]">
-                      <p className="text-[#f2f2f2]">System</p>
+                      <p className="text-foreground">System</p>
                       <div className="flex items-center justify-between text-[#cfcfcf]">
                         <span>System Instructions</span>
                         <span>{systemInstructionsPct.toFixed(1)}% · {systemTokens.toLocaleString()}</span>
@@ -697,7 +697,7 @@ export default function InputBar({
                     </div>
 
                     <div className="mt-3 space-y-1 text-[12px]">
-                      <p className="text-[#f2f2f2]">User Context</p>
+                      <p className="text-foreground">User Context</p>
                       <div className="flex items-center justify-between text-[#cfcfcf]">
                         <span>Messages</span>
                         <span>{messagesPct.toFixed(1)}% · {messagesTokens.toLocaleString()}</span>
@@ -711,7 +711,7 @@ export default function InputBar({
                     <button
                       onClick={handleCompactFromContext}
                       disabled={!onCompact}
-                      className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-[#ffb40035] bg-[#141414] px-2.5 py-1.5 text-[12px] text-[#ffdb9a] transition hover:bg-[#1c1c1c] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-leopard-border-bright bg-secondary px-2.5 py-1.5 text-[12px] text-leopard-amber transition hover:bg-leopard-amber-subtle disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Minimize2 className="h-3.5 w-3.5" />
                       Compact Conversation

@@ -25,7 +25,7 @@ export default function SharedChatPage() {
       >
         <div className="flex items-center gap-2">
           <ExternalLink className="h-3.5 w-3.5 text-[#ffb400]" />
-          <span className="text-xs font-mono text-[#a3a3a3]">
+          <span className="text-xs font-mono dark:text-[#a3a3a3] light:text-[#525252]">
             Shared via <span className="text-[#ffb400] font-signature text-base">Leopard</span>
           </span>
         </div>
@@ -36,8 +36,8 @@ export default function SharedChatPage() {
         </Link>
       </motion.div>
 
-      <div className="px-4 py-3 border-b border-white/[0.03] shrink-0">
-        <h2 className="text-sm font-mono text-[#a3a3a3]">{chat?.title || "Shared Conversation"}</h2>
+      <div className="px-4 py-3 border-b dark:border-white/[0.03] light:border-black/[0.04] shrink-0">
+        <h2 className="text-sm font-mono dark:text-[#a3a3a3] light:text-[#525252]">{chat?.title || "Shared Conversation"}</h2>
         <p className="text-[10px] font-mono text-[#2a2a2a] mt-0.5">Shared publicly · Read-only</p>
       </div>
 
@@ -45,20 +45,20 @@ export default function SharedChatPage() {
         <MessageList messages={messages} />
       ) : chat === null ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm font-mono text-[#404040]">This shared chat is not available</p>
+          <p className="text-sm font-mono dark:text-[#404040] light:text-[#a3a3a3]">This shared chat is not available</p>
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 w-[500px] rounded-xl bg-white/[0.02] animate-pulse" />
+              <div key={i} className="h-16 w-[500px] rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse" />
             ))}
           </div>
         </div>
       )}
 
-      <div className="border-t border-white/[0.03] p-4 text-center shrink-0">
-        <p className="text-xs font-mono text-[#404040] mb-3">Start your own conversations with Leopard</p>
+      <div className="border-t dark:border-white/[0.03] light:border-black/[0.04] p-4 text-center shrink-0">
+        <p className="text-xs font-mono dark:text-[#404040] light:text-[#a3a3a3] mb-3">Start your own conversations with Leopard</p>
         <Link href="/sign-up">
           <Button className="bg-[#ffb400] text-black hover:bg-[#e6a300] font-mono text-sm">
             Get Started <ArrowRight className="h-4 w-4 ml-1.5" />

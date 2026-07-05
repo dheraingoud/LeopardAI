@@ -25,7 +25,7 @@ export default function EmptyState({ onSelect }: EmptyStateProps) {
       className="flex-1 flex flex-col items-center justify-center px-4 py-8"
     >
       <div className="text-center mb-8">
-        <h2 className="text-xl font-body text-[#e5e5e5] mb-2">
+        <h2 className="text-xl font-body dark:text-[#e5e5e5] light:text-[#262626] mb-2">
           How can I help you today?
         </h2>
         <p className="text-sm text-[#606060]">
@@ -41,12 +41,12 @@ export default function EmptyState({ onSelect }: EmptyStateProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
             onClick={() => onSelect(prompt)}
-            className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-[#ffb40020] hover:shadow-[0_0_20px_rgba(255,180,0,0.05)] transition-all duration-200 text-left group"
+            className="flex items-center gap-3 p-4 rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] border dark:border-white/[0.06] light:border-black/[0.06] hover:dark:bg-white/[0.05] light:bg-black/[0.04] hover:border-[#ffb40020] hover:shadow-[0_0_20px_rgba(255,180,0,0.05)] transition-all duration-200 text-left group"
           >
             <div className="h-10 w-10 rounded-lg bg-[#ffb40008] flex items-center justify-center shrink-0 group-hover:bg-[#ffb40012] transition-colors">
               <Icon className="h-5 w-5 text-[#ffb400]" />
             </div>
-            <span className="text-sm font-body text-[#a3a3a3] group-hover:text-[#e5e5e5] transition-colors">
+            <span className="text-sm font-body dark:text-[#a3a3a3] light:text-[#525252] group-hover:dark:text-[#e5e5e5] light:text-[#262626] transition-colors">
               {text}
             </span>
           </motion.button>

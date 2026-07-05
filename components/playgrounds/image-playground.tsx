@@ -587,7 +587,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
   const currentModelLabel = formatModelLabel(model);
 
   const renderCanvas = () => (
-    <div className="relative min-h-[360px] rounded-2xl border border-white/10 bg-[#111111] p-4 sm:p-6 grid place-items-center overflow-hidden">
+    <div className="relative min-h-[360px] rounded-2xl border dark:border-white/10 light:border-black/10 dark:bg-[#111111] light:bg-[#f0f0f0] p-4 sm:p-6 grid place-items-center overflow-hidden">
       {(loading || liveLoading) && (
         <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,rgba(255,255,255,0.02)_8%,rgba(255,255,255,0.08)_18%,rgba(255,255,255,0.02)_33%)] bg-[length:200%_100%]" />
       )}
@@ -610,12 +610,12 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
           <img
             src={imageUrl}
             alt="Generated output"
-            className="h-auto max-h-[560px] max-w-full rounded-xl border border-white/10 shadow-2xl transition-opacity duration-300"
+            className="h-auto max-h-[560px] max-w-full rounded-xl border dark:border-white/10 light:border-black/10 shadow-2xl transition-opacity duration-300"
           />
           <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-end gap-2 px-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             <button
               onClick={downloadImage}
-              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-black/55 text-[#dddddd] hover:text-white"
+              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 dark:bg-black/55 light:bg-white/75 text-[#dddddd] hover:dark:text-white light:text-[#171717]"
               title="Download"
             >
               <Download className="h-4 w-4" />
@@ -624,7 +624,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               onClick={() => {
                 void shareImage();
               }}
-              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-black/55 text-[#dddddd] hover:text-white"
+              className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 dark:bg-black/55 light:bg-white/75 text-[#dddddd] hover:dark:text-white light:text-[#171717]"
               title="Share"
             >
               <Share2 className="h-4 w-4" />
@@ -636,12 +636,12 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
   );
 
   const renderHistoryStrip = () => (
-    <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+    <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-[#8d8d8d]">History</p>
+        <p className="text-[10px] font-mono uppercase tracking-widest dark:text-[#8d8d8d] light:text-[#6a6a6a]">History</p>
         <button
           onClick={() => setHistoryOpen((prev) => !prev)}
-          className="inline-flex items-center gap-1 text-[10px] text-[#8d8d8d] hover:text-[#d4d4d4]"
+          className="inline-flex items-center gap-1 text-[10px] dark:text-[#8d8d8d] light:text-[#6a6a6a] hover:dark:text-[#d4d4d4] light:text-[#404040]"
         >
           <History className="h-3 w-3" />
           {historyOpen ? "Hide" : "Show"}
@@ -658,14 +658,14 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             <button
               key={record.id}
               onClick={() => applyHistory(record)}
-              className="group min-w-[130px] snap-start rounded-lg border border-white/10 bg-[#0f0f0f] p-1.5 text-left hover:border-[#ffb40040]"
+              className="group min-w-[130px] snap-start rounded-lg border dark:border-white/10 light:border-black/10 bg-[#0f0f0f] p-1.5 text-left hover:border-[#ffb40040]"
               title={record.prompt}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={record.url}
                 alt="History output"
-                className="h-20 w-full rounded-md object-cover border border-white/10"
+                className="h-20 w-full rounded-md object-cover border dark:border-white/10 light:border-black/10"
               />
               <p className="mt-1 truncate text-[10px] text-[#bfbfbf]">{record.prompt}</p>
               <p className="text-[9px] text-[#6f6f6f]">
@@ -689,8 +689,8 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             onClick={() => setFluxMode("text-to-image")}
             className={`rounded-full px-3 py-1 transition ${
               fluxMode === "text-to-image"
-                ? "bg-white/12 text-white"
-                : "bg-white/[0.04] text-[#8f8f8f] hover:text-[#d5d5d5]"
+                ? "dark:bg-white/12 light:bg-black/8 dark:text-white light:text-[#171717]"
+                : "dark:bg-white/[0.04] light:bg-black/[0.03] text-[#8f8f8f] hover:text-[#d5d5d5]"
             }`}
           >
             Text-to-Image
@@ -699,8 +699,8 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             onClick={() => setFluxMode("edit-inpaint")}
             className={`rounded-full px-3 py-1 transition ${
               fluxMode === "edit-inpaint"
-                ? "bg-white/12 text-white"
-                : "bg-white/[0.04] text-[#8f8f8f] hover:text-[#d5d5d5]"
+                ? "dark:bg-white/12 light:bg-black/8 dark:text-white light:text-[#171717]"
+                : "dark:bg-white/[0.04] light:bg-black/[0.03] text-[#8f8f8f] hover:text-[#d5d5d5]"
             }`}
           >
             Edit / Inpaint
@@ -716,7 +716,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
           }}
           placeholder="Write your prompt here — preview updates as you type"
           rows={3}
-          className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e9e9e9] outline-none focus:border-[#ffb40055]"
+          className="w-full rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm text-[#e9e9e9] outline-none focus:border-[#ffb40055]"
         />
       </div>
 
@@ -724,7 +724,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
         <div className="space-y-3">
           {renderCanvas()}
 
-          <div className="rounded-xl border border-white/10 bg-[#0d0d0d] p-3 sm:p-4">
+          <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-[#0d0d0d] p-3 sm:p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
               <label className="space-y-1">
                 <span className="block text-[#8f8f8f]">Steps</span>
@@ -737,7 +737,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                     setSteps(clampNumber(parseNumber(event.target.value, 4), 1, 12));
                     setFluxLiveArmed(true);
                   }}
-                  className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
+                  className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-1.5 text-[#d6d6d6]"
                 />
               </label>
               <label className="space-y-1">
@@ -752,7 +752,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                     setCfgScale(clampNumber(parseNumber(event.target.value, 3.5), 1, 12));
                     setFluxLiveArmed(true);
                   }}
-                  className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
+                  className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-1.5 text-[#d6d6d6]"
                 />
               </label>
               <label className="space-y-1">
@@ -766,11 +766,11 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                       setSeed(Math.max(0, Math.round(parseNumber(event.target.value, 0))));
                       setFluxLiveArmed(true);
                     }}
-                    className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[#d6d6d6]"
+                    className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-1.5 text-[#d6d6d6]"
                   />
                   <button
                     onClick={randomizeSeed}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-[#d4d4d4] hover:text-white"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] dark:text-[#d4d4d4] light:text-[#404040] hover:dark:text-white light:text-[#171717]"
                     title="Random seed"
                   >
                     <RefreshCcw className="h-3.5 w-3.5" />
@@ -792,7 +792,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               </button>
               <button
                 onClick={downloadImage}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#d3d3d3] hover:text-white"
+                className="inline-flex items-center gap-1 rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-2 text-xs text-[#d3d3d3] hover:dark:text-white light:text-[#171717]"
               >
                 <Download className="h-3.5 w-3.5" /> Download
               </button>
@@ -800,7 +800,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                 onClick={() => {
                   void shareImage();
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#d3d3d3] hover:text-white"
+                className="inline-flex items-center gap-1 rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-2 text-xs text-[#d3d3d3] hover:dark:text-white light:text-[#171717]"
               >
                 <Share2 className="h-3.5 w-3.5" /> Share
               </button>
@@ -810,11 +810,11 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
           {renderHistoryStrip()}
         </div>
       ) : (
-        <div className="space-y-4 rounded-2xl border border-white/10 bg-[#0c0c0c] p-4 sm:p-5">
+        <div className="space-y-4 rounded-2xl border dark:border-white/10 light:border-black/10 bg-[#0c0c0c] p-4 sm:p-5">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <div>
               <p className="mb-2 text-[11px] uppercase tracking-wider text-[#858585]">Before</p>
-              <label className="relative block overflow-hidden rounded-xl border border-dashed border-white/15 bg-black/35 p-3 min-h-[280px]">
+              <label className="relative block overflow-hidden rounded-xl border border-dashed dark:border-white/15 dark:bg-black/35 light:bg-white/85 p-3 min-h-[280px]">
                 {inpaintSourceData ? (
                   <div className="relative h-full w-full">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -852,12 +852,12 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
 
             <div>
               <p className="mb-2 text-[11px] uppercase tracking-wider text-[#858585]">After</p>
-              <div className="rounded-xl border border-white/10 bg-[#111111] min-h-[280px] grid place-items-center p-3">
+              <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-[#111111] light:bg-[#f0f0f0] min-h-[280px] grid place-items-center p-3">
                 {imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={imageUrl} alt="Edited result" className="h-[280px] w-full rounded-lg object-cover" />
                 ) : (
-                  <p className="text-xs text-[#707070]">Edited image appears here</p>
+                  <p className="text-xs dark:text-[#707070] light:text-[#808080]">Edited image appears here</p>
                 )}
               </div>
             </div>
@@ -877,13 +877,13 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             </label>
             <button
               onClick={() => setIsErasingMask((prev) => !prev)}
-              className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#d4d4d4]"
+              className="rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-2 text-xs dark:text-[#d4d4d4] light:text-[#404040]"
             >
               {isErasingMask ? "Draw mask" : "Erase mask"}
             </button>
             <button
               onClick={resetMaskCanvas}
-              className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-[#d4d4d4]"
+              className="rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-2 text-xs dark:text-[#d4d4d4] light:text-[#404040]"
             >
               Reset
             </button>
@@ -896,7 +896,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               onChange={(event) => setPrompt(event.target.value)}
               rows={3}
               placeholder="Describe what to put in the masked area"
-              className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#e9e9e9]"
+              className="w-full rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-sm text-[#e9e9e9]"
             />
           </label>
 
@@ -917,18 +917,18 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4 sm:p-5">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[#d8d8d8]">
+          <span className="inline-flex items-center rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] px-2.5 py-1 text-[#d8d8d8]">
             {currentModelLabel}
           </span>
           <button
             onClick={() => setHistoryOpen((prev) => !prev)}
-            className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[#a8a8a8]"
+            className="inline-flex items-center gap-1 rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-2.5 py-1 text-[#a8a8a8]"
           >
             <History className="h-3 w-3" /> History
           </button>
-          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[#8c8c8c]">
+          <span className="inline-flex items-center gap-1 rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-2.5 py-1 text-[#8c8c8c]">
             <Settings2 className="h-3 w-3" /> Settings
           </span>
         </div>
@@ -950,7 +950,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
               className={`rounded-full px-3 py-1.5 text-xs transition ${
                 model === entry.id
                   ? "bg-[#ffb4001a] border border-[#ffb4003d] text-[#ffd37a]"
-                  : "bg-white/[0.03] border border-white/10 text-[#a8a8a8] hover:text-[#d9d9d9]"
+                  : "dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/10 light:border-black/10 text-[#a8a8a8] hover:text-[#d9d9d9]"
               }`}
             >
               {entry.label}
@@ -975,14 +975,14 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
         renderFluxStudio()
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4 space-y-4 md:max-h-[72vh] overflow-y-auto">
+          <div className="rounded-2xl border dark:border-white/10 light:border-black/10 dark:bg-[#1a1a1a] light:bg-[#e8e8e8] p-4 space-y-4 md:max-h-[72vh] overflow-y-auto">
             <div>
               <label className="mb-1 block text-xs text-[#8a8a8a] font-mono uppercase tracking-wider">Prompt</label>
               <textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 rows={4}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6] outline-none focus:border-[#ffb40055]"
+                className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333] outline-none focus:border-[#ffb40055]"
               />
             </div>
 
@@ -992,7 +992,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                 value={negativePrompt}
                 onChange={(event) => setNegativePrompt(event.target.value)}
                 rows={3}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#d6d6d6] outline-none focus:border-[#ffb40055]"
+                className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm text-[#d6d6d6] outline-none focus:border-[#ffb40055]"
               />
             </div>
 
@@ -1007,7 +1007,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                       className={`rounded-lg border px-2 py-2 text-xs transition ${
                         aspectRatio === ratio
                           ? "border-[#ffb40055] bg-[#ffb40012] text-[#ffd27b]"
-                          : "border-white/10 bg-black/20 text-[#a4a4a4]"
+                          : "dark:border-white/10 light:border-black/10 bg-black/20 text-[#a4a4a4]"
                       }`}
                     >
                       <span className="flex items-center justify-center gap-1">
@@ -1033,14 +1033,14 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                       className={`rounded-lg border px-2 py-2 text-[11px] capitalize transition ${
                         stylePreset === preset
                           ? "border-[#ffb40055] bg-[#ffb40012] text-[#ffd27b]"
-                          : "border-white/10 bg-black/20 text-[#a4a4a4]"
+                          : "dark:border-white/10 light:border-black/10 bg-black/20 text-[#a4a4a4]"
                       }`}
                     >
                       {preset.replaceAll("-", " ")}
                     </button>
                   ))}
                 </div>
-                <button className="mt-2 inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] text-[#9f9f9f]">
+                <button className="mt-2 inline-flex items-center gap-1 rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-2 py-1 text-[10px] text-[#9f9f9f]">
                   <Plus className="h-3 w-3" /> Add prompt weight
                 </button>
               </div>
@@ -1085,11 +1085,11 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                   min={0}
                   value={seed}
                   onChange={(event) => setSeed(Math.max(0, Math.round(parseNumber(event.target.value, 0))))}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6]"
+                  className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333]"
                 />
                 <button
                   onClick={randomizeSeed}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-[#d3d3d3]"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] text-[#d3d3d3]"
                   title="Random seed"
                 >
                   <RefreshCcw className="h-4 w-4" />
@@ -1098,7 +1098,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
             </div>
 
             {isSd35 && (
-              <div className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="space-y-3 rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3">
                 <label className="flex items-center justify-between text-xs text-[#c2c2c2]">
                   <span>Img2img</span>
                   <input
@@ -1113,7 +1113,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                   <select
                     value={sd35Mode}
                     onChange={(event) => setSd35Mode(event.target.value as Sd35Mode)}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs text-[#d8d8d8]"
+                    className="mt-1 w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-2 py-2 text-xs text-[#d8d8d8]"
                   >
                     <option value="base">base</option>
                     <option value="base+canny">base + canny</option>
@@ -1128,7 +1128,7 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
                       <input
                         type="file"
                         accept="image/*"
-                        className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs text-[#d8d8d8]"
+                        className="mt-1 w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-2 py-2 text-xs text-[#d8d8d8]"
                         onChange={(event) => {
                           void handleSourceUpload(event.target.files?.[0] || null, "sd35");
                         }}
@@ -1173,19 +1173,19 @@ export default function ImagePlayground({ defaultModelId, userId }: ImagePlaygro
 
           <div className="min-w-0 space-y-3">
             {renderCanvas()}
-            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-[#8c8c8c] flex flex-wrap items-center justify-between gap-2">
+            <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 px-3 py-2 text-xs text-[#8c8c8c] flex flex-wrap items-center justify-between gap-2">
               <span>
                 Model used: {formatModelLabel(resolvedModelId || model)} | Seed: {seed} | Steps: {steps} | {resolvedSize.width}x{resolvedSize.height}
               </span>
               <div className="flex items-center gap-2">
-                <button onClick={downloadImage} className="inline-flex items-center gap-1 text-[#d2d2d2] hover:text-white">
+                <button onClick={downloadImage} className="inline-flex items-center gap-1 text-[#d2d2d2] hover:dark:text-white light:text-[#171717]">
                   <Download className="h-3.5 w-3.5" /> Download
                 </button>
                 <button
                   onClick={() => {
                     void shareImage();
                   }}
-                  className="inline-flex items-center gap-1 text-[#d2d2d2] hover:text-white"
+                  className="inline-flex items-center gap-1 text-[#d2d2d2] hover:dark:text-white light:text-[#171717]"
                 >
                   <Share2 className="h-3.5 w-3.5" /> Share
                 </button>

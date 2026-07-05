@@ -86,9 +86,9 @@ export interface SchemaStats {
   parseTimeMs: number;
 }
 
-export type Dialect = ParsedSchema['dialect'];
+export type Dialect = 'postgresql' | 'mysql' | 'sqlite' | 'snowflake' | 'prisma' | 'typeorm' | 'dbt' | 'json' | 'unknown';
 
-export type ParsedSchema = {
+export interface ParsedSchema {
   id: string;
   sourceFile: string;
   dialect: Dialect;
@@ -98,7 +98,7 @@ export type ParsedSchema = {
   warnings: string[];
   summary: string;
   stats: SchemaStats;
-};
+}
 
 export type ParseResult =
   | { success: true; schema: ParsedSchema }

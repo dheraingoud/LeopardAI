@@ -18,6 +18,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   MessageSquare,
+  Sun,
+  Moon,
   Network,
   MoreHorizontal,
   Pencil,
@@ -25,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/store/themeStore";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -75,6 +78,7 @@ export default function Sidebar({
   const pathname = usePathname();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { theme, toggleTheme } = useThemeStore();
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -161,17 +165,17 @@ export default function Sidebar({
   // ─── Collapsed sidebar (Desktop only) ───
   if (!sidebarOpen && !isMobile) {
     return (
-      <div className="flex flex-col items-center justify-between py-4 w-[60px] border-r border-white/[0.08] bg-[#050505] h-full">
+      <div className="flex flex-col items-center justify-between py-4 w-[60px] border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#050505] light:bg-[#f8f8f8] h-full">
         <div className="flex flex-col items-center gap-3">
           <button
-            className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-white hover:bg-white/5 transition-colors"
+            className="h-10 w-10 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             onClick={onToggle}
             title="Expand sidebar"
           >
             <PanelLeft className="h-5 w-5" />
           </button>
           <button
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
             onClick={handleNewChat}
             title="New chat"
           >
@@ -179,28 +183,28 @@ export default function Sidebar({
           </button>
           <Link
             href="/app/schema"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
             title="Schema visualizer"
           >
             <Network className="h-4.5 w-4.5" />
           </Link>
           <Link
             href="/app/audit"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-emerald-300 hover:bg-emerald-400/10 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-emerald-300 hover:bg-emerald-400/10 transition-colors"
             title="Auditor workspace"
           >
             <Search className="h-4.5 w-4.5" />
           </Link>
           <Link
             href="/app/ai-dev"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-sky-300 hover:bg-sky-400/10 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-sky-300 hover:bg-sky-400/10 transition-colors"
             title="AI Dev workspace"
           >
             <Cpu className="h-4.5 w-4.5" />
           </Link>
           <Link
             href="/app/teaching"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#737373] hover:text-amber-300 hover:bg-amber-400/10 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-amber-300 hover:bg-amber-400/10 transition-colors"
             title="Teaching workspace"
           >
             <GraduationCap className="h-4.5 w-4.5" />
@@ -209,12 +213,19 @@ export default function Sidebar({
         <div className="flex flex-col items-center gap-2">
           <Link
             href="/app/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>
-          <button className="h-9 w-9 rounded-full overflow-hidden ring-1 ring-white/10" title="Profile">
+        <button
+          className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Light" : "Dark"}
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+          <button className="h-9 w-9 rounded-full overflow-hidden ring-1 dark:ring-white/10 light:ring-black/10" title="Profile">
             <Avatar className="h-9 w-9">
               <AvatarImage src={user?.imageUrl} />
               <AvatarFallback>U</AvatarFallback>
@@ -237,7 +248,7 @@ export default function Sidebar({
         </Link>
         <div className="flex items-center gap-0.5">
           <button
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40010] hover-lift transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] hover-lift transition-colors"
             onClick={handleNewChat}
             title="New chat"
           >
@@ -245,7 +256,7 @@ export default function Sidebar({
           </button>
           {!isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onToggle}
               title="Collapse sidebar"
             >
@@ -254,7 +265,7 @@ export default function Sidebar({
           )}
           {isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onClose}
             >
               <X className="h-4 w-4" />
@@ -266,12 +277,12 @@ export default function Sidebar({
       {/* Search */}
       <div className="px-4 pb-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#525252]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-[#525252] light:text-[#8c8c8c]" />
           <Input
             placeholder="Search chats…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 pl-10 text-sm bg-white/[0.03] border-white/[0.08] focus:border-[#ffb40030] focus:ring-[#ffb40020] placeholder:text-[#505050]"
+            className="h-10 pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] light:text-[#737373] light:text-[#737373]"
           />
         </div>
 
@@ -283,8 +294,8 @@ export default function Sidebar({
           className={cn(
             "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
             pathname.startsWith("/app/schema")
-              ? "border-[#ffb40040] bg-[#ffb40012] text-[#ffcf66]"
-              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+              ? "border-[#ffb40040] bg-[#ffb40012] dark:text-[#ffcf66] light:text-[#c99900]"
+              : "dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:border-white/[0.2] light:border-black/[0.15]",
           )}
         >
           <Network className="h-4 w-4" />
@@ -300,7 +311,7 @@ export default function Sidebar({
             "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
             pathname.startsWith("/app/audit")
               ? "border-emerald-300/45 bg-emerald-400/12 text-emerald-200"
-              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+              : "dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:border-white/[0.2] light:border-black/[0.15]",
           )}
         >
           <Search className="h-4 w-4" />
@@ -316,7 +327,7 @@ export default function Sidebar({
             "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
             pathname.startsWith("/app/ai-dev")
               ? "border-sky-300/45 bg-sky-400/12 text-sky-200"
-              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+              : "dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:border-white/[0.2] light:border-black/[0.15]",
           )}
         >
           <Cpu className="h-4 w-4" />
@@ -332,7 +343,7 @@ export default function Sidebar({
             "mt-2 flex h-10 items-center gap-2 rounded-lg border px-3 text-sm transition-colors",
             pathname.startsWith("/app/teaching")
               ? "border-amber-300/45 bg-amber-400/12 text-amber-200"
-              : "border-white/[0.08] bg-white/[0.02] text-[#a3a3a3] hover:text-white hover:border-white/[0.2]",
+              : "dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:border-white/[0.2] light:border-black/[0.15]",
           )}
         >
           <GraduationCap className="h-4 w-4" />
@@ -340,7 +351,7 @@ export default function Sidebar({
         </Link>
       </div>
 
-      <Separator className="bg-white/[0.08]" />
+      <Separator className="dark:bg-white/[0.08] light:bg-black/[0.05]" />
 
       {/* Chat List - Native Scroll for reliability */}
       <div className="flex-1 overflow-y-auto px-2 scroll-container scrollbar-thin">
@@ -350,14 +361,14 @@ export default function Sidebar({
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 rounded-lg bg-white/[0.02] animate-pulse"
+                  className="h-10 rounded-lg dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse"
                 />
               ))}
             </div>
           ) : (
             Object.entries(grouped).map(([bucket, items]) => (
               <div key={bucket} className="mb-5">
-                <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest text-[#505050]">
+                <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest dark:text-[#505050] light:text-[#737373] light:text-[#737373]">
                   {bucket}
                 </p>
                 <AnimatePresence>
@@ -398,7 +409,7 @@ export default function Sidebar({
                                 if (e.key === "Enter") handleRename(chat._id);
                                 if (e.key === "Escape") setEditingId(null);
                               }}
-                              className="h-9 text-sm bg-white/5 border-[#ffb40030]"
+                              className="h-9 text-sm dark:bg-white/5 light:bg-black/5 dark:border-[#ffb40030] light:border-[#d4960030]"
                             />
                           </div>
                         ) : (
@@ -415,8 +426,8 @@ export default function Sidebar({
                             className={cn(
                               "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-150 relative cursor-pointer",
                               isActive
-                                ? "bg-white/[0.08] text-white"
-                                : "text-[#a3a3a3] hover:bg-white/[0.04] hover:text-white"
+                                ? "dark:bg-white/[0.08] light:bg-black/[0.05] dark:text-white light:text-[#171717]"
+                                : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.04] light:bg-black/[0.03] hover:dark:text-white light:text-[#171717]"
                             )}
                           >
                             {/* Active indicator bar */}
@@ -435,17 +446,17 @@ export default function Sidebar({
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger
-                                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-white/10"
+                                  className="h-7 w-7 flex items-center justify-center rounded hover:dark:bg-white/10 light:bg-black/10"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <MoreHorizontal className="h-4 w-4 text-[#737373]" />
+                                  <MoreHorizontal className="h-4 w-4 dark:text-[#737373] light:text-[#737373]" />
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
                                   align="end"
-                                  className="glass-elevated border-white/[0.08] bg-[#111] min-w-[140px]"
+                                  className="glass-elevated dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#111] light:bg-[#f0f0f0] min-w-[140px]"
                                 >
                                   <DropdownMenuItem
-                                    className="text-sm font-body gap-2 text-[#d4d4d4] focus:bg-white/5 focus:text-white cursor-pointer"
+                                    className="text-sm font-body gap-2 dark:text-[#d4d4d4] light:text-[#404040] focus:dark:bg-white/5 light:bg-black/5 focus:dark:text-white light:text-[#171717] cursor-pointer"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditTitle(chat.title);
@@ -478,29 +489,36 @@ export default function Sidebar({
       </div>
 
       {/* User Footer */}
-      <div className="border-t border-white/[0.08] p-4">
+      <div className="border-t dark:border-white/[0.08] light:border-black/[0.08] p-4">
         <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 ring-1 ring-white/10">
+          <Avatar className="h-9 w-9 ring-1 dark:ring-white/10 light:ring-black/10">
             <AvatarImage src={user?.imageUrl} />
             <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] text-sm font-body font-bold">
               {user?.firstName?.[0] || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-body text-[#d4d4d4] truncate">
+            <p className="text-sm font-body dark:text-[#d4d4d4] light:text-[#404040] truncate">
               {user?.firstName || "User"}
             </p>
           </div>
           <Link
             href="/app/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-lg text-[#525252] hover:text-white hover:bg-white/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
             onClick={() => isMobile && onClose && onClose()}
           >
             <Settings className="h-4 w-4" />
           </Link>
+      <button
+        className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+        onClick={toggleTheme}
+        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      >
+        {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
           <button
-            className="h-7 w-7 flex items-center justify-center rounded-lg text-[#525252] hover:text-red-400 hover:bg-red-500/5 transition-colors"
+            className="h-7 w-7 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
             onClick={() => signOut()}
             title="Sign out"
           >
@@ -515,7 +533,7 @@ export default function Sidebar({
   return (
     <div
       className={cn(
-        "bg-[#050505] border-r border-white/[0.04] shrink-0",
+        "dark:bg-[#050505] light:bg-[#f8f8f8] border-r dark:border-white/[0.04] light:border-black/[0.05] shrink-0",
         isMobile
           ? "sidebar-mobile"
           : overlayDesktop

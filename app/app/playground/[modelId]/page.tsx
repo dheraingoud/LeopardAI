@@ -105,7 +105,7 @@ export default async function PlaygroundModelPage({ params, searchParams }: Page
           </div>
           <Link
             href={closeHref}
-            className="inline-flex h-9 items-center rounded-lg border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-[#d7d7d7] hover:text-white hover:bg-white/[0.06]"
+            className="inline-flex h-9 items-center rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 text-xs font-medium text-[#d7d7d7] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/[0.06] light:bg-black/[0.04]"
           >
             Close
           </Link>
@@ -118,7 +118,7 @@ export default async function PlaygroundModelPage({ params, searchParams }: Page
         {modality === "video-physics" && <VideoPlayground defaultModelId={model.id} />}
 
         {modality === "text" && (
-          <div className="rounded-2xl border border-white/10 bg-[#0d0d0d] p-4">
+          <div className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-[#0d0d0d] p-4">
             <p className="text-sm text-[#a0a0a0]">
               This is a text model. Use the main chat interface for interactive testing.
             </p>
