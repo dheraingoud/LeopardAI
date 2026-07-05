@@ -21,8 +21,8 @@ function SettingRow({ label, description, children }: {
   return (
     <div className="flex items-center justify-between py-4">
       <div className="space-y-0.5">
-        <p className="text-sm font-mono text-[#d4d4d4]">{label}</p>
-        {description && <p className="text-xs font-mono text-[#404040]">{description}</p>}
+        <p className="text-sm font-mono dark:text-[#d4d4d4] light:text-[#404040]">{label}</p>
+        {description && <p className="text-xs font-mono dark:text-[#404040] light:text-[#a3a3a3]">{description}</p>}
       </div>
       <div>{children}</div>
     </div>
@@ -66,15 +66,15 @@ export default function SettingsPage() {
     <div className="flex-1 overflow-auto">
       <div className="max-w-2xl mx-auto px-6 py-10">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="mb-8">
-          <h1 className="text-xl font-semibold font-mono text-white mb-1">Settings</h1>
-          <p className="text-sm font-mono text-[#525252]">Manage your Leopard preferences</p>
+          <h1 className="text-xl font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Settings</h1>
+          <p className="text-sm font-mono dark:text-[#525252] light:text-[#8c8c8c]">Manage your Leopard preferences</p>
         </motion.div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="w-full justify-start bg-white/[0.02] border border-white/[0.06] rounded-xl p-1 mb-6 h-auto flex-wrap gap-1">
+          <TabsList className="w-full justify-start dark:bg-white/[0.02] light:bg-black/[0.015] border dark:border-white/[0.06] light:border-black/[0.06] rounded-xl p-1 mb-6 h-auto flex-wrap gap-1">
             {TABS.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value}
-                className="font-mono text-xs gap-1.5 data-[state=active]:bg-[#ffb40010] data-[state=active]:text-[#ffb400] data-[state=active]:shadow-none text-[#525252] rounded-lg px-3 py-1.5">
+                className="font-mono text-xs gap-1.5 data-[state=active]:dark:bg-[#ffb40010] light:bg-[#d4960010] data-[state=active]:text-[#ffb400] data-[state=active]:shadow-none dark:text-[#525252] light:text-[#8c8c8c] rounded-lg px-3 py-1.5">
                 <tab.icon className="h-3.5 w-3.5" />{tab.label}
               </TabsTrigger>
             ))}
@@ -82,34 +82,34 @@ export default function SettingsPage() {
 
           <TabsContent value="profile">
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold font-mono text-white mb-1">Profile</h3>
-              <p className="text-xs font-mono text-[#404040] mb-4">Your account from Google</p>
-              <Separator className="bg-white/[0.04] mb-2" />
+              <h3 className="text-sm font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Profile</h3>
+              <p className="text-xs font-mono dark:text-[#404040] light:text-[#a3a3a3] mb-4">Your account from Google</p>
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] mb-2" />
               <SettingRow label="Avatar">
-                <Avatar className="h-10 w-10 ring-2 ring-[#ffb40020]">
+                <Avatar className="h-10 w-10 ring-2 dark:ring-[#ffb40020] light:ring-[#d4960020]">
                   <AvatarImage src={user?.imageUrl} />
                   <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] font-mono font-bold">{user?.firstName?.[0] || "U"}</AvatarFallback>
                 </Avatar>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Name" description="From your Google account">
-                <span className="text-xs font-mono text-[#a3a3a3]">{user?.fullName}</span>
+                <span className="text-xs font-mono dark:text-[#a3a3a3] light:text-[#525252]">{user?.fullName}</span>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Email">
-                <span className="text-xs font-mono text-[#a3a3a3]">{user?.primaryEmailAddress?.emailAddress}</span>
+                <span className="text-xs font-mono dark:text-[#a3a3a3] light:text-[#525252]">{user?.primaryEmailAddress?.emailAddress}</span>
               </SettingRow>
             </div>
           </TabsContent>
 
           <TabsContent value="appearance">
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold font-mono text-white mb-1">Appearance</h3>
-              <Separator className="bg-white/[0.04] my-3" />
+              <h3 className="text-sm font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Appearance</h3>
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <SettingRow label="Theme" description="Leopard is dark by design">
-                <span className="text-xs font-mono text-[#ffb400] px-2 py-1 rounded-md bg-[#ffb40010]">Dark</span>
+                <span className="text-xs font-mono text-[#ffb400] px-2 py-1 rounded-md dark:bg-[#ffb40010] light:bg-[#d4960010]">Dark</span>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Send with Enter" description="Shift+Enter for new line">
                 <Switch checked={sendWithEnter} onCheckedChange={setSendWithEnter} className="data-[state=checked]:bg-[#ffb400]" />
               </SettingRow>
@@ -118,38 +118,38 @@ export default function SettingsPage() {
 
           <TabsContent value="models">
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold font-mono text-white mb-1">Model Defaults</h3>
-              <Separator className="bg-white/[0.04] my-3" />
+              <h3 className="text-sm font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Model Defaults</h3>
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <SettingRow label="Default Model" description="Used for new chats">
                 <Select value={defaultModel} onValueChange={handleModelChange}>
-                  <SelectTrigger className="w-48 h-8 text-xs font-mono bg-white/[0.03] border-white/[0.06]">
+                  <SelectTrigger className="w-48 h-8 text-xs font-mono dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.06] light:border-black/[0.06]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="glass-elevated bg-[#111] border-white/[0.08]">
+                  <SelectContent className="glass-elevated dark:bg-[#111] light:bg-[#f0f0f0] dark:border-white/[0.08] light:border-black/[0.08]">
                     {MODELS.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="font-mono text-xs text-[#d4d4d4] focus:bg-white/5 focus:text-white">
+                      <SelectItem key={m.id} value={m.id} className="font-mono text-xs dark:text-[#d4d4d4] light:text-[#404040] focus:dark:bg-white/5 light:bg-black/5 focus:dark:text-white light:text-[#171717]">
                         {m.name} — {m.provider}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Streaming" description="Stream responses in real-time">
                 <Switch checked={streaming} onCheckedChange={setStreaming} className="data-[state=checked]:bg-[#ffb400]" />
               </SettingRow>
-              <Separator className="bg-white/[0.04] my-3" />
-              <h4 className="text-xs font-semibold font-mono text-[#737373] mb-3">Available Models</h4>
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
+              <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">
                 {MODELS.map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                  <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] border dark:border-white/[0.04] light:border-black/[0.05]">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-xs font-mono font-medium text-[#d4d4d4]">{m.name}</p>
-                        <span className="text-[9px] font-mono text-[#525252]">{m.provider}</span>
-                        {m.badge && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#ffb40010] text-[#ffb400]">{m.badge}</span>}
+                        <p className="text-xs font-mono font-medium dark:text-[#d4d4d4] light:text-[#404040]">{m.name}</p>
+                        <span className="text-[9px] font-mono dark:text-[#525252] light:text-[#8c8c8c]">{m.provider}</span>
+                        {m.badge && <span className="text-[8px] px-1.5 py-0.5 rounded-full dark:bg-[#ffb40010] light:bg-[#d4960010] text-[#ffb400]">{m.badge}</span>}
                       </div>
-                      <p className="text-[10px] font-mono text-[#404040] mt-0.5">{m.description}</p>
+                      <p className="text-[10px] font-mono dark:text-[#404040] light:text-[#a3a3a3] mt-0.5">{m.description}</p>
                     </div>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${m.speed === "fast" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>
                       {m.speed}
@@ -162,14 +162,14 @@ export default function SettingsPage() {
 
           <TabsContent value="data">
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold font-mono text-white mb-1">Data & Export</h3>
-              <Separator className="bg-white/[0.04] my-3" />
+              <h3 className="text-sm font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Data & Export</h3>
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <SettingRow label="Conversations" description="Total in your account">
-                <span className="text-xs font-mono text-[#a3a3a3]">{chats?.length || 0} chats</span>
+                <span className="text-xs font-mono dark:text-[#a3a3a3] light:text-[#525252]">{chats?.length || 0} chats</span>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Export All" description="Download as Markdown">
-                <Button variant="outline" size="sm" className="text-xs font-mono border-white/[0.08] text-[#a3a3a3] hover:text-white hover:bg-white/5">
+                <Button variant="outline" size="sm" className="text-xs font-mono dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5">
                   Export <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               </SettingRow>
@@ -179,13 +179,13 @@ export default function SettingsPage() {
           <TabsContent value="danger">
             <div className="glass-card rounded-2xl p-6 border-red-500/10">
               <h3 className="text-sm font-semibold font-mono text-red-400 mb-1">Danger Zone</h3>
-              <Separator className="bg-white/[0.04] my-3" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <SettingRow label="Delete All Conversations" description={`${chats?.length || 0} chats — permanent`}>
                 <Button variant="outline" size="sm" className="text-xs font-mono border-red-500/20 text-red-400 hover:bg-red-500/10" onClick={handleDeleteAll}>
                   Delete All
                 </Button>
               </SettingRow>
-              <Separator className="bg-white/[0.04]" />
+              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Sign Out" description="Sign out of your account">
                 <Button variant="outline" size="sm" className="text-xs font-mono border-red-500/20 text-red-400 hover:bg-red-500/10" onClick={() => signOut({ redirectUrl: "/" })}>
                   Sign Out

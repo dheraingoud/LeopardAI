@@ -384,7 +384,7 @@ export default function ChatPage() {
               />
             ))}
           </div>
-          <p className="text-sm text-[#505050] font-body">
+          <p className="text-sm dark:text-[#505050] light:text-[#737373] light:text-[#737373] font-body">
             Loading conversation…
           </p>
         </div>
@@ -422,24 +422,24 @@ export default function ChatPage() {
     MODELS[0];
 
   return (
-    <div className="flex flex-1 min-h-0 bg-black">
+    <div className="flex flex-1 min-h-0 dark:bg-black light:bg-white">
       {/* Chat column */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b border-white/[0.08] shrink-0 bg-[#020202]">
+        <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0 bg-[#020202]">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <h2 className="text-sm font-body font-medium text-[#e5e5e5] truncate">
+            <h2 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
               {chat.title === "New Chat" ? "Start a conversation" : chat.title}
             </h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-body text-[#606060] bg-white/[0.02] px-2.5 py-1 rounded border border-white/[0.08] hidden sm:inline-flex uppercase tracking-tighter">
+            <span className="text-[10px] font-body text-[#606060] dark:bg-white/[0.02] light:bg-black/[0.015] px-2.5 py-1 rounded border dark:border-white/[0.08] light:border-black/[0.08] hidden sm:inline-flex uppercase tracking-tighter">
               {currentModel.name}
             </span>
             {/* Export button */}
             <button
               onClick={handleExport}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#e5e5e5] hover:bg-white/[0.06] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-[#e5e5e5] light:text-[#262626] hover:dark:bg-white/[0.06] light:bg-black/[0.04] transition-colors"
               title="Export as Markdown"
             >
               <Download className="h-3.5 w-3.5" />
@@ -447,7 +447,7 @@ export default function ChatPage() {
             {/* Share button */}
             <button
               onClick={handleShare}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
               title="Share chat"
             >
               <Share2 className="h-3.5 w-3.5" />
@@ -455,7 +455,7 @@ export default function ChatPage() {
             {/* Compact button */}
             <button onClick={handleCompact} className={cn(
               "h-8 w-8 flex items-center justify-center rounded-lg transition-colors",
-              contextBudget.isNearBudget ? "text-[#ffb400] bg-[#ffb40008] hover:bg-[#ffb40015]" : "text-[#505050] hover:text-[#a3a3a3] hover:bg-white/[0.06]"
+              contextBudget.isNearBudget ? "text-[#ffb400] bg-[#ffb40008] hover:bg-[#ffb40015]" : "dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.06] light:bg-black/[0.04]"
             )}
               title="Compact conversation"
             >

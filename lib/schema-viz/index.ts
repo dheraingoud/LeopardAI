@@ -76,33 +76,48 @@ export async function parseSchema(
   // 3. Route to appropriate parser
   let schema: ParsedSchema;
 
-  switch (dialect) {
-    case 'prisma':
-      schema = await parsePrisma(cleaned, filename);
-      break;
+  try {
+    switch (dialect) {
+      case 'prisma':
+        schema = await parsePrisma(cleaned, filename);
+        break;
 
-    case 'typeorm':
-      schema = await parseTypeORM(cleaned, filename);
-      // Infer @relation-based relationships
-      inferPrismaRelationships(schema.tables, schema.relationships);
-      break;
+      case 'typeorm':
+        schema = await parseTypeORM(cleaned, filename);
+        // Infer @relation-based relationships
+        inferPrismaRelationships(schema.tables, schema.relationships);
+        break;
 
-    case 'dbt':
-      schema = await parseDbt(cleaned, filename);
-      break;
+      case 'dbt':
+        schema = await parseDbt(cleaned, filename);
+        break;
 
-    case 'snowflake':
-      schema = await parseSnowflake(cleaned, filename);
-      break;
+      case 'snowflake':
+        schema = await parseSnowflake(cleaned, filename);
+        break;
 
-    case 'mysql':
-    case 'sqlite':
-    case 'postgresql':
-      schema = await parseSQLCst(cleaned, filename, dialect);
-      break;
+      case 'mysql':
+      case 'sqlite':
+      case 'postgresql':
+        schema = await parseSQLCst(cleaned, filename, dialect);
+        break;
 
-    default:
-      schema = await regexFallbackParse(cleaned, filename);
+      default:
+        schema = await regexFallbackParse(cleaned, filename);
+    }
+
+    // If CST produced nothing useful, try regex fallback silently
+    if (schema.tables.length === 0 && dialect !== 'prisma' && dialect !== 'typeorm') {
+      const fallback = await regexFallbackParse(content, filename);
+      if (fallback.tables.length > 0) {
+        schema = fallback;
+        schema.warnings.push('CST produced no tables — fell back to regex parser successfully');
+      }
+    }
+  } catch (e) {
+    // Fault-tolerant: never crash on bad SQL — just fall back to regex
+    schema = await regexFallbackParse(content, filename);
+    schema.warnings.push(`CST parse failed (${String(e).slice(0, 80)}) — using regex fallback`);
   }
 
   // 4. Infer implicit FK relationships if none found

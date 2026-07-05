@@ -183,7 +183,7 @@ function ThinkingBlock({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="pl-3 ml-1 border-l-2 border-[#ffb400]/15 text-[12px] text-[#505050] leading-relaxed mt-1 max-h-[250px] overflow-y-auto font-mono whitespace-pre-wrap">
+            <div className="pl-3 ml-1 border-l-2 border-[#ffb400]/15 text-[12px] dark:text-[#505050] light:text-[#737373] light:text-[#737373] leading-relaxed mt-1 max-h-[250px] overflow-y-auto font-mono whitespace-pre-wrap">
               {content}
             </div>
           </motion.div>
@@ -222,12 +222,12 @@ function CodeBlock({
   };
 
   return (
-    <div className="relative my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0c0c0c] hover:border-white/[0.15] transition-colors duration-300">
+    <div className="relative my-4 rounded-xl overflow-hidden border dark:border-white/[0.06] light:border-black/[0.06] bg-[#0c0c0c] hover:dark:border-white/[0.15] light:border-black/[0.1] transition-colors duration-300">
       {/* Header bar — with quick actions */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/[0.03] border-b border-white/[0.06] transition-colors duration-200 hover:bg-white/[0.05]">
+      <div className="flex items-center justify-between px-4 py-2 dark:bg-white/[0.03] light:bg-black/[0.02] border-b dark:border-white/[0.06] light:border-black/[0.06] transition-colors duration-200 hover:dark:bg-white/[0.05] light:bg-black/[0.04]">
         <div className="flex items-center gap-2">
-          <CodeIcon className="h-3.5 w-3.5 text-[#505050]" />
-          <span className="text-[12px] font-mono text-[#707070] capitalize px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/[0.03]">
+          <CodeIcon className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#737373] light:text-[#737373]" />
+          <span className="text-[12px] font-mono dark:text-[#707070] light:text-[#808080] capitalize px-1.5 py-0.5 rounded dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/[0.03] light:border-black/[0.04]">
             {lang || "Code"}
           </span>
         </div>
@@ -276,7 +276,7 @@ function CodeBlock({
           )}
           {/* Copy button */}
           <button
-            className="flex items-center justify-center h-6 w-6 rounded-md text-[#505050] hover:text-white hover:bg-white/[0.06] hover-lift transition-all duration-200 ease-in-out"
+            className="flex items-center justify-center h-6 w-6 rounded-md dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/[0.06] light:bg-black/[0.04] hover-lift transition-all duration-200 ease-in-out"
             onClick={handleCopy}
             title="Copy code"
           >
@@ -333,7 +333,7 @@ export function ThinkingIndicator() {
     >
       <div className="flex items-start gap-3 py-5">
         <div className="flex flex-col gap-2 pt-0.5">
-          <span className="text-[12px] font-mono text-[#505050]">
+          <span className="text-[12px] font-mono dark:text-[#505050] light:text-[#737373] light:text-[#737373]">
             Leopard
           </span>
           <div className="flex items-center gap-3">
@@ -352,7 +352,7 @@ export function ThinkingIndicator() {
                 />
               ))}
             </div>
-            <span className="text-[14px] text-[#505050]">Working on it…</span>
+            <span className="text-[14px] dark:text-[#505050] light:text-[#737373] light:text-[#737373]">Working on it…</span>
           </div>
         </div>
       </div>
@@ -505,7 +505,7 @@ function MessageComponent({
                   key={`${url.slice(0, 32)}-${idx}`}
                   src={url}
                   alt={`Attached ${idx + 1}`}
-                  className="max-h-[240px] w-full object-cover rounded-xl border border-white/[0.12]"
+                  className="max-h-[240px] w-full object-cover rounded-xl border dark:border-white/[0.12] light:border-black/[0.1]"
                   loading="lazy"
                 />
               ))}
@@ -553,11 +553,11 @@ function MessageComponent({
         <div className="flex-1 min-w-0">
           {/* Name */}
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[12px] font-mono text-[#505050]">
+            <span className="text-[12px] font-mono dark:text-[#505050] light:text-[#737373] light:text-[#737373]">
               leopard
             </span>
             {modelLabel && (
-              <span className="text-[10px] font-mono text-[#7e7e7e] bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded-md">
+              <span className="text-[10px] font-mono text-[#7e7e7e] dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/[0.06] light:border-black/[0.06] px-1.5 py-0.5 rounded-md">
                 {modelLabel}
               </span>
             )}
@@ -655,7 +655,7 @@ function MessageComponent({
                       <code
                         className={cn(
                           className,
-                          "text-[12px] font-mono text-[#505050] px-1.5 py-0.5 rounded bg-white/[0.06] text-[#e8b940]"
+                          "text-[12px] font-mono dark:text-[#505050] light:text-[#737373] light:text-[#737373] px-1.5 py-0.5 rounded dark:bg-white/[0.06] light:bg-black/[0.04] text-[#e8b940]"
                         )}
                         {...props}
                       >
@@ -666,21 +666,21 @@ function MessageComponent({
                   /* Table */
                   table({ children }) {
                     return (
-                      <div className="overflow-x-auto my-4 rounded-lg border border-white/[0.06]">
-                        <table className="w-full text-[12px] font-mono text-[#505050]">{children}</table>
+                      <div className="overflow-x-auto my-4 rounded-lg border dark:border-white/[0.06] light:border-black/[0.06]">
+                        <table className="w-full text-[12px] font-mono dark:text-[#505050] light:text-[#737373] light:text-[#737373]">{children}</table>
                       </div>
                     );
                   },
                   th({ children }) {
                     return (
-                      <th className="px-3 py-2 bg-white/[0.03] text-left text-[12px] font-mono text-[#808080] border-b border-white/[0.06]">
+                      <th className="px-3 py-2 dark:bg-white/[0.03] light:bg-black/[0.02] text-left text-[12px] font-mono text-[#808080] border-b dark:border-white/[0.06] light:border-black/[0.06]">
                         {children}
                       </th>
                     );
                   },
                   td({ children }) {
                     return (
-                      <td className="px-3 py-2 border-b border-white/[0.03] text-[#b0b0b0]">
+                      <td className="px-3 py-2 border-b dark:border-white/[0.03] light:border-black/[0.04] text-[#b0b0b0]">
                         {children}
                       </td>
                     );
@@ -706,7 +706,7 @@ function MessageComponent({
                       <img
                         src={src}
                         alt={alt || "Generated image"}
-                        className="my-3 max-w-full rounded-xl border border-white/[0.08]"
+                        className="my-3 max-w-full rounded-xl border dark:border-white/[0.08] light:border-black/[0.08]"
                         loading="lazy"
                       />
                     );
@@ -739,7 +739,7 @@ function MessageComponent({
           {!isStreaming && displayContent && (
             <div className="flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <button
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] hover-lift transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:dark:text-[#e5e5e5] light:text-[#262626] hover:dark:bg-white/[0.04] light:bg-black/[0.03] hover-lift transition-colors"
                 onClick={handleCopyMessage}
               >
                 {msgCopied ? (
@@ -755,7 +755,7 @@ function MessageComponent({
 
               {isLast && onRegenerate && (
                 <button
-                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:text-[#e5e5e5] hover:bg-white/[0.04] hover-lift transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#353535] hover:dark:text-[#e5e5e5] light:text-[#262626] hover:dark:bg-white/[0.04] light:bg-black/[0.03] hover-lift transition-colors"
                   onClick={onRegenerate}
                 >
                   <RefreshCw className="h-3 w-3" /> Regenerate

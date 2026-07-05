@@ -411,8 +411,8 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
   const renderReasonPlayground = () => (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-      <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4">
-        <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 dark:bg-[#111111] light:bg-[#f0f0f0] p-4 space-y-4">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#848484]">Input</p>
           <input
             value={sourceVideoUrl}
@@ -421,12 +421,12 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               setSourceVideoData(null);
             }}
             placeholder="Paste a video URL"
-            className="w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-[#d8d8d8]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-xs text-[#d8d8d8]"
           />
           <input
             type="file"
             accept="video/*"
-            className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-xs text-[#d8d8d8]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-xs text-[#d8d8d8]"
             onChange={(event) => {
               void uploadSourceVideo(event.target.files?.[0] || null);
             }}
@@ -435,7 +435,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             <video
               src={sourceVideoPreview || sourceVideoUrl}
               controls
-              className="w-full rounded-lg border border-white/10 max-h-[210px]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 max-h-[210px]"
             />
           )}
         </div>
@@ -447,7 +447,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               <button
                 key={chip}
                 onClick={() => setQuestion(chip)}
-                className="min-h-10 shrink-0 snap-start rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-[#bcbcbc] hover:text-white"
+                className="min-h-10 shrink-0 snap-start rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.03] light:bg-black/[0.02] px-3 py-1.5 text-[11px] text-[#bcbcbc] hover:dark:text-white light:text-[#171717]"
               >
                 {chip}
               </button>
@@ -461,7 +461,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333]"
           />
         </label>
 
@@ -471,7 +471,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             <select
               value={fps}
               onChange={(event) => setFps(Number(event.target.value) || 2)}
-              className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-[#d0d0d0]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-[#d0d0d0]"
             >
               <option value={2}>2</option>
               <option value={4}>4</option>
@@ -485,7 +485,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               max={4096}
               value={maxTokens}
               onChange={(event) => setMaxTokens(Math.max(256, Math.min(4096, Number(event.target.value) || 2048)))}
-              className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-[#d0d0d0]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-[#d0d0d0]"
             />
           </label>
         </div>
@@ -504,8 +504,8 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
         </div>
       </div>
 
-      <div className="min-w-0 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 space-y-4 min-h-[560px]">
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+      <div className="min-w-0 rounded-2xl border dark:border-white/10 light:border-black/10 bg-[linear-gradient(180deg,#0e0e0e_0%,#0a0a0a_100%)] p-4 space-y-4 min-h-[560px]">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-widest text-[#848484]">Reasoning Trace</p>
             <button
@@ -517,13 +517,13 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             </button>
           </div>
           {showReasoning && (
-            <pre className="mt-2 max-h-[200px] overflow-auto rounded-lg border-l-2 border-[#76c44255] bg-black/35 p-3 text-xs leading-6 text-[#cfcfcf] font-mono whitespace-pre-wrap">
+            <pre className="mt-2 max-h-[200px] overflow-auto rounded-lg border-l-2 border-[#76c44255] dark:bg-black/35 light:bg-white/85 p-3 text-xs leading-6 text-[#cfcfcf] font-mono whitespace-pre-wrap">
               {parsedReasoning.reasoning || "No reasoning trace returned."}
             </pre>
           )}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4 min-h-[230px]">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-4 min-h-[230px]">
           <p className="text-[10px] uppercase tracking-widest text-[#848484] mb-2">Final Answer</p>
           {parsedReasoning.finalAnswer ? (
             <p className="text-sm leading-7 text-[#d8d8d8] whitespace-pre-wrap">{parsedReasoning.finalAnswer}</p>
@@ -534,21 +534,21 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
         <div className="text-xs text-[#8c8c8c]">Status: {statusLabel}</div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#848484]">Follow-up</p>
           <div className="flex gap-2">
             <input
               value={followup}
               onChange={(event) => setFollowup(event.target.value)}
               placeholder="Ask follow-up about the same clip"
-              className="flex-1 rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm text-[#d8d8d8]"
+              className="flex-1 rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-sm text-[#d8d8d8]"
             />
             <button
               onClick={() => {
                 void queueFollowup();
               }}
               disabled={loading}
-              className="rounded-lg bg-white/10 px-3 py-2 text-xs text-[#d8d8d8]"
+              className="rounded-lg dark:bg-white/10 light:bg-black/10 px-3 py-2 text-xs text-[#d8d8d8]"
             >
               Send
             </button>
@@ -560,7 +560,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
   const renderTransferPlayground = () => (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-      <div className="rounded-2xl border border-white/10 bg-[#111111] p-4 space-y-4 max-h-[78vh] overflow-y-auto">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 dark:bg-[#111111] light:bg-[#f0f0f0] p-4 space-y-4 max-h-[78vh] overflow-y-auto">
         <div>
           <label className="mb-1 block text-[10px] uppercase tracking-widest text-[#848484]">Source video</label>
           <input
@@ -570,12 +570,12 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               setSourceVideoData(null);
             }}
             placeholder="https://..."
-            className="mb-2 w-full rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-xs text-[#d8d8d8]"
+            className="mb-2 w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-3 py-2 text-xs text-[#d8d8d8]"
           />
           <input
             type="file"
             accept="video/*"
-            className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-xs text-[#d8d8d8]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-xs text-[#d8d8d8]"
             onChange={(event) => {
               void uploadSourceVideo(event.target.files?.[0] || null);
             }}
@@ -584,7 +584,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             <video
               src={sourceVideoPreview || sourceVideoUrl}
               controls
-              className="mt-2 w-full rounded-lg border border-white/10 max-h-[190px]"
+              className="mt-2 w-full rounded-lg border dark:border-white/10 light:border-black/10 max-h-[190px]"
             />
           )}
         </div>
@@ -595,7 +595,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#e6e6e6]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm dark:text-[#e6e6e6] light:text-[#333]"
           />
         </label>
 
@@ -605,7 +605,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             value={negativePrompt}
             onChange={(event) => setNegativePrompt(event.target.value)}
             rows={3}
-            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-[#dfdfdf]"
+            className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/30 light:bg-white/80 px-3 py-2 text-sm text-[#dfdfdf]"
           />
         </label>
 
@@ -619,7 +619,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
                 className={`rounded-lg border px-2 py-2 ${
                   resolution === entry
                     ? "border-[#76c44255] bg-[#76c44212] text-[#bde29d]"
-                    : "border-white/10 bg-black/25 text-[#a3a3a3]"
+                    : "dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 dark:text-[#a3a3a3] light:text-[#525252]"
                 }`}
               >
                 {entry}
@@ -667,12 +667,12 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               min={0}
               value={seed}
               onChange={(event) => setSeed(Math.max(0, Math.round(Number(event.target.value) || 0)))}
-              className="w-full rounded-lg border border-white/10 bg-black/35 px-2 py-2 text-[#d9d9d9]"
+              className="w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-2 text-[#d9d9d9]"
             />
           </label>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 bg-black/20 p-3 space-y-2">
           <button
             onClick={() => setAdvancedOpen((prev) => !prev)}
             className="inline-flex items-center gap-1 text-xs text-[#c8c8c8]"
@@ -685,7 +685,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             <div className="space-y-2">
               {(Object.entries(signals) as Array<["edge" | "depth" | "seg" | "blur", SignalConfig]>).map(
                 ([key, value]) => (
-                  <div key={key} className="rounded-lg border border-white/10 bg-black/25 p-2 text-xs">
+                  <div key={key} className="rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-2 text-xs">
                     <label className="mb-1 flex items-center justify-between text-[#c9c9c9]">
                       <span className="uppercase">{key}</span>
                       <input
@@ -699,7 +699,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
                         <input
                           type="file"
                           accept="video/*,image/*"
-                          className="mb-2 w-full rounded-lg border border-white/10 bg-black/35 px-2 py-1.5 text-[11px] text-[#d8d8d8]"
+                          className="mb-2 w-full rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 px-2 py-1.5 text-[11px] text-[#d8d8d8]"
                           onChange={(event) =>
                             setSignalValue(key, {
                               uploadName: event.target.files?.[0]?.name || "",
@@ -710,7 +710,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
                           <p className="mb-1 text-[10px] text-[#8b8b8b] truncate">{value.uploadName}</p>
                         )}
                         <label className="block">
-                          <div className="mb-1 flex items-center justify-between text-[11px] text-[#a3a3a3]">
+                          <div className="mb-1 flex items-center justify-between text-[11px] dark:text-[#a3a3a3] light:text-[#525252]">
                             <span>Weight</span>
                             <span>{value.weight.toFixed(2)}</span>
                           </div>
@@ -758,42 +758,42 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
           className={`rounded-2xl border bg-[#0e0e0e] p-4 min-h-[360px] transition ${
             status === "processing" || status === "queued"
               ? "border-[#76c44266] animate-pulse"
-              : "border-white/10"
+              : "dark:border-white/10 light:border-black/10"
           }`}
         >
           {videoUrl ? (
-            <video src={videoUrl} controls loop autoPlay className="w-full rounded-lg border border-white/10" />
+            <video src={videoUrl} controls loop autoPlay className="w-full rounded-lg border dark:border-white/10 light:border-black/10" />
           ) : (
             <div className="grid h-full min-h-[320px] place-items-center text-center px-4">
-              <p className="text-sm text-[#7f7f7f]">Generated video will appear here.</p>
+              <p className="text-sm dark:text-[#7f7f7f] light:text-[#808080]">Generated video will appear here.</p>
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-[#8f8f8f] space-y-2">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-3 text-xs text-[#8f8f8f] space-y-2">
           <div className="flex items-center justify-between">
             <span>Seed: {seed}</span>
             <span>Resolution: {resolution}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={downloadVideo} className="inline-flex items-center gap-1 text-[#d5d5d5] hover:text-white">
+            <button onClick={downloadVideo} className="inline-flex items-center gap-1 text-[#d5d5d5] hover:dark:text-white light:text-[#171717]">
               <Download className="h-3.5 w-3.5" /> Download MP4
             </button>
             <button
               onClick={() => {
                 void shareVideo();
               }}
-              className="inline-flex items-center gap-1 text-[#d5d5d5] hover:text-white"
+              className="inline-flex items-center gap-1 text-[#d5d5d5] hover:dark:text-white light:text-[#171717]"
             >
               <Share2 className="h-3.5 w-3.5" /> Share
             </button>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-widest text-[#7e7e7e]">Queue Status</p>
           <p className="text-xs text-[#b7b7b7]">{statusLabel}</p>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-2 rounded-full dark:bg-white/10 light:bg-black/10 overflow-hidden">
             <motion.div
               className={`h-full transition-all duration-700 ${
                 status === "failed" ? "bg-red-400/80" : "bg-[#76c442]"
@@ -809,13 +809,13 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             </a>
           )}
           {resultText && (
-            <pre className="text-xs leading-6 text-[#c9c9c9] rounded-lg border border-white/10 bg-black/35 p-3 overflow-x-auto whitespace-pre-wrap">
+            <pre className="text-xs leading-6 text-[#c9c9c9] rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 p-3 overflow-x-auto whitespace-pre-wrap">
               {resultText}
             </pre>
           )}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+        <div className="rounded-xl border dark:border-white/10 light:border-black/10 dark:bg-black/25 light:bg-white/88 p-3">
           <p className="mb-2 text-[10px] uppercase tracking-widest text-[#7e7e7e]">Generation History</p>
           <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1">
             {history.length === 0 && <p className="text-xs text-[#686868]">No generations yet.</p>}
@@ -823,11 +823,11 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
               <button
                 key={record.id}
                 onClick={() => setVideoUrl(record.url)}
-                className="min-w-[180px] shrink-0 snap-start rounded-lg border border-white/10 bg-black/35 p-2 text-left"
+                className="min-w-[180px] shrink-0 snap-start rounded-lg border dark:border-white/10 light:border-black/10 dark:bg-black/35 light:bg-white/85 p-2 text-left"
               >
-                <video src={record.url} className="h-20 w-full rounded-md object-cover border border-white/10" />
+                <video src={record.url} className="h-20 w-full rounded-md object-cover border dark:border-white/10 light:border-black/10" />
                 <p className="mt-1 truncate text-[10px] text-[#c5c5c5]">{record.prompt}</p>
-                <p className="text-[10px] text-[#7f7f7f]">
+                <p className="text-[10px] dark:text-[#7f7f7f] light:text-[#808080]">
                   {record.resolution} | Seed {record.seed}
                 </p>
               </button>
@@ -840,7 +840,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4">
+      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-[linear-gradient(180deg,#111111_0%,#0b0b0b_100%)] p-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
             onClick={() => {
@@ -855,7 +855,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             className={`rounded-full px-3 py-1.5 transition ${
               model === "cosmos-reason2-8b"
                 ? "bg-[#76c44220] border border-[#76c44250] text-[#bde29d]"
-                : "bg-white/[0.03] border border-white/10 text-[#a9a9a9]"
+                : "dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/10 light:border-black/10 text-[#a9a9a9]"
             }`}
           >
             Cosmos Reason2 8B
@@ -873,7 +873,7 @@ export default function VideoPlayground({ defaultModelId, userId }: VideoPlaygro
             className={`rounded-full px-3 py-1.5 transition ${
               model === "cosmos-transfer2.5-2b"
                 ? "bg-[#76c44220] border border-[#76c44250] text-[#bde29d]"
-                : "bg-white/[0.03] border border-white/10 text-[#a9a9a9]"
+                : "dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/10 light:border-black/10 text-[#a9a9a9]"
             }`}
           >
             Cosmos Transfer2.5 2B

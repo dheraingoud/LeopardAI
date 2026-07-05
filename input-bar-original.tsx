@@ -280,12 +280,12 @@ export default function InputBar({
         onDrop={handleDrop}
         className={cn(
           "rounded-2xl border transition-all duration-200 relative",
-          "bg-[#0a0a0a]/80 backdrop-blur-md",
+          "dark:bg-[#0a0a0a] light:bg-[#fafafa]/80 backdrop-blur-md",
           "shadow-[0_8px_40px_rgba(0,0,0,0.5),0_2px_12px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
           "focus-within:ring-1 focus-within:ring-[#ffb40015]",
           isDragOver
             ? "border-[#ffb400] shadow-[0_0_0_2px_rgba(255,180,0,0.2),0_8px_40px_rgba(255,180,0,0.1)]"
-            : "border-white/[0.08] focus-within:border-[#ffb40030] focus-within:shadow-[0_0_0_2px_rgba(255,180,0,0.1),0_0_20px_rgba(255,180,0,0.1),0_8px_40px_rgba(0,0,0,0.5)]"
+            : "dark:border-white/[0.08] light:border-black/[0.08] focus-within:dark:border-[#ffb40030] light:border-[#d4960030] focus-within:shadow-[0_0_0_2px_rgba(255,180,0,0.1),0_0_20px_rgba(255,180,0,0.1),0_8px_40px_rgba(0,0,0,0.5)]"
         )}
       >
         {/* Drag overlay */}
@@ -312,7 +312,7 @@ export default function InputBar({
                 key={`${file.name}-${i}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative group/file flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] max-w-[200px]"
+                className="relative group/file flex items-center gap-2 px-3 py-2 rounded-lg dark:bg-white/[0.04] light:bg-black/[0.03] border dark:border-white/[0.08] light:border-black/[0.08] max-w-[200px]"
               >
                 {file.preview ? (
                   <img
@@ -324,16 +324,16 @@ export default function InputBar({
                   <FileText className="h-4 w-4 text-[#606060] shrink-0" />
                 )}
                 <div className="min-w-0">
-                  <p className="text-[11px] font-mono text-[#a3a3a3] truncate">
+                  <p className="text-[11px] font-mono dark:text-[#a3a3a3] light:text-[#525252] truncate">
                     {file.name}
                   </p>
-                  <p className="text-[9px] font-mono text-[#404040]">
+                  <p className="text-[9px] font-mono dark:text-[#404040] light:text-[#a3a3a3]">
                     {formatFileSize(file.size)}
                   </p>
                 </div>
                 <button
                   onClick={() => removeFile(i)}
-                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-[#1a1a1a] border border-white/[0.08] flex items-center justify-center opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-red-500/20"
+                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full dark:bg-[#1a1a1a] light:bg-[#e8e8e8] border dark:border-white/[0.08] light:border-black/[0.08] flex items-center justify-center opacity-0 group-hover/file:opacity-100 transition-opacity hover:bg-red-500/20"
                 >
                   <X className="h-3 w-3 text-[#808080]" />
                 </button>
@@ -347,7 +347,7 @@ export default function InputBar({
           {/* Attach file button - left */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="h-9 min-w-9 w-9 flex items-center justify-center rounded-lg text-[#505050] hover:text-[#a3a3a3] hover:bg-white/[0.06] transition-colors shrink-0"
+            className="h-9 min-w-9 w-9 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.06] light:bg-black/[0.04] transition-colors shrink-0"
             title="Attach file"
           >
             <Paperclip className="h-4 w-4" />
@@ -377,7 +377,7 @@ export default function InputBar({
               minRows={1}
               maxRows={8}
               className={cn(
-                "w-full resize-none bg-transparent text-[14px] text-[#e5e5e5] placeholder:text-[#3a3a3a]",
+                "w-full resize-none bg-transparent text-[14px] dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#3a3a3a]",
                 "outline-none leading-[1.6]",
                 "disabled:opacity-50"
               )}
@@ -391,7 +391,7 @@ export default function InputBar({
                 className={cn(
                   "inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[11px] font-mono cursor-pointer select-none transition-all shrink-0",
                   selectedModel.available
-                    ? "text-[#888] hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06]"
+                    ? "dark:text-[#888] light:text-[#777] hover:dark:text-white light:text-[#171717] dark:bg-white/[0.03] light:bg-black/[0.02] hover:dark:bg-white/[0.06] light:bg-black/[0.04] border dark:border-white/[0.06] light:border-black/[0.06]"
                     : "text-red-400/60 bg-red-500/5 border border-red-500/10"
                 )}
               >
@@ -405,10 +405,10 @@ export default function InputBar({
               align="end"
               side="top"
               sideOffset={8}
-              className="border-white/[0.08] backdrop-blur-md bg-[#0a0a0a]/90 shadow-[0_10px_40px_rgba(0,0,0,0.6)] w-[320px] sm:w-[340px] z-[60] p-1"
+              className="dark:border-white/[0.08] light:border-black/[0.08] backdrop-blur-md dark:bg-[#0a0a0a] light:bg-[#fafafa]/90 shadow-[0_10px_40px_rgba(0,0,0,0.6)] w-[320px] sm:w-[340px] z-[60] p-1"
             >
               <div className="px-2.5 py-1.5 mb-1">
-                <p className="text-[10px] font-mono text-[#505050] uppercase tracking-widest">
+                <p className="text-[10px] font-mono dark:text-[#505050] light:text-[#737373] light:text-[#737373] uppercase tracking-widest">
                   Models
                 </p>
               </div>
@@ -422,7 +422,7 @@ export default function InputBar({
                     selectedModel.id === model.id && model.available
                       ? "bg-[#ffb40006] border border-[#ffb40010]"
                       : model.available
-                      ? "hover:bg-white/[0.03]"
+                      ? "hover:dark:bg-white/[0.03] light:bg-black/[0.02]"
                       : ""
                   )}
                   onClick={() => {
@@ -435,15 +435,15 @@ export default function InputBar({
                         className={cn(
                           "text-[12px] font-medium",
                           !model.available
-                            ? "text-[#404040]"
+                            ? "dark:text-[#404040] light:text-[#a3a3a3]"
                             : selectedModel.id === model.id
                             ? "text-[#ffb400]"
-                            : "text-[#d4d4d4]"
+                            : "dark:text-[#d4d4d4] light:text-[#404040]"
                         )}
                       >
                         {model.name}
                       </span>
-                      <span className="text-[10px] text-[#404040]">
+                      <span className="text-[10px] dark:text-[#404040] light:text-[#a3a3a3]">
                         {model.provider}
                       </span>
                       {model.badge && model.available && (
@@ -497,7 +497,7 @@ export default function InputBar({
                 "h-9 min-w-9 w-9 flex items-center justify-center rounded-lg transition-all duration-150 shrink-0",
                 canSend
                   ? "bg-[#ffb400] text-black hover:bg-[#e6a300] hover:-translate-y-0.5 active:translate-y-0"
-                  : "bg-white/[0.04] text-[#404040] cursor-not-allowed"
+                  : "dark:bg-white/[0.04] light:bg-black/[0.03] dark:text-[#404040] light:text-[#a3a3a3] cursor-not-allowed"
               )}
               title="Send"
             >

@@ -15,7 +15,7 @@ const SYSTEM_PROMPT = `You are Leopard, a high-performance AI assistant. Follow 
 - Write clean, well-indented, production-quality code
 - Be concise in explanations but thorough in code`;
 
-const FAST_TIMEOUT_MS = 20_000;
+const FAST_TIMEOUT_MS = 30_000;
 const SLOW_TIMEOUT_MS = 45_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const STREAM_IDLE_TIMEOUT_MS = 20_000;
