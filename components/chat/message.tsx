@@ -199,29 +199,42 @@ function ReasoningBlock({
   effort,
   isStreamingReasoning,
   elapsedMs,
+  isStreaming,
 }: {
   content: string;
   effort?: ReasoningLevel;
   isStreamingReasoning?: boolean;
   elapsedMs?: number;
+  /**
+   * Φ7.7 interleaved thinking — the parent stream is currently active overall
+   * (not just the reasoning phase). When the stream interleaves reasoning →
+   * text → reasoning again the card stays expanded so the user can follow
+   * the second thought batch live. Auto-collapse happens only when the WHOLE
+   * stream ends (`isStreaming` is false).
+   */
+  isStreaming?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  // auto-open → auto-collapse: only re-pins on the streamingReasoning edge,
-  // so a user's manual toggle survives after.
+  const [expanded, setExpanded] = useState(false);
+  // Φ7.7: forced open while streaming, forced closed once the stream ends.
+  // User can still toggle mid-stream; auto-collapse kicks in on stream end.
   useEffect(() => {
-    setExpanded(!!isStreamingReasoning);
-  }, [isStreamingReasoning]);
+    if (isStreaming || isStreamingReasoning) {
+      setExpanded(true);
+    } else {
+      setExpanded(false);
+    }
+  }, [isStreaming, isStreamingReasoning]);
 
   const headerText = isStreamingReasoning
     ? "Thinking…"
     : elapsedMs !== undefined
-      ? `Thought for ${(elapsedMs / 1000).toFixed(elapsedMs >= 1000 ? 0 : 1)}s`
+      ? `Thought for ${Math.max(1, Math.round(elapsedMs / 1000))}s`
       : "Thought process";
   const showBadge =
     !isStreamingReasoning && effort !== undefined && effort !== "off";
 
   return (
-    <div className="mb-3">
+    <div className="cb-reasoning mb-3">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
@@ -431,7 +444,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         className="group flex justify-end py-3"
       >
         <div className="max-w-[80%]">
-          <div className="rounded-2xl border px-5 py-3 dark:border-[#ffb40024] dark:bg-[linear-gradient(145deg,#1f1607_0%,#171006_50%,#110c05_100%)] dark:text-[#f6e8cc] dark:shadow-[0_10px_30px_rgba(0,0,0,0.32)] light:border-[#d4960040] light:bg-[linear-gradient(145deg,#fff7e6_0%,#fdeec9_50%,#f8e2ad_100%)] light:text-[#3a2a08] light:shadow-[0_10px_30px_rgba(212,150,0,0.18)]">
+          <div className="cb-message-user rounded-2xl border px-5 py-3 dark:border-[#ffb40024] dark:bg-[linear-gradient(145deg,#1f1607_0%,#171006_50%,#110c05_100%)] dark:text-[#f6e8cc] dark:shadow-[0_10px_30px_rgba(0,0,0,0.32)] light:border-[#d4960040] light:bg-[linear-gradient(145deg,#fff7e6_0%,#fdeec9_50%,#f8e2ad_100%)] light:text-[#3a2a08] light:shadow-[0_10px_30px_rgba(212,150,0,0.18)]">
             <p className="text-[15px] leading-[1.6] whitespace-pre-wrap">{text}</p>
          </div>
           <div className="flex items-center justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
@@ -470,7 +483,7 @@ export const PreviewMessage = memo(function PreviewMessage({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="group py-5"
+      className="group py-5 cb-message-assistant"
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
@@ -516,6 +529,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               effort={currentReasoning}
               isStreamingReasoning={isStreaming && !text}
               elapsedMs={reasoningMs}
+              isStreaming={isStreaming}
             />
           )}
 
