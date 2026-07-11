@@ -98,6 +98,19 @@ async function streamImageGeneration({
     return Response.json({ error: "empty_prompt" }, { status: 400 });
   }
 
+  // Φ9 qwen-image-edit: pull the first image attachment off the last user
+  // message and forward it as `editImage`. Multipart is AI SDK v6 — parts
+  // can be {type:"file", url, mediaType:?}. NIM expects either a raw data URI
+  // or a base64 string; the client uploads to /api/upload (lib/upload.ts)
+  // which returns {url} as the data URI already, so we pass through.
+  let editImage: string | undefined;
+  if (lastUser && Array.isArray((lastUser as { parts?: unknown[] }).parts)) {
+    const filePart = (lastUser as { parts: Array<{ type?: string; mediaType?: string; url?: string }> }).parts.find(
+      (p) => p?.type === "file" && (p?.mediaType ?? "").startsWith("image/"),
+    );
+    editImage = filePart?.url || undefined;
+  }
+
   // 1:1 default — see docstring re: Phase 9 aspect routing.
   const { width, height } = resolveImageDimensions("1:1" as ImageAspectRatio);
   // BYPASS_CLERK fallback owns the quota bucket; real Clerk userId binds in P9.
@@ -112,6 +125,7 @@ async function streamImageGeneration({
       userId: quotaUserId,
       width,
       height,
+      ...(editImage ? { editImage } : {}),
     }),
   });
 
