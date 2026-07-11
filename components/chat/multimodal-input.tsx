@@ -75,6 +75,10 @@ export function MultimodalInput() {
   // model — the route still reads /api/models server-side for isReasoningModel.
   const modelConfig = getModelById(currentModelId);
   const modelVision = modelConfig?.supportsVision ?? false;
+  // Φ9: an image-edit model (e.g. qwen-image-edit) isn't a VLM but it accepts
+  // an image attachment as edit input. Loosen the media gate so users can
+  // attach — non-VLM image-edit still rejects non-image media in addFiles.
+  const modelImageEdit = modelConfig?.supportsImageEdit ?? false;
   const ctxWin = modelConfig?.contextWindow;
   const modelReasoning = modelConfig
     ? {
@@ -92,10 +96,17 @@ export function MultimodalInput() {
   }, []);
 
   const addFiles = async (files: FileList, kind: "media" | "file" | "skill") => {
-    if (kind === "media" && !modelVision) return;
+    // Φ9: image-edit models (e.g. qwen-image-edit) aren't VLMs but still accept
+    // images as edit input — relax the gate for media attaches.
+    if (kind === "media" && !modelVision && !modelImageEdit) return;
     setUploading(true);
     try {
       for (const f of Array.from(files)) {
+        // image-edit is image-only by spec; refuse non-image media at the
+        // input bar level so the route never sees a video + edit model.
+        if (kind === "media" && modelImageEdit && !modelVision) {
+          if (!f.type.startsWith("image/")) continue;
+        }
         const up = await uploadFile(f);
         setAttachments((a) => [...a, { url: up.url, name: up.name, mediaType: up.mediaType }]);
       }
@@ -180,6 +191,7 @@ export function MultimodalInput() {
             <div className="relative flex items-end gap-1.5 px-2 py-2 h-full w-full">
               <PlusMenu
                 modelVision={modelVision}
+                modelImageEdit={modelImageEdit}
                 onPickMedia={(f) => addFiles(f, "media")}
                 onPickFile={(f) => addFiles(f, "file")}
                 onPickSkill={(f) => addFiles(f, "skill")}

@@ -84,6 +84,9 @@ export type ChatModel = {
   /** === reasoningConfig.enabled (selector Brain icon). */
   supportsReasoning: boolean;
   supportsTools: boolean;
+  /** Hard-coded per model. qwen-image-edit accepts an image attachment and
+   *  edits it from the prompt. Other image models ignore attachments. */
+  supportsImageEdit?: boolean;
   /** From MODEL_REGISTRY, hard-coded per card. */
   contextWindow: number;
   /** Per-model reasoning shape — drives the reasoning control + the route. */
@@ -137,12 +140,42 @@ function nimTextSeed(): ChatModel[] {
 // path) for future re-seeding; with an empty seed there's nothing to expose.
 const GATEWAY_SEED: ChatModel[] = [];
 
-// ─── NIM generation-only seeds (EMPTY — genai endpoint unconfirmed) ───────────
-// Prior image seed shipped SD 3.5 / Flux (underscore id) / SDXL and the video
-// seed shipped Cosmos — ALL dead or unconfirmed against the live NIM genai
-// namespace (prior probes 404'd). This batch ships NO generation models; Phase 10
-// will probe the real genai endpoint, confirm ids, then populate + flip dormancy.
-const NIM_IMAGE_SEED: ChatModel[] = [];
+// Φ9 qwen-image + qwen-image-edit. Hit NIM's native /infer namespace
+// (POST /v1/qwen/<model>/infer, body {prompt, seed, image_size | image},
+// response {artifacts:[{base64}]}) — verified 2026-07-11. `filterByEnv` with
+// NIM_IMAGE_MODELS = unset surfaces the whole seed in the selector.
+const NIM_IMAGE_SEED: ChatModel[] = [
+  {
+    id: "qwen/qwen-image",
+    name: "Qwen Image",
+    provider: "nim",
+    description: "Qwen Image — text→image",
+    speedTier: "balanced",
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsTools: false,
+    supportsImageEdit: false,
+    contextWindow: 0,
+    reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
+    kind: "image",
+  },
+  {
+    id: "qwen/qwen-image-edit",
+    name: "Qwen Image Edit",
+    provider: "nim",
+    description: "Qwen Image Edit — image+prompt→image",
+    speedTier: "balanced",
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsTools: false,
+    // Loosens the input bar media gate (PlusMenu `Item kind=media`) to allow
+    // attaching an image as edit input. Other image models ignore attachments.
+    supportsImageEdit: true,
+    contextWindow: 0,
+    reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
+    kind: "image",
+  },
+];
 const NIM_VIDEO_SEED: ChatModel[] = [];
 
 // ─── Env filtering ────────────────────────────────────────────────────────────
