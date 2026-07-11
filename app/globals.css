@@ -7,21 +7,7 @@
 @custom-variant light (&:is(.light *));
 
 /* ─── Font Face Declarations with Fallbacks ─── */
-/* Primary monospace font: Iosevka Charon */
-@font-face {
-  font-family: "Iosevka Charon";
-  font-style: normal;
-  font-weight: 300 700;
-  font-display: swap;
-  src: local("Iosevka Charon"), local("IosevkaCharon");
-  /* Size-adjusted fallback to match monospace metrics */
-  ascent-override: 88%;
-  descent-override: 12%;
-  line-gap-override: 0%;
-  size-adjust: 100%;
-}
-
-/* Signature font: Momo Signature */
+/* Signature font: Momo Signature (deferred to system mono if not installed) */
 @font-face {
   font-family: "Momo Signature";
   font-style: normal;
@@ -30,25 +16,12 @@
   src: local("Momo Signature"), local("MomoSignature");
 }
 
-/* Font_metrics-adjusted fallback stack for Iosevka Charon */
-/* SF Mono matched to Iosevka metrics for minimal layout shift */
-@font-face {
-  font-family: "Iosevka Charon Fallback";
-  font-style: normal;
-  font-weight: 400;
-  src: local("SF Mono"), local("SFMono-Regular"), local("Menlo"), local("Monaco");
-  ascent-override: 89%;
-  descent-override: 11%;
-  line-gap-override: 0%;
-  size-adjust: 102%;
-}
-
 /* ─── Tailwind v4 Theme ─── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-instrument), "Bricolage Grotesque", "Segoe UI", sans-serif;
-  --font-mono: "Iosevka Charon", "Iosevka Charon Fallback", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "Geist Mono", "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
   --font-heading: var(--font-bricolage), "Instrument Sans", "Segoe UI", sans-serif;
   --font-signature: "Momo Signature", "Instrument Sans", ui-serif, cursive;
 
@@ -1286,6 +1259,52 @@ pre code {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
 }
+/* chrome separator — visible divider between the zoom group and the
+   code/fullscreen group, drawn as a 1px vertical rule with a tiny gap. */
+.markdown-body .cb-mermaid-sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+.light .markdown-body .cb-mermaid-sep {
+  background: rgba(0, 0, 0, 0.12);
+}
+/* code-mode: anchor the chrome to the bottom-left edge so it doesn't cover
+   the diagram when the user toggles to source view. */
+.markdown-body .cb-mermaid-chrome-left {
+  top: auto;
+  right: auto;
+  bottom: 6px;
+  left: 8px;
+}
+/* fullscreen viewport variant — taller minimum, paper-tinted background
+   (matches the mermaid "base" theme bg) so the diagram reads as part of the
+   surface rather than floating on a void. */
+.markdown-body .cb-mermaid-viewport-fs {
+  min-height: 60vh;
+  background: rgba(255, 250, 240, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+.light .markdown-body .cb-mermaid-viewport-fs {
+  background: #fffaf0;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+.markdown-body .cb-mermaid-fullscreen {
+  width: 100%;
+}
+/* Quiet paper tint behind the inline viewport too — the shape of the
+   diagram now reads as a contained card rather than a transparent overlay. */
+.markdown-body .cb-mermaid-viewport {
+  background: rgba(255, 250, 240, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.light .markdown-body .cb-mermaid-viewport {
+  background: #fffaf0;
+  border-color: rgba(0, 0, 0, 0.06);
+}
 
 /* KaTeX (math) — light/warm theme overrides to keep the math paper-toned. */
 .markdown-body .katex {
@@ -1317,4 +1336,132 @@ pre code {
 .markdown-body .katex .mathcal,
 .markdown-body .katex .mathbf {
   color: inherit;
+}
+
+/* ─── Phase 11: chat-bubble / block hairlines + glass edge ─── */
+/* Per-mode hairline rings on user + assistant message blocks. Keeps dark
+ * contrast quiet (<8% luma shift) and gives light mode a warm espresso edge
+ * so amber bubbles have visible boundary against the cream background.
+ * Assistant root inherits a 1px surround; reasoning gets its tighter left rail;
+ * kaTeX display blocks get a subtle lined rule (Lux-typography nod). */
+
+.cb-message-user {
+  position: relative;
+  isolation: isolate;
+}
+.cb-message-user::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+.light .cb-message-user::after {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(120, 80, 20, 0.18);
+}
+
+.cb-message-assistant {
+  position: relative;
+  isolation: isolate;
+  background: rgba(255, 250, 240, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  /* extra left padding clears the ::before rail (inset: -1px -1px -1px -12px) */
+  padding: 14px 18px 14px 22px;
+}
+.cb-message-assistant::before {
+  content: "";
+  position: absolute;
+  inset: -1px -1px -1px -12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.light .cb-message-assistant {
+  background: rgba(212, 150, 0, 0.04);
+  border-color: rgba(120, 80, 20, 0.18);
+}
+.light .cb-message-assistant::before {
+  border-left-color: rgba(120, 80, 20, 0.18);
+}
+
+.cb-reasoning {
+  position: relative;
+}
+.cb-reasoning::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 180, 0, 0.32) 0%,
+    rgba(255, 180, 0, 0.08) 100%
+  );
+}
+.light .cb-reasoning::before {
+  background: linear-gradient(
+    180deg,
+    rgba(212, 150, 0, 0.42) 0%,
+    rgba(212, 150, 0, 0.12) 100%
+  );
+}
+
+.cb-katex-block {
+  position: relative;
+  padding: 6px 14px;
+  margin: 14px 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.015);
+  border-radius: 4px;
+}
+.light .cb-katex-block {
+  border-left-color: rgba(120, 80, 20, 0.22);
+  background: rgba(120, 80, 20, 0.025);
+}
+
+/* Liquid-glass edge highlight — 1px inset hairline + inner shadow so glass
+ * surfaces read as physical plates, not flat tinted panels. Attach with
+ * data-cb-glass or class on the element. */
+.cb-glass-edge {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.light .cb-glass-edge {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Status row — replaces the Loading… dots with a glyph-stamped line that
+ * shares the assistant root line so chat-shell shimmer reads as part of the
+ * conversation, not a separate frame. */
+.cb-status-row {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.32);
+}
+.light .cb-status-row {
+  color: rgba(0, 0, 0, 0.42);
+}
+.cb-status-row .cb-status-glyph {
+  font-size: 10px;
+  color: rgba(255, 180, 0, 0.6);
+  text-transform: uppercase;
+}
+.light .cb-status-row .cb-status-glyph {
+  color: rgba(212, 150, 0, 0.75);
 }
