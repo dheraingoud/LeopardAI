@@ -23,7 +23,6 @@ import {
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
 import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
-import { createDocument } from "@/lib/ai/tools/create-document";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
@@ -247,15 +246,8 @@ export async function POST(request: Request) {
 
   // 9. Build the UIMessage stream.
   const stream = createUIMessageStream({
+      // TEMP-DBG: catch any error from streamText + merge so we see the actual
     execute: async ({ writer: dataStream }) => {
-      // Φ6: artifact tools are gated behind ENABLE_ARTIFACTS until the client-
-      // side data-stream-handler + side panel land (next increment). Default
-      // off so the model never advertises `createDocument` without a client to
-      // render the lifecycle/delta stream — otherwise a "write me an essay"
-      // reply would emit a "Created a document about X" confirmation with NO
-      // visible panel (silent loss). Flip to "true" once the client glue ships.
-      const artifactsEnabled = process.env.ENABLE_ARTIFACTS === "1";
-
       // TEMP-DBG: catch any error from streamText + merge so we see the actual
       // upstream stack. The createUIMessageStream onError only catches errors
       // INSIDE the stream iteration; throws from streamText() or merge() bubble
@@ -272,6 +264,9 @@ export async function POST(request: Request) {
         const webFetchEnabled = process.env.ENABLE_WEB_FETCH === "1";
         result = streamText({
         model: getLanguageModel(modelId),
+        // `supportsTools` gates the artifact-style prompt block in prompts.ts.
+        // With only webFetch active (no createDocument client), we pass the
+        // canonical web-fetch prompt semantics — prompt.ts owns the wording.
         system: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
