@@ -120,9 +120,11 @@ export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 // for server-side title generation (low stakes — no reasoning sent for titles).
 export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 
-// Default chat model = minimax-m3 (curated flagship replacement for the prior
-// kimi-k2.6 default; minimax-m3 is a balanced, tool-capable live NIM id).
-export const DEFAULT_MODEL = "minimaxai/minimax-m3";
+// Default chat model = Z-AI/GLM-5.2 (per user 2026-07-12 — minimax-m3 has been
+// rate-limited / intermittently failing "Bad Request" from NIM; GLM-5.2 is the
+// next-fastest reasoning-capable model from the curated set and confirmed
+// streaming end-to-end with reasoning_content + text).
+export const DEFAULT_MODEL = "z-ai/glm-5.2";
 
 // ─── MODEL_REGISTRY (curated: 6 text LLMs/VLMs + 2 vision reasoners) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
