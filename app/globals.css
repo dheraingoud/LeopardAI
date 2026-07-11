@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));
@@ -42,15 +43,14 @@
   size-adjust: 102%;
 }
 
-/* ─── Google Fonts loaded via <link> in layout.tsx ─── */
-
 /* ─── Tailwind v4 Theme ─── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
-  --font-mono: "Iosevka Charon", "SF Mono", "Fira Code", "Consolas", monospace;
-  --font-heading: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
+  --font-sans: var(--font-instrument), "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --font-mono: "Iosevka Charon", "Iosevka Charon Fallback", "SF Mono", "Fira Code", "Consolas", monospace;
+  --font-heading: var(--font-bricolage), "Instrument Sans", "Segoe UI", sans-serif;
+  --font-signature: "Momo Signature", "Instrument Sans", ui-serif, cursive;
 
   /* Leopard brand colors — theme-aware via CSS vars */
   --color-leopard-amber: var(--leopard-amber);
@@ -129,17 +129,17 @@
 
 /* ─── Light Theme ─── */
 .light {
-  --background: #fdf6e3;
+  --background: #faf8f1;
   --foreground: #171717;
-  --card: #f5edd6;
+  --card: #f7f1e3;
   --card-foreground: #171717;
-  --popover: #f5edd6;
+  --popover: #f7f1e3;
   --popover-foreground: #171717;
   --primary: #d49600;
   --primary-foreground: #ffffff;
-  --secondary: #efe8d4;
+  --secondary: #f5edd6;
   --secondary-foreground: #171717;
-  --muted: #efe8d4;
+  --muted: #f5edd6;
   --muted-foreground: #737373;
   --accent: #d49600;
   --accent-foreground: #ffffff;
@@ -147,7 +147,7 @@
   --border: rgba(0, 0, 0, 0.1);
   --input: rgba(0, 0, 0, 0.1);
   --ring: #d49600;
-  --sidebar: #f5edd6;
+  --sidebar: #f7f1e3;
   --sidebar-foreground: #171717;
   --sidebar-primary: #d49600;
   --sidebar-primary-foreground: #ffffff;
@@ -167,10 +167,10 @@
   --leopard-amber-glow: #d4960040;
   --leopard-amber-subtle: rgba(212, 150, 0, 0.08);
   --leopard-amber-muted: rgba(212, 150, 0, 0.15);
-  --leopard-black: #fdf6e3;
-  --leopard-surface: #f5edd6;
-  --leopard-surface-elevated: #efe8d4;
-  --leopard-surface-glass: rgba(0, 0, 0, 0.02);
+  --leopard-black: #faf8f1;
+  --leopard-surface: #f7f1e3;
+  --leopard-surface-elevated: #f5edd6;
+  --leopard-surface-glass: rgba(253, 246, 227, 0.4);
   --leopard-border-subtle: rgba(0, 0, 0, 0.06);
   --leopard-border: rgba(0, 0, 0, 0.1);
   --leopard-border-strong: rgba(0, 0, 0, 0.15);
@@ -194,17 +194,17 @@
   /* Scrollbar & Glass */
   --scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
-  --glass-premium-bg: rgba(255, 255, 255, 0.85);
+  --glass-premium-bg: rgba(253, 246, 227, 0.85);
   --glass-premium-border: rgba(0, 0, 0, 0.06);
 }
 
 /* ─── Dark Theme (default) ─── */
 .dark {
-  --background: #000000;
+  --background: #0a0907;
   --foreground: #f5f5f5;
-  --card: #0a0a0a;
+  --card: #100e0b;
   --card-foreground: #f5f5f5;
-  --popover: #111111;
+  --popover: #14110d;
   --popover-foreground: #f5f5f5;
   --primary: #ffb400;
   --primary-foreground: #000000;
@@ -224,7 +224,7 @@
   --chart-4: #cc5500;
   --chart-5: #993d00;
   --radius: 0.75rem;
-  --sidebar: #050505;
+  --sidebar: #070605;
   --sidebar-foreground: #f5f5f5;
   --sidebar-primary: #ffb400;
   --sidebar-primary-foreground: #000000;
@@ -240,9 +240,9 @@
   --leopard-amber-glow: #ffb40040;
   --leopard-amber-subtle: rgba(255, 180, 0, 0.08);
   --leopard-amber-muted: rgba(255, 180, 0, 0.15);
-  --leopard-black: #000000;
-  --leopard-surface: #0a0a0a;
-  --leopard-surface-elevated: #111111;
+  --leopard-black: #0a0907;
+  --leopard-surface: #100e0b;
+  --leopard-surface-elevated: #14110d;
   --leopard-surface-glass: rgba(255, 255, 255, 0.03);
   --leopard-border-subtle: rgba(255, 255, 255, 0.08);
   --leopard-border: rgba(255, 255, 255, 0.12);
@@ -269,11 +269,11 @@
 
 /* Keep .dark class identical for shadcn compatibility */
 .dark {
-  --background: #000000;
+  --background: #0a0907;
   --foreground: #f5f5f5;
-  --card: #0a0a0a;
+  --card: #100e0b;
   --card-foreground: #f5f5f5;
-  --popover: #111111;
+  --popover: #14110d;
   --popover-foreground: #f5f5f5;
   --primary: #ffb400;
   --primary-foreground: #000000;
@@ -287,7 +287,7 @@
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(255, 255, 255, 0.12);
   --ring: #ffb400;
-  --sidebar: #050505;
+  --sidebar: #070605;
   --sidebar-foreground: #f5f5f5;
   --sidebar-primary: #ffb400;
   --sidebar-primary-foreground: #000000;
@@ -341,34 +341,34 @@
 
 /* Glass classes */
 .light .glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(253, 246, 227, 0.7);
   border: 1px solid rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
 }
 .light .glass-elevated {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(253, 246, 227, 0.85);
   border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(253, 246, 227, 0.6);
   backdrop-filter: blur(60px) saturate(1.6);
   -webkit-backdrop-filter: blur(60px) saturate(1.6);
 }
 .light .glass-intense {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(253, 246, 227, 0.92);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05), 0 1px 0 rgba(0, 0, 0, 0.04) inset;
   backdrop-filter: blur(80px) saturate(1.5);
   -webkit-backdrop-filter: blur(80px) saturate(1.5);
 }
 .light .glass-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(253, 246, 227, 0.8) 0%, rgba(253, 246, 227, 0.6) 100%);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
 }
 .light .glass-premium {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(253, 246, 227, 0.85);
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
 .light .glass-amber, .light .glass-amber-subtle {
@@ -378,8 +378,8 @@
 
 /* Noise overlay — static paper grain for light mode (GPU-cached, no animation) */
 .light .noise-overlay::before {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  opacity: 0.08;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.06;
   animation: none;
 }
 
@@ -399,16 +399,16 @@
 
 /* ──── Bulk hardcoded Tailwind overrides ──── */
 
-/* bg-black → cream background */
-.light .bg-black { background: #fdf6e3 !important; }
+/* bg-black → warm paper background */
+.light .bg-black { background: #faf8f1 !important; }
 
-/* bg-[#050505], bg-[#0a0a0a], bg-[#111], bg-[#111111] → cream surfaces */
-.light [class*="bg-[#050505]"] { background: #fdf6e3 !important; }
-.light [class*="bg-[#0a0a0a]"] { background: #f5edd6 !important; }
-.light [class*="bg-[#111]"] { background: #f5edd6 !important; }
-.light [class*="bg-[#111111]"] { background: #f5edd6 !important; }
-.light [class*="bg-[#1a1a1a]"] { background: #efe8d4 !important; }
-.light [class*="bg-[#171717]"] { background: #efe8d4 !important; }
+/* bg-[#050505], bg-[#0a0a0a], bg-[#111], bg-[#111111] → warm paper surfaces */
+.light [class*="bg-[#050505]"] { background: #faf8f1 !important; }
+.light [class*="bg-[#0a0a0a]"] { background: #f7f1e3 !important; }
+.light [class*="bg-[#111]"] { background: #f7f1e3 !important; }
+.light [class*="bg-[#111111]"] { background: #f7f1e3 !important; }
+.light [class*="bg-[#1a1a1a]"] { background: #f5edd6 !important; }
+.light [class*="bg-[#171717]"] { background: #f5edd6 !important; }
 
 /* bg-white/[0.XX] → inverted dark overlays on light */
 .light [class*="bg-white/"] { background: rgba(0, 0, 0, var(--tw-bg-opacity, 0.04)) !important; }
@@ -481,7 +481,7 @@
 .light .markdown-body blockquote { border-left-color: rgba(212, 150, 0, 0.3); color: #666; }
 .light .markdown-body th, .light .markdown-body td { border-color: rgba(0, 0, 0, 0.1); }
 .light .markdown-body th { background: rgba(0, 0, 0, 0.02); }
-.light .markdown-body > pre { background: #f5edd6 !important; border-color: rgba(0, 0, 0, 0.1); }
+.light .markdown-body > pre { background: #f7f1e3 !important; border-color: rgba(0, 0, 0, 0.1); }
 
 /* Streaming cursor */
 .light .streaming-cursor::after { color: #d49600; }
@@ -536,6 +536,16 @@
                     radial-gradient(ellipse 10px 7px at 100px 30px, rgba(255, 180, 0, 0.02) 0%, transparent 100%),
                     radial-gradient(ellipse 7px 9px at 40px 80px, rgba(255, 180, 0, 0.03) 0%, transparent 100%),
                     radial-gradient(ellipse 8px 6px at 120px 70px, rgba(255, 180, 0, 0.025) 0%, transparent 100%);
+  background-size: 140px 100px;
+}
+
+/* Half-strength paper identity for the chat main — warm amber fiber, GPU-cached static tile */
+.chat-paper-identity {
+  background-image: radial-gradient(ellipse 8px 6px at 20px 20px, rgba(255, 180, 0, 0.015) 0%, transparent 100%),
+                    radial-gradient(ellipse 6px 8px at 60px 50px, rgba(255, 180, 0, 0.0125) 0%, transparent 100%),
+                    radial-gradient(ellipse 10px 7px at 100px 30px, rgba(255, 180, 0, 0.01) 0%, transparent 100%),
+                    radial-gradient(ellipse 7px 9px at 40px 80px, rgba(255, 180, 0, 0.015) 0%, transparent 100%),
+                    radial-gradient(ellipse 8px 6px at 120px 70px, rgba(255, 180, 0, 0.0125) 0%, transparent 100%);
   background-size: 140px 100px;
 }
 
@@ -693,11 +703,11 @@
   bottom: -50%;
   width: 200%;
   height: 200%;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.9 0 0 0 0.02  0.7 0 0 0 0.015  0.4 0 0 0 0  0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
   animation: grain 8s steps(10) infinite;
   pointer-events: none;
   z-index: 1000;
-  opacity: 0.25;
+  opacity: 0.18;
 }
 
 /* ─── Momo Signature font (loaded via HTML link tag) ─── */
@@ -1064,4 +1074,247 @@ pre code {
 /* Make nodes not get clipped by the canvas */
 .react-flow__node {
   will-change: transform;
+}
+
+/* ─── StreamItDown: shiki dual-theme token swap + code-block chrome ─── */
+/* shiki codeToHtml(.., {themes:{dark,light}, defaultColor:false}) emits
+   --shiki-dark / --shiki-light on each token; the resolved color swaps by the
+   .light ancestor so a single highlighted string reads in both modes (no
+   re-highlight on theme flip). The shiki <pre> bg is forced transparent so
+   the chrome (cb-shell) owns the surface — light stays warm paper, not white. */
+.markdown-body .shiki,
+.markdown-body .shiki code {
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0;
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  white-space: pre !important;
+}
+.markdown-body .shiki span {
+  color: var(--shiki-dark);
+  background-color: transparent !important;
+}
+.markdown-body .shiki .line {
+  display: block;
+}
+.light .markdown-body .shiki span {
+  color: var(--shiki-light);
+}
+
+/* code-block chrome wrapping every fenced block (PreShell). */
+.markdown-body .cb-shell {
+  margin: 0.75rem 0;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  font-family: var(--font-mono);
+}
+.light .markdown-body .cb-shell {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.025);
+}
+.markdown-body .cb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1;
+  color: #8a8a8a;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.light .markdown-body .cb-header {
+  color: #6a6a6a;
+  background: rgba(0, 0, 0, 0.015);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+.markdown-body .cb-badge {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+.markdown-body .cb-btns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.markdown-body .cb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: #8a8a8a;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.markdown-body .cb-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e5e5;
+}
+.light .markdown-body .cb-btn {
+  color: #6a6a6a;
+}
+.light .markdown-body .cb-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #262626;
+}
+.markdown-body .cb-body {
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.markdown-body .cb-collapsed {
+  padding: 0;
+  height: 0;
+  overflow: hidden;
+}
+.markdown-body .cb-gated {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.markdown-body .cb-plain {
+  margin: 0 !important;
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  white-space: pre !important;
+  color: #d5d5d5;
+  background: transparent;
+}
+.markdown-body .cb-plain code {
+  font-family: inherit;
+  background: transparent;
+  color: inherit;
+}
+.light .markdown-body .cb-plain {
+  color: #3a2a08;
+}
+.markdown-body .cb-mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+.markdown-body .cb-mermaid-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 8px;
+  user-select: none;
+  background: transparent;
+}
+.markdown-body .cb-mermaid-viewport:active {
+  cursor: grabbing;
+}
+.markdown-body .cb-mermaid-canvas {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.markdown-body .cb-mermaid svg {
+  display: block;
+  max-width: none;
+  height: auto;
+}
+.markdown-body .cb-mermaid-loading {
+  padding: 12px 14px;
+  color: #707070;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+/* Floating chrome — top-right, minimal & quiet. Anti-ai-slop: no icons, just text. */
+.markdown-body .cb-mermaid-chrome {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  pointer-events: auto;
+  z-index: 1;
+}
+.light .markdown-body .cb-mermaid-chrome {
+  background: rgba(252, 248, 233, 0.85);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+.markdown-body .cb-mermaid-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #d6d6d6;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.markdown-body .cb-mermaid-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.light .markdown-body .cb-mermaid-btn {
+  color: #5a4a20;
+}
+.light .markdown-body .cb-mermaid-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #1f1607;
+}
+.markdown-body .cb-mermaid-btn-z {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* KaTeX (math) — light/warm theme overrides to keep the math paper-toned. */
+.markdown-body .katex {
+  font-size: 1.02em;
+}
+.markdown-body .katex-display {
+  margin: 12px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+}
+.light .markdown-body .katex {
+  color: #1f1607;
+}
+.markdown-body .katex .mord,
+.markdown-body .katex .mop,
+.markdown-body .katex .mbin,
+.markdown-body .katex .mrel,
+.markdown-body .katex .mopen,
+.markdown-body .katex .mclose,
+.markdown-body .katex .mpunct,
+.markdown-body .katex .minner,
+.markdown-body .katex .mathit,
+.markdown-body .katex .mathrm,
+.markdown-body .katex .mathsf,
+.markdown-body .katex .mathbb,
+.markdown-body .katex .mathcal,
+.markdown-body .katex .mathfrak,
+.markdown-body .katex .mathscr,
+.markdown-body .katex .mathcal,
+.markdown-body .katex .mathbf {
+  color: inherit;
 }
