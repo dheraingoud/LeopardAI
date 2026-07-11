@@ -2,7 +2,7 @@
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
-import { useThemeStore } from "@/store/themeStore";
+import { useTheme } from "@/components/theme-provider";
 
 const DARK_APPEARANCE = {
   baseTheme: dark,
@@ -67,8 +67,12 @@ export function DynamicClerkProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { theme } = useThemeStore();
-  const appearance = theme === "light" ? LIGHT_APPEARANCE : DARK_APPEARANCE;
+  const { theme } = useTheme();
+  // `theme` is "dark" until the provider resolves on mount; default to dark
+  // pre-resolution so Clerk renders the dark appearance on first paint —
+  // matches the old Zustand store's `theme: "dark"` default.
+  const resolved = theme === "light" ? "light" : "dark";
+  const appearance = resolved === "light" ? LIGHT_APPEARANCE : DARK_APPEARANCE;
 
   return (
     <ClerkProvider

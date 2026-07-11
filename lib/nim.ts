@@ -1,15 +1,91 @@
 /**
  * NVIDIA NIM API core library.
  *
+ * Goal-driven curation (2026-07-09): the chat registry exposes ONLY the live,
+ * curated set from the user's goal model list —
+ *   minimax-m3, glm-5.2, gemma-4-31b-it, deepseek-v4-flash/pro, step-3.7-flash,
+ *   diffusiongemma-26b-a4b-it, cosmos-reason2-8b, cosmos3-nano-reasoner.
+ * Each entry hard-codes contextWindow (NIM /v1/models exposes NO metadata), a
+ * vision-modality list (image/video — gates the PlusMenu accept list + the
+ * "needs VLM / no video" hint per active model), and a reasoning config that
+ * drives the input bar's reasoning setter (on/off dropdown + an effort slider
+ * for models that publish effort tiers). VLM flags were re-read from the
+ * build.nvidia model cards 2026-07-09 — the prior session's blanket
+ * `supportsVision:false` was wrong: minimax-m3 / gemma-4 / step-3.7 /
+ * diffusiongemma / both cosmos are vision models; ONLY glm-5.2 + deepseek-v4
+ * (flash + pro) are text-only LLMs. diffusiongemma is a TEXT-OUT VLM (takes
+ * image/video, emits text via discrete diffusion) — it is NOT image-gen; image
+ * gen lives in lib/ai/models.ts NIM_IMAGE_SEED (qwen-image / qwen-image-edit /
+ * flux.2-klein-4b via the NIM genai namespace).
+ *
+ * Reasoning routing — which body param each model honors (top-level
+ * `reasoning_effort` vs `chat_template_kwargs.think`) — lives in
+ * app/api/chat/route.ts; this file only seeds the UI + the capability map.
+ *
  * Exports:
  *   NIM_BASE, UTILITY_MODEL, DEFAULT_MODEL
- *   ModelCapability, MODEL_REGISTRY
- *   getLLMs(), getVLMs()
- *   buildNIMPayload(), NIMError
- *   callNIM (async generator), streamWithRetry()
+ *   ModelCapability, ReasoningConfig, ReasoningLevel, MODEL_REGISTRY
+ *   buildNIMPayload(), NIMError      (legacy pre-AI-SDK-v6 SSE path; no live
+ *   callNIM, streamWithRetry          callers post-Phase-4 — kept for reference)
+ *
+ * The live streaming path is AI SDK v6 (`streamText` + the openai-compatible
+ * `nim` provider in lib/ai/providers.ts); this file owns only the capability
+ * seed (consumed by lib/ai/models.ts) + the URL + the legacy (dead) SSE utils.
  */
 
 // ─── ModelCapability interface ───────────────────────────────────────────────
+
+/**
+ * Discrete reasoning levels exposed to the input bar's dropdown/slider.
+ * "off" = reasoning disabled; "on" = enabled at the model's default; the rest
+ * are explicit effort tiers some models publish (deepseek Think High/Max, GLM
+ * thinking-effort levels). The body-param mapping (reasoning_effort:"high" vs
+ * chat_template_kwargs.think:true) is per-model in app/api/chat/route.ts; the
+ * registry just declares which stops the UI renders.
+ */
+export type ReasoningLevel = "off" | "on" | "low" | "medium" | "high" | "max";
+
+export interface ReasoningConfig {
+  /** TRUE for reasoning-capable models (all curated chat models are). */
+  enabled: boolean;
+  /** FALSE = locked-on reasoner (cosmos reasoners) — the bar hides the OFF state. */
+  toggleable: boolean;
+  /**
+   * Which NIM body param honors reasoning — drives route.ts's
+   * nimReasoningProviderOptions():
+   *
+   *   "effort"          → { nim: { reasoningEffort: level } }. OFF (or a binary
+   *                        effort model's "off") omits the key → NIM non-think
+   *                        mode. Binary on/off effort models (minimax/step)
+   *                        map ON → "high".
+   *   "think"           → { nim: { chat_template_kwargs: { think: bool } } }
+   *                        (literal pass-through).
+   *   "enable_thinking" → { nim: { chat_template_kwargs:
+   *                                { enable_thinking: bool } } } (literal
+   *                        pass-through). Used by NIM for GLM-5.2 / minimax-m3
+   *                        / deepseek-v4-pro / gemma-4 — empirical probe
+   *                        2026-07-11: with reasoning_effort these models
+   *                        accept the param (HTTP 200) but NIM emits
+   *                        reasoning_content:null on every chunk → reasoning
+   *                        card never mounts. enable_thinking makes NIM
+   *                        actually populate reasoning_content.
+   *   Absent           → locked-on reasoner (cosmos by default; diffusiongemma
+   *                        flags it locked-on but the chat_template_kwargs
+   *                        +reasoning content never surfaces in the protocol
+   *                        either, so the card stays empty).
+   *
+   * Consumed by app/api/chat/route.ts only.
+   */
+  param?: "effort" | "think" | "enable_thinking";
+  /**
+   * Effort tiers selectable when reasoning is ON. Absent ⇒ pure on/off toggle
+   * (gemma / diffusion / minimax / step expose only a think toggle). Present ⇒
+   * the bar renders an effort slider the user drags between these stops.
+   */
+  effortLevels?: ReasoningLevel[];
+  /** What the bar initializes the selector to — "off" or a default effort tier. */
+  defaultEffort: ReasoningLevel;
+}
 
 export interface ModelCapability {
   id: string;
@@ -17,131 +93,196 @@ export interface ModelCapability {
   speedTier: 1 | 1.5 | 3;
   type: "llm" | "vlm";
   supportsVision: boolean;
-  reasoning: {
-    enabledByDefault: boolean;
-    disableParam?: Record<string, unknown>;
-    hideReasoningParam?: Record<string, unknown>;
-  };
+  /**
+   * Which vision modalities the model accepts — gates the PlusMenu media
+   * picker's accept list + the "needs VLM" / "no video" hints. step-3.7-flash
+   * takes image ONLY (no video) per its card; the rest take image+video.
+   */
+  visionModalities?: ("image" | "video")[];
+  // NIM tool-calling: the M-series / GLM / DeepSeek / Gemma / Step families all
+  // emit proper OpenAI tool_calls; /api/chat advertises tools whenever
+  // ENABLE_ARTIFACTS=1. Drives the selector Wrench icon + getCapabilities fallback.
+  supportsTools?: boolean;
+  /** Hard-coded from the build.nvidia model cards (NIM /v1/models exposes none). */
+  contextWindow: number;
+  reasoning: ReasoningConfig;
+  // Legacy kimi-disable knobs (chat_template_kwargs / include_reasoning). None
+  // of the curated models use these — kept on the type for buildNIMPayload parity.
+  disableParam?: Record<string, unknown>;
+  hideReasoningParam?: Record<string, unknown>;
 }
 
 // ─── Base URL and model defaults ────────────────────────────────────────────
 
 export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 
-export const UTILITY_MODEL = "stepfun-ai/step-3.5-flash";
+// Utility = step-3.7-flash (per goal: "step 3.7 flash (not 3.5)"). Fast, used
+// for server-side title generation (low stakes — no reasoning sent for titles).
+export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 
-export const DEFAULT_MODEL = "z-ai/glm-5.1";
+// Default chat model = minimax-m3 (curated flagship replacement for the prior
+// kimi-k2.6 default; minimax-m3 is a balanced, tool-capable live NIM id).
+export const DEFAULT_MODEL = "minimaxai/minimax-m3";
 
-// ─── MODEL_REGISTRY ──────────────────────────────────────────────────────────
-// All 12 models: 9 LLMs + 3 VLMs
+// ─── MODEL_REGISTRY (curated: 6 text LLMs/VLMs + 3 vision reasoners) ──────────
+// contextWindow + vision modality + reasoning config hard-coded from the
+// build.nvidia model cards (NIM /v1/models exposes no metadata). VLM vs LLM by
+// card input types: minimax-m3 / gemma-4 / step-3.7 / diffusiongemma + both
+// cosmos accept image/video (vision); glm-5.2 + deepseek-v4-flash/pro are
+// text-only. Image-GEN models (qwen-image / qwen-image-edit / flux.2-klein-4b)
+// live in lib/ai/models.ts NIM_IMAGE_SEED (kind:"image"), NOT here. Reasoning
+// effort exerted via body params wired in app/api/chat/route.ts.
 
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
-  // ── LLMs ──────────────────────────────────────────────────────────────────
-  "z-ai/glm-5.1": {
-    id: "z-ai/glm-5.1",
-    displayName: "GLM 5.1",
-    speedTier: 3,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
+  "minimaxai/minimax-m3": {
+    id: "minimaxai/minimax-m3",
+    displayName: "MiniMax M3",
+    speedTier: 1.5,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image", "video"],
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    // Long-context reasoner; on/off toggle. NIM probe 2026-07-11:
+    // `reasoning_effort:"max"` + `reasoning_effort:"high"` both accepted
+    // (HTTP 200) but NIM emits `reasoning_content:null` on every chunk.
+    // `chat_template_kwargs:{enable_thinking:true}` is what makes NIM
+    // actually populate `reasoning_content` (74 chunks observed).
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "enable_thinking",
+      defaultEffort: "on",
+    },
   },
-  "deepseek-ai/deepseek-v3-2": {
-    id: "deepseek-ai/deepseek-v3-2",
-    displayName: "DeepSeek V3.2",
-    speedTier: 3,
+  "z-ai/glm-5.2": {
+    id: "z-ai/glm-5.2",
+    displayName: "GLM 5.2",
+    speedTier: 1.5,
     type: "llm",
     supportsVision: false,
-    reasoning: { enabledByDefault: false },
-  },
-  "qwen/qwen3-300b-a22b": {
-    id: "qwen/qwen3-300b-a22b",
-    displayName: "Qwen3 300B MoE",
-    speedTier: 3,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    // Card: "multiple thinking effort levels". NIM probe 2026-07-11:
+    // `reasoning_effort:"max"` + `chat_template_kwargs:{think:true}` →
+    // NIM emits `reasoning_content:null` on every chunk. With
+    // `chat_template_kwargs:{thinking:true}` NIM emits 120 reasoning chunks,
+    // with `{enable_thinking:true}` NIM emits 114 reasoning chunks.
+    // We route via `enable_thinking` (matches deepseek-pro / gemma-4 /
+    // minimax-m3) and rely on the `defaultEffort*:1..4` / `level` enum
+    // to toggle the bool.
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "enable_thinking",
+      effortLevels: ["low", "medium", "high", "max"],
+      defaultEffort: "max",
+    },
   },
   "google/gemma-4-31b-it": {
     id: "google/gemma-4-31b-it",
     displayName: "Gemma 4 31B",
     speedTier: 1.5,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image", "video"],
+    supportsTools: true,
+    contextWindow: 262_144,
+    // Card says thinking via `<|think|>` / `chat_template_kwargs.think`.
+    // NIM probe 2026-07-11: `chat_template_kwargs:{think:true}` →
+    // `reasoning_content:null` on every chunk. `{enable_thinking:true}`
+    // yields 9 non-null reasoning chunks (out of 12 raw) — adopt `enable_thinking`.
+    reasoning: { enabled: true, toggleable: true, param: "enable_thinking", defaultEffort: "on" },
   },
-  "meta/llama-3.3-70b-instruct": {
-    id: "meta/llama-3.3-70b-instruct",
-    displayName: "Llama 3.3 70B",
+  "deepseek-ai/deepseek-v4-flash": {
+    id: "deepseek-ai/deepseek-v4-flash",
+    displayName: "DeepSeek V4 Flash",
     speedTier: 1,
     type: "llm",
     supportsVision: false,
-    reasoning: { enabledByDefault: false },
-  },
-  "minimaxai/minimax-m2.5": {
-    id: "minimaxai/minimax-m2.5",
-    displayName: "MiniMax M2.5",
-    speedTier: 1,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
-  },
-  "minimaxai/minimax-m2.7": {
-    id: "minimaxai/minimax-m2.7",
-    displayName: "MiniMax M2.7",
-    speedTier: 1,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
-  },
-  "stepfun-ai/step-3.5-flash": {
-    id: "stepfun-ai/step-3.5-flash",
-    displayName: "Step 3.5 Flash",
-    speedTier: 1,
-    type: "llm",
-    supportsVision: false,
-    reasoning: { enabledByDefault: false },
-  },
-  "moonshotai/kimi-k2.5": {
-    id: "moonshotai/kimi-k2.5",
-    displayName: "Kimi K2.5",
-    speedTier: 1.5,
-    type: "llm",
-    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    // Probe 2026-07-09: reasoning_effort "high"+"max" both → 200 + reasoning_content emitted.
     reasoning: {
-      enabledByDefault: true,
-      disableParam: { chat_template_kwargs: { thinking: false } },
-      hideReasoningParam: { include_reasoning: false },
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["high", "max"],
+      defaultEffort: "max",
     },
   },
-
-  // ── VLMs ──────────────────────────────────────────────────────────────────
-  "meta/llama-3.2-11b-vision-instruct": {
-    id: "meta/llama-3.2-11b-vision-instruct",
-    displayName: "Llama 3.2 11B Vision",
-    speedTier: 1.5,
-    type: "vlm",
-    supportsVision: true,
-    reasoning: { enabledByDefault: false },
-  },
-  "meta/llama-3.2-90b-vision-instruct": {
-    id: "meta/llama-3.2-90b-vision-instruct",
-    displayName: "Llama 3.2 90B Vision",
+  "deepseek-ai/deepseek-v4-pro": {
+    id: "deepseek-ai/deepseek-v4-pro",
+    displayName: "DeepSeek V4 Pro",
     speedTier: 3,
-    type: "vlm",
-    supportsVision: true,
-    reasoning: { enabledByDefault: false },
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    // Earlier cursor note said "probe verified reasoning_content emitted at
+    // high+max". NIM probe 2026-07-11 with the full SDK body shape
+    // (max_tokens, temperature, top_p, stream_options) → 0 non-null
+    // reasoning chunks. Only `chat_template_kwargs:{enable_thinking}`
+    // surfaces reasoning_content (7 chunks observed).
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "enable_thinking",
+      effortLevels: ["high", "max"],
+      defaultEffort: "max",
+    },
   },
-  "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
-    id: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
-    displayName: "Nemotron Nano VL 8B",
+  "stepfun-ai/step-3.7-flash": {
+    id: "stepfun-ai/step-3.7-flash",
+    displayName: "Step 3.7 Flash",
     speedTier: 1,
     type: "vlm",
     supportsVision: true,
-    reasoning: { enabledByDefault: false },
+    visionModalities: ["image"], // card: text+image only, NO video input
+    supportsTools: true,
+    contextWindow: 262_144,
+    reasoning: { enabled: true, toggleable: true, param: "effort", defaultEffort: "on" },
+  },
+  "google/diffusiongemma-26b-a4b-it": {
+    id: "google/diffusiongemma-26b-a4b-it",
+    displayName: "DiffusionGemma 26B",
+    speedTier: 1.5,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image", "video"],
+    supportsTools: true,
+    contextWindow: 262_144,
+    // Text-OUT vision model (NOT image gen — takes image/video, emits text via
+    // discrete diffusion). Thinking via <|think|>, on/off.
+    reasoning: { enabled: true, toggleable: true, param: "think", defaultEffort: "on" },
+  },
+  "nvidia/cosmos-reason2-8b": {
+    id: "nvidia/cosmos-reason2-8b",
+    displayName: "Cosmos Reason2 8B",
+    speedTier: 1.5,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image", "video"],
+    supportsTools: false,
+    contextWindow: 262_144,
+    // Locked-on video/image reasoner — no off state, no param. Reasons by
+    // architecture; route sends no reasoning providerOptions.
+    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+  },
+  "nvidia/cosmos3-nano-reasoner": {
+    id: "nvidia/cosmos3-nano-reasoner",
+    displayName: "Cosmos3 Nano Reasoner",
+    speedTier: 1.5,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image", "video"],
+    supportsTools: false,
+    contextWindow: 262_144,
+    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
   },
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers (legacy; no live stream-path callers) ──────────────────────────
 
 export function getLLMs(): ModelCapability[] {
   return Object.values(MODEL_REGISTRY).filter((m) => m.type === "llm");
@@ -165,7 +306,7 @@ export interface NIMMessage {
   content: NIMMessageContent;
 }
 
-// ─── buildNIMPayload ─────────────────────────────────────────────────────────
+// ─── buildNIMPayload (legacy pre-AI-SDK-v6; no live callers post-Phase-4) ────
 
 export function buildNIMPayload(
   modelId: string,
@@ -200,17 +341,12 @@ export function buildNIMPayload(
     ...(tools !== undefined && { tools }),
   };
 
-  // Apply reasoning control only for models that define it (Kimi K2.5)
   const model = MODEL_REGISTRY[modelId];
-  if (model?.reasoning.disableParam) {
-    if (disableReasoning) {
-      Object.assign(payload, model.reasoning.disableParam);
-    }
+  if (model?.disableParam && disableReasoning) {
+    Object.assign(payload, model.disableParam);
   }
-  if (model?.reasoning.hideReasoningParam) {
-    if (hideReasoning) {
-      Object.assign(payload, model.reasoning.hideReasoningParam);
-    }
+  if (model?.hideReasoningParam && hideReasoning) {
+    Object.assign(payload, model.hideReasoningParam);
   }
 
   return payload;
@@ -242,12 +378,12 @@ export class NIMError extends Error {
   }
 }
 
-// ─── callNIM (async generator) ───────────────────────────────────────────────
+// ─── callNIM (legacy SSE async generator; no live callers post-Phase-4) ──────
+// The AI SDK v6 streamText path (lib/ai/providers.ts `nim` openai-compatible
+// provider) is the live streamer; callNIM/streamWithRetry are retained only for
+// reference / potential direct-SSE fallback. See lib/ai/models.ts for the
+// curated registry that drives the live path.
 
-/**
- * SSE streaming async generator.
- * Yields content deltas as strings. Handles reasoning tokens by wrapping them in <thinking> tags.
- */
 export async function* callNIM(
   payload: Record<string, unknown>,
   apiKey: string,
@@ -286,10 +422,7 @@ export async function* callNIM(
   let buffer = "";
   let hasStartedReasoning = false;
   let hasFinishedReasoning = false;
-
-  // Tracks whether the previous emitted chunk was in reasoning mode
   let prevInReasoning = false;
-  // Accumulates partial content tokens across iterations
   let prevPartialRaw = "";
 
   try {
@@ -308,9 +441,8 @@ export async function* callNIM(
 
         const data = line.slice(6);
         if (data === "[DONE]") {
-          // Close reasoning block if we never closed it
           if (hasStartedReasoning && !hasFinishedReasoning) {
-            yield "\n</think>\n\n";
+            yield "\n</thinking>\n\n";
             hasFinishedReasoning = true;
           }
           continue;
@@ -330,48 +462,33 @@ export async function* callNIM(
         const contentToken = delta?.content;
 
         if (reasoningContent !== undefined && reasoningContent.length > 0) {
-          if (!hasStartedReasoning) {
-            hasStartedReasoning = true;
-          }
-
-          // Flush any accumulated partial before opening a thinking block
+          if (!hasStartedReasoning) hasStartedReasoning = true;
           if (prevPartialRaw) {
             yield prevPartialRaw;
             prevPartialRaw = "";
           }
-
-          if (prevInReasoning) {
-            yield reasoningContent;
-          } else {
-            yield "\n<think>\n" + reasoningContent;
-          }
+          yield prevInReasoning ? reasoningContent : `\n<thinking>\n${reasoningContent}`;
           prevInReasoning = true;
           prevPartialRaw = "";
         } else if (contentToken !== undefined && contentToken.length > 0) {
-          // Flush any accumulated partial before emitting content
           if (prevPartialRaw) {
             yield prevPartialRaw;
             prevPartialRaw = "";
           }
-
-          // Close open thinking block
           if (hasStartedReasoning && !hasFinishedReasoning) {
-            yield "\n</think>\n\n";
+            yield "\n</thinking>\n\n";
             hasFinishedReasoning = true;
           }
-
           yield contentToken;
           prevInReasoning = false;
         } else {
-          // Accumulate partial (incomplete token) for next iteration
           prevPartialRaw += contentToken ?? "";
         }
       }
     }
 
-    // Flush any residual partial when stream ends
     if (hasStartedReasoning && !hasFinishedReasoning) {
-      yield "\n<think>\n" + (prevPartialRaw || "");
+      yield `\n<thinking>\n${prevPartialRaw || ""}`;
     } else if (prevPartialRaw) {
       yield prevPartialRaw;
     }
@@ -382,7 +499,7 @@ export async function* callNIM(
   }
 }
 
-// ─── streamWithRetry ─────────────────────────────────────────────────────────
+// ─── streamWithRetry (legacy; AI SDK v6 owns retry on the live path) ─────────
 
 export interface StreamEngineOptions {
   payload: Record<string, unknown>;
@@ -395,57 +512,33 @@ export interface StreamEngineOptions {
 const FIRST_DELAY = 1_000;
 const MAX_DELAY = 8_000;
 
-/**
- * Wraps callNIM with exponential-backoff retry.
- * Partial content accumulated during a failed attempt is emitted via onChunk
- * as an assistant prefix before retrying.
- */
 export async function streamWithRetry(options: StreamEngineOptions): Promise<void> {
   const { payload, apiKey, signal, onChunk, maxRetries = 3 } = options;
-
   let attempt = 0;
-
   while (true) {
     let partial = "";
-
     try {
       for await (const chunk of callNIM(payload, apiKey, signal)) {
         if (chunk === "[DONE]") return;
         partial += chunk;
         onChunk(chunk);
-
-        // Break early to retry once we have partial content — avoids unbounded streaming
-        if (partial.length > 10 && attempt < maxRetries) {
-          break;
-        }
+        if (partial.length > 10 && attempt < maxRetries) break;
       }
-      // Should not reach here; [DONE] always exits above
       return;
     } catch (err) {
       if (!(err instanceof NIMError)) throw err;
       const nimErr = err as NIMError;
-
-      // Do not retry context-overflow or auth errors
       if (nimErr.isContextTooLong) throw err;
       if (nimErr.status === 401 || nimErr.status === 403) throw err;
-
       attempt++;
       if (attempt > maxRetries || !nimErr.isRetryable) throw err;
-
-      // Inject partial as assistant prefix before retrying
       if (partial.length > 0) {
         onChunk(`[RETRY_PARTIAL]${partial}`);
         partial = "";
       }
-
-      // Exponential backoff: 1s → 2s → 4s, capped at 8s
       const delay = Math.min(FIRST_DELAY * Math.pow(2, attempt - 1), MAX_DELAY);
       await new Promise((r) => setTimeout(r, delay));
-
-      // Rate-limit errors retry immediately without counting against attempt budget
-      if (nimErr.isRateLimited) {
-        attempt--;
-      }
+      if (nimErr.isRateLimited) attempt--;
     }
   }
 }

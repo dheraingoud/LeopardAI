@@ -38,6 +38,7 @@ export const upsert = mutation({
       name: args.name,
       email: args.email,
       imageUrl: args.imageUrl,
+      memory: "", // Φ3: init cross-chat memory blob (plan H)
       createdAt: Date.now(),
     });
   },
@@ -58,5 +59,30 @@ export const updateSettings = mutation({
         defaultModel: args.defaultModel,
       });
     }
+  },
+});
+
+// Φ3 NEW: cross-chat memory (plan H). Assistant writes summary notes across
+// chats; surfaced as a system-prompt prefix on each new chat. Few KB max.
+export const getMemory = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    return user?.memory ?? "";
+  },
+});
+
+export const saveMemory = mutation({
+  args: { clerkId: v.string(), memory: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, { memory: args.memory });
   },
 });

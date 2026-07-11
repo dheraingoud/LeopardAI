@@ -1,0 +1,156 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { useActiveChat } from "@/hooks/use-active-chat";
+import { PreviewMessage, ThinkingMessage } from "./message";
+import { Glass, type GlassDynamics } from "@/components/ui/glass";
+import { prefersReducedMotion } from "@/components/ui/glass-motion";
+
+/**
+ * Messages — the scrollable transcript. Phase 5 renders text + reasoning
+ * parts only (image/file/tool parts land in Phase 6).
+ *
+ * Auto-scroll sticks to the bottom ONLY while the user is parked there. The
+ * per-token stream updates would otherwise yank the viewport back down when
+ * the user has scrolled up to read history, and `behavior: 'smooth'` would
+ * pile up half-finished smooth-scroll animations on every token — so we use
+ * an instant `scrollTop` jump gated by a stickToBottom flag.
+ */
+export function Messages() {
+  const { messages, status } = useActiveChat();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickToBottomRef.current = atBottom;
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    // Instant jump (not smooth) — per-token updates would otherwise never
+    // let a smooth-scroll animation finish.
+    el.scrollTop = el.scrollHeight;
+  }, [messages, status]);
+
+  if (messages.length === 0) {
+    return <Greeting />;
+  }
+
+  const isThinking = status === "submitted";
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
+    >
+      <div className="max-w-3xl mx-auto py-6">
+        {messages.map((message, index) => (
+          <PreviewMessage
+            key={message.id}
+            message={message}
+            isLast={index === messages.length - 1}
+            status={status}
+          />
+        ))}
+        {isThinking && <ThinkingMessage />}
+        <div className="h-32" /> {/* spacer for the floating input bar */}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Greeting — the one heavy-refraction centerpiece. An ambient refracting
+ * `Glass` lens floats behind the amber identity text ("How can I help?"),
+ * breathing via a self-authored rAF loop that mutates `dynamicsRef.zoom`
+ * (1 → 1.18 over ~5s). No pointer tracking — the lens breathes on its own.
+ *
+ * Architecture: the interactive `Glass` is NOT the text container. It is a
+ * separate ambient layer behind the text whose child is a faint amber radial
+ * gradient — that gradient is what the lens refracts, so the visible sign of
+ * "drift" is a soft amber shimmer breathing in/out around the title rather
+ * than the glyphs themselves warping. Amber `#ffb400` signature text renders
+ * on top, crisp — it lives outside `Glass`, so the SVG feDisplacementMap never
+ * touches it. This keeps "amber text in front of the lens; refraction as the
+ * ambient backdrop" literally true.
+ *
+ * Low scaleX/scaleY/chroma/depth (subtle paper refraction, not loud); a faint
+ * amber paper-identity tint on the frosted veil. WebGL fallback on Safari is
+ * handled by `Glass` itself. Auto-unmounts: `Messages` swaps `<Greeting/>`
+ * for the transcript the instant `messages.length > 0`, so the rAF lifetime
+ * is typically sub-second. `prefersReducedMotion` freezes the drift.
+ */
+function Greeting() {
+  const dynamicsRef = useRef<GlassDynamics | null>({ zoom: 1, depthMul: 1 });
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const start = performance.now();
+    // ~5s breath cycle, zoom oscillates 1.00 → 1.18 → 1.00.
+    const OMEGA = (2 * Math.PI) / 5;
+    const AMP = 0.18;
+    const step = (now: number) => {
+      const t = (now - start) / 1000;
+      if (dynamicsRef.current) {
+        dynamicsRef.current.zoom = 1 + AMP * (0.5 + 0.5 * Math.sin(t * OMEGA));
+      }
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
+      {/* Ambient refracting glass layer — sits behind the text, breathes. */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <Glass
+          scaleX={0.1}
+          scaleY={0.1}
+          chroma={0.1}
+          depth={6}
+          domeDepth={2}
+          splay={1}
+          blur={0}
+          glow={0.12}
+          glowSpread={0.5}
+          glowExponent={1.5}
+          edgeHighlight={0.3}
+          edgeWidth={3}
+          edgeExponent={1.5}
+          specularStrength={1}
+          specularAngle={45}
+          tint={0.05}
+          tintBlur={12}
+          tintColor="255,180,0"
+          dynamicsRef={dynamicsRef}
+          className="w-[min(440px,82vw)] h-[200px] rounded-[2.5rem]"
+          lens={<div data-glass-lens className="absolute inset-0 rounded-[2.5rem]" />}
+        >
+          {/* The bitmap the lens refracts — a soft amber radial bloom. */}
+          <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
+        </Glass>
+      </div>
+      {/* Amber identity text — crisp, above the lens (never enters Glass). */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative text-center"
+      >
+        <h1 className="font-signature text-5xl sm:text-6xl text-[#ffb400] text-glow-amber mb-3">
+          How can I help?
+        </h1>
+        <p className="text-sm dark:text-[#505050] light:text-[#737373] font-mono">
+          Ask anything — Leopard streams answers from your selected model.
+        </p>
+      </motion.div>
+    </div>
+  );
+}

@@ -1,0 +1,148 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
+import { motion } from "framer-motion";
+import { Download, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { useActiveChat } from "@/hooks/use-active-chat";
+import { getMessageText } from "./message";
+import { Messages } from "./messages";
+import { MultimodalInput } from "./multimodal-input";
+import { ArtifactPanel } from "./artifact-panel";
+
+/**
+ * ChatShell — the per-chat surface injected into the (chat) layout's main
+ * pane. Header (title + model badge + export/share) + Messages transcript +
+ * floating MultimodalInput. Reads everything from useActiveChat. Φ6 mounts
+ * the ArtifactPanel beside the transcript (renders null until a
+ * createDocument tool call streams in — see use-active-chat.onData).
+ */
+export function ChatShell() {
+  const { chatMeta, isLoading, messages, currentModelId } = useActiveChat();
+  const { user } = useUser();
+  const router = useRouter();
+  const shareChat = useMutation(api.chats.share);
+  const [shared, setShared] = useState(false);
+
+  const handleExport = useCallback(() => {
+    if (!chatMeta || messages.length === 0) return;
+    const lines: string[] = [
+      `# ${chatMeta.title}`,
+      `*Exported from Leopard AI — ${new Date().toLocaleString()}*`,
+      "",
+      "---",
+      "",
+    ];
+    for (const m of messages) {
+      const role = m.role === "user" ? "**You**" : "**Leopard**";
+      lines.push(`### ${role}`, "", getMessageText(m), "", "---", "");
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${chatMeta.title.replace(/\s+/g, "-").toLowerCase() || "chat"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Chat exported as Markdown");
+  }, [chatMeta, messages]);
+
+  const handleShare = useCallback(async () => {
+    if (!chatMeta || !user) return;
+    try {
+      const shareUrl = chatMeta.shared && chatMeta.shareId
+        ? `${window.location.origin}/share/${chatMeta.shareId}`
+        : `${window.location.origin}/share/${await shareChat({ chatId: chatMeta._id, userId: user.id })}`;
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied!");
+      setShared(true);
+    } catch {
+      toast.error("Failed to share chat");
+    }
+  }, [chatMeta, user, shareChat]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex gap-[3px]">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              className="w-2 h-2 rounded-full bg-[#ffb400]/40"
+              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!chatMeta) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center space-y-2"
+        >
+          <p className="text-[#606060] text-sm">Chat not found or private</p>
+          <p className="text-[#303030] text-xs px-10">
+            This conversation is either private or has been deleted.
+          </p>
+          <Button
+            className="mt-6 h-8 text-[11px] font-mono bg-[#ffb400] text-black hover:bg-[#ffb400dd]"
+            onClick={() => router.push("/chat")}
+          >
+            Go back home
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 min-h-0 dark:bg-black light:bg-white">
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <h2 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
+              {chatMeta.title === "New Chat" ? "Start a conversation" : chatMeta.title}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-body text-[#606060] dark:bg-white/[0.02] light:bg-black/[0.015] px-2.5 py-1 rounded border dark:border-white/[0.08] light:border-black/[0.08] hidden sm:inline-flex uppercase tracking-tighter max-w-[180px] truncate">
+              {currentModelId}
+            </span>
+            <button
+              onClick={handleExport}
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors"
+              title="Export as Markdown"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleShare}
+              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
+              title={shared ? "Share link copied" : "Share chat"}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <Messages />
+        <MultimodalInput />
+      </div>
+      {/* Φ6: artifact side panel. Renders null until a createDocument tool
+          streams data-* parts (see use-active-chat.onData). Slides in beside
+          the transcript; closing drops state (doc was persisted on finish). */}
+      <ArtifactPanel />
+    </div>
+  );
+}

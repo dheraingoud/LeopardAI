@@ -12,6 +12,18 @@ export const list = query({
   },
 });
 
+// Φ3 NEW: fetch a single message by client UUID (UIMessage.id).
+export const getById = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    const msg = await ctx.db
+      .query("messages")
+      .withIndex("by_public_id", (q) => q.eq("id", args.id))
+      .first();
+    return msg ?? null;
+  },
+});
+
 export const send = mutation({
   args: {
     chatId: v.id("chats"),
@@ -21,7 +33,13 @@ export const send = mutation({
       v.literal("assistant"),
       v.literal("system")
     ),
-    content: v.string(),
+    // LEGACY plain-text content (interim chat path still uses this).
+    content: v.optional(v.string()),
+    // Φ3: AI SDK v6 UIMessage parts (preferred writers).
+    parts: v.optional(v.array(v.any())),
+    attachments: v.optional(v.array(v.any())),
+    // Φ3: client UUID (UIMessage.id).
+    id: v.optional(v.string()),
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -32,10 +50,17 @@ export const send = mutation({
         throw new Error("Unauthorized: You do not own this chat");
       }
 
+      if (!args.content && !args.parts) {
+        throw new Error("Message requires either content or parts");
+      }
+
       return await ctx.db.insert("messages", {
+        id: args.id,
         chatId: args.chatId,
         role: args.role,
         content: args.content,
+        parts: args.parts,
+        attachments: args.attachments,
         model: args.model,
         createdAt: Date.now(),
       });
@@ -54,12 +79,20 @@ export const send = mutation({
 export const update = mutation({
   args: {
     messageId: v.id("messages"),
-    content: v.string(),
+    content: v.optional(v.string()),
+    parts: v.optional(v.array(v.any())),
+    attachments: v.optional(v.array(v.any())),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, {
-      content: args.content,
-    });
+    const patch: Record<string, unknown> = {};
+    if (args.content !== undefined) patch.content = args.content;
+    if (args.parts !== undefined) {
+      patch.parts = args.parts;
+      // Φ3: parts is now source of truth — clear legacy content.
+      patch.content = undefined;
+    }
+    if (args.attachments !== undefined) patch.attachments = args.attachments;
+    await ctx.db.patch(args.messageId, patch);
   },
 });
 
@@ -67,6 +100,38 @@ export const remove = mutation({
   args: { messageId: v.id("messages") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.messageId);
+  },
+});
+
+// Φ3 NEW: delete messages in a chat at-or-after a timestamp (edit/regenerate
+// support, mirrors vercel-chatbot deleteMessagesByChatIdAfterTimestamp).
+export const deleteAfterTimestamp = mutation({
+  args: {
+    chatId: v.id("chats"),
+    timestamp: v.number(),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get(args.chatId);
+    if (!chat || chat.userId !== args.userId) {
+      throw new Error("Unauthorized or not found");
+    }
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .filter((q) => q.gte(q.field("createdAt"), args.timestamp))
+      .collect();
+    for (const msg of messages) {
+      // Cascade-delete votes keyed on this message's client id.
+      if (msg.id) {
+        const votes = await ctx.db
+          .query("votes")
+          .withIndex("by_message", (q) => q.eq("messageId", msg.id as string))
+          .collect();
+        for (const v of votes) await ctx.db.delete(v._id);
+      }
+      await ctx.db.delete(msg._id);
+    }
   },
 });
 

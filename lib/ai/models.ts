@@ -1,0 +1,355 @@
+/**
+ * Unified model registry — single source of truth.
+ *
+ * Consumed by /api/models + /api/chat/route.ts + the client model selector +
+ * the reasoning control. lib/nim.ts keeps the capability seed (MODEL_REGISTRY)
+ * + the legacy SSE utils (buildNIMPayload/callNIM); this file is the live
+ * registry surface every consumer reads.
+ *
+ * Two providers, env-driven:
+ *   NIM      — NVIDIA NIM direct (lib/nim.ts engine). Env: NVIDIA_API_KEY.
+ *   gateway  — Vercel AI Gateway. Env: AI_GATEWAY_API_KEY.
+ *
+ * Curated build (2026-07-09): GATEWAY_SEED is EMPTY — the prior 5 gateway ids
+ * (deepseek-v3.2 / kimi-k2.5 / gpt-oss-20b / gpt-oss-120b / grok-4.1-fast) were
+ * all dead/unavailable and none are in the user's goal list. NIM carries the
+ * full goal set (9 chat reasoners/VLMs from MODEL_REGISTRY). The image + video
+ * gen seeds are ALSO empty this increment — the NIM genai endpoint is
+ * unconfirmed (prior probes 404'd), so no image/video ids ship until Phase 10
+ * confirms the endpoint + the live ids. An image entry that 404s when selected
+ * is worse than none. Env gating (NIM_IMAGE_MODELS / NIM_VIDEO_MODELS /
+ * GATEWAY_MODELS) stays wired; re-seed with live ids when ready.
+ *
+ * Env vars (all optional):
+ *   NIM_DEFAULT_MODEL       override default chat model id (NIM)
+ *   NIM_UTILITY_MODEL       override title/utility model id (NIM)
+ *   NIM_MODELS              CSV of NIM ids to expose (default: all in MODEL_REGISTRY)
+ *   NIM_IMAGE_MODELS        CSV of NIM image-gen ids (default: empty — dormant)
+ *   NIM_VIDEO_MODELS        CSV of NIM video-gen ids (default: empty — dormant)
+ *   GATEWAY_DEFAULT_MODEL   override default chat model id (gateway)
+ *   GATEWAY_MODELS          CSV of gateway ids (default: empty — dormant)
+ *   AI_GATEWAY_API_KEY      gateway auth (server-side)
+ *
+ * Reasoning routing — nimReasoningProviderOptions(model, level) builds the
+ * openai-compatible `nim` providerOptions block. openai-compatible@3 reads
+ * `providerOptions.nim.reasoningEffort` (camel) and AUTO-MAPS it to body-root
+ * `reasoning_effort` (snake); extra non-spec keys (chat_template_kwargs) pass
+ * through literally snake_case. So:
+ *   param:"effort" → { nim: { reasoningEffort } }   (deepseek/glm + binary minimax/step)
+ *   param:"think"  → { nim: { chat_template_kwargs: { think } } }   (gemma/diffusion)
+ *   param absent   → {} (locked-on Cosmos reasoner — reasons by architecture)
+ * Consumed by route.ts only.
+ *
+ * Server-only-call: getCapabilities() (NIM entries are pure; gateway fetch is a
+ * no-op while GATEWAY_SEED is empty). Safe on client: getActiveModels/
+ * getModelById/getDefaultChatModel/getUtilityModel/IMAGE_ASPECT_RATIO_SIZES/
+ * nimReasoningProviderOptions (pure; env reads are undefined client-side →
+ *returns all curated seeds, which is why the selector fetches /api/models).
+ */
+
+import {
+  MODEL_REGISTRY,
+  NIM_BASE,
+  DEFAULT_MODEL,
+  UTILITY_MODEL,
+  type ModelCapability,
+  type ReasoningConfig,
+  type ReasoningLevel,
+} from "@/lib/nim";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type Provider = "nim" | "gateway";
+export type SpeedTier = "fast" | "balanced" | "slow";
+export type ModelKind = "text" | "image" | "video";
+
+export type ModelCapabilities = {
+  tools: boolean;
+  vision: boolean;
+  /** reasoning-capable (=== reasoningConfig.enabled) — gates sendReasoning. */
+  reasoning: boolean;
+  /** Hard-coded from the build.nvidia cards (NIM /v1/models exposes no metadata). */
+  contextWindow: number;
+  /** Full reasoning shape — drives the input-bar reasoning control. */
+  reasoningConfig: ReasoningConfig;
+};
+
+export type ChatModel = {
+  id: string;
+  name: string;
+  provider: Provider;
+  description: string;
+  speedTier: SpeedTier;
+  supportsVision: boolean;
+  /** === reasoningConfig.enabled (selector Brain icon). */
+  supportsReasoning: boolean;
+  supportsTools: boolean;
+  /** From MODEL_REGISTRY, hard-coded per card. */
+  contextWindow: number;
+  /** Per-model reasoning shape — drives the reasoning control + the route. */
+  reasoningConfig: ReasoningConfig;
+  kind: ModelKind;
+  /** Gateway provider order hint — unused NIM (undefined). */
+  gatewayOrder?: string[];
+};
+
+// ─── Re-exports (one source) ──────────────────────────────────────────────────
+
+export { NIM_BASE, DEFAULT_MODEL, UTILITY_MODEL };
+export type { ModelCapability, ReasoningConfig, ReasoningLevel };
+
+// ─── NIM seed (text models straight from MODEL_REGISTRY) ──────────────────────
+
+const speedTierMap: Record<ModelCapability["speedTier"], SpeedTier> = {
+  1: "fast",
+  1.5: "balanced",
+  3: "slow",
+};
+
+/** Chat models are read straight from nim.ts MODEL_REGISTRY — contextWindow +
+ * reasoningConfig come from the curated per-model cards there. */
+function nimTextSeed(): ChatModel[] {
+  return Object.values(MODEL_REGISTRY).map((m) => ({
+    id: m.id,
+    name: m.displayName,
+    provider: "nim" as const,
+    description:
+      m.type === "vlm"
+        ? `${m.displayName} — vision`
+        : `${m.displayName} — ${speedTierMap[m.speedTier]}`,
+    speedTier: speedTierMap[m.speedTier],
+    supportsVision: m.supportsVision,
+    supportsReasoning: m.reasoning.enabled,
+    // Per-model supportsTools from MODEL_REGISTRY (verified live via curl probe
+    // 2026-07-06). The route advertises tools whenever ENABLE_ARTIFACTS=1
+    // regardless; this drives the selector Wrench icon + getCapabilities
+    // fallback, so it's accurate per model rather than a blanket false.
+    supportsTools: m.supportsTools ?? false,
+    contextWindow: m.contextWindow,
+    reasoningConfig: m.reasoning,
+    kind: "text",
+  }));
+}
+
+// ─── Gateway seed (EMPTY — dead ids removed) ───────────────────────────────────
+// The 5 prior gateway ids were all dead/unavailable + not in the user's goal
+// list. Env GATEWAY_MODELS remains wired (filterByEnv + getDefaultChatModel gw
+// path) for future re-seeding; with an empty seed there's nothing to expose.
+const GATEWAY_SEED: ChatModel[] = [];
+
+// ─── NIM generation-only seeds (EMPTY — genai endpoint unconfirmed) ───────────
+// Prior image seed shipped SD 3.5 / Flux (underscore id) / SDXL and the video
+// seed shipped Cosmos — ALL dead or unconfirmed against the live NIM genai
+// namespace (prior probes 404'd). This batch ships NO generation models; Phase 10
+// will probe the real genai endpoint, confirm ids, then populate + flip dormancy.
+const NIM_IMAGE_SEED: ChatModel[] = [];
+const NIM_VIDEO_SEED: ChatModel[] = [];
+
+// ─── Env filtering ────────────────────────────────────────────────────────────
+
+/** Returns the models whose id is in the CSV env var, or all `models` if unset. */
+function filterByEnv(models: ChatModel[], envVar: string): ChatModel[] {
+  const csv = process.env[envVar];
+  if (!csv) return models;
+  const ids = new Set(
+    csv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  return models.filter((m) => ids.has(m.id));
+}
+
+// ─── Resolved registry (lazily cached per-process) ────────────────────────────
+
+let _active: ChatModel[] | null = null;
+
+export function getActiveModels(): ChatModel[] {
+  if (_active) return _active;
+  _active = [
+    ...filterByEnv(nimTextSeed(), "NIM_MODELS"),
+    ...filterByEnv(GATEWAY_SEED, "GATEWAY_MODELS"),
+    ...filterByEnv(NIM_IMAGE_SEED, "NIM_IMAGE_MODELS"),
+    ...filterByEnv(NIM_VIDEO_SEED, "NIM_VIDEO_MODELS"),
+  ];
+  return _active;
+}
+
+export function getModelById(id: string): ChatModel | undefined {
+  return getActiveModels().find((m) => m.id === id);
+}
+
+export function getDefaultChatModel(): ChatModel {
+  const models = getActiveModels();
+  const nimDefault =
+    process.env.NIM_DEFAULT_MODEL &&
+    models.find((m) => m.id === process.env.NIM_DEFAULT_MODEL);
+  if (nimDefault) return nimDefault;
+  const gwDefault =
+    process.env.GATEWAY_DEFAULT_MODEL &&
+    models.find((m) => m.id === process.env.GATEWAY_DEFAULT_MODEL);
+  if (gwDefault) return gwDefault;
+  const fromLib = models.find((m) => m.id === DEFAULT_MODEL);
+  return fromLib ?? models[0];
+}
+
+export function getUtilityModel(): ChatModel {
+  const models = getActiveModels();
+  const env =
+    process.env.NIM_UTILITY_MODEL &&
+    models.find((m) => m.id === process.env.NIM_UTILITY_MODEL);
+  if (env) return env;
+  const fromLib = models.find((m) => m.id === UTILITY_MODEL);
+  return fromLib ?? getDefaultChatModel();
+}
+
+export function isImageModel(id: string): boolean {
+  return getModelById(id)?.kind === "image";
+}
+
+export function isVideoModel(id: string): boolean {
+  return getModelById(id)?.kind === "video";
+}
+
+export function isGenerationModel(id: string): boolean {
+  const m = getModelById(id);
+  return m?.kind === "image" || m?.kind === "video";
+}
+
+// ─── Derived maps (consumer helpers) ──────────────────────────────────────────
+
+export const allowedModelIds: Set<string> = new Set(
+  getActiveModels().map((m) => m.id),
+);
+
+export const modelsByProvider = getActiveModels().reduce(
+  (acc, m) => {
+    (acc[m.provider] ??= []).push(m);
+    return acc;
+  },
+  {} as Record<Provider, ChatModel[]>,
+);
+
+export const isDemo = process.env.IS_DEMO === "1";
+
+// ─── Image aspect-ratio sizes ─────────────────────────────────────────────────
+
+export type ImageAspectRatio =
+  | "1:1"
+  | "16:9"
+  | "9:16"
+  | "3:2"
+  | "2:3"
+  | "5:4"
+  | "4:5";
+
+export const IMAGE_ASPECT_RATIO_SIZES: Record<
+  ImageAspectRatio,
+  { width: number; height: number }
+> = {
+  "1:1": { width: 1024, height: 1024 },
+  "16:9": { width: 1344, height: 768 },
+  "9:16": { width: 768, height: 1344 },
+  "3:2": { width: 1216, height: 832 },
+  "2:3": { width: 832, height: 1216 },
+  "5:4": { width: 1152, height: 896 },
+  "4:5": { width: 896, height: 1152 },
+};
+
+export function normalizeImageAspectRatio(input: unknown): ImageAspectRatio {
+  if (typeof input !== "string") return "1:1";
+  const ratio = input.trim() as ImageAspectRatio;
+  if (ratio in IMAGE_ASPECT_RATIO_SIZES) return ratio;
+  return "1:1";
+}
+
+/** Resolve image dims for a ratio. The SDXL square-clamp was dropped (no SDXL
+ * in the curated build). Honors the requested ratio; falls back to 1:1. */
+export function resolveImageDimensions(
+  aspectRatio: ImageAspectRatio,
+): { width: number; height: number } {
+  return (
+    IMAGE_ASPECT_RATIO_SIZES[aspectRatio] ?? IMAGE_ASPECT_RATIO_SIZES["1:1"]
+  );
+}
+
+// ─── Reasoning → NIM providerOptions (route-only) ─────────────────────────────
+
+/**
+ * Build the openai-compatible `nim` providerOptions block for a chosen reasoning
+ * level on a NIM chat model. openai-compatible@3 reads `providerOptions.nim.*`;
+ * `reasoningEffort` (camel) is AUTO-MAPPED to body-root `reasoning_effort`
+ * (snake) at chat-language-model.ts line ~600; extra non-spec keys
+ * (`chat_template_kwargs`) pass through literally snake_case.
+ *
+ *   param:"effort"          → { nim: { reasoningEffort } }. OFF (or a binary
+ *                             effort model's "off") omits the key → NIM
+ *                             non-think mode. Binary on/off effort models
+ *                             (deepseek-flash / step) map ON → "high".
+ *   param:"think"           → { nim: { chat_template_kwargs: { think } } }
+ *                             (literal pass-through) — diffusiongemma.
+ *   param:"enable_thinking" → { nim: { chat_template_kwargs:
+ *                                   { enable_thinking: bool } } } (literal
+ *                             pass-through) — empirically the only param
+ *                             that makes glm-5.2 / minimax-m3 / deepseek-pro
+ *                             / gemma-4 surface `reasoning_content` at NIM
+ *                             (probed 2026-07-11). reasoning_effort is
+ *                             accepted (HTTP 200) but NIM emits
+ *                             reasoning_content:null. Bin: "off"→false,
+ *                             anything else→true.
+ *   param absent           → {} — locked-on reasoner (cosmos) — no knob;
+ *                             route sends no reasoning providerOptions.
+ *
+ * Non-NIM or reasoning-disabled models also return {}. The route spreads this
+ * into streamText's `providerOptions` — an empty object is a no-op. NB: this
+ * returns the NESTED `{ nim: {...} }` form because the SDK reads
+ * `providerOptions.nim`, not a top-level key.
+ */
+export function nimReasoningProviderOptions(
+  model: ChatModel | undefined,
+  level: ReasoningLevel | undefined,
+): Record<string, unknown> {
+  if (!model || model.provider !== "nim") return {};
+  const cfg = model.reasoningConfig;
+  if (!cfg?.param) return {};
+  if (cfg.param === "think") {
+    return { nim: { chat_template_kwargs: { think: level !== "off" } } };
+  }
+  if (cfg.param === "enable_thinking") {
+    return {
+      nim: { chat_template_kwargs: { enable_thinking: level !== "off" } },
+    };
+  }
+  // "effort"
+  if (!level || level === "off") return {};
+  const effort = level === "on" ? "high" : level; // binary effort model ON → "high"
+  return { nim: { reasoningEffort: effort } };
+}
+
+// ─── Capabilities (server-only fetch when gateway re-seeded; no-op now) ───────
+
+/**
+ * Per-model capabilities. With gateway seeded empty, this returns NIM entries
+ * straight from the registry seed (NIM /v1/models exposes no metadata, so
+ * contextWindow + reasoningConfig are hard-coded from the build.nvidia cards).
+ * When gateway models are re-seeded, restore the per-model fetch against
+ * ai-gateway.vercel.sh/v1/models/<id>/endpoints for tools/vision/reasoning flags
+ * and synthesize a reasoningConfig there.
+ */
+export async function getCapabilities(): Promise<
+  Record<string, ModelCapabilities>
+> {
+  const nimModels = getActiveModels().filter((m) => m.provider === "nim");
+  return Object.fromEntries(
+    nimModels.map((m) => [
+      m.id,
+      {
+        tools: m.supportsTools,
+        vision: m.supportsVision,
+        reasoning: m.supportsReasoning,
+        contextWindow: m.contextWindow,
+        reasoningConfig: m.reasoningConfig,
+      },
+    ]),
+  );
+}

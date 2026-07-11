@@ -1,15 +1,17 @@
 "use client";
 
 import { Toaster } from "sonner";
-import { useThemeStore } from "@/store/themeStore";
+import { useTheme } from "@/components/theme-provider";
 
 export function ThemeToaster() {
-  const { theme } = useThemeStore();
-  const isDark = theme === "dark";
+  const { theme } = useTheme();
+  // Theme resolves on mount; default to dark pre-mount (leopard default).
+  const resolved = theme === "light" ? "light" : "dark";
+  const isDark = resolved === "dark";
 
   return (
     <Toaster
-      theme={theme}
+      theme={resolved}
       position="bottom-right"
       toastOptions={{
         style: {

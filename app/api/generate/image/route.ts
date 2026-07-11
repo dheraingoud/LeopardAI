@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { NIM_BASE } from "@/lib/nim";
 
 export const runtime = "nodejs";
 
@@ -7,7 +8,6 @@ const GENAI_BASE_URLS = [
   "https://ai.api.nvidia.com/v1/genai",
   "https://integrate.api.nvidia.com/v1/genai",
 ];
-const LEGACY_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const IMAGE_LIMIT_PER_DAY = process.env.NODE_ENV === "development" ? 200 : 5;
 const PROVIDER_TIMEOUT_MS = 60_000;
 
@@ -542,7 +542,7 @@ async function invokeImagesApiFallback(input: {
     for (const responseFormat of ["b64_json", "url"]) {
       let res: Response;
       try {
-        res = await fetch(`${LEGACY_NIM_BASE_URL}/images/generations`, {
+        res = await fetch(`${NIM_BASE}/images/generations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

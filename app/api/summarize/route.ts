@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
+import { NIM_BASE } from "@/lib/nim";
 
 export const runtime = "nodejs";
-
-const NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const SUMMARIZE_MODEL = "minimaxai/minimax-m2.7";
 const SUMMARIZE_TIMEOUT = 60_000;
 
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), SUMMARIZE_TIMEOUT);
 
     try {
-      const res = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+      const res = await fetch(`${NIM_BASE}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
