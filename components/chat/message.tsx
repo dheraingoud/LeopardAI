@@ -594,7 +594,7 @@ export const PreviewMessage = memo(function PreviewMessage({
                 onClick={handleDislike}
                 aria-label="Dislike"
                 title="Mark as unhelpful"
-                className={["flex items-center justify-center h-7 w-7 rounded-md transition-colors",feedbackVote === "down" ? "dark:bg-amber-400/[0.12] light:bg-amber-500/[0.16] dark:text-amber-300 light:text-amber-700" : "dark:text-[#505050] light:text-[#b8b8b8] hover:dark:text-amber-300 hover:light:text-amber-700 hover:dark:bg-amber-300/[0.06] hover:light:bg-amber-500/[0.08]"].join(" ")}
+                className={["flex items-center justify-center h-7 w-7 rounded-md transition-colors",feedbackVote === "down" ? "dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.16] dark:text-[#ffb400] light:text-[#d49600]" : "dark:text-[#505050] light:text-[#b8b8b8] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08]"].join(" ")}
               >
                 <ThumbsDown className="h-3 w-3" />
             </button>
