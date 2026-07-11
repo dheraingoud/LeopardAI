@@ -12,6 +12,10 @@ import {
 
 type Props = {
   modelVision: boolean;
+  /** Φ9: image-edit model (e.g. qwen-image-edit) accepts an image as edit input
+   *  but isn't a VLM. Loosens the media attach Item so the user can attach a
+   *  single image; the input itself restricts accept to image/* in that case. */
+  modelImageEdit?: boolean;
   onPickMedia: (files: FileList) => void;
   onPickFile: (files: FileList) => void;
   onPickSkill: (files: FileList) => void;
@@ -28,13 +32,27 @@ type Props = {
  * user-bubble / greeting — this chrome menu stays clear frost (selective tint).
  * Hidden file inputs reset after each pick so the same file can be re-added.
  */
-export function PlusMenu({ modelVision, onPickMedia, onPickFile, onPickSkill }: Props) {
+export function PlusMenu({
+  modelVision,
+  modelImageEdit,
+  onPickMedia,
+  onPickFile,
+  onPickSkill,
+}: Props) {
   const [open, setOpen] = useState(false);
   const mediaRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const skillRef = useRef<HTMLInputElement>(null);
 
-  return (
+  // Φ9: effective media attach capability + the right <input accept>.
+  const canAttachMedia = modelVision || !!modelImageEdit;
+  const mediaAccept = modelImageEdit && !modelVision ? "image/*" : "image/*,video/*";
+  const mediaHint = modelVision
+    ? undefined
+    : modelImageEdit
+      ? "image only"
+      : "needs VLM";
+return (
     <div className="relative shrink-0">
       <GlassPopover open={open} onOpenChange={setOpen}>
         <GlassPopoverTrigger
@@ -54,8 +72,8 @@ export function PlusMenu({ modelVision, onPickMedia, onPickFile, onPickSkill }: 
           <div className="w-[224px] p-1 text-[12px] font-mono">
             <Item
               label="attach image / video"
-              disabled={!modelVision}
-              hint={modelVision ? undefined : "needs VLM"}
+              disabled={!canAttachMedia}
+              hint={mediaHint}
               onClick={() => {
                 setOpen(false);
                 mediaRef.current?.click();
@@ -82,7 +100,7 @@ export function PlusMenu({ modelVision, onPickMedia, onPickFile, onPickSkill }: 
       <input
         ref={mediaRef}
         type="file"
-        accept="image/*,video/*"
+        accept={mediaAccept}
         multiple
         hidden
         onChange={(e) => {
