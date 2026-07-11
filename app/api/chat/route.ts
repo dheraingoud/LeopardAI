@@ -24,6 +24,7 @@ import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
 import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
 import { createDocument } from "@/lib/ai/tools/create-document";
+import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
@@ -259,11 +260,19 @@ export async function POST(request: Request) {
       // upstream stack. The createUIMessageStream onError only catches errors
       // INSIDE the stream iteration; throws from streamText() or merge() bubble
       // to Next.js as 500. We need to know what's being thrown.
-      let result: ReturnType<typeof streamText> | undefined;
+      // Typed via ReturnType<streamText<BuildTools>> — the actual shape varies
+      // with the optional tools map; `any` lets the optional merge still work.
+      let result: any;
       try {
+        // Φ-enable-fetch: webFetch tool — server-side, http/https only,
+        // 50 KB cap, 10 s timeout (forwarded route signal). Gated by
+        // ENABLE_WEB_FETCH=1 so the model doesn't advertise a network tool in
+        // dev builds that don't want it. stepCountIs(3) lets the model call
+        // webFetch + emit a follow-up text response in the same stream.
+        const webFetchEnabled = process.env.ENABLE_WEB_FETCH === "1";
         result = streamText({
         model: getLanguageModel(modelId),
-        system: systemPrompt({ requestHints: {}, supportsTools: false }),
+        system: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
@@ -277,6 +286,12 @@ export async function POST(request: Request) {
           }),
           ...nimReasoningProviderOptions(modelConfig, body.reasoning),
         },
+        ...(webFetchEnabled && {
+          tools: {
+            webFetch: webFetch({ dataStream }),
+          },
+          stopWhen: stepCountIs(3),
+        }),
         });
       } catch (err) {
         try {
