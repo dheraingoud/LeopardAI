@@ -255,39 +255,87 @@ export async function POST(request: Request) {
       // visible panel (silent loss). Flip to "true" once the client glue ships.
       const artifactsEnabled = process.env.ENABLE_ARTIFACTS === "1";
 
-      const result = streamText({
+      // TEMP-DBG: catch any error from streamText + merge so we see the actual
+      // upstream stack. The createUIMessageStream onError only catches errors
+      // INSIDE the stream iteration; throws from streamText() or merge() bubble
+      // to Next.js as 500. We need to know what's being thrown.
+      let result: ReturnType<typeof streamText> | undefined;
+      try {
+        result = streamText({
         model: getLanguageModel(modelId),
-        system: systemPrompt({ requestHints: {}, supportsTools: artifactsEnabled }),
+        system: systemPrompt({ requestHints: {}, supportsTools: false }),
         messages: modelMessages,
-        // Only `createDocument` (text kind) is live this increment;
-        // edit/update/requestSuggestions port next (need server-side doc reads
-        // — a ConvexHttpClient in the route, held for Phase 9 auth). The tool
-        // streams artifact lifecycle + delta parts as data-*; the client
-        // persists the assembled doc to Convex via api.documents.save (route
-        // has no ConvexHttpClient by design). stopWhen caps multi-step loops
-        // at 5 so create→confirm terminates.
-        ...(artifactsEnabled && {
-          tools: {
-            createDocument: createDocument({ dataStream, modelId }),
-          },
-          experimental_activeTools: ["createDocument"],
-          stopWhen: stepCountIs(5),
-        }),
+        // Cap output tokens — NIM rejects chat completions with no explicit
+        // `max_tokens` (returns "Internal server error" / HTTP 500) since
+        // 2026-07. 16384 fits within the smallest model context and matches
+        // gateway defaults for comparable models. AI SDK v6 streams use
+        // `maxOutputTokens` (NOT `maxTokens`).
+        maxOutputTokens: 16384,
         providerOptions: {
           ...(modelConfig?.gatewayOrder && {
             gateway: { order: modelConfig.gatewayOrder },
           }),
-          // openai-compatible@3 auto-maps providerOptions.nim.reasoningEffort
-          // (camel) → body-root reasoning_effort (snake); chat_template_kwargs
-          // passes through literally for think/enable_thinking param models.
-          // Locked-on Cosmos reasoners / OFF / unknown → {} no-op (helper).
           ...nimReasoningProviderOptions(modelConfig, body.reasoning),
         },
-      });
+        });
+      } catch (err) {
+        try {
+          require("node:fs").appendFileSync(
+            "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+            new Date().toISOString() +
+              " streamText_THROW msg=" +
+              String((err as Error)?.message ?? err) +
+              " stack=" +
+              String((err as Error)?.stack ?? "").slice(0, 4000) +
+              "\n",
+          );
+          console.error("[/api/chat] streamText_THROW_MSG=", (err as Error)?.message ?? "");
+        } catch {}
+        throw err;
+      }
 
       // Merge model stream → UI stream. sendReasoning surfaces reasoning parts
       // (NIM reasoning_content / gateway reasoning) for reasoning-capable models.
-      dataStream.merge(result.toUIMessageStream({ sendReasoning: isReasoningModel }));
+      try {
+        const merged = result.toUIMessageStream({
+          // Per user 2026-07-11 — disabled createDocument. Models over-triggered
+          // on conversational prompts and the artifact became unwanted. Inline
+          // is the default. Re-enable when a deliberate "save / draft" UX is wired.
+          sendReasoning: isReasoningModel,
+          onError: (err) => {
+            try {
+              require("node:fs").appendFileSync(
+                "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+                new Date().toISOString() +
+                  " STREAM_onError model=" + modelId +
+                  " msg=" + (err?.message ?? String(err)) +
+                  " name=" + (err?.name ?? "?") +
+                  "\n",
+              );
+            } catch {}
+            console.error("[/api/chat] STREAM_onError", err);
+          },
+        });
+        dataStream.merge(merged);
+      } catch (err) {
+        const e = err as Error;
+        console.error(
+          "[/api/chat] MERGE_THROW model=" + modelId +
+            " msg=" + (e?.message ?? String(err)) +
+            " stack=" + (e?.stack ?? "").slice(0, 4000),
+        );
+        try {
+          const fs = require("node:fs");
+          fs.appendFileSync(
+            "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+            new Date().toISOString() +
+              " MERGE_THROW model=" + modelId +
+              " msg=" + (e?.message ?? String(err)) +
+              "\n",
+          );
+        } catch {}
+        throw err;
+      }
 
       // Emit a custom `data-chat-title` part so the Phase 5 client hook can
       // call api.chats.updateTitle. (No server-side Convex save — client owns
@@ -303,6 +351,19 @@ export async function POST(request: Request) {
     },
     generateId,
     onError: (error) => {
+      try {
+        require("node:fs").appendFileSync(
+          "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+          new Date().toISOString() +
+            " ROUTE_onError model=" +
+            (error?.modelUsed ?? "?") +
+            " msg=" +
+            String(error?.message ?? "") +
+            " stack=" +
+            String(error?.stack ?? "").slice(0, 4000) +
+            "\n=====\n",
+        );
+      } catch {}
       // Map known upstream errors to user-safe strings; never leak internals.
       if (error instanceof Error) {
         if (error.message.includes("AI Gateway requires a valid credit card")) {
