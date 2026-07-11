@@ -1,11 +1,11 @@
 /**
  * webFetch tool — gives the model live web access on demand.
  *
- * Defined per AI SDK v6's `tool({ inputSchema, execute })` pattern (see
+ * Defined per AI SDK v6's tool({ inputSchema, execute }) pattern (see
  * node_modules/ai/docs/03-ai-sdk-core/15-tools-and-tool-calling.mdx). The tool
- * is exposed via /api/chat when `ENABLE_WEB_FETCH=1` is set (model advertises
+ * is exposed via /api/chat when ENABLE_WEB_FETCH=1 is set (model advertises
  * it in the next stream — the chat supports auto-tool loops
- * `stopWhen: stepCountIs(3)`).
+ * stopWhen: stepCountIs(3)).
  *
  * Surface area:
  *   url        — the URL to fetch (must be http/https)
@@ -15,17 +15,19 @@
  * Returns a JSON shape with `content` (text/plain, HTML stripped) and
  * `truncated` (boolean — true if the upstream body exceeded max_bytes so the
  * model can ask for a follow-up tool call that points deeper at a specific
- * section). On HTTP error, returns `{error}` so the model can react with text
+ * section). On HTTP error, returns {error} so the model can react with text
  * rather than letting the tool throw and break the loop.
  *
  * Sandbox notes:
- *   - Default 10s timeout via AbortSignal; forwards the route's `signal` so a
- *     user-cancelled stream can abort the in-flight fetch (memory + socket
- *     cleanup).
+ *   - Default 10s timeout via AbortSignal; forwards the route's abort signal
+ *     so a user-cancelled stream can abort the in-flight fetch (memory +
+ *     socket cleanup). AbortSignal.any() composes both into one signal so a
+ *     single source flows into fetch — no manual listener bookkeeping.
  *   - No SSRF allowlist — the route is gated by BYPASS_CLERK during dev;
- *     Phase 9 hardening adds a same-origin-or-public allowlist before public
- *     release so the tool can't be used to probe our internal endpoints.
- *   - Only http:https: URLs; rejects `file:`, `data:`, `javascript:` upfront.
+ *     Phase 9 hardening adds a same-origin-or-public allowlist before
+ *     public release so the tool can't be used to probe our internal
+ *     endpoints.
+ *   - Only http:https: URLs; rejects file:, data:, javascript: upfront.
  */
 import { tool, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
@@ -33,13 +35,38 @@ import type { ChatMessage } from "@/lib/types";
 
 const MAX_BYTES_DEFAULT = 50_000;
 const FETCH_TIMEOUT_MS = 10_000;
+
+// HTML entity decoder: uses Buffer.from() at module load to guarantee the
+// regex source contains LITERAL HTML-entity text bytes. The Write tool's
+// HTML entity decode was escaping & to literal & so we went back to
+// string concatenation with explicit char codes.
+//
+// Order matters: amp MUST decode FIRST. Otherwise lt (escaped
+// less-than) double-decodes to literal < instead of the intended <.
+// The regexes match the literal HTML-entity text — not the leading
+// ampersand alone — so lt collapses to < in a single pass.
+const AMP = String.fromCharCode(38);
+const LT = String.fromCharCode(60);
+const GT = String.fromCharCode(62);
+const DQ = String.fromCharCode(34);
+const SQ = String.fromCharCode(39);
+const SP = String.fromCharCode(32);
+
+function makeEntry(name: string, replacement: string): [RegExp, string] {
+  // Path-for-: amp_lt_gt_quot_apos_nbsp
+  const pattern = "/" + AMP + name + ";/g";
+  return [new RegExp(pattern, "g"), replacement];
+}
+
+// Build the entity lists. Entities we don't ship here: amp surrogate pair
+// (only used twice — rare), curly quote entities (model doesn't care).
 const HTML_ENTITIES: Array<[RegExp, string]> = [
-  [/&nbsp;/g, " "],
-  [/&/g, "&"],
-  [/</g, "<"],
-  [/>/g, ">"],
-  [/"/g, '"'],
-  [/'/g, "'"],
+  makeEntry("amp", AMP),
+  makeEntry("lt", LT),
+  makeEntry("gt", GT),
+  makeEntry("quot", DQ),
+  makeEntry("apos", SQ),
+  makeEntry("nbsp", SP),
 ];
 
 /**
@@ -95,10 +122,15 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
         return { error: "protocol_not_allowed", url, got: parsed.protocol };
       }
 
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-      // Forward route abort → our abort so SSE cancel releases the socket.
-      routeSignal?.addEventListener("abort", () => ctrl.abort());
+      // Compose route abort + our 10s timeout into a single AbortSignal
+      // (Node 20+) so one signal flows into fetch(). Eliminates manual
+      // addEventListener bookkeeping that would otherwise leak listeners over
+      // multi-step tool loops.
+      const timedCtrl = new AbortController();
+      const t = setTimeout(() => timedCtrl.abort(), FETCH_TIMEOUT_MS);
+      const composed = routeSignal
+        ? AbortSignal.any([timedCtrl.signal, routeSignal])
+        : timedCtrl.signal;
 
       let res: Response;
       try {
@@ -109,7 +141,7 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
             Accept:
               "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           },
-          signal: ctrl.signal,
+          signal: composed,
         });
       } catch (e) {
         clearTimeout(t);
