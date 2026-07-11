@@ -124,14 +124,20 @@ export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 // kimi-k2.6 default; minimax-m3 is a balanced, tool-capable live NIM id).
 export const DEFAULT_MODEL = "minimaxai/minimax-m3";
 
-// ─── MODEL_REGISTRY (curated: 6 text LLMs/VLMs + 3 vision reasoners) ──────────
+// ─── MODEL_REGISTRY (curated: 6 text LLMs/VLMs + 2 vision reasoners) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
 // build.nvidia model cards (NIM /v1/models exposes no metadata). VLM vs LLM by
-// card input types: minimax-m3 / gemma-4 / step-3.7 / diffusiongemma + both
-// cosmos accept image/video (vision); glm-5.2 + deepseek-v4-flash/pro are
-// text-only. Image-GEN models (qwen-image / qwen-image-edit / flux.2-klein-4b)
-// live in lib/ai/models.ts NIM_IMAGE_SEED (kind:"image"), NOT here. Reasoning
-// effort exerted via body params wired in app/api/chat/route.ts.
+// card input types: minimax-m3 / gemma-4 / step-3.7 / diffusiongemma accept
+// image/video (vision); glm-5.2 + deepseek-v4-flash/pro are text-only.
+//
+// UNAVAILABLE (2026-07-11): nvidia/cosmos-reason2-8b + nvidia/cosmos3-nano-reasoner
+// both return AI_APICallError "Not Found" from NIM — the model IDs do not resolve
+// on the NIM API endpoint. All alternative ID variants (cosmos-reason-2-8b,
+// cosmos-3-nano-reasoner, cosmos-reason2, cosmos3-nano, etc.) also 404.
+// Commented out below; re-enable when NIM surfaces them.
+//
+// DOWN (2026-07-11): minimaxai/minimax-m3 returns "Bad Request" from NIM —
+// external downtime, confirmed by user. Keep entry; re-test when NIM recovers.
 
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   "minimaxai/minimax-m3": {
@@ -253,33 +259,35 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsTools: true,
     contextWindow: 262_144,
     // Text-OUT vision model (NOT image gen — takes image/video, emits text via
-    // discrete diffusion). Thinking via <|think|>, on/off.
-    reasoning: { enabled: true, toggleable: true, param: "think", defaultEffort: "on" },
+    // discrete diffusion). Uses chat_template_kwargs:{enable_thinking} —
+    // verified 2026-07-11 that <|think|> + chat_template_kwargs:{think} never
+    // surfaces reasoning_content; enable_thinking matches the working pattern
+    // for all other NIM reasoning models.
+    reasoning: { enabled: true, toggleable: true, param: "enable_thinking", defaultEffort: "on" },
   },
-  "nvidia/cosmos-reason2-8b": {
-    id: "nvidia/cosmos-reason2-8b",
-    displayName: "Cosmos Reason2 8B",
-    speedTier: 1.5,
-    type: "vlm",
-    supportsVision: true,
-    visionModalities: ["image", "video"],
-    supportsTools: false,
-    contextWindow: 262_144,
-    // Locked-on video/image reasoner — no off state, no param. Reasons by
-    // architecture; route sends no reasoning providerOptions.
-    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
-  },
-  "nvidia/cosmos3-nano-reasoner": {
-    id: "nvidia/cosmos3-nano-reasoner",
-    displayName: "Cosmos3 Nano Reasoner",
-    speedTier: 1.5,
-    type: "vlm",
-    supportsVision: true,
-    visionModalities: ["image", "video"],
-    supportsTools: false,
-    contextWindow: 262_144,
-    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
-  },
+  // ─── Cosmos models (UNAVAILABLE 2026-07-11: "Not Found" from NIM) ──────────
+  // "nvidia/cosmos-reason2-8b": {
+  //   id: "nvidia/cosmos-reason2-8b",
+  //   displayName: "Cosmos Reason2 8B",
+  //   speedTier: 1.5,
+  //   type: "vlm",
+  //   supportsVision: true,
+  //   visionModalities: ["image", "video"],
+  //   supportsTools: false,
+  //   contextWindow: 262_144,
+  //   reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+  // },
+  // "nvidia/cosmos3-nano-reasoner": {
+  //   id: "nvidia/cosmos3-nano-reasoner",
+  //   displayName: "Cosmos3 Nano Reasoner",
+  //   speedTier: 1.5,
+  //   type: "vlm",
+  //   supportsVision: true,
+  //   visionModalities: ["image", "video"],
+  //   supportsTools: false,
+  //   contextWindow: 262_144,
+  //   reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+  // },
 };
 
 // ─── Helpers (legacy; no live stream-path callers) ──────────────────────────
