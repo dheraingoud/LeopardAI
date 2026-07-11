@@ -142,39 +142,38 @@ const GATEWAY_SEED: ChatModel[] = [];
 
 // Φ9 qwen-image + qwen-image-edit. Hit NIM's native /infer namespace
 // (POST /v1/qwen/<model>/infer, body {prompt, seed, image_size | image},
-// response {artifacts:[{base64}]}) — verified 2026-07-11. `filterByEnv` with
-// NIM_IMAGE_MODELS = unset surfaces the whole seed in the selector.
+// response {artifacts:[{base64}]}). UNAVAILABLE 2026-07-11: both ids return
+// "qwen-infer 404" from NIM — the /v1/qwen/<model>/infer endpoint does not
+// resolve. Commented out until NIM surfaces them.
 const NIM_IMAGE_SEED: ChatModel[] = [
-  {
-    id: "qwen/qwen-image",
-    name: "Qwen Image",
-    provider: "nim",
-    description: "Qwen Image — text→image",
-    speedTier: "balanced",
-    supportsVision: false,
-    supportsReasoning: false,
-    supportsTools: false,
-    supportsImageEdit: false,
-    contextWindow: 0,
-    reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
-    kind: "image",
-  },
-  {
-    id: "qwen/qwen-image-edit",
-    name: "Qwen Image Edit",
-    provider: "nim",
-    description: "Qwen Image Edit — image+prompt→image",
-    speedTier: "balanced",
-    supportsVision: false,
-    supportsReasoning: false,
-    supportsTools: false,
-    // Loosens the input bar media gate (PlusMenu `Item kind=media`) to allow
-    // attaching an image as edit input. Other image models ignore attachments.
-    supportsImageEdit: true,
-    contextWindow: 0,
-    reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
-    kind: "image",
-  },
+  // {
+  //   id: "qwen/qwen-image",
+  //   name: "Qwen Image",
+  //   provider: "nim",
+  //   description: "Qwen Image — text→image",
+  //   speedTier: "balanced",
+  //   supportsVision: false,
+  //   supportsReasoning: false,
+  //   supportsTools: false,
+  //   supportsImageEdit: false,
+  //   contextWindow: 0,
+  //   reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
+  //   kind: "image",
+  // },
+  // {
+  //   id: "qwen/qwen-image-edit",
+  //   name: "Qwen Image Edit",
+  //   provider: "nim",
+  //   description: "Qwen Image Edit — image+prompt→image",
+  //   speedTier: "balanced",
+  //   supportsVision: false,
+  //   supportsReasoning: false,
+  //   supportsTools: false,
+  //   supportsImageEdit: true,
+  //   contextWindow: 0,
+  //   reasoningConfig: { enabled: false, toggleable: false, defaultEffort: "off" },
+  //   kind: "image",
+  // },
 ];
 const NIM_VIDEO_SEED: ChatModel[] = [];
 
