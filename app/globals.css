@@ -276,6 +276,14 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Accessible keyboard-focus ring — amber brand color, subtle alpha. Single
+     rule covers every focusable element (button, input, a, [tabindex], etc.)
+     so Tab navigation reads at a glance without being visually loud. */
+  :focus-visible {
+    outline: 2px solid rgba(255, 180, 0, 0.55);
+    outline-offset: 2px;
+  }
+
   html {
     @apply font-sans;
     scroll-behavior: smooth;
@@ -1414,6 +1422,31 @@ pre code {
     180deg,
     rgba(212, 150, 0, 0.42) 0%,
     rgba(212, 150, 0, 0.12) 100%
+  );
+}
+
+/* Expanded reasoning body — fades a hint of amber at the top to make the
+ * "thinking" stream visually distinct from the markdown answer that follows
+ * it. Hairline amber left-border picks up the same accent as the Brain
+ * chevron header. Slightly cooler text color than the body so the eye reads
+ * it as meta-content, not the answer. */
+.cb-reasoning-body {
+  position: relative;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 180, 0, 0.25);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 180, 0, 0.04) 0%,
+    transparent 100%
+  );
+  border-radius: 0 4px 4px 0;
+}
+.light .cb-reasoning-body {
+  border-left-color: rgba(212, 150, 0, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(212, 150, 0, 0.05) 0%,
+    transparent 100%
   );
 }
 
