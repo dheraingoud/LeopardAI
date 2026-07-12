@@ -33,6 +33,32 @@ export const maxDuration = 300;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Safe error-field accessors for unknown onError values (AI SDK v6's onError
+// callback signature accepts unknown; raw `error?.message` access produces
+// TS2339 with the inferred type `{}`).
+function errMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return String(err);
+}
+function errName(err: unknown): string {
+  if (err && typeof err === "object" && "name" in err) {
+    return String((err as { name: unknown }).name);
+  }
+  return err instanceof Error ? err.name : "?";
+}
+function errStack(err: unknown): string {
+  if (err instanceof Error) return err.stack ?? "";
+  return "";
+}
+// `error.modelUsed` was used by an older debug logger format — preserved
+// as a no-op accessor so the route-level onError block doesn't go empty.
+function errModel(_err: unknown): string {
+  return "?";
+}
+
 function getTextFromUIMessage(message: UIMessage): string {
   return ((message.parts ?? []) as Array<{ type: string; text?: string }>)
     .filter((p) => p.type === "text" && typeof p.text === "string")
@@ -312,14 +338,14 @@ export async function POST(request: Request) {
           // on conversational prompts and the artifact became unwanted. Inline
           // is the default. Re-enable when a deliberate "save / draft" UX is wired.
           sendReasoning: isReasoningModel,
-          onError: (err) => {
+          onError: (err: unknown) => {
             try {
               require("node:fs").appendFileSync(
                 "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
                 new Date().toISOString() +
                   " STREAM_onError model=" + modelId +
-                  " msg=" + (err?.message ?? String(err)) +
-                  " name=" + (err?.name ?? "?") +
+                  " msg=" + errMessage(err) +
+                  " name=" + errName(err) +
                   "\n",
               );
             } catch {}
@@ -327,12 +353,12 @@ export async function POST(request: Request) {
           },
         });
         dataStream.merge(merged);
-      } catch (err) {
+      } catch (err: unknown) {
         const e = err as Error;
         console.error(
           "[/api/chat] MERGE_THROW model=" + modelId +
-            " msg=" + (e?.message ?? String(err)) +
-            " stack=" + (e?.stack ?? "").slice(0, 4000),
+            " msg=" + errMessage(err) +
+            " stack=" + errStack(err),
         );
         try {
           const fs = require("node:fs");
@@ -340,7 +366,7 @@ export async function POST(request: Request) {
             "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
             new Date().toISOString() +
               " MERGE_THROW model=" + modelId +
-              " msg=" + (e?.message ?? String(err)) +
+              " msg=" + errMessage(err) +
               "\n",
           );
         } catch {}
@@ -360,17 +386,17 @@ export async function POST(request: Request) {
       }
     },
     generateId,
-    onError: (error) => {
+    onError: (error: unknown) => {
       try {
         require("node:fs").appendFileSync(
           "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
           new Date().toISOString() +
             " ROUTE_onError model=" +
-            (error?.modelUsed ?? "?") +
+            errModel(error) +
             " msg=" +
-            String(error?.message ?? "") +
+            errMessage(error) +
             " stack=" +
-            String(error?.stack ?? "").slice(0, 4000) +
+            errStack(error).slice(0, 4000) +
             "\n=====\n",
         );
       } catch {}
