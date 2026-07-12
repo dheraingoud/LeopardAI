@@ -79,11 +79,18 @@ export const send = mutation({
 export const update = mutation({
   args: {
     messageId: v.id("messages"),
+    userId: v.string(),
     content: v.optional(v.string()),
     parts: v.optional(v.array(v.any())),
     attachments: v.optional(v.array(v.any())),
   },
   handler: async (ctx, args) => {
+    // SECURITY: gate - fetch target message
+    const m = await ctx.db.get(args.messageId);
+    if (!m) throw new Error("Not found");
+    // SECURITY: gate - confirm ownership via parent chat
+    const c = await ctx.db.get(m.chatId);
+    if (!c || c.userId !== args.userId) throw new Error("Unauthorized");
     const patch: Record<string, unknown> = {};
     if (args.content !== undefined) patch.content = args.content;
     if (args.parts !== undefined) {
@@ -97,8 +104,19 @@ export const update = mutation({
 });
 
 export const remove = mutation({
-  args: { messageId: v.id("messages") },
+  args: { messageId: v.id("messages"), userId: v.string() },
   handler: async (ctx, args) => {
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("Not found");
+    const chat = await ctx.db.get(msg.chatId);
+    if (!chat || chat.userId !== args.userId) throw new Error("Unauthorized");
+    if (msg.id) {
+      const votes = await ctx.db
+        .query("votes")
+        .withIndex("by_message", (q) => q.eq("messageId", msg.id as string))
+        .collect();
+      for (const vt of votes) await ctx.db.delete(vt._id);
+    }
     await ctx.db.delete(args.messageId);
   },
 });
@@ -142,8 +160,11 @@ export const storeSummary = mutation({
     endMessageIndex: v.number(),
     summary: v.string(),
     tokenCount: v.number(),
+    userId: v.string(),
   },
   handler: async (ctx, args) => {
+    const chat = await ctx.db.get(args.chatId);
+    if (!chat || chat.userId !== args.userId) throw new Error("Unauthorized");
     return await ctx.db.insert("summaries", {
       chatId: args.chatId,
       startMessageIndex: args.startMessageIndex,
