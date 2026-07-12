@@ -44,6 +44,15 @@ export const save = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    // SECURITY: artifact ids are global (no parent chat ownership). Until
+    // chat-scoped artifact ids ship, gate on non-empty title + userId at the
+    // persistence edge.
+    if (!args.title || args.title.trim().length === 0) {
+      throw new Error("title required");
+    }
+    if (!args.userId || args.userId.length === 0) {
+      throw new Error("userId required");
+    }
     return await ctx.db.insert("documents", {
       id: args.id,
       title: args.title,
