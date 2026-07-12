@@ -1355,51 +1355,6 @@ pre code {
  * Assistant root inherits a 1px surround; reasoning gets its tighter left rail;
  * kaTeX display blocks get a subtle lined rule (Lux-typography nod). */
 
-.cb-message-user {
-  position: relative;
-  isolation: isolate;
-}
-.cb-message-user::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-}
-.light .cb-message-user::after {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -1px 0 rgba(120, 80, 20, 0.18);
-}
-
-.cb-message-assistant {
-  position: relative;
-  isolation: isolate;
-  background: rgba(255, 250, 240, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  /* extra left padding clears the ::before rail (inset: -1px -1px -1px -12px) */
-  padding: 14px 18px 14px 22px;
-}
-.cb-message-assistant::before {
-  content: "";
-  position: absolute;
-  inset: -1px -1px -1px -12px;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: inherit;
-  pointer-events: none;
-}
-.light .cb-message-assistant {
-  background: rgba(212, 150, 0, 0.04);
-  border-color: rgba(120, 80, 20, 0.18);
-}
-.light .cb-message-assistant::before {
-  border-left-color: rgba(120, 80, 20, 0.18);
-}
-
 .cb-reasoning {
   position: relative;
 }

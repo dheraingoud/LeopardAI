@@ -444,10 +444,8 @@ export const PreviewMessage = memo(function PreviewMessage({
         transition={{ duration: 0.2 }}
         className="group flex justify-end py-3"
       >
-        <div className="max-w-[80%]">
-          <div className="cb-message-user rounded-2xl border px-5 py-3 dark:border-[#ffb40024] dark:bg-[linear-gradient(145deg,#1f1607_0%,#171006_50%,#110c05_100%)] dark:text-[#f6e8cc] dark:shadow-[0_10px_30px_rgba(0,0,0,0.32)] light:border-[#d4960040] light:bg-[linear-gradient(145deg,#fff7e6_0%,#fdeec9_50%,#f8e2ad_100%)] light:text-[#3a2a08] light:shadow-[0_10px_30px_rgba(212,150,0,0.18)]">
-            <p className="text-[15px] leading-[1.6] whitespace-pre-wrap">{text}</p>
-         </div>
+        <div className="max-w-[68ch] ml-auto text-right">
+          <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-foreground/85 text-right">{text}</p>
           <div className="flex items-center justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             <button
               type="button"
@@ -484,14 +482,11 @@ export const PreviewMessage = memo(function PreviewMessage({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="group py-5 cb-message-assistant"
+      className="group py-4"
     >
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
+      <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[12px] font-mono dark:text-[#505050] light:text-[#737373]">
-              leopard
-            </span>
+            
           </div>
 
           {/* Φ6.1: streaming-empty fallback. Some NIM reasoning models (e.g.
@@ -583,7 +578,6 @@ export const PreviewMessage = memo(function PreviewMessage({
           </div>
           )}
         </div>
-      </div>
     </motion.div>
   );
 });
@@ -597,9 +591,7 @@ export function ThinkingMessage() {
     >
       <div className="flex items-start gap-3 py-5">
         <div className="flex flex-col gap-2 pt-0.5">
-          <span className="text-[12px] font-mono dark:text-[#505050] light:text-[#737373]">
-            leopard
-          </span>
+          
           <PulseLoader size="sm" labelSize="md" label="Working on it…" className="gap-3" />
        </div>
      </div>
