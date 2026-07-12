@@ -25,6 +25,7 @@ import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamItDown } from "@/components/chat/streamitdown";
 import type { ReasoningLevel } from "@/lib/nim";
+import { PulseLoader } from "./pulse-loader";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -274,9 +275,9 @@ function ReasoningBlock({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="pl-3 ml-1 border-l-2 border-[#ffb400]/15 text-[12px] dark:text-[#505050] light:text-[#737373] leading-relaxed mt-1 max-h-[250px] overflow-y-auto">
+            <div className={cn("cb-reasoning-body ml-1 mt-1 max-h-[250px] overflow-y-auto font-mono text-[0.8em] dark:text-[#737373] light:text-[#525252] leading-relaxed")}>
               <StreamItDown content={content} streaming={isStreamingReasoning} />
-            </div>
+        </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -500,27 +501,8 @@ export const PreviewMessage = memo(function PreviewMessage({
            * renders just the bare "leopard" label for seconds → "prompt alive
            * but nothing shows". Show the working dots exactly in that window;
            * the moment the first text/reasoning/doc lands, the gate closes. */}
-          {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
-            <div className="flex items-center gap-2 pt-0.5">
-              <div className="flex gap-[3px]">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    className="w-[7px] h-[7px] rounded-full bg-[#ffb400]"
-                    animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
-                    transition={{
-                      duration: 1,
-                      repeat: Infinity,
-                      delay: i * 0.15,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ))}
-              </div>
-              <span className="text-[13px] dark:text-[#505050] light:text-[#737373]">
-                Working on it…
-              </span>
-            </div>
+                    {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
+            <PulseLoader size="sm" label="Working on it…" />
           )}
 
           {reasoning && (
@@ -618,28 +600,12 @@ export function ThinkingMessage() {
           <span className="text-[12px] font-mono dark:text-[#505050] light:text-[#737373]">
             leopard
           </span>
-          <div className="flex items-center gap-3">
-            <div className="flex gap-[3px]">
-              {[0, 1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  className="w-[7px] h-[7px] rounded-full bg-[#ffb400]"
-                  animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
-                  transition={{
-                    duration: 1,
-                    repeat: Infinity,
-                    delay: i * 0.15,
-                    ease: "easeInOut",
-                  }}
-                />
-              ))}
-            </div>
-            <span className="text-[14px] dark:text-[#505050] light:text-[#737373]">
-              Working on it…
-            </span>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+          <PulseLoader size="sm" labelSize="md" label="Working on it…" className="gap-3" />
+       </div>
+     </div>
+   </motion.div>
   );
 }
+
+
+

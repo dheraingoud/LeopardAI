@@ -71,18 +71,9 @@ export function ChatShell() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <PulseLoader size="lg" />
-            <motion.div
-              key={i}
-              className="w-2 h-2 rounded-full bg-[#ffb400]/40"
-              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-            />
-          ))}
-        </div>
       </div>
     );
   }
-
   if (!chatMeta) {
     return (
       <div className="flex-1 flex items-center justify-center">
