@@ -1088,7 +1088,7 @@ pre code {
 }
 .light .markdown-body .cb-shell {
   border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(0, 0, 0, 0.025);
+  background: linear-gradient(180deg, rgba(255, 247, 230, 0.6) 0%, rgba(253, 246, 227, 0.45) 100%);
 }
 .markdown-body .cb-header {
   display: flex;
@@ -1153,6 +1153,8 @@ pre code {
 .markdown-body .cb-gated {
   max-height: 360px;
   overflow-y: auto;
+  -webkit-mask-image: linear-gradient(180deg, black, black calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(180deg, black, black calc(100% - 28px), transparent 100%);
 }
 .markdown-body .cb-plain {
   margin: 0 !important;
