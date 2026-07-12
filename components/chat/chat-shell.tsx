@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { getModelById } from "@/lib/ai/models";
 import { useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import { Download, Share2 } from "lucide-react";
@@ -107,9 +108,7 @@ export function ChatShell() {
             </h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-body text-[#606060] dark:bg-white/[0.02] light:bg-black/[0.015] px-2.5 py-1 rounded border dark:border-white/[0.08] light:border-black/[0.08] hidden sm:inline-flex uppercase tracking-tighter max-w-[180px] truncate">
-              {currentModelId}
-            </span>
+            <ModelLabel modelId={currentModelId} />
             <button
               onClick={handleExport}
               className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
@@ -160,5 +159,18 @@ export function ChatShell() {
           the transcript; closing drops state (doc was persisted on finish). */}
       <ArtifactPanel />
     </div>
+  );
+}
+
+
+function ModelLabel({ modelId }: { modelId: string }) {
+  const m = getModelById(modelId);
+  return (
+    <span
+      className="font-mono text-[12px] tracking-tight dark:text-[#909090] light:text-[#606060] tabular-nums"
+      title={modelId}
+    >
+      {m?.name ?? modelId}
+   </span>
   );
 }
