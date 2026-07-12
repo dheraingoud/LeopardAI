@@ -14,6 +14,7 @@ import { getMessageText } from "./message";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
 import { ArtifactPanel } from "./artifact-panel";
+import { PulseLoader } from "./pulse-loader";
 
 /**
  * ChatShell — the per-chat surface injected into the (chat) layout's main
@@ -69,8 +70,7 @@ export function ChatShell() {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex gap-[3px]">
-          {[0, 1, 2].map((i) => (
+        <PulseLoader size="lg" />
             <motion.div
               key={i}
               className="w-2 h-2 rounded-full bg-[#ffb400]/40"
@@ -121,14 +121,14 @@ export function ChatShell() {
             </span>
             <button
               onClick={handleExport}
-              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
               title="Export as Markdown"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={handleShare}
-              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
               title={shared ? "Share link copied" : "Share chat"}
             >
               <Share2 className="h-3.5 w-3.5" />
