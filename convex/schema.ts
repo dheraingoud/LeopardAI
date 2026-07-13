@@ -70,6 +70,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_chat", ["chatId"])
+    // Φ9: composite index — replaces the unbounded `.filter(q.gte(createdAt))`
+    // scan in messages.deleteAfterTimestamp.
+    .index("by_chat_createdAt", ["chatId", "createdAt"])
     .index("by_public_id", ["id"]),
 
   // Φ3 NEW — message votes (thumbs up/down). One vote per message.
@@ -98,6 +101,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_public_id", ["id"])
+    // Φ9: composite index — replaces the unbounded `.filter(q.gte(createdAt))`
+    // scan in documents.deleteAfterTimestamp / updateContent.
+    .index("by_id_createdAt", ["id", "createdAt"])
     .index("by_user", ["userId"]),
 
   summaries: defineTable({
