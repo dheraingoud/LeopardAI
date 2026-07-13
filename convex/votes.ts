@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireChatOwner } from "./_auth";
+
 
 // Φ3 NEW — message votes (mirrors vercel-chatbot Vote_v2). One vote per
 // message (single-user app; upsert keyed by messageId).
@@ -34,10 +36,7 @@ export const vote = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     const existing = await ctx.db
       .query("votes")
