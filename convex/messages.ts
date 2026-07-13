@@ -134,10 +134,13 @@ export const deleteAfterTimestamp = mutation({
     if (!chat || chat.userId !== args.userId) {
       throw new Error("Unauthorized or not found");
     }
+    // Φ9: composite by_chat_createdAt index replaces the unbounded
+    // `.filter(q.gte(createdAt))` table scan.
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
-      .filter((q) => q.gte(q.field("createdAt"), args.timestamp))
+      .withIndex("by_chat_createdAt", (q) =>
+        q.eq("chatId", args.chatId).gte("createdAt", args.timestamp)
+      )
       .collect();
     for (const msg of messages) {
       // Cascade-delete votes keyed on this message's client id.

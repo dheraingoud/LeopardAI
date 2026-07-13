@@ -33,6 +33,25 @@ export const maxDuration = 300;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Append a single line to the dev debug log. Reads LEOPARD_DEBUG_LOG from env
+// on every call so the route stays dev/prod-portable: writes are no-ops when
+// the env var is unset (default for prod). Replaces the 4 previously hardcoded
+// "<abs Windows path>" call sites so the route runs unchanged on Linux/macOS
+// deploys, and so production silently disables the writes via env.
+let _debugLogDir: string | null = null;
+function appendDebugLog(line: string): void {
+  const p = process.env.LEOPARD_DEBUG_LOG;
+  if (!p) return; // not configured: skip (production default)
+  try {
+    const dir = require("node:path").dirname(p);
+    if (dir !== _debugLogDir) {
+      require("node:fs").mkdirSync(dir, { recursive: true });
+      _debugLogDir = dir;
+    }
+    require("node:fs").appendFileSync(p, line + "\n");
+  } catch {}
+}
+
 // Safe error-field accessors for unknown onError values (AI SDK v6's onError
 // callback signature accepts unknown; raw `error?.message` access produces
 // TS2339 with the inferred type `{}`).
@@ -317,7 +336,7 @@ export async function POST(request: Request) {
       } catch (err) {
         try {
           require("node:fs").appendFileSync(
-            "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+            process.env.LEOPARD_DEBUG_LOG ?? "",
             new Date().toISOString() +
               " streamText_THROW msg=" +
               String((err as Error)?.message ?? err) +
@@ -341,7 +360,7 @@ export async function POST(request: Request) {
           onError: (err: unknown) => {
             try {
               require("node:fs").appendFileSync(
-                "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+                process.env.LEOPARD_DEBUG_LOG ?? "",
                 new Date().toISOString() +
                   " STREAM_onError model=" + modelId +
                   " msg=" + errMessage(err) +
@@ -363,7 +382,7 @@ export async function POST(request: Request) {
         try {
           const fs = require("node:fs");
           fs.appendFileSync(
-            "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+            process.env.LEOPARD_DEBUG_LOG ?? "",
             new Date().toISOString() +
               " MERGE_THROW model=" + modelId +
               " msg=" + errMessage(err) +
@@ -389,7 +408,7 @@ export async function POST(request: Request) {
     onError: (error: unknown) => {
       try {
         require("node:fs").appendFileSync(
-          "C:/Users/HP/OneDrive/Desktop/leopard/.playwright-mcp/chat-debug.log",
+          process.env.LEOPARD_DEBUG_LOG ?? "",
           new Date().toISOString() +
             " ROUTE_onError model=" +
             errModel(error) +

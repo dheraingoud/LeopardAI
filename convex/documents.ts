@@ -72,10 +72,12 @@ export const updateContent = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Φ9: by_id_createdAt composite index — equal-to (createdAt) is index-bound.
     const doc = await ctx.db
       .query("documents")
-      .withIndex("by_public_id", (q) => q.eq("id", args.id))
-      .filter((q) => q.eq(q.field("createdAt"), args.createdAt))
+      .withIndex("by_id_createdAt", (q) =>
+        q.eq("id", args.id).eq("createdAt", args.createdAt)
+      )
       .first();
     if (!doc) throw new Error("Document version not found");
     if (doc.userId !== args.userId) throw new Error("Unauthorized");
@@ -88,10 +90,12 @@ export const updateContent = mutation({
 export const deleteAfterTimestamp = mutation({
   args: { id: v.string(), timestamp: v.number(), userId: v.string() },
   handler: async (ctx, args) => {
+    // Φ9: by_id_createdAt composite index replaces the .filter table scan.
     const docs = await ctx.db
       .query("documents")
-      .withIndex("by_public_id", (q) => q.eq("id", args.id))
-      .filter((q) => q.gte(q.field("createdAt"), args.timestamp))
+      .withIndex("by_id_createdAt", (q) =>
+        q.eq("id", args.id).gte("createdAt", args.timestamp)
+      )
       .collect();
     for (const doc of docs) {
       if (doc.userId !== args.userId) continue;
