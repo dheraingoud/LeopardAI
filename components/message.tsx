@@ -130,10 +130,24 @@ function ThinkingBlock({
   content: string;
   isStreaming?: boolean;
 }) {
+  // Default expanded while the model is reasoning (so the user can read the
+  // process live); collapse once the final answer starts streaming.
   const [expanded, setExpanded] = useState(true);
   const [hasFinished, setHasFinished] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
-  // Auto-collapse when streaming stops (or when final answer starts)
+  // Track elapsed reasoning time during stream; freeze on completion.
+  useEffect(() => {
+    if (!isStreaming) return;
+    const start = Date.now();
+    const id = setInterval(() => setElapsedMs(Date.now() - start), 100);
+    return () => {
+      clearInterval(id);
+      setElapsedMs(Date.now() - start);
+    };
+  }, [isStreaming]);
+
+  // Auto-collapse when streaming stops and final answer begins.
   useEffect(() => {
     if (!isStreaming && !hasFinished) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -142,58 +156,95 @@ function ThinkingBlock({
     }
   }, [isStreaming, hasFinished]);
 
+  const seconds = (elapsedMs / 1000).toFixed(1);
+  const charCount = content.length;
+
   return (
-    <div className="mb-3">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[12px] text-[#606060] hover:text-[#909090] transition-colors py-1"
+    <div
+      className={cn(
+        "my-3 overflow-hidden rounded-2xl",
+        "border dark:border-white/[0.06] light:border-black/[0.08]",
+        // Card-within-a-card feel: two-stop gradient on dark with a soft amber
+        // wash, paper-toned warmth on light. Inner highlight simulates an edge
+        // bevel without resorting to drop shadows.
+        "dark:bg-[linear-gradient(160deg,rgba(255,180,0,0.05)_0%,rgba(255,255,255,0.02)_50%,rgba(255,255,255,0.015)_100%)]",
+        "light:bg-[linear-gradient(160deg,rgba(255,180,0,0.06)_0%,rgba(255,255,255,0.65)_60%)]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+      )}
+    >
+     <button
+        onClick={() => setExpanded((e) => !e)}
+        className={cn(
+          "group flex w-full items-center gap-2.5 px-4 py-2.5 text-left",
+          "transition-colors duration-200",
+          "hover:dark:bg-white/[0.02] light:hover:bg-black/[0.02]",
+        )}
       >
-        <Brain className="h-3.5 w-3.5 text-[#ffb400]/50" />
-        <span className="font-mono">
-          {isStreaming ? "Thinking…" : "Thought process"}
-        </span>
-        {expanded ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronRight className="h-3 w-3" />
-        )}
-        {isStreaming && (
-          <div className="flex gap-[2px] ml-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-1 h-1 rounded-full bg-[#ffb400]"
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{
-                  duration: 0.8,
-                  repeat: Infinity,
-                  delay: i * 0.15,
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </button>
-      <AnimatePresence>
+        <Brain
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 transition-colors duration-300",
+            isStreaming ? "text-[#ffb400]" : "text-[#606060]",
+          )}
+        />
+        <span
+          className={cn(
+            "text-[11px] font-semibold uppercase tracking-[0.16em]",
+            isStreaming ? "text-[#ffb400]" : "text-[#909090]",
+          )}
+        >
+          {isStreaming ? "Thinking" : "Thought process"}
+      </span>
+
+        <span className="ml-1 flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
+          {isStreaming && (
+            <motion.span
+              className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffb400]"
+              animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
+          <span>{seconds}s</span>
+          <span className="text-[#404040]">{"·"}</span>
+          <span>{charCount.toLocaleString()} chars</span>
+      </span>
+
+        <span className="flex-1" />
+
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 text-[#606060] transition-transform duration-300 ease-out",
+            !expanded && "-rotate-90",
+          )}
+        />
+    </button>
+
+      <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
-            <div className="pl-3 ml-1 border-l-2 border-[#ffb400]/15 text-[12px] dark:text-[#505050] light:text-[#737373] light:text-[#737373] leading-relaxed mt-1 max-h-[250px] overflow-y-auto font-mono whitespace-pre-wrap">
+            <div
+              className={cn(
+                "border-t px-4 pb-3.5 pt-1 pl-5",
+                "dark:border-white/[0.05] light:border-black/[0.06]",
+                "max-h-[420px] overflow-y-auto",
+                "text-[13.5px] leading-[1.7] tracking-[-0.005em]",
+                "dark:text-[#9a9a9a] light:text-[#404040]",
+                "whitespace-pre-wrap break-words",
+              )}
+            >
               {content}
-            </div>
-          </motion.div>
+          </div>
+        </motion.div>
         )}
-      </AnimatePresence>
-    </div>
+    </AnimatePresence>
+  </div>
   );
 }
-
-/* ─── Code Block with header, copy, preview ─── */
 
 function CodeBlock({
   code,
@@ -223,16 +274,14 @@ function CodeBlock({
 
   return (
     <div className="relative my-4 rounded-xl overflow-hidden border dark:border-white/[0.06] light:border-black/[0.06] bg-[#0c0c0c] hover:dark:border-white/[0.15] light:border-black/[0.1] transition-colors duration-300">
-      {/* Header bar — with quick actions */}
       <div className="flex items-center justify-between px-4 py-2 dark:bg-white/[0.03] light:bg-black/[0.02] border-b dark:border-white/[0.06] light:border-black/[0.06] transition-colors duration-200 hover:dark:bg-white/[0.05] light:bg-black/[0.04]">
         <div className="flex items-center gap-2">
-          <CodeIcon className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#737373] light:text-[#737373]" />
+          <CodeIcon className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#737373]" />
           <span className="text-[12px] font-mono dark:text-[#707070] light:text-[#808080] capitalize px-1.5 py-0.5 rounded dark:bg-white/[0.03] light:bg-black/[0.02] border dark:border-white/[0.03] light:border-black/[0.04]">
             {lang || "Code"}
-          </span>
-        </div>
+         </span>
+       </div>
         <div className="flex items-center gap-1">
-          {/* Run button - only for executable languages */}
           {isExecutable && (
             <button
               className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#22c55e] hover:bg-[#22c55e15] transition-colors disabled:opacity-50"
@@ -241,42 +290,39 @@ function CodeBlock({
             >
               <Play className="h-3 w-3" />
               Run
-            </button>
+           </button>
           )}
-          {/* Tests button */}
           <button
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
             onClick={() => onQuickAction?.("tests", code, lang)}
             title="Generate tests"
           >
             <Sparkles className="h-3 w-3" />
-          </button>
+         </button>
           <button
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
             onClick={() => onQuickAction?.("flow-current", code, lang)}
             title="Generate current flowchart"
           >
             Flow
-          </button>
+         </button>
           <button
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#606060] hover:text-[#ffb400] hover:bg-[#ffb40008] transition-colors"
             onClick={() => onQuickAction?.("audit", code, lang)}
             title="Audit code"
           >
             Audit
-          </button>
-          {/* Preview button */}
+         </button>
           {isPreviewable && onPreview && (
             <button
               className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono text-[#ffb400] bg-[#ffb40008] hover:bg-[#ffb40015] transition-colors"
               onClick={() => onPreview(code, lang)}
             >
               <ExternalLink className="h-3 w-3" />
-            </button>
+           </button>
           )}
-          {/* Copy button */}
           <button
-            className="flex items-center justify-center h-6 w-6 rounded-md dark:text-[#505050] light:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/[0.06] light:bg-black/[0.04] hover-lift transition-all duration-200 ease-in-out"
+            className="flex items-center justify-center h-6 w-6 rounded-md dark:text-[#505050] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/[0.06] light:bg-black/[0.04] hover-lift transition-all duration-200 ease-in-out"
             onClick={handleCopy}
             title="Copy code"
           >
@@ -285,10 +331,9 @@ function CodeBlock({
             ) : (
               <Copy className="h-3 w-3" />
             )}
-          </button>
-        </div>
-      </div>
-      {/* Code content */}
+         </button>
+       </div>
+     </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <pre
           style={{
@@ -314,10 +359,10 @@ function CodeBlock({
             }}
           >
             {code}
-          </code>
-        </pre>
-      </div>
-    </div>
+         </code>
+       </pre>
+     </div>
+   </div>
   );
 }
 
