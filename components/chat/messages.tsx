@@ -6,6 +6,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { Glass, type GlassDynamics } from "@/components/ui/glass";
 import { prefersReducedMotion } from "@/components/ui/glass-motion";
+import { MouseGlow } from "@/components/ui/mouse-glow";
 
 /**
  * Messages — the scrollable transcript. Phase 5 renders text + reasoning
@@ -109,6 +110,10 @@ function Greeting() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
+      {/* Φ9 mouse-following specular lambert — overlay ambient on the Glass
+       * surface. Layered above the refracting backdrop, mixBlendMode: screen
+       * keeps it non-destructive against the warm-paper tint. */}
+      <MouseGlow tone="amber" size={260} intensity={0.55} className="z-[1]" />
       {/* Ambient refracting glass layer — sits behind the text, breathes. */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <Glass
