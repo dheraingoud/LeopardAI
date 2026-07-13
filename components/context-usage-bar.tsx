@@ -33,7 +33,7 @@ export default function ContextUsageBar({
   return (
     <div className={cn("relative group", className)} title={tooltipText}>
       <motion.div
-        className="relative h-3 w-full cursor-pointer overflow-hidden rounded-full bg-white/[0.04] transition-all duration-300 hover:h-6"
+        className="relative h-3 w-full cursor-pointer overflow-hidden rounded-full dark:bg-white/[0.04] light:bg-black/[0.03] transition-all duration-300 hover:h-6"
         layout
       >
         {/* Static fill */}

@@ -268,10 +268,10 @@ export const MODELS: Model[] = [
   },
   {
     id: "qwen-300b",
-    nimId: "qwen/qwen3.5-397b-a17b",
+    nimId: "qwen/qwen3-300b-a22b",
     name: "Qwen 300B MoE",
     provider: "Alibaba",
-    description: "397B hybrid MoE — currently unavailable on free tier.",
+    description: "300B hybrid MoE — large model for hardest reasoning tasks.",
     contextWindow: 128000,
     speed: "slow",
     modality: "text",

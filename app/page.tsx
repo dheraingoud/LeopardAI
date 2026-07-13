@@ -11,7 +11,7 @@ export default function RootPage() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      router.replace("/app");
+      router.replace("/chat");
     }
   }, [isLoaded, isSignedIn, router]);
 

@@ -9,9 +9,9 @@ export default function SignInPage() {
             rootBox: "mx-auto",
             card: "glass-intense !shadow-none",
             headerTitle: "font-signature !text-3xl !text-[#ffb400] text-glow-amber",
-            headerSubtitle: "!text-[#525252] !font-mono !text-sm",
+            headerSubtitle: "!dark:text-[#525252] light:text-[#8c8c8c] !font-mono !text-sm",
             socialButtonsBlockButton:
-              "!bg-white/[0.03] !border-white/[0.08] hover:!bg-white/[0.06] !text-[#d4d4d4] !font-mono !text-sm",
+              "!dark:bg-white/[0.03] light:bg-black/[0.02] !dark:border-white/[0.08] light:border-black/[0.08] hover:!dark:bg-white/[0.06] light:bg-black/[0.04] !dark:text-[#d4d4d4] light:text-[#404040] !font-mono !text-sm",
             footer: "!hidden",
           },
         }}
