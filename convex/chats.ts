@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireChatOwner } from "./_auth";
+
 import { nanoid } from "nanoid";
 
 export const list = query({
@@ -78,10 +80,7 @@ export const create = mutation({
 export const updateTitle = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), title: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
     await ctx.db.patch(args.chatId, {
       title: args.title,
       updatedAt: Date.now(),
@@ -92,10 +91,7 @@ export const updateTitle = mutation({
 export const remove = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     // Delete all messages in the chat
     const messages = await ctx.db
@@ -122,10 +118,7 @@ export const remove = mutation({
 export const share = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     const shareId = nanoid(12);
     await ctx.db.patch(args.chatId, {
@@ -140,10 +133,7 @@ export const share = mutation({
 export const unshare = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     await ctx.db.patch(args.chatId, {
       shared: false,
@@ -156,10 +146,7 @@ export const unshare = mutation({
 export const updateModel = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), model: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     await ctx.db.patch(args.chatId, {
       model: args.model,

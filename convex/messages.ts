@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireChatOwner } from "./_auth";
+
 
 export const list = query({
   args: { chatId: v.id("chats") },
@@ -45,10 +47,7 @@ export const send = mutation({
   handler: async (ctx, args) => {
     try {
       // SECURITY: Ensure chat ownership
-      const chat = await ctx.db.get(args.chatId);
-      if (!chat || chat.userId !== args.userId) {
-        throw new Error("Unauthorized: You do not own this chat");
-      }
+      await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized: You do not own this chat"
 
       if (!args.content && !args.parts) {
         throw new Error("Message requires either content or parts");
@@ -130,10 +129,7 @@ export const deleteAfterTimestamp = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
     // Φ9: composite by_chat_createdAt index replaces the unbounded
     // `.filter(q.gte(createdAt))` table scan.
     const messages = await ctx.db
