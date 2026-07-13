@@ -19,8 +19,9 @@
  *     stable across rapid deltas.
  *   - mermaid: ```` ```mermaid ```` fenced blocks lazy-import mermaid
  *     (client-only) and render INLINE in the chat (no overlay canvas) with
- *     native pointer-drag pan + wheel zoom + reset/fit chrome — no svg-pan-zoom
- *     dep. Other fenced langs route to shiki.
+ *     native pointer-drag pan + wheel zoom + reset/fit + code-view +
+ *     fullscreen chrome — no svg-pan-zoom dep. Other fenced langs route to
+ *     shiki.
  *   - math: inline ($...$) + block ($$...$$) via remark-math → KaTeX
  *     (`rehype-katex` + katex CSS in globals). Streaming-safe: partial
  *     math tokens are stripped to plain text until `streaming=false` so
@@ -215,6 +216,11 @@ function PreShell({
             onClick={handleCopy}
             className="cb-btn"
             aria-label="Copy code"
+            title={
+              lang === "math" || lang === "latex" || lang === "tex"
+                ? "Copy LaTeX"
+                : "Copy code"
+            }
           >
             {copied ? (
               <Check className="h-3 w-3" />
@@ -304,25 +310,25 @@ function useHighlightedHtml(
   return html;
 }
 
-// ── mermaid → SVG (lazy client import, theme-matched, INLINE + interactive) ─
-// Φ7.6: rendering is inline in the chat transcript (no overlay canvas). We
-// fit-to-width on first render, then let the user pan + zoom via native
-// pointer events driven by CSS transforms. No svg-pan-zoom dep — ~110 lines
-// of imperative transform state replaces ~30kb of dead weight.
-//
-// Knobs (top-right floating chrome on the SVG, slim and quiet):
-//   - zoom in / out (±0.25× → range 0.25× .. 6×)
-//   - reset (1× / no pan)
-//   - fit (re-run the auto-fit-to-width that runs on first render)
-//
-// Hover the SVG: grab cursor → user can drag; wheel inside → zoom (and we
-// preventDefault so the page itself doesn't scroll past the diagram).
+// ── mermaid → SVG (anti-AI-slop). Render INLINE in chat with a pan/zoom
+// viewport. Floating chrome: zoom-out / reset% / zoom-in / fit / code / full.
+// Professional look: ui-monospace labels (no lucide icons), per-mode ink+papwer
+// color tokens, no emoji stance. Native PointerEvents → wheel zoom, drag-to-pan,
+// double-click zoom. Esc closes fullscreen.
 function MermaidBlock({ code }: { code: string }) {
   const rawId = useId();
   const id = `mmd-${rawId.replace(/[^a-zA-Z0-9-]/g, "")}`;
   const { theme } = useTheme();
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // Mode toggle: "diagram" (default) ↔ "code" (raw source-as-code). State +
+  // PreShell host keep copy/collapse affordances working in both modes.
+  const [mode, setMode] = useState<"diagram" | "code">("diagram");
+  // Fullscreen: zoom up the viewport in-place. Esc closes.
+  const [fullscreen, setFullscreen] = useState(false);
+  // Hint state: fades in shortly after entering fullscreen so the chrome
+  // "greets differently" than the inline mode. Auto-fades after a few s.
+  const [fsHint, setFsHint] = useState(false);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
@@ -343,22 +349,81 @@ function MermaidBlock({ code }: { code: string }) {
   });
   const [{ z, tx, ty }, setView] = useState({ z: 1, tx: 0, ty: 0 });
 
+  // Esc closes fullscreen. Window-level listener because the inner viewport
+  // can't always catch keyboard focus after a click on the chrome buttons.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
+
+  // When entering fullscreen, fade the interaction hint in (~60ms after
+  // mount so the first paint settles) and auto-hide after ~5.5s. Exiting
+  // fullscreen collapses the hint back to opacity 0 via the inline
+  // transition below.
+  useEffect(() => {
+    if (!fullscreen) {
+      setFsHint(false);
+      return;
+    }
+    const fadeIn = setTimeout(() => setFsHint(true), 60);
+    const fadeOut = setTimeout(() => setFsHint(false), 5500);
+    return () => {
+      clearTimeout(fadeIn);
+      clearTimeout(fadeOut);
+    };
+  }, [fullscreen]);
+
   useEffect(() => {
     let active = true;
     void (async () => {
       try {
         const mermaid = (await import("mermaid")).default;
+        // Per-theme ink tokens. The "base" theme is the only one that reads
+        // all of themeVariables — "default"/"dark" override them out. We push
+        // paper + ink colours per mode so the diagram reads as a continuation
+        // of the transcript rather than a McMermaid paste.
+        const inkTokens =
+          theme === "light"
+            ? {
+                primaryColor: "#fff5e0",
+                primaryTextColor: "#1f1607",
+                primaryBorderColor: "#d49600",
+                lineColor: "#3a2a08",
+                secondaryColor: "#fdeec9",
+                tertiaryColor: "#f8e2ad",
+                background: "#fffaf0",
+                fontFamily:
+                  "ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace",
+                fontSize: "13px",
+              }
+            : {
+                primaryColor: "#1c1608",
+                primaryTextColor: "#f6e8cc",
+                primaryBorderColor: "#ffb400",
+                lineColor: "#a8927a",
+                secondaryColor: "#211a0c",
+                tertiaryColor: "#2a2010",
+                background: "#0c0a06",
+                fontFamily:
+                  "ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace",
+                fontSize: "13px",
+              };
         mermaid.initialize({
           startOnLoad: false,
-          theme: theme === "light" ? "default" : "dark",
+          theme: "base",
           securityLevel: "loose",
-          // Anti-ai-slop: professional mono font; no emoji styling hooks.
-          themeVariables: {
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: "13px",
+          themeVariables: inkTokens,
+          flowchart: {
+            curve: "basis",
+            htmlLabels: false,
+            padding: 12,
+            nodeSpacing: 32,
+            rankSpacing: 36,
           },
-          flowchart: { curve: "basis", htmlLabels: false },
         });
         const { svg: out } = await mermaid.render(id, code);
         if (active) setSvg(out);
@@ -371,7 +436,9 @@ function MermaidBlock({ code }: { code: string }) {
     };
   }, [code, theme, id]);
 
-  // After the SVG lands in the DOM, fit it.
+  // After the SVG lands, fit it. Transform-origin is 0 0 by design (so pan
+  // math is sane); vertical centering is achieved by computing the offset
+  // here rather than via CSS.
   useEffect(() => {
     if (!svg) return;
     queueMicrotask(() => fitToWidth());
@@ -385,11 +452,32 @@ function MermaidBlock({ code }: { code: string }) {
     const svgEl = inner.querySelector("svg") as SVGSVGElement | null;
     if (!svgEl) return;
     const w = svgEl.viewBox?.baseVal?.width ?? svgEl.clientWidth ?? 0;
-    const target = wrap.clientWidth - 8;
+    const h = svgEl.viewBox?.baseVal?.height ?? svgEl.clientHeight ?? 0;
+    const target = wrap.clientWidth - 24;
     if (!w || target < 64) return;
     const next = Math.max(0.25, Math.min(2, target / w));
-    setView({ z: next, tx: 0, ty: 0 });
-    inner.style.transform = `translate(0px, 0px) scale(${next})`;
+    const txFit = Math.max(0, (wrap.clientWidth - w * next) / 2);
+    const tyFit = Math.max(0, (wrap.clientHeight - h * next) / 2);
+    setView({ z: next, tx: txFit, ty: tyFit });
+    inner.style.transform = `translate(${txFit}px, ${tyFit}px) scale(${next})`;
+  }
+
+  // Center the diagram at a given absolute zoom level (used by double-click
+  // and the initial fullscreen-render). Avoids relying on transform-origin.
+  function fitToZoom(target: number) {
+    const wrap = wrapRef.current;
+    const inner = innerRef.current;
+    if (!wrap || !inner) return;
+    const svgEl = inner.querySelector("svg") as SVGSVGElement | null;
+    if (!svgEl) return;
+    const w = svgEl.viewBox?.baseVal?.width ?? svgEl.clientWidth ?? 0;
+    const h = svgEl.viewBox?.baseVal?.height ?? svgEl.clientHeight ?? 0;
+    if (!w || !h) return;
+    const next = Math.max(0.25, Math.min(6, target));
+    const txFit = Math.max(0, (wrap.clientWidth - w * next) / 2);
+    const tyFit = Math.max(0, (wrap.clientHeight - h * next) / 2);
+    setView({ z: next, tx: txFit, ty: tyFit });
+    inner.style.transform = `translate(${txFit}px, ${tyFit}px) scale(${next})`;
   }
 
   function zoomBy(delta: number) {
@@ -405,11 +493,7 @@ function MermaidBlock({ code }: { code: string }) {
     });
   }
   function reset() {
-    setView({ z: 1, tx: 0, ty: 0 });
-    queueMicrotask(() => {
-      if (innerRef.current)
-        innerRef.current.style.transform = "translate(0px, 0px) scale(1)";
-    });
+    fitToZoom(1);
   }
 
   function onPointerDown(e: React.PointerEvent) {
@@ -441,7 +525,12 @@ function MermaidBlock({ code }: { code: string }) {
     e.preventDefault();
     zoomBy(e.deltaY > 0 ? -0.15 : 0.15);
   }
+  function onDoubleClick(e: React.MouseEvent) {
+    e.preventDefault();
+    fitToZoom(z >= 4 ? 1 : 2);
+  }
 
+  // Fail-safe: drop back to plain PreBlock so the source at least copies.
   if (failed) {
     return (
       <PreShell lang="mermaid" copyText={code} longBlock={false}>
@@ -452,67 +541,157 @@ function MermaidBlock({ code }: { code: string }) {
     );
   }
 
-  return (
-    <PreShell lang="mermaid" copyText={code} longBlock={false}>
-      <div
-        ref={wrapRef}
-        className="cb-mermaid-viewport"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onWheel={onWheel}
-        role="img"
-        aria-label="Interactive mermaid diagram — drag to pan, wheel to zoom"
-      >
-        <div ref={innerRef} className="cb-mermaid-canvas">
-          {svg ? (
-            <div
-              className="cb-mermaid"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          ) : (
-            <div className="cb-mermaid-loading">rendering diagram…</div>
-          )}
-       </div>
+  // Code view: raw source inside PreShell. `diagram` button restores.
+  if (mode === "code") {
+    return (
+      <PreShell lang="mermaid" copyText={code} longBlock={false}>
+        <pre className="cb-plain">
+          <code>{code}</code>
+       </pre>
         <div
-          className="cb-mermaid-chrome"
+          className="cb-mermaid-chrome cb-mermaid-chrome-left"
           onPointerDown={(e) => e.stopPropagation()}
         >
           <button
             type="button"
-            aria-label="Zoom out"
+            aria-label="View diagram"
             className="cb-mermaid-btn"
-            onClick={() => zoomBy(-0.25)}
+            onClick={() => setMode("diagram")}
           >
-            −
-         </button>
-          <button
-            type="button"
-            aria-label="Reset zoom"
-            className="cb-mermaid-btn cb-mermaid-btn-z"
-            onClick={reset}
-          >
-            {Math.round(z * 100)}%
-         </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            className="cb-mermaid-btn"
-            onClick={() => zoomBy(0.25)}
-          >
-            +
-         </button>
-          <button
-            type="button"
-            aria-label="Fit to width"
-            className="cb-mermaid-btn"
-            onClick={fitToWidth}
-          >
-            fit
+            diagram
          </button>
        </div>
+     </PreShell>
+    );
+  }
+
+  const viewport = (
+    <div
+      ref={wrapRef}
+      className={cn(
+        "cb-mermaid-viewport",
+        fullscreen && "cb-mermaid-viewport-fs",
+      )}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onWheel={onWheel}
+      onDoubleClick={onDoubleClick}
+      role="img"
+      aria-label="Interactive mermaid diagram — drag to pan, wheel or +/− to zoom, double-click to refit"
+    >
+      <div ref={innerRef} className="cb-mermaid-canvas">
+        {svg ? (
+          <div
+            className="cb-mermaid"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        ) : (
+          <div className="cb-mermaid-loading">rendering diagram…</div>
+        )}
      </div>
+       <div
+        aria-hidden={!fullscreen}
+        style={{
+          position: "absolute",
+          top: 8,
+          left: 8,
+          maxWidth: "calc(100% - 220px)",
+          padding: "4px 8px",
+          borderRadius: 6,
+          background:
+            theme === "light"
+              ? "rgba(252, 248, 233, 0.92)"
+              : "rgba(20, 20, 22, 0.78)",
+          border:
+            theme === "light"
+              ? "1px solid rgba(0, 0, 0, 0.06)"
+              : "1px solid rgba(255, 255, 255, 0.06)",
+          backdropFilter: "blur(8px)",
+          color: theme === "light" ? "#3a2a08" : "#f6e8cc",
+          fontFamily:
+            "ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace",
+          fontSize: 11,
+          letterSpacing: "0.02em",
+          lineHeight: 1.4,
+          pointerEvents: "none",
+          opacity: fsHint ? 1 : 0,
+          transform: fsHint ? "translateY(0)" : "translateY(-6px)",
+          transition:
+            "opacity 320ms ease, transform 320ms cubic-bezier(0.16, 1, 0.3, 1)",
+          zIndex: 2,
+        }}
+      >
+        Interactive mermaid diagram — drag to pan, wheel or +/- to zoom, double-click to refit
+    </div>
+     <div
+        className="cb-mermaid-chrome"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="Zoom out"
+          className="cb-mermaid-btn"
+          onClick={() => zoomBy(-0.25)}
+        >
+          −
+       </button>
+        <button
+          type="button"
+          aria-label="Reset zoom"
+          className="cb-mermaid-btn cb-mermaid-btn-z"
+          onClick={reset}
+        >
+          {Math.round(z * 100)}%
+       </button>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          className="cb-mermaid-btn"
+          onClick={() => zoomBy(0.25)}
+        >
+          +
+       </button>
+        <button
+          type="button"
+          aria-label="Fit to width"
+          className="cb-mermaid-btn"
+          onClick={fitToWidth}
+        >
+          fit
+       </button>
+        <span className="cb-mermaid-sep" aria-hidden="true" />
+        <button
+          type="button"
+          aria-label="View source"
+          className="cb-mermaid-btn"
+          onClick={() => setMode("code")}
+        >
+          code
+       </button>
+        <button
+          type="button"
+          aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          className="cb-mermaid-btn"
+          onClick={() => setFullscreen((f) => !f)}
+        >
+          {fullscreen ? "exit" : "expand"}
+       </button>
+     </div>
+   </div>
+  );
+
+  if (fullscreen) {
+    return (
+      <PreShell lang="mermaid" copyText={code} longBlock={false}>
+        <div className="cb-mermaid-fullscreen">{viewport}</div>
+     </PreShell>
+    );
+  }
+  return (
+    <PreShell lang="mermaid" copyText={code} longBlock={false}>
+      {viewport}
    </PreShell>
   );
 }

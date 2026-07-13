@@ -48,7 +48,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`dark h-full antialiased ${fontSans.variable} ${fontHeading.variable}`}
+      className={`h-full antialiased ${fontSans.variable} ${fontHeading.variable}`}
       data-scroll-behavior="smooth"
     >
       <head>
@@ -78,7 +78,7 @@ export default function RootLayout({
             Next's sanctioned loader → no warning. Key mirrors the custom
             ThemeProvider's STORAGE_KEY ("leopard-theme"). */}
         <Script id="leopard-theme-init" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem("leopard-theme");var d=document.documentElement;if(t==="light"){d.classList.remove("dark");d.classList.add("light");d.style.colorScheme="light";}else{d.classList.remove("light");d.classList.add("dark");d.style.colorScheme="dark";}}catch(e){}})();`}
+          {`(function(){var d=document.documentElement;d.classList.remove("dark","light");var apply="light";try{var t=localStorage.getItem("leopard-theme");if(t==="dark"){apply="dark";}else if(t==="light"){apply="light";}else if(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches){apply="dark";}}catch(e){}d.classList.add(apply);d.style.colorScheme=apply;})();`}
         </Script>
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground noise-overlay">
