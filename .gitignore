@@ -60,3 +60,13 @@ Thumbs.db
 
 # Misc
 *.pem
+
+# Φ9: dev-only artifacts
+/.playwright-mcp/
+/scripts/debug-*.cjs
+
+# Φ9: legacy Claude session artifacts
+/matches.txt
+
+# Φ9: dev-server debug log (env-controlled in route.ts)
+/playwright-debug.log
