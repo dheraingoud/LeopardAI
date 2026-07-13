@@ -252,7 +252,7 @@ function PreShell({
             <ChevronDown
               className={cn(
                 "h-3 w-3 transition-transform duration-200",
-                collapsed && "rotate-[-90deg]",
+                collapsed && "-rotate-90",
               )}
             />
          </button>
@@ -340,8 +340,22 @@ function MermaidBlock({ code }: { code: string }) {
   // hot path juicy smooth).
   const dragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
   const [scale, setScale] = useState(1);
-  // Pre-render only — refresh on every code change, raw render starts immediately.
+  // Track the last-rendered code so a wholly different diagram (regenerate,
+  // a new code fence in the same message) doesn't display the prior SVG while
+  // the new render bails on the first partial release.
+  const prevCodeRef = useRef<string>("");
   useEffect(() => {
+    // If the new code isn't a textual extension of what we last rendered
+    // (length shrunk past what we had, or it doesn't start with the prior
+    // code's prefix), treat it as a brand-new diagram — drop the stale SVG
+    // even if the upcoming render bails, so the user sees "rendering…"
+    // instead of a previous diagram misattributed.
+    const prev = prevCodeRef.current;
+    const isExtension = code.startsWith(prev) && code.length >= prev.length;
+    if (prev && !isExtension) {
+      setSvg(null);
+    }
+    prevCodeRef.current = code;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const render = async () => {
