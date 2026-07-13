@@ -36,7 +36,7 @@ export function StorageMonitor({
 
   return (
     <div
-      className="rounded-xl border border-white/10 p-4"
+      className="rounded-xl border dark:border-white/10 light:border-black/10 p-4"
       style={{ backgroundColor: "#0a0a0a", color: "#e5e5e5" }}
     >
       {/* Header */}

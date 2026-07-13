@@ -1,10 +1,26 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
-import { Toaster } from "sonner";
+import Script from "next/script";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToaster } from "@/components/theme-toaster";
+import { DynamicClerkProvider } from "@/components/dynamic-clerk-provider";
+import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
+
+const fontHeading = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-bricolage",
+  display: "swap",
+});
+
+const fontSans = Instrument_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-instrument",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Leopard AI",
@@ -29,81 +45,52 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        baseTheme: dark,
-        variables: {
-          colorPrimary: "#ffb400",
-          colorBackground: "#0a0a0a",
-          colorText: "#f5f5f5",
-          colorInputBackground: "rgba(255,255,255,0.03)",
-          colorInputText: "#f5f5f5",
-          borderRadius: "0.75rem",
-          fontFamily: '"Instrument Sans", "Bricolage Grotesque", sans-serif',
-        },
-        elements: {
-          card: "glass-intense !border-white/[0.08]",
-          socialButtonsBlockButton:
-            "!bg-white/[0.03] !border-white/[0.08] hover:!bg-white/[0.06] !text-[#d4d4d4]",
-          formButtonPrimary:
-            "!bg-[#ffb400] !text-black hover:!bg-[#e6a300] !font-mono",
-          footerActionLink: "!text-[#ffb400]",
-          headerTitle: "!text-white !font-mono",
-          headerSubtitle: "!text-[#525252] !font-mono",
-          identityPreviewText: "!text-[#a3a3a3]",
-          formFieldLabel: "!text-[#737373] !font-mono !text-xs",
-          formFieldInput:
-            "!bg-white/[0.03] !border-white/[0.06] !text-white !font-mono",
-          dividerLine: "!bg-white/[0.06]",
-          dividerText: "!text-[#404040]",
-        },
-      }}
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      signInForceRedirectUrl="/app"
-      signUpForceRedirectUrl="/app"
-      afterSignOutUrl="/"
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`h-full antialiased ${fontSans.variable} ${fontHeading.variable}`}
+      data-scroll-behavior="smooth"
     >
-      <html lang="en" className="dark h-full antialiased" data-scroll-behavior="smooth">
-        <head>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link
-            rel="preconnect"
-            href="https://fonts.gstatic.com"
-            crossOrigin="anonymous"
-          />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,300;10..48,400;10..48,500;10..48,700&family=Instrument+Sans:wght@400;500;600&display=swap"
-            rel="stylesheet"
-          />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Momo+Signature&display=swap"
-            rel="stylesheet"
-          />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Iosevka+Charon:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
-            rel="stylesheet"
-          />
-        </head>
-        <body className="min-h-full flex flex-col bg-black text-[#f5f5f5] noise-overlay">
-          <ConvexClientProvider>
-            <TooltipProvider delay={200}>{children}</TooltipProvider>
-          </ConvexClientProvider>
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              style: {
-                background: "rgba(17, 17, 17, 0.9)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255, 255, 255, 0.06)",
-                color: "#f5f5f5",
-                fontFamily: '"Instrument Sans", "Bricolage Grotesque", sans-serif',
-              },
-            }}
-          />
-        </body>
-      </html>
-    </ClerkProvider>
+      <head>
+        {/* Brand + mono fonts — not self-hosted via next/font, so loaded as
+            Google Fonts <link>s. Momo Signature = the leopard brand face
+            (.font-signature resolves to a local()-only @font-face, so it
+            needs this stylesheet to load at all); Iosevka Charon = mono. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Momo+Signature&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Iosevka+Charon:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
+          rel="stylesheet"
+        />
+        {/* No-flash theme init. Runs before hydration (beforeInteractive is
+            hoisted into the document header by Next) so the correct
+            dark/light class is on <html> on first paint. Replaces the raw
+            <script> next-themes rendered client-side (which tripped the
+            React 19 "script tag while rendering" dev warning). next/script is
+            Next's sanctioned loader → no warning. Key mirrors the custom
+            ThemeProvider's STORAGE_KEY ("leopard-theme"). */}
+        <Script id="leopard-theme-init" strategy="beforeInteractive">
+          {`(function(){var d=document.documentElement;d.classList.remove("dark","light");var apply="light";try{var t=localStorage.getItem("leopard-theme");if(t==="dark"){apply="dark";}else if(t==="light"){apply="light";}else if(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches){apply="dark";}}catch(e){}d.classList.add(apply);d.style.colorScheme=apply;})();`}
+        </Script>
+      </head>
+      <body className="min-h-full flex flex-col bg-background text-foreground noise-overlay">
+        <ThemeProvider>
+          <DynamicClerkProvider>
+            <ConvexClientProvider>
+              <TooltipProvider delay={200}>{children}</TooltipProvider>
+            </ConvexClientProvider>
+            <ThemeToaster />
+          </DynamicClerkProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }

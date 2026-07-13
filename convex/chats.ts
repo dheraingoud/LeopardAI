@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { requireChatOwner } from "./_auth";
+
 import { nanoid } from "nanoid";
 
 export const list = query({
@@ -18,8 +20,24 @@ export const get = query({
   handler: async (ctx, args) => {
     const chat = await ctx.db.get(args.chatId);
     if (!chat) return null;
-    
+
     // If not shared and userId doesn't match, deny (if userId provided)
+    if (!chat.shared && args.userId && chat.userId !== args.userId) {
+      return null;
+    }
+    return chat;
+  },
+});
+
+// Φ3 NEW: fetch by client UUID `id` (vercel-chatbot port routes chats by id).
+export const getById = query({
+  args: { id: v.string(), userId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_public_id", (q) => q.eq("id", args.id))
+      .first();
+    if (!chat) return null;
     if (!chat.shared && args.userId && chat.userId !== args.userId) {
       return null;
     }
@@ -42,19 +60,19 @@ export const create = mutation({
     userId: v.string(),
     title: v.string(),
     model: v.string(),
-    type: v.optional(v.string()), // 'chat', 'sql', 'playground', 'audit', 'ai-dev', 'teaching'
-    workspaceId: v.optional(v.string()),
+    // Φ3: client UUID for deferred-create flow (vercel-chatbot pattern).
+    id: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     return await ctx.db.insert("chats", {
       userId: args.userId,
       title: args.title,
       model: args.model,
-      type: args.type || "chat",
-      workspaceId: args.workspaceId,
+      id: args.id ?? nanoid(),
       shared: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     });
   },
 });
@@ -62,10 +80,7 @@ export const create = mutation({
 export const updateTitle = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), title: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
     await ctx.db.patch(args.chatId, {
       title: args.title,
       updatedAt: Date.now(),
@@ -76,10 +91,7 @@ export const updateTitle = mutation({
 export const remove = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     // Delete all messages in the chat
     const messages = await ctx.db
@@ -89,6 +101,16 @@ export const remove = mutation({
     for (const msg of messages) {
       await ctx.db.delete(msg._id);
     }
+
+    // Φ3: cascade-delete votes for this chat
+    const votes = await ctx.db
+      .query("votes")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .collect();
+    for (const voteDoc of votes) {
+      await ctx.db.delete(voteDoc._id);
+    }
+
     await ctx.db.delete(args.chatId);
   },
 });
@@ -96,11 +118,8 @@ export const remove = mutation({
 export const share = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
-    
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
+
     const shareId = nanoid(12);
     await ctx.db.patch(args.chatId, {
       shared: true,
@@ -114,10 +133,7 @@ export const share = mutation({
 export const unshare = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     await ctx.db.patch(args.chatId, {
       shared: false,
@@ -130,10 +146,7 @@ export const unshare = mutation({
 export const updateModel = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), model: v.string() },
   handler: async (ctx, args) => {
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat || chat.userId !== args.userId) {
-      throw new Error("Unauthorized or not found");
-    }
+    await requireChatOwner(ctx, args.chatId, args.userId);  // "Unauthorized or not found"
 
     await ctx.db.patch(args.chatId, {
       model: args.model,

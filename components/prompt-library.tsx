@@ -189,7 +189,7 @@ function PromptCard({
       transition={{ duration: 0.15 }}
       onClick={() => onSelect(prompt.text)}
       className={cn(
-        "group relative flex flex-col gap-1 rounded-xl border border-border/40 bg-[#111111] p-3 text-left",
+        "group relative flex flex-col gap-1 rounded-xl border border-border/40 dark:bg-[#111111] light:bg-[#f0f0f0] p-3 text-left",
         "transition-all duration-150 hover:border-[#ffb400]/40 hover:bg-[#161616]",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/50"
       )}
@@ -235,7 +235,7 @@ export function PromptLibrary({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 border-border bg-[#0a0a0a] p-0 sm:max-w-md"
+        className="flex w-full flex-col gap-0 border-border dark:bg-[#0a0a0a] light:bg-[#fafafa] p-0 sm:max-w-md"
       >
         <SheetHeader className="border-b border-border/50 px-4 pb-4 pt-5">
           <SheetTitle className="font-mono text-sm font-semibold text-[#ffb400]">
@@ -247,7 +247,7 @@ export function PromptLibrary({
               placeholder="Search prompts..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-[#111111] border-border/50 placeholder:text-muted-foreground"
+              className="pl-8 h-8 text-xs dark:bg-[#111111] light:bg-[#f0f0f0] border-border/50 placeholder:text-muted-foreground"
             />
           </div>
         </SheetHeader>
@@ -261,7 +261,7 @@ export function PromptLibrary({
               setQuery("");
             }}
             orientation="vertical"
-            className="flex h-full w-28 shrink-0 flex-col gap-1 border-r border-border/50 bg-[#0a0a0a] p-3"
+            className="flex h-full w-28 shrink-0 flex-col gap-1 border-r border-border/50 dark:bg-[#0a0a0a] light:bg-[#fafafa] p-3"
           >
             <TabsList className="flex flex-col gap-1 bg-transparent p-0">
               {CATEGORIES.map((cat) => {
