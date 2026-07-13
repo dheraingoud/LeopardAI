@@ -636,9 +636,9 @@
   50% { transform: translateY(-8px); }
 }
 
-// Φ9: removed `@keyframes grain` — was only consumed by the noise overlay
-// above, which now sits static (GPU-cached SVG turbulence). Dead keyframes
-// deleted to keep FRAMEWORK entry tidy.
+/* Φ9: removed `@keyframes grain` — was only consumed by the noise overlay
+ * above, which now sits static (GPU-cached SVG turbulence). Dead keyframes
+ * deleted to keep FRAMEWORK entry tidy. */
 
 @keyframes spotShift {
   0%   { background-position: 0% 0%; }
