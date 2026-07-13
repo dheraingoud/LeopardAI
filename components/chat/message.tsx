@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
   ChevronDown,
-  ChevronRight,
   Copy,
   Check,
   FileText,
@@ -186,14 +185,13 @@ const EFFORT_LABEL: Record<ReasoningLevel, string> = {
 };
 
 /**
- * Vercel-style reasoning card: auto-opens while the reasoning streams, then
- * auto-collapses when the answer text begins (consumes the `!text` gate the
- * caller already computes), leaving a "Thought for Ns" header + an effort
- * badge. Click re-expands; the local `expanded` state is only force-driven
- * on an `isStreamingReasoning` transition, so a manual toggle persists after.
- * The block stays NON-glass (it's content, not a popover) — amber is limited
- * to the Brain accent and the left border. Reasoning text renders as markdown
- * via StreamItDown (plain while streaming, highlighted once the answer lands).
+ * Reasoning card — auto-opens while reasoning streams, auto-collapses once the
+ * answer text begins (or the stream ends). Local click toggle persists across
+ * stream transitions. The block is non-glass content, not a popover: amber
+ * stays on the Brain accent only; the card surface is a faint amber-washed
+ * gradient so the reasoning reads as "this thinking belongs to the message"
+ * rather than as a banner. Reasoning text renders as markdown via StreamItDown
+ * (plain during streaming → syntax-highlighted once the answer lands).
  */
 function ReasoningBlock({
   content,
@@ -206,18 +204,16 @@ function ReasoningBlock({
   effort?: ReasoningLevel;
   isStreamingReasoning?: boolean;
   elapsedMs?: number;
-  /**
-   * Φ7.7 interleaved thinking — the parent stream is currently active overall
-   * (not just the reasoning phase). When the stream interleaves reasoning →
-   * text → reasoning again the card stays expanded so the user can follow
-   * the second thought batch live. Auto-collapse happens only when the WHOLE
-   * stream ends (`isStreaming` is false).
-   */
+  /** Φ7.7 — overall stream state, not just reasoning. During interleaved
+   * reasoning→text→reasoning the card stays open so the user sees the second
+   * thought batch live; auto-collapse only happens once the whole stream ends. */
   isStreaming?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  // Φ7.7: forced open while streaming, forced closed once the stream ends.
-  // User can still toggle mid-stream; auto-collapse kicks in on stream end.
+  const [expanded, setExpanded] = useState(true);
+
+  // Φ7.7 — forced open while streaming, forced closed once the whole stream
+  // ends. The auto-collapse respects manual toggles: subsequent stream
+  // transitions re-open if reasoning is actively streaming.
   useEffect(() => {
     if (isStreaming || isStreamingReasoning) {
       setExpanded(true);
@@ -226,62 +222,116 @@ function ReasoningBlock({
     }
   }, [isStreaming, isStreamingReasoning]);
 
+  const secondsShown =
+    elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;
   const headerText = isStreamingReasoning
-    ? "Thinking…"
-    : elapsedMs !== undefined
-      ? `Thought for ${Math.max(1, Math.round(elapsedMs / 1000))}s`
+    ? "Thinking"
+    : secondsShown !== null
+      ? `Thought for ${secondsShown}s`
       : "Thought process";
   const showBadge =
     !isStreamingReasoning && effort !== undefined && effort !== "off";
+  const charCount = content.length;
 
   return (
-    <div className="cb-reasoning mb-3">
-      <button
+    <div
+      className={cn(
+        "cb-reasoning mb-3 my-3 overflow-hidden rounded-2xl",
+        "border dark:border-white/[0.06] light:border-black/[0.08]",
+        // Card-within-a-card feel — amber wash sits inside the existing
+        // surface tint so the reasoning reads as part of the assistant bubble
+        // without competing for attention.
+        "dark:bg-[linear-gradient(160deg,rgba(255,180,0,0.05)_0%,rgba(255,255,255,0.02)_50%,rgba(255,255,255,0.015)_100%)]",
+        "light:bg-[linear-gradient(160deg,rgba(255,180,0,0.06)_0%,rgba(255,255,255,0.65)_60%)]",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+      )}
+    >
+     <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex items-center gap-1.5 text-[12px] dark:text-[#606060] light:text-[#737373] hover:dark:text-[#909090] hover:light:text-[#525252] transition-colors py-1"
+        className={cn(
+          "group flex w-full items-center gap-2.5 px-4 py-2.5 text-left",
+          "transition-colors duration-200",
+          "hover:dark:bg-white/[0.02] light:hover:bg-black/[0.02]",
+        )}
       >
-        <Brain className="h-3.5 w-3.5 text-[#ffb400]/50" />
-        <span className="font-mono">{headerText}</span>
+        <Brain
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 transition-colors duration-300",
+            isStreamingReasoning ? "text-[#ffb400]" : "text-[#606060]",
+          )}
+        />
+        <span
+          className={cn(
+            "text-[11px] font-semibold uppercase tracking-[0.16em]",
+            isStreamingReasoning ? "text-[#ffb400]" : "text-[#909090]",
+          )}
+        >
+          {headerText}
+     </span>
+
+        <span className="ml-1 flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
+          {isStreamingReasoning && (
+            <motion.span
+              className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffb400]"
+              animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
+          {secondsShown !== null && !isStreamingReasoning && (
+            <>
+              <span className="text-[#404040]">{"·"}</span>
+              <span>{charCount.toLocaleString()} chars</span>
+            </>
+          )}
+     </span>
+
         {showBadge && (
-          <span className="ml-1 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-tighter dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#a3a3a3] light:border-black/[0.08] light:bg-black/[0.02] light:text-[#525252]">
+          <span className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-tighter dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#a3a3a3] light:border-black/[0.08] light:bg-black/[0.02] light:text-[#525252]">
             {EFFORT_LABEL[effort as ReasoningLevel]}
-          </span>
+        </span>
         )}
-        {expanded ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronRight className="h-3 w-3" />
-        )}
-        {isStreamingReasoning && (
-          <div className="flex gap-[2px] ml-1">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-1 h-1 rounded-full bg-[#ffb400]"
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
-              />
-            ))}
-          </div>
-        )}
-      </button>
-      <AnimatePresence>
+
+        <span className="flex-1" />
+
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 text-[#606060] transition-transform duration-300 ease-out",
+            !expanded && "-rotate-90",
+          )}
+        />
+   </button>
+
+      <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
-            <div className={cn("cb-reasoning-body ml-1 mt-1 max-h-[250px] overflow-y-auto font-mono text-[0.8em] dark:text-[#737373] light:text-[#525252] leading-relaxed")}>
+            <div
+              className={cn(
+                "border-t px-4 pb-3.5 pt-1 pl-5",
+                "dark:border-white/[0.05] light:border-black/[0.06]",
+                "max-h-[420px] overflow-y-auto",
+                "text-[13.5px] leading-[1.7] tracking-[-0.005em]",
+                "dark:text-[#9a9a9a] light:text-[#404040]",
+                "whitespace-pre-wrap break-words",
+                // Reasoning markdown inside: prose typography. math / code /
+                // mermaid all render through StreamItDown (highlighted
+                // post-stream; math stripped to text mid-stream and typeset on
+                // completion).
+                "[&_.markdown-body]:text-[13.5px]",
+              )}
+            >
               <StreamItDown content={content} streaming={isStreamingReasoning} />
-        </div>
-          </motion.div>
+         </div>
+       </motion.div>
         )}
-      </AnimatePresence>
-    </div>
+   </AnimatePresence>
+ </div>
   );
 }
 
