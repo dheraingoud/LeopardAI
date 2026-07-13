@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo, useEffect } from "react";
+import { memo, useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Play,
   ChevronDown,
-  ChevronRight,
   Brain,
   ExternalLink,
   Code as CodeIcon,
@@ -136,15 +135,20 @@ function ThinkingBlock({
   const [hasFinished, setHasFinished] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
 
-  // Track elapsed reasoning time during stream; freeze on completion.
+  // Ref-tracked start; compute elapsedMs once on stream-end. Avoids the
+  // ~10 re-renders/sec a setInterval(100ms) ticker would cost during a long
+  // reasoning phase (the parent in /share/[shareId] still hands us this
+  // content verbatim — no need to blast renders for live display).
+  const startRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!isStreaming) return;
-    const start = Date.now();
-    const id = setInterval(() => setElapsedMs(Date.now() - start), 100);
-    return () => {
-      clearInterval(id);
-      setElapsedMs(Date.now() - start);
-    };
+    if (isStreaming && startRef.current === null) {
+      startRef.current = performance.now();
+      setElapsedMs(0);
+    } else if (!isStreaming && startRef.current !== null) {
+      setElapsedMs(Math.round(performance.now() - startRef.current));
+      startRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming]);
 
   // Auto-collapse when streaming stops and final answer begins.
