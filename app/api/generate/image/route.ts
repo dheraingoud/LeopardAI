@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { NIM_BASE } from "@/lib/nim";
 
 export const runtime = "nodejs";
 
@@ -7,9 +8,29 @@ const GENAI_BASE_URLS = [
   "https://ai.api.nvidia.com/v1/genai",
   "https://integrate.api.nvidia.com/v1/genai",
 ];
-const LEGACY_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
+// qwen-image + qwen-image-edit use NIM's native `/infer` namespace — the
+// older `/v1/genai/<provider>/<model>` shape is NOT used by these. Path shape:
+//   /v1/qwen/<model>/infer
+// Body shape (text-to-image):
+//   { "prompt": "…", "seed": 0, "image_size": "1024x1024" }
+// Body shape (edit):
+//   { "prompt": "…", "seed": 0, "image": "data:image/jpeg;base64,…" }
+// Response:
+//   { "artifacts": [{ "base64": "…", "seed": 0, … }] }
+// Field name is `base64` (lowercase, all ASCII — confirmed against the live
+// endpoint 2026-07-11). Resolve into a `data:image/jpeg;base64,…` URL the
+// client can hand straight to the markdown-image renderer / image-cache
+// sanitizer.
+const NIM_INFER_BASE = "https://ai.api.nvidia.com/v1";
+const QWEN_INFER_TIMEOUT_MS = 90_000;
 const IMAGE_LIMIT_PER_DAY = process.env.NODE_ENV === "development" ? 200 : 5;
 const PROVIDER_TIMEOUT_MS = 60_000;
+
+function isQwenInferModel(modelId: string): boolean {
+  return (
+    modelId.startsWith("qwen/qwen-image") || modelId.startsWith("qwen-image")
+  );
+}
 
 interface ImageModelConfig {
   nimModel: string;
@@ -76,6 +97,21 @@ const IMAGE_MODEL_CONFIGS: Record<string, ImageModelConfig> = {
       "stabilityai/stable-diffusion-xl-1.0",
     ],
   },
+  // Φ9 qwen-image + qwen-image-edit. These use NIM's native /infer namespace,
+  // NOT the /v1/genai shape (see `isQwenInferModel` + the infer branch at the
+  // top of POST). Model IDs follow NVIDIA's "qwen/qwen-image-2512"+ convention.
+  "qwen-image": {
+    nimModel: "qwen/qwen-image",
+    nimFallbackModels: ["qwen/qwen-image-2512"],
+    // The infer branch reads `nimModel` directly, but we keep an entry in
+    // genaiPaths so the legacy fallback doesn't choke on an unknown key.
+    genaiPaths: ["qwen/qwen-image", "qwen/qwen-image-2512"],
+  },
+  "qwen-image-edit": {
+    nimModel: "qwen/qwen-image-edit",
+    nimFallbackModels: ["qwen/qwen-image-edit-2511"],
+    genaiPaths: ["qwen/qwen-image-edit", "qwen/qwen-image-edit-2511"],
+  },
 };
 
 type ImageModelId = keyof typeof IMAGE_MODEL_CONFIGS;
@@ -106,6 +142,15 @@ const IMAGE_MODEL_ALIASES: Record<string, ImageModelId> = {
   "stabilityai/stable-diffusion-xl": "stable-diffusion-xl-base",
   "stabilityai/stable-diffusion-xl-base-1.0": "stable-diffusion-xl-base",
   "stabilityai/stable-diffusion-xl-1.0": "stable-diffusion-xl-base",
+  // qwen-image + qwen-image-edit (Φ9 — NVIDIA NIM native /infer namespace).
+  "qwen-image": "qwen-image",
+  "qwen-image-2512": "qwen-image",
+  "qwen/qwen-image": "qwen-image",
+  "qwen/qwen-image-2512": "qwen-image",
+  "qwen-image-edit": "qwen-image-edit",
+  "qwen-image-edit-2511": "qwen-image-edit",
+  "qwen/qwen-image-edit": "qwen-image-edit",
+  "qwen/qwen-image-edit-2511": "qwen-image-edit",
 };
 
 const quotaStore = new Map<string, number>();
@@ -133,6 +178,83 @@ function resolveModelConfig(modelInput?: string): { modelId: ImageModelId; confi
     modelId,
     config: IMAGE_MODEL_CONFIGS[modelId],
   };
+}
+
+// Φ9 — qwen-image + qwen-image-edit fast path. Hits NIM's native /infer
+// namespace with the simple {prompt, seed, image_size | image} body shape
+// (validated 2026-07-11 against the live endpoint). Response is
+// {artifacts:[{base64, seed, …}]} which we resolve to a data:image/jpeg URL
+// the existing client image-cache sanitizer (lib/image-cache) handles.
+async function handleQwenInfer(args: {
+  prompt: string;
+  modelId: "qwen-image" | "qwen-image-edit";
+  width: number;
+  height: number;
+  seed: number;
+  editImage?: string;
+  apiKey: string;
+}): Promise<{ url: string } | { error: string; status: number }> {
+  const isEdit = args.modelId === "qwen-image-edit";
+  const inferModel = isEdit ? "qwen-image-edit" : "qwen-image";
+  const url = `${NIM_INFER_BASE}/qwen/${inferModel}/infer`;
+
+  const body: Record<string, unknown> = {
+    prompt: args.prompt,
+    seed: args.seed,
+    image_size: `${args.width}x${args.height}`,
+  };
+  if (isEdit) {
+    if (!args.editImage) {
+      return { error: "editImage is required for qwen-image-edit", status: 400 };
+    }
+    body.image = args.editImage.startsWith("data:")
+      ? args.editImage
+      : `data:image/jpeg;base64,${args.editImage}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${args.apiKey}`,
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(QWEN_INFER_TIMEOUT_MS),
+    });
+  } catch (err) {
+    return {
+      error: `qwen-infer network error: ${err instanceof Error ? err.message : "unknown"}`,
+      status: 502,
+    };
+  }
+
+  const raw = await res.text();
+  let parsed: unknown = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = { raw };
+  }
+  if (!res.ok) {
+    const errorMsg = (parsed as { error?: { message?: string } })?.error?.message || `qwen-infer ${res.status}`;
+    return { error: errorMsg, status: res.status };
+  }
+
+  // `base64` (lowercase) per live endpoint schema. Accept `b64` for safety.
+  const artifacts = (parsed as { artifacts?: Array<Record<string, unknown>> })?.artifacts || [];
+  const first = artifacts[0] || {};
+  const b64 =
+    (typeof first.base64 === "string" && first.base64) ||
+    (typeof first.b64 === "string" && first.b64) ||
+    (typeof (parsed as { image?: string })?.image === "string" && (parsed as { image?: string }).image) ||
+    "";
+  if (!b64) {
+    return { error: "qwen-infer returned no image", status: 502 };
+  }
+  return { url: `data:image/jpeg;base64,${b64}` };
 }
 
 function toClampedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -542,7 +664,7 @@ async function invokeImagesApiFallback(input: {
     for (const responseFormat of ["b64_json", "url"]) {
       let res: Response;
       try {
-        res = await fetch(`${LEGACY_NIM_BASE_URL}/images/generations`, {
+        res = await fetch(`${NIM_BASE}/images/generations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -676,6 +798,36 @@ export async function POST(req: NextRequest) {
           quota: `${IMAGE_LIMIT_PER_DAY}/day`,
         },
         { status: 429 },
+      );
+    }
+
+    // Φ9 qwen-image + qwen-image-edit fast path — bypasses the legacy GenAI
+    // payload machinery (NeMo `text_prompts`) since qwen lives on NIM's native
+    // /infer shapes. Returns a base64 data URL directly to the client.
+    if (modelId === "qwen-image" || modelId === "qwen-image-edit") {
+      const qwenRes = await handleQwenInfer({
+        prompt,
+        modelId,
+        width,
+        height,
+        seed,
+        editImage,
+        apiKey,
+      });
+      if ("url" in qwenRes) {
+        quotaStore.set(key, used + 1);
+        return Response.json({
+          url: qwenRes.url,
+          usage: { used: used + 1, limit: IMAGE_LIMIT_PER_DAY },
+          model: modelConfig.nimModel,
+        });
+      }
+      return Response.json(
+        {
+          error: qwenRes.error || "qwen-infer failed",
+          usage: { used, limit: IMAGE_LIMIT_PER_DAY },
+        },
+        { status: qwenRes.status },
       );
     }
 

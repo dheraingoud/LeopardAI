@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "leopard-3001",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npx", "next", "dev", "-p", "3001"],
+      "port": 3001
+    }
+  ]
+}
