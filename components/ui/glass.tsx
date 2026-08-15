@@ -391,6 +391,24 @@ function useHydrated(): boolean {
   );
 }
 
+/**
+ * Whether to SKIP the WebGL refraction layer entirely and fall back to a plain
+ * translucent + backdrop-blur surface. True on Safari (refraction unsupported)
+ * and when the user prefers reduced motion (displacement is motion). Ambient
+ * surfaces should pick a lighter treatment when this is true.
+ */
+function useReducedGlass(): boolean {
+  const hydrated = useHydrated();
+  const reducedMotion = useSyncExternalStore(
+    subscribeHydration,
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true,
+    () => false
+  );
+  return !hydrated || isSafariBrowser() || reducedMotion;
+}
+
 interface GlassProps extends ComponentProps<"div"> {
   blur?: number;
   chroma?: number;
@@ -1312,5 +1330,12 @@ function Glass({
   );
 }
 
-export { Glass, generateLensMap, isSafariBrowser, useGlassDark, useHydrated };
+export {
+  Glass,
+  generateLensMap,
+  isSafariBrowser,
+  useGlassDark,
+  useHydrated,
+  useReducedGlass,
+};
 export type { GlassDynamics, MapParams };

@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveChat, type UIArtifact } from "@/hooks/use-active-chat";
+import { GlassSurface, useReducedGlass } from "@/components/ui/glass-surface";
 import type { ArtifactKind } from "@/lib/types";
 
 /**
@@ -79,20 +80,38 @@ export function ArtifactPanel() {
     setArtifact(null);
   };
 
+  // Reduced glass (Safari / prefers-reduced-motion): the sheet still pops from
+  // the glass engine's helium layer but refracts through a plain translucent +
+  // backdrop-blur fallback instead of the feDisplacementMap displacement map.
+  const reduced = useReducedGlass();
+
   return (
     <AnimatePresence>
       {open && artifact ? (
-        <motion.aside
+        <GlassSurface
           key="artifact-panel"
-          initial={{ x: "100%", opacity: 0.6 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: "100%", opacity: 0.6 }}
-          transition={{ type: "spring", stiffness: 320, damping: 34 }}
-          className="w-full sm:w-[480px] h-full shrink-0 border-l dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#0a0a0a] light:bg-[#faf8f1] flex flex-col min-h-0"
+          blur={20}
+          radius={20}
+          saturation={1.35}
+          specular
+          chroma={0}
+          className="absolute inset-y-3 right-3 z-20 w-[min(472px,calc(100vw-1.5rem))]"
         >
-          <PanelHeader artifact={artifact} onClose={handleClose} />
-          <PanelBody artifact={artifact} />
-        </motion.aside>
+          <motion.aside
+            initial={{ scale: 0.985, opacity: 0, y: 8 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.985, opacity: 0, y: 8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            className={`flex h-full flex-col overflow-hidden rounded-[20px] border dark:border-white/15 light:border-black/10 ${
+              reduced
+                ? "dark:bg-[#0a0a0a]/90 light:bg-[#faf8f1]/92 backdrop-blur-2xl"
+                : "dark:bg-[#0a0a0a]/78 light:bg-[#faf8f1]/78"
+            }`}
+          >
+            <PanelHeader artifact={artifact} onClose={handleClose} />
+            <PanelBody artifact={artifact} />
+          </motion.aside>
+        </GlassSurface>
       ) : null}
     </AnimatePresence>
   );
