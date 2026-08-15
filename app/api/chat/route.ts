@@ -103,7 +103,8 @@ function isFirstExchange(messages: UIMessage[]): boolean {
 async function generateTitleFromUserMessage(message: UIMessage): Promise<string> {
   const { text } = await generateText({
     model: getTitleModel(),
-    system: titlePrompt,
+    // AI SDK v7: `system` → `instructions`.
+    instructions: titlePrompt,
     prompt: getTextFromUIMessage(message),
   });
   return text
@@ -312,7 +313,8 @@ export async function POST(request: Request) {
         // `supportsTools` gates the artifact-style prompt block in prompts.ts.
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
-        system: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled }),
+        // AI SDK v7: `system` → `instructions`.
+        instructions: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
