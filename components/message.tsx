@@ -647,7 +647,7 @@ function MessageComponent({
                 urlTransform={(url) => url}
                 components={{
                   /* Block code: extract raw text, render with CodeBlock */
-                  pre({ children, ...props }) {
+                  pre({ node: _node, ref: _ref, children, ...props }) {
                     // Safely inspect the child <code> element for language class
                     const codeChild = Array.isArray(children)
                       ? children[0]
@@ -699,7 +699,7 @@ function MessageComponent({
                     );
                   },
                   /* Inline code */
-                  code({ className, children, ...props }) {
+                  code({ node: _node, ref: _ref, className, children, ...props }) {
                     return (
                       <code
                         className={cn(

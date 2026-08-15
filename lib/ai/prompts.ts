@@ -15,6 +15,8 @@
  * others so the model's behavior stays stable when they land.
  */
 
+import { getRelevantSkills, renderSkillBlocks } from "@/lib/skills";
+
 export type RequestHints = {
   longitude?: number | null;
   latitude?: number | null;
@@ -87,9 +89,12 @@ CRITICAL RULES:
 export function systemPrompt({
   requestHints,
   supportsTools,
+  context,
 }: {
   requestHints?: RequestHints;
   supportsTools: boolean;
+  /** Recent conversation text — matched against `auto` skill triggers. */
+  context?: string;
 }) {
   const base = `You are Leopard, a high-performance AI assistant.
 
@@ -109,8 +114,17 @@ ${locationLine(requestHints ?? {})}`.trim();
   // — Phase 6 turns tools on for text-model chats); when true, advertise the
   // artifact tool contract so the model emits createDocument calls instead of
   // inlining long-form content.
-  if (!supportsTools) return base;
-  return `${base}\n\n${artifactsPrompt}`.trim();
+  let prompt = supportsTools ? `${base}\n\n${artifactsPrompt}`.trim() : base;
+
+  // Internal skills: inject instruction bodies whose triggers match the recent
+  // conversation. diagram-clarity keeps mermaid well-formed so the client never
+  // surfaces a "Syntax error"; math-typeset keeps KaTeX fences valid.
+  if (context) {
+    const blocks = renderSkillBlocks(getRelevantSkills(context));
+    if (blocks) prompt = `${prompt}${blocks}`;
+  }
+
+  return prompt;
 }
 
 export const titlePrompt = `
