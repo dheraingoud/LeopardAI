@@ -290,6 +290,12 @@ export async function POST(request: Request) {
   const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
   const titlePromise = firstUser ? generateTitleFromUserMessage(firstUser) : null;
 
+  // 8b. Latest question text → drives auto-skill injection (diagram-clarity when
+  //     the user asks for a diagram, math-typeset when asking for math).
+  const promptContext = lastUserMessage(messages)?.parts
+    ?.map((p) => (p.type === "text" ? p.text : ""))
+    .join(" ");
+
   // 9. Build the UIMessage stream.
   const stream = createUIMessageStream({
       // TEMP-DBG: catch any error from streamText + merge so we see the actual
@@ -314,7 +320,7 @@ export async function POST(request: Request) {
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
         // AI SDK v7: `system` → `instructions`.
-        instructions: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled }),
+        instructions: systemPrompt({ requestHints: {}, supportsTools: webFetchEnabled, context: promptContext }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
