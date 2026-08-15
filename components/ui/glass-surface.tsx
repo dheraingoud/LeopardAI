@@ -5,7 +5,9 @@ import {
   isSafariBrowser,
   useGlassDark,
   useHydrated,
+  useReducedGlass,
 } from "@/components/ui/glass";
+export { useReducedGlass };
 import { cn } from "@/lib/utils";
 import {
   type ComponentProps,
