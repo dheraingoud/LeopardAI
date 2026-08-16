@@ -52,6 +52,34 @@ const MANIFEST: SkillMeta[] = [
     triggers: [],
     auto: true,
   },
+  {
+    name: "code-review",
+    description:
+      "Slash-trigger. Reviews code adversarially with a prioritized, actionable findings list.",
+    triggers: ["/review", "review this", "audit this code", "code review"],
+    auto: true,
+  },
+  {
+    name: "explain-sql",
+    description:
+      "Slash-trigger. Explains a SQL query step by step, including index analysis.",
+    triggers: ["/explain", "explain this query", "explain sql"],
+    auto: true,
+  },
+  {
+    name: "debug-mode",
+    description:
+      "Slash-trigger. Debugs with a root-cause focus, never symptoms-first.",
+    triggers: ["/debug", "debug this"],
+    auto: true,
+  },
+  {
+    name: "optimize",
+    description:
+      "Slash-trigger. Optimizes perf with a measure-before-decide rule and explicit tradeoffs.",
+    triggers: ["/optimize", "optimize this", "make this faster"],
+    auto: true,
+  },
 ];
 
 /** Read one skill's markdown body from disk. */
