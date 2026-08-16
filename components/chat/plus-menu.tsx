@@ -62,7 +62,7 @@ return (
               size={36}
               tint={0.12}
               title="Add attachment"
-              className="dark:text-[#a3a3a3] light:text-[#525252]"
+              className="max-sm:h-11! max-sm:w-11! dark:text-[#a3a3a3] light:text-[#525252]"
             >
               <Plus className="h-4 w-4" />
             </GlassButton>

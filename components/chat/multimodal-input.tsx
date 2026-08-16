@@ -229,6 +229,7 @@ export function MultimodalInput() {
                   tint={0.2}
                   onClick={() => stop()}
                   title="Stop"
+                  className="max-sm:h-11! max-sm:w-11!"
                 >
                   <Square className="h-3.5 w-3.5 fill-current text-[#ffb400]" />
                 </GlassButton>
@@ -241,7 +242,9 @@ export function MultimodalInput() {
                   tintColor={canSend ? "255,180,0" : undefined}
                   disabled={!canSend}
                   title="Send"
-                  className={canSend ? "text-black dark:text-black" : undefined}
+                  className={`max-sm:h-11! max-sm:w-11! ${
+                    canSend ? "text-black dark:text-black" : ""
+                  }`}
                 >
                   <Send className="h-3.5 w-3.5" />
                 </GlassButton>
