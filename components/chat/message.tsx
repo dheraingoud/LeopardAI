@@ -363,6 +363,9 @@ export const PreviewMessage = memo(function PreviewMessage({
   // standard AI SDK v6 UseChatHelpers return value.
   const chat = useActiveChat();
   const { currentReasoning } = chat;
+  // Suggested follow-up chips (ephemeral, set by use-active-chat after the
+  // assistant stream finishes). Tap → populates the composer.
+  const suggestions = chat.suggestionsByMessage[message.id] ?? [];
   const [copiedUser, setCopiedUser] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
@@ -626,6 +629,26 @@ export const PreviewMessage = memo(function PreviewMessage({
                 <ThumbsDown className="h-3 w-3" />
             </button>
           </div>
+          )}
+
+          {/* Suggested follow-up chips — tap fills the composer, no auto-send */}
+          {!isStreaming && !isUser && suggestions.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("composer:set-text", { detail: { text: s } }),
+                    )
+                  }
+                  className="rounded-full border border-amber-500/20 bg-amber-500/[0.04] px-3 py-1.5 font-mono text-[12px] leading-tight text-left text-amber-700 dark:text-amber-200 transition-colors hover:bg-amber-500/10 hover:border-amber-500/30"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           )}
         </div>
     </motion.div>
