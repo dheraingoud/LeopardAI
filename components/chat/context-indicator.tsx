@@ -37,7 +37,7 @@ export function ContextIndicator({ contextWindow, text, attachmentCount }: Props
 
   return (
     <div
-      className="shrink-0 flex items-center self-center"
+      className="hidden sm:flex shrink-0 items-center self-center"
       title={
         known
           ? `${used.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (est.)`
