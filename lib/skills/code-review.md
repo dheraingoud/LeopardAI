@@ -21,6 +21,22 @@ List findings from most to least severe. For each finding:
 - **Fix**: exact change (a diff-shaped snippet when the fix is algorithmic, the corrected line when it is a typo/bug)
 - **Why**: one-line justification for why the fix is correct
 
+**Example (few-shot — mirror this shape, never review invented code):**
+**Input:**
+```ts
+function sum(a, b) {
+  return a.charAt(0) + b;
+}
+```
+**Output:**
+```
+- High — Location: sum(a,b)
+- Problem: sums strings not numbers; `a.charAt(0)` silently truncates to one char.
+- Fix: `return a + b` (coerce via Number() if inputs are `string | number`).
+- Why: the name promises numeric addition; returning a string corrupts the caller.
+Verdict: Needs revision.
+```
+
 ## Positives (brief)
 
 Only add this if there is something genuinely well-done worth protecting. Skip it on trivial code.
