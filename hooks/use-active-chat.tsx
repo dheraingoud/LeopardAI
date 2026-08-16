@@ -94,6 +94,8 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   artifact: UIArtifact | null;
   /** Close/clear the artifact panel. Φ6. */
   setArtifact: (a: UIArtifact | null) => void;
+  /** Suggested follow-up questions per assistant message id (ephemeral, not persisted). */
+  suggestionsByMessage: Record<string, string[]>;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -205,6 +207,30 @@ export function ActiveChatProvider({
   const [artifact, setArtifactState] = useState<UIArtifact | null>(null);
   const setArtifact = useCallback((a: UIArtifact | null) => {
     setArtifactState(a);
+  }, []);
+  // Suggested follow-up chips: messageId → string[]. Ephemeral (never Convex);
+  // populated fire-and-forget after an assistant stream finishes.
+  const [suggestionsByMessage, setSuggestionsByMessage] = useState<
+    Record<string, string[]>
+  >({});
+
+  // Fire the /api/suggest request for a finished assistant message. No-op on
+  // error / no key → the message just renders without chips.
+  const requestSuggestions = useCallback(async (messageId: string, text: string) => {
+    try {
+      const res = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, modelId: currentModelIdRef.current }),
+      });
+      if (!res.ok) return;
+      const { suggestions } = (await res.json()) as { suggestions?: string[] };
+      if (Array.isArray(suggestions) && suggestions.length > 0) {
+        setSuggestionsByMessage((prev) => ({ ...prev, [messageId]: suggestions }));
+      }
+    } catch {
+      /* cosmetic — no chips is fine */
+    }
   }, []);
   // Accumulate the full doc content across deltas — refs are read sync inside
   // onData (state is async-batched → would race per-token). Plus id/kind/title
@@ -445,8 +471,16 @@ export function ActiveChatProvider({
         model: currentModelIdRef.current,
       });
       void touchChat({ chatId: convexChatId });
+
+      // Suggested follow-up chips: fire-and-forget, never blocks the reply.
+      const assistantText = sanitizedParts
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { text?: string }).text ?? "")
+        .join(" ")
+        .trim();
+      if (assistantText) void requestSuggestions(last.id, assistantText);
     }
-  }, [chat.messages, chat.status, convexChatId, messagesSend, touchChat]);
+  }, [chat.messages, chat.status, convexChatId, messagesSend, requestSuggestions, touchChat]);
 
   // ── Model change (local state + persist) ───────────────────────────────────
   const setCurrentModel = (id: string) => {
@@ -476,6 +510,7 @@ export function ActiveChatProvider({
     setReasoning,
     artifact,
     setArtifact,
+    suggestionsByMessage,
   };
 
   return (
