@@ -144,6 +144,86 @@ export async function persistAssistantRow(input: {
   await c.mutation(internal.messages.upsertAssistant as never, args);
 }
 
+// ── Enterprise cost observability (Φ-docs / admin-setup) ────────────────────
+type UsageInput = {
+  chatId: string;
+  userId: string;
+  model: string;
+  provider?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  durationMs?: number;
+  estimatedCostUsd?: number;
+};
+
+function toUsageInput(
+  chatId: string,
+  userId: string,
+  model: string,
+  usage: unknown,
+  durationMs: number,
+): UsageInput {
+  const u = (usage ?? {}) as Record<string, number>;
+  const input = u.promptTokens ?? u.inputTokens ?? u.input ?? 0;
+  const output = u.completionTokens ?? u.outputTokens ?? u.output ?? 0;
+  const total = u.totalTokens ?? input + output;
+  return {
+    chatId,
+    userId,
+    model,
+    inputTokens: typeof input === "number" ? input : 0,
+    outputTokens: typeof output === "number" ? output : 0,
+    totalTokens: typeof total === "number" ? total : input + output,
+    durationMs,
+  };
+}
+
+/** Persist one usage row (real provider tokens) from the generation. */
+export async function recordUsage(input: UsageInput): Promise<void> {
+  const c = convexClient();
+  if (!c) return; // no admin key → nothing to record
+  try {
+    await c.mutation(internal.usage.record as never, {
+      chatId: input.chatId,
+      userId: input.userId,
+      model: input.model,
+      provider: input.provider ?? undefined,
+      inputTokens: input.inputTokens,
+      outputTokens: input.outputTokens,
+      totalTokens: input.totalTokens,
+      durationMs: input.durationMs ?? undefined,
+      estimatedCostUsd: input.estimatedCostUsd ?? undefined,
+      ts: Date.now(),
+    } as never);
+  } catch (err) {
+    logWarn("usage record failed", err);
+  }
+}
+
+/**
+ * True when a user has consumed ≥ LEOPARD_DAILY_TOKEN_CAP tokens in the last
+ * 24h. Cap off unless LEOPARD_DAILY_TOKEN_CAP is set to a positive integer.
+ * The route calls this before streaming and returns 429 when over.
+ */
+export async function isOverDailyTokenCap(userId: string): Promise<boolean> {
+  const cap = Number(process.env.LEOPARD_DAILY_TOKEN_CAP ?? 0);
+  if (!(cap > 0)) return false;
+  const c = convexClient();
+  if (!c) return false;
+  try {
+    const since = Date.now() - 24 * 60 * 60 * 1000;
+    const total = (await c.query(
+      internal.usage.sumTokensSince as never,
+      { userId, since } as never,
+    )) as unknown;
+    return typeof total === "number" && total >= cap;
+  } catch (err) {
+    logWarn("daily cap check failed", err);
+    return false; // fail-open on check failure (observability gap, not auth)
+  }
+}
+
 /** Minimal structured logger — persists failures must be observable (review m10). */
 function logWarn(msg: string, err?: unknown): void {
   const detail = err instanceof Error ? `: ${err.message}` : err ? `: ${String(err)}` : "";
@@ -254,6 +334,7 @@ export function backgroundServe(args: {
 
   let settled = false;
   let generationAborted = false;
+  const genStart = Date.now();
 
   // ── M11: immediate streaming placeholder (reload before first chunk → bubble) ─
   // ── M4: ALL Convex writes serialized on one chain so the final `completed`
@@ -378,6 +459,19 @@ export function backgroundServe(args: {
           status: "completed",
         }),
       );
+
+      // Enterprise cost observability: persist real per-request usage from the
+      // provider / streamText result (Φ-docs admin-setup). Failures are logged,
+      // never fatal to the generation.
+      let usage: unknown;
+      try {
+        usage = await result.usage;
+      } catch {
+        usage = undefined;
+      }
+      void recordUsage(
+        toUsageInput(chatId, userId, (model as string) ?? "", usage, Date.now() - genStart),
+      ).catch(() => {});
     } catch (err) {
       generationAborted = ctrl.signal.aborted;
       emit({ type: "error", error: errMsg(err) });
