@@ -19,7 +19,7 @@
 import { gateway, type LanguageModel } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { NIM_BASE } from "@/lib/nim";
-import { getModelById, getUtilityModel } from "@/lib/ai/models";
+import { getDefaultChatModel, getModelById, getUtilityModel } from "@/lib/ai/models";
 
 // openai-compatible@3.0.5 emits `specificationVersion: "v4"`, but ai@6's
 // `resolveLanguageModel` only accepts "v2" or "v3" — v4 is rejected with
@@ -54,8 +54,18 @@ export function getLanguageModel(modelId: string): LanguageModel {
   if (model?.provider === "nim") {
     return asV3(nimProvider.chatModel(modelId) as unknown as LanguageModel);
   }
-  // gateway (or any id not in the registry) → Vercel AI Gateway.
-  return gateway.languageModel(modelId) as unknown as LanguageModel;
+  if (model?.provider === "gateway") {
+    return gateway.languageModel(modelId) as unknown as LanguageModel;
+  }
+  // Unknown id → NEVER silently relay to an arbitrary provider. In the old
+  // code any non-nim id (including a client-crafted string) fell through to
+  // `gateway.languageModel(id)`, which would proxy to whatever provider/endpoint
+  // that id named once an AI_GATEWAY_API_KEY was present — an open relay for
+  // model-id injection. The /api/chat route now allowlists explicit requests
+  // and fails loudly on unknown ids, so a bad id reaching here is a bug in a
+  // caller. Fail to the trusted server default instead of relaying. getDefaultChatModel()
+  // always resolves to an active registry id, so this recursion is depth-1.
+  return getLanguageModel(getDefaultChatModel().id);
 }
 
 export function getTitleModel(): LanguageModel {
