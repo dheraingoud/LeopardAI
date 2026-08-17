@@ -30,6 +30,7 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import {
   backgroundServe,
   createGenerationController,
+  isOverDailyTokenCap,
 } from "@/lib/ai/server-generation";
 import { redact } from "@/lib/redact";
 
@@ -237,6 +238,16 @@ export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId && !BYPASS_CLERK) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Φ-docs: per-user daily token cap (LEOPARD_DAILY_TOKEN_CAP, off by default).
+  // Fail-closed BEFORE burning any model spend once the operator-set budget is
+  // exhausted. No admin key / cap unset → check is a no-op.
+  if (await isOverDailyTokenCap(userId ?? DEV_USER_ID)) {
+    return Response.json(
+      { error: "daily_token_cap_reached", message: "Daily generation limit reached. Try again tomorrow." },
+      { status: 429 },
+    );
   }
 
   // 3. Resolve model id → registry default if absent/unknown.
