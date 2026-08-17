@@ -10,7 +10,7 @@
  * Surface area:
  *   url        — the URL to fetch (must be http/https)
  *   max_bytes  — capped read size so a giant page doesn't blow the prompt
- *                window; default 50_000 (~ one screen of plain text)
+ *                window; default 40_000 (~ one screen of reading text)
  *
  * Returns a JSON shape with `content` (text/plain, HTML stripped) and
  * `truncated` (boolean — true if the upstream body exceeded max_bytes so the
@@ -70,16 +70,32 @@ const HTML_ENTITIES: Array<[RegExp, string]> = [
 ];
 
 /**
- * Strip script/style blocks then HTML tags, collapse whitespace. Good enough
- * for the model's reading; not a sanitiser (no need — already server-side).
- * Cheap regex pass over a 50 KB cap → completes well under 50 ms.
+ * Strip frameworks' noisy shell to a clean reading surface, then tags →
+ * text. Beyond script/style, drops the boilerplate that dominates Next.js /
+ * SPA pages (nav, header, footer, aside, iFrames, hidden RSC payloads, inline
+ * JSON) so a 200 KB appliance page degrades to a few KB of the actual
+ * content the model cares about — no more "truncated at ~200KB due to
+ * framework serialization" in answers. Cheap regex passes over a bounded
+ * input; not a sanitiser (server-side only).
  */
 function htmlToText(raw: string): string {
-  let s = raw
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<[^>]+>/g, " ");
+  // Remove whole noise subtrees before any tag stripping so their inner text
+  // (nav labels, cookie banners, hidden RSC JSON) never becomes "content".
+  const drop = [
+    /<script[\s\S]*?<\/script>/gi,
+    /<style[\s\S]*?<\/style>/gi,
+    /<noscript[\s\S]*?<\/noscript>/gi,
+    /<template[\s\S]*?<\/template>/gi,
+    /<!--[\s\S]*?-->/g,
+    /<(nav|header|footer|aside|iframe)[\s>][\s\S]*?<\/\1>/gi,
+    // Next.js RSC / framework wire data are dumped as hidden text nodes /
+    // divs consumed by the client — strip them. (script/style already gone;
+    // these catch the JSON blobs Next embeds as visible body text.)
+    /<[^>]*data-rsc-collection[^>]*>[\s\S]*?<\/div>/gi,
+  ];
+  let s = raw;
+  for (const re of drop) s = s.replace(re, "");
+  s = s.replace(/<[^>]+>/g, " ");
   for (const [re, sub] of HTML_ENTITIES) s = s.replace(re, sub);
   return s.replace(/\s+/g, " ").trim();
 }
@@ -104,9 +120,9 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
         .number()
         .int()
         .min(1024)
-        .max(200_000)
+        .max(120_000)
         .optional()
-        .describe("Cap on response body size in bytes (default 50000)."),
+        .describe("Cap on response body size in bytes (default 40000)."),
     }),
     execute: async (
       { url, max_bytes = MAX_BYTES_DEFAULT },

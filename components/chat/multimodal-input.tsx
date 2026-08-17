@@ -7,6 +7,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
+import { ReasoningControl } from "./reasoning-control";
 import { PlusMenu } from "./plus-menu";
 import { ContextIndicator } from "./context-indicator";
 import { uploadFile } from "@/lib/upload";
@@ -25,6 +26,8 @@ export function MultimodalInput() {
     status,
     stop,
     currentModelId,
+    currentReasoning,
+    setReasoning,
   } = useActiveChat();
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<
@@ -177,7 +180,7 @@ export function MultimodalInput() {
         )}
         <form
           onSubmit={handleSubmit}
-          className="relative rounded-[1.75rem] ring-1 ring-white/5 dark:ring-white/5 light:ring-black/5 p-1.5 transition-shadow focus-within:ring-[#ffb400]/40"
+          className="group relative rounded-[1.75rem] ring-1 ring-white/5 dark:ring-white/5 light:ring-black/5 p-1.5 transition-shadow focus-within:ring-[#ffb400]/40"
         >
           <GlassSurface
             radius={22}
@@ -204,6 +207,17 @@ export function MultimodalInput() {
                 className="flex-1 resize-none bg-transparent text-[15px] leading-[1.6] dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] outline-none py-2 px-1 min-h-[36px] max-h-[240px]"
               />
               <ModelSelectorCompact />
+              {/* Reasoning toggler — hidden until the composer row is hovered,
+                  then fades in beside the model selector (single source of truth
+                  for the effort pick; model-selector no longer owns one). */}
+              <span className="opacity-0 -translate-x-1 transition-all duration-200 group-focus-within:opacity-100 group-hover:opacity-100 group-hover:translate-x-0 max-sm:hidden">
+                <ReasoningControl
+                  modelId={currentModelId}
+                  caps={{ reasoningConfig: modelConfig?.reasoningConfig }}
+                  current={currentReasoning}
+                  onChange={setReasoning}
+                />
+              </span>
               <ContextIndicator
                 contextWindow={ctxWin}
                 text={input}

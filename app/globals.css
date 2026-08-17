@@ -1344,6 +1344,13 @@ pre code {
   }
 }
 
+/* Mesh-globe spin — wireframe sphere slowly rotates while a web tool runs.
+   transform-only (GPU), matches the thinking card's motion language. */
+@keyframes cb-meshspin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* KaTeX (math) — light/warm theme overrides to keep the math paper-toned.
    Raised formula size (2026-08-17): inline = 1.22em, display blocks larger. */
 .markdown-body .katex {
