@@ -33,6 +33,7 @@ import {
   backgroundServe,
   createGenerationController,
   isOverDailyTokenCap,
+  recordAudit,
 } from "@/lib/ai/server-generation";
 import { redact } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
@@ -420,7 +421,20 @@ export async function POST(request: Request) {
             approvalRules,
             approveNone ? "deny" : approveAll ? "allow" : "ask",
           );
-          return d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
+          const decision = d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
+          // Φ-docs: append the gate decision to the enterprise tool-audit trail
+          // (who/what-tool/when/was-it-approved). Fire-and-forget; a failed
+          // write is logged, never fatal to the stream.
+          void recordAudit({
+            assistantId,
+            chatId: realChatId,
+            userId: userId ?? DEV_USER_ID,
+            event: "approval",
+            toolName: toolName ?? "",
+            decision,
+            reason: d.reason,
+          });
+          return decision;
         };
 
         result = streamText({
@@ -452,6 +466,41 @@ export async function POST(request: Request) {
           tools,
           stopWhen: stepCountIs(3),
         }),
+        // Φ-docs: enterprise tool-execution audit. onStepFinish fires once per
+        // stream step; the `tool` step carries the toolCalls the model issued
+        // and the toolResults the runner produced. We append a ROW PER EXECUTED
+        // TOOL with redacted+truncated input + output summary. Approvals are
+        // audited separately in toolApprovalDecision. Fire-and-forget.
+        onStepFinish: (step: any) => {
+          if (step?.stepType !== "tool") return;
+          const calls: any[] = Array.isArray(step.toolCalls) ? step.toolCalls : [];
+          const results: any[] = Array.isArray(step.toolResults) ? step.toolResults : [];
+          if (calls.length === 0 && results.length === 0) return;
+          for (const tc of calls) {
+            const name = String(tc?.toolName ?? tc?.name ?? "");
+            const input = tc?.input ?? tc?.args;
+            const out = results.find(
+              (r) => r?.toolCallId === tc?.toolCallId || r?.toolName === name,
+            );
+            const output = out?.result;
+            const isError = !!output && typeof output === "object" && "error" in output;
+            try {
+              void recordAudit({
+                assistantId,
+                chatId: realChatId,
+                userId: userId ?? DEV_USER_ID,
+                event: isError ? "tool-error" : "tool-execution",
+                toolName: name,
+                inputJson: String(redact(JSON.stringify(input ?? null))).slice(0, 2000),
+                outputSummary: String(
+                  redact(typeof output === "string" ? output : JSON.stringify(output ?? "")),
+                ).slice(0, 4000),
+              });
+            } catch {
+              /* audit is best-effort */
+            }
+          }
+        },
         // Sprint 2 / Φ-docs approval layer — delegating to the rules engine
         // (deny>allow>ask). Generic fn inspects the tool name; the typed param
         // is narrowed via the toolCall.

@@ -144,4 +144,27 @@ export default defineSchema({
   })
     .index("by_user_ts", ["userId", "ts"])
     .index("by_chat", ["chatId"]),
+
+  // Φ-docs · enterprise tool audit trail — append-only log of every gate
+  // decision + tool execution the model runs. Written via internal.audit.record
+  // (internalMutation; no public client surface). Immutable: insert-only.
+  toolAuditLog: defineTable({
+    assistantId: v.string(),
+    chatId: v.id("chats"),
+    userId: v.string(),
+    event: v.union(
+      v.literal("approval"),
+      v.literal("tool-execution"),
+      v.literal("tool-error"),
+    ),
+    toolName: v.string(),
+    decision: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    inputJson: v.optional(v.string()),
+    outputSummary: v.optional(v.string()),
+    ts: v.number(),
+  })
+    .index("by_user_ts", ["userId", "ts"])
+    .index("by_chat_ts", ["chatId", "ts"])
+    .index("by_assistant", ["assistantId"]),
 });

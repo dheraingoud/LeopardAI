@@ -201,6 +201,42 @@ export async function recordUsage(input: UsageInput): Promise<void> {
   }
 }
 
+// ── Enterprise tool audit trail (Φ-docs) ─────────────────────────────────────
+type AuditInput = {
+  assistantId: string;
+  chatId: string;
+  userId: string;
+  event: "approval" | "tool-execution" | "tool-error";
+  toolName: string;
+  decision?: string;
+  reason?: string;
+  inputJson?: string;
+  outputSummary?: string;
+};
+
+/** Append one tool-audit row (approval gate or execution). Best-effort: logs a
+ * warning on failure, never throws into the generation. */
+export async function recordAudit(input: AuditInput): Promise<void> {
+  const c = convexClient();
+  if (!c) return; // no admin key → observability gap, not a failure
+  try {
+    await c.mutation(internal.audit.record as never, {
+      assistantId: input.assistantId,
+      chatId: input.chatId,
+      userId: input.userId,
+      event: input.event,
+      toolName: input.toolName,
+      decision: input.decision ?? undefined,
+      reason: input.reason ?? undefined,
+      inputJson: input.inputJson ?? undefined,
+      outputSummary: input.outputSummary ?? undefined,
+      ts: Date.now(),
+    } as never);
+  } catch (err) {
+    logWarn("audit record failed", err);
+  }
+}
+
 /**
  * True when a user has consumed ≥ LEOPARD_DAILY_TOKEN_CAP tokens in the last
  * 24h. Cap off unless LEOPARD_DAILY_TOKEN_CAP is set to a positive integer.
