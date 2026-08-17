@@ -33,6 +33,7 @@ import {
   isOverDailyTokenCap,
 } from "@/lib/ai/server-generation";
 import { redact } from "@/lib/redact";
+import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
 export const runtime = "nodejs";
@@ -363,19 +364,34 @@ export async function POST(request: Request) {
         // Sprint 2 — permission gating (deny→ask→allow). With
         // ENABLE_TOOL_APPROVAL=1, webFetch triggers a `tool-approval-request`
         // (client renders an AskCard → Allow/Deny → `tool-approval-response`
-        // before the tool runs). Policy:
-        //   - TOOL_APPROVAL_POLICY=allow → auto-approve everything (no cards)
-        //   - TOOL_APPROVAL_POLICY=deny  → auto-deny everything
-        //   - default (ask) → webSearch auto-allows (read-only search),
-        //     webFetch asks (arbitrary-url network fetch). Unset → no approval
-        //     layer; tools run as in Sprint 1.
+        // before the tool runs).
+        //
+        // Φ-docs (hooks/mcp): operator-declarative rules via TOOL_APPROVAL_RULES,
+        // e.g. "webSearch=allow,webFetch=ask,^mcp__=deny" — per-tool regex
+        // matchers with deny>allow>ask precedence (any deny vetoes). Global
+        // TOOL_APPROVAL_POLICY (allow/deny/ask) remains; legacy default (ask)
+        // still auto-approves the read-only webSearch. Rules unset → policy alone.
         const approvalEnabled = process.env.ENABLE_TOOL_APPROVAL === "1";
+        const hadRules = process.env.TOOL_APPROVAL_RULES;
+        const approvalRules = parseApprovalRules(hadRules);
         const approveAll =
           approvalEnabled && process.env.TOOL_APPROVAL_POLICY === "allow";
         const approveNone =
           approvalEnabled && process.env.TOOL_APPROVAL_POLICY === "deny";
+        // Approval layer is active when tools are on + EITHER rules exist (their
+        // deny veto must apply even under an otherwise-allow policy) OR the
+        // legacy ask/deny policy is in effect.
         const approveOn =
-          supportsTools && approvalEnabled && !approveAll && !approveNone;
+          supportsTools && approvalEnabled && (approvalRules.length > 0 || !approveAll);
+
+        const toolApprovalDecision = (toolName: string | undefined): "approved" | "denied" | "user-approval" => {
+          const d = resolveApproval(
+            toolName ?? "",
+            approvalRules,
+            approveNone ? "deny" : approveAll ? "allow" : "ask",
+          );
+          return d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
+        };
 
         result = streamText({
         model: getLanguageModel(modelId),
@@ -406,16 +422,15 @@ export async function POST(request: Request) {
           tools,
           stopWhen: stepCountIs(3),
         }),
-        // Sprint 2 approval layer. Generic fn inspects the tool name; the
-        // typed param is narrowed via the toolCall. webSearch auto-passes
-        // (safe read-only), webFetch requires the user's AskCard allow.
+        // Sprint 2 / Φ-docs approval layer — delegating to the rules engine
+        // (deny>allow>ask). Generic fn inspects the tool name; the typed param
+        // is narrowed via the toolCall.
         ...(approveOn && {
           toolApproval: async ({
             toolCall,
           }: {
             toolCall?: { toolName?: string };
-          }) =>
-            toolCall?.toolName === "webSearch" ? "approved" : "user-approval",
+          }) => toolApprovalDecision(toolCall?.toolName),
         }),
         });
       } catch (err) {
