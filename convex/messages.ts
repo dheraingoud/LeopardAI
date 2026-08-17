@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { requireChatOwner } from "./_auth";
 
 
@@ -72,6 +72,76 @@ export const send = mutation({
       }
       throw new Error("Failed to send message. Please try again.");
     }
+  },
+});
+
+// Φ10: server-owned assistant persistence (#3 background generation).
+//
+// The /api/chat route now owns the assistant reply end-to-end so a browser
+// reload/exit doesn't lose it. This mutation is the server's write primitive,
+// called with `adminAuth` by a ConvexHttpClient in the route — Convex's own
+// auth is bypassed, so the route (the Clerk trust boundary) is what asserts the
+// real owner. Ownership is enforced here by DATA: requireChatOwner compares the
+// userId the ROUTE passed (its verified Clerk subject / dev bypass) against the
+// chat's stored userId. Safe: only a route that already passed Clerk auth can
+// name a userId, and Convex refuses if that user doesn't own the chat.
+//
+// Create-or-patch by the message's client id (UIMessage.id) — a streaming row
+// is inserted at generation start (parts:[], status:"streaming"), progressively
+// patched as parts accumulate, and patched final on completion. The debounced
+// writer is idempotent: repeated patches of the same id converge on one row,
+// so a stray double-fire can't create duplicates.
+export const upsertAssistant = internalMutation({
+  args: {
+    chatId: v.id("chats"),
+    userId: v.string(),
+    id: v.string(),
+    model: v.optional(v.string()),
+    parts: v.array(v.any()),
+    status: v.optional(
+      v.union(v.literal("streaming"), v.literal("completed"))
+    ),
+  },
+  returns: v.object({
+    _id: v.id("messages"),
+    id: v.string(),
+    createdAt: v.optional(v.number()),
+    updated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId); // "Unauthorized or not found"
+
+    // m7 (review): scope the existence lookup by BOTH chatId and client id via
+    // the composite `by_chat_public_id` index, so a colliding id in a different
+    // chat can never mutate an unrelated row.
+    const existing = await ctx.db
+      .query("messages")
+      .withIndex("by_chat_public_id", (q) =>
+        q.eq("chatId", args.chatId).eq("id", args.id)
+      )
+      .first();
+
+    if (existing) {
+      const patch: Record<string, unknown> = {
+        parts: args.parts,
+        role: "assistant", // exact-match the inserted shape so the row stays uniform
+      };
+      if (args.status !== undefined) patch.status = args.status;
+      if (args.model !== undefined) patch.model = args.model;
+      await ctx.db.patch(existing._id, patch);
+      return { _id: existing._id, id: args.id, createdAt: existing.createdAt, updated: true };
+    }
+
+    const inserted = await ctx.db.insert("messages", {
+      id: args.id,
+      chatId: args.chatId,
+      role: "assistant",
+      parts: args.parts,
+      ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.status !== undefined ? { status: args.status } : {}),
+      createdAt: Date.now(),
+    });
+    return { _id: inserted, id: args.id, createdAt: undefined, updated: false };
   },
 });
 
