@@ -340,6 +340,221 @@ function ReasoningBlock({
   );
 }
 
+// Φ10 web tool card — an inline, expandable card documenting a webSearch /
+// webFetch call, styled to match the thinking card (same chroma, same
+// shimmer, same collaborate-on-stream feel). Header reads like the reasoning
+// one: a small MESH GLOBE (wireframe sphere) inline + "calling webFetch: url"
+// while live, then "Fetched [url] · 0.8s" once it completes. Expandable to
+// inspect input (query/url) + output summary.
+function ToolCard({
+  toolName,
+  state,
+  input,
+  output,
+}: {
+  toolName: string;
+  state: string;
+  input?: unknown;
+  output?: unknown;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const isSearch = toolName === "webSearch";
+  const pending = state === "streaming" || state === "pending" || state === "loading";
+  const verb = isSearch ? "searching web" : toolName;
+
+  // Elapsed clock — starts when the card mounts pending, freezes on complete.
+  // Mirrors the reasoning tracker: live → ticking, done → "Fetched in Ns".
+  const startRef = useRef<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (pending) {
+      if (startRef.current === null) startRef.current = performance.now();
+      const id = setInterval(() => {
+        if (startRef.current !== null)
+          setElapsedMs(performance.now() - startRef.current);
+      }, 100);
+      return () => clearInterval(id);
+    }
+    if (startRef.current !== null) {
+      setElapsedMs(performance.now() - startRef.current);
+      startRef.current = null;
+    }
+    return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
+
+  const seconds = elapsedMs !== undefined ? Math.max(0.1, elapsedMs / 1000).toFixed(1) : null;
+
+  // Human-readable summary of what the tool did (query string / url host path).
+  let summary = "";
+  if (isSearch && input && typeof input === "object") {
+    const q = (input as { query?: string }).query;
+    if (q) summary = q;
+  } else if (!isSearch && input && typeof input === "object") {
+    const u = (input as { url?: string }).url;
+    if (typeof u === "string") summary = u.replace(/^https?:\/\//, "");
+  }
+  // Result line for the open state.
+  let resultLine = "";
+  let resultOk = true;
+  if (isSearch && output && typeof output === "object") {
+    const res = (output as { results?: Array<{ url?: string; title?: string }> }).results;
+    if (Array.isArray(res)) {
+      resultOk = res.length > 0;
+      const top = res[0];
+      if (top) resultLine = top.title || top.url || "";
+      if (res.length > 1) resultLine += ` (+${res.length - 1} more)`;
+    } else if ((output as { error?: string }).error) {
+      resultLine = (output as { error: string }).error;
+      resultOk = false;
+    }
+  } else if (!isSearch && output && typeof output === "object") {
+    const o = output as { status?: number; truncated?: boolean; bytes_read?: number; error?: string };
+    if (o.error) {
+      resultLine = o.error;
+      resultOk = false;
+    } else resultLine = `HTTP ${o.status} · ${o.bytes_read ?? 0} B` + (o.truncated ? " (truncated)" : "");
+  }
+
+  const copyUrl = () => {
+    if (!isSearch && summary) {
+      navigator.clipboard.writeText((input as { url?: string }).url ?? summary);
+      setCopiedUrl(true);
+      toast.success("Copied URL");
+      setTimeout(() => setCopiedUrl(false), 1600);
+    }
+  };
+
+  const urlLabel = isSearch ? "search" : "url";
+
+  return (
+    <div className={cn("cb-tool my-3 overflow-hidden rounded-2xl", "border dark:border-white/[0.06] light:border-black/[0.08]", "dark:bg-white/[0.02] light:bg-black/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]")}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "group flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors duration-200",
+          "hover:dark:bg-white/[0.02] hover:light:bg-black/[0.02]",
+        )}
+      >
+        {/* Mesh globe — wireframe sphere, shimmers on the leading edge while live. */}
+        <span className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center overflow-visible">
+          <MeshGlobe
+            className={cn(
+              "h-[18px] w-[18px] transition-colors duration-300",
+              pending ? "text-[#ffb400]" : resultOk ? "text-[#5f8bff]" : "text-red-400",
+            )}
+            animate={pending}
+          />
+          {pending && (
+            <span className="absolute inset-0 animate-pulse">
+              <span className="absolute inset-0 rounded-full bg-[#ffb400]/25 blur-[3px]" />
+            </span>
+          )}
+        </span>
+
+        <span
+          className={cn(
+            "min-w-0 text-[11px] font-semibold uppercase tracking-[0.14em]",
+            pending ? "text-[#ffb400]" : resultOk ? "text-[#909090]" : "text-red-400",
+          )}
+        >
+          {pending ? `${verb}…` : resultOk ? "fetched" : "failed"}
+        </span>
+
+        <span className="flex min-w-0 flex-1 items-center gap-1">
+          {pending ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
+              <span className="glimmer-track" aria-hidden="true">
+                <span className="glimmer-sweep" />
+              </span>
+              <span className="truncate text-[#ffb400]/90">{summary}</span>
+            </span>
+          ) : seconds !== null ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
+              <span className="text-[#404040]">·</span>
+              <span>{seconds}s</span>
+              {summary && <span className="truncate text-[#909090]">{summary}</span>}
+            </span>
+          ) : null}
+        </span>
+
+        <span className="flex-1" />
+
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-[#606060] transition-transform duration-300 ease-out",
+            !open && "-rotate-90",
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-1.5 border-t px-4 py-3 dark:border-white/[0.05] light:border-black/[0.06] text-[12px] leading-[1.7] dark:text-[#9a9a9a] light:text-[#404040]">
+              <p className="flex items-start gap-1.5">
+                <span className="mt-px shrink-0 text-[10px] font-mono uppercase tracking-tighter dark:text-[#505050] light:text-[#9a9a9a]">{urlLabel}</span>
+                <span className="break-all">{summary}</span>
+              </p>
+              {resultLine && (
+                <p className="flex items-start gap-1.5">
+                  <span className="mt-px shrink-0 text-[10px] font-mono uppercase tracking-tighter dark:text-[#505050] light:text-[#9a9a9a]">result</span>
+                  <span className="break-words">{resultLine}</span>
+                </p>
+              )}
+              {summary && !isSearch && (
+                <button
+                  type="button"
+                  onClick={copyUrl}
+                  className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#e5e5e5] hover:light:text-[#1f1607] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors"
+                >
+                  {copiedUrl ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+                  {copiedUrl ? "Copied" : "Copy URL"}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// MeshGlobe — a minimal wireframe sphere (meridian + latitude ellipses), so
+// the tool card carries the "browser sphere" mark the thinking card implies.
+// While `animate` it slowly rotates + pulses its leading arc (shimmer).
+function MeshGlobe({ className, animate }: { className?: string; animate?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      className={className}
+      style={animate ? { animation: "cb-meshspin 3.2s linear infinite" } : undefined}
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="5"
+      strokeLinecap="round"
+    >
+      {/* longitudes near view edge + center meridian */}
+      <ellipse cx="50" cy="50" rx="30" ry="49" />
+      <ellipse cx="50" cy="50" rx="49" ry="49" />
+      {/* latitudes */}
+      <ellipse cx="50" cy="50" rx="49" ry="14" />
+      <ellipse cx="50" cy="50" rx="49" ry="30" />
+      {/* equator */}
+      <line x1="1" y1="50" x2="99" y2="50" />
+    </svg>
+  );
+}
+
 export const PreviewMessage = memo(function PreviewMessage({
   message,
   isLast,
@@ -425,14 +640,22 @@ export const PreviewMessage = memo(function PreviewMessage({
   // thought blocks inline at the position where the model actually reasoned
   // (reasoning → answer → second thought = three segments), instead of
   // dumping every thought above the whole answer.
+  // Φ10 (web tools): tool-call / tool-result parts become `tool` segments at
+  // their stream position, so a search→fetch sequence renders as two inline
+  // cards where they happened, not a lump at the top or bottom.
   const segments = useMemo(() => {
     if (isUser) return [] as Array<
-      { kind: "text"; content: string } | { kind: "reasoning"; content: string }
+      | { kind: "text"; content: string }
+      | { kind: "reasoning"; content: string }
+      | { kind: "tool"; toolName: string; state: string; input?: unknown; output?: unknown }
     >;
+    type Seg = (typeof out)[number];
     const out: Array<
-      { kind: "text"; content: string } | { kind: "reasoning"; content: string }
+      | { kind: "text"; content: string }
+      | { kind: "reasoning"; content: string }
+      | { kind: "tool"; toolName: string; state: string; input?: unknown; output?: unknown }
     > = [];
-    let cur: (typeof out)[number] | null = null;
+    let cur: Seg | null = null;
     for (const p of message.parts) {
       if (p.type === "reasoning") {
         const content = ((p as { text?: string }).text ?? "").trim();
@@ -452,6 +675,43 @@ export const PreviewMessage = memo(function PreviewMessage({
         } else {
           cur.content += content;
         }
+      } else if (p.type === "tool-call" || p.type === "tool-result") {
+        const tp = p as {
+          type: string;
+          toolName?: string;
+          state?: string;
+          args?: unknown;
+          input?: unknown;
+          output?: unknown;
+        };
+        const toolName = tp.toolName ?? "tool";
+        // Fresh segment per tool part (don't coalesce tool cards) — but merge
+        // a tool-result into the preceding tool-call if one exists so the two
+        // halves of a tool round render as ONE card (call → state → result).
+        const last = out[out.length - 1] as Seg | undefined;
+        if (
+          p.type === "tool-result" &&
+          last &&
+          last.kind === "tool" &&
+          last.toolName === toolName &&
+          (last.state === "pending" || last.state === "streaming")
+        ) {
+          last.state = tp.state ?? "complete";
+          last.output = tp.output ?? last.output;
+          continue;
+        }
+        cur = {
+          kind: "tool",
+          toolName,
+          state: tp.state ?? "pending",
+          // UIMessage tool-call / tool-result parts both carry the input
+          // (the schema-mapped args) on `input`, never `args` (that's the old
+          // provider stream shape). Read `input` for both so the card renders
+          // e.g. "calling webfetch: <url>".
+          input: tp.input ?? undefined,
+          output: tp.output ?? undefined,
+        };
+        out.push(cur);
       }
     }
     return out;
@@ -613,6 +873,18 @@ export const PreviewMessage = memo(function PreviewMessage({
                   isStreamingReasoning={live}
                   elapsedMs={reasoningMs}
                   isStreaming={live}
+                />
+              );
+            }
+            if (seg.kind === "tool") {
+              const live = isStreaming && isLast && seg.state !== "complete";
+              return (
+                <ToolCard
+                  key={`t-${i}`}
+                  toolName={seg.toolName}
+                  state={live ? "streaming" : seg.state}
+                  input={seg.input}
+                  output={seg.output}
                 />
               );
             }
