@@ -466,39 +466,40 @@ export async function POST(request: Request) {
           tools,
           stopWhen: stepCountIs(3),
         }),
-        // Φ-docs: enterprise tool-execution audit. onStepFinish fires once per
-        // stream step; the `tool` step carries the toolCalls the model issued
-        // and the toolResults the runner produced. We append a ROW PER EXECUTED
-        // TOOL with redacted+truncated input + output summary. Approvals are
-        // audited separately in toolApprovalDecision. Fire-and-forget.
-        onStepFinish: (step: any) => {
-          if (step?.stepType !== "tool") return;
-          const calls: any[] = Array.isArray(step.toolCalls) ? step.toolCalls : [];
-          const results: any[] = Array.isArray(step.toolResults) ? step.toolResults : [];
-          if (calls.length === 0 && results.length === 0) return;
-          for (const tc of calls) {
-            const name = String(tc?.toolName ?? tc?.name ?? "");
+        // Φ-docs: enterprise tool-execution audit. onToolExecutionEnd fires per
+        // tool execution with toolCall (toolName/toolCallId/input) + toolOutput
+        // (result, or `error` for a failed run). Append ONE ROW PER EXECUTED
+        // TOOL with redacted+truncated input + output summary; failed runs are
+        // flagged event:"tool-error". Approvals are audited separately in
+        // toolApprovalDecision. Fire-and-forget — never fails the stream.
+        onToolExecutionEnd: (event: any) => {
+          try {
+            const tc = event?.toolCall ?? {};
+            const name = String(tc?.toolName ?? "");
             const input = tc?.input ?? tc?.args;
-            const out = results.find(
-              (r) => r?.toolCallId === tc?.toolCallId || r?.toolName === name,
-            );
-            const output = out?.result;
-            const isError = !!output && typeof output === "object" && "error" in output;
-            try {
-              void recordAudit({
-                assistantId,
-                chatId: realChatId,
-                userId: userId ?? DEV_USER_ID,
-                event: isError ? "tool-error" : "tool-execution",
-                toolName: name,
-                inputJson: String(redact(JSON.stringify(input ?? null))).slice(0, 2000),
-                outputSummary: String(
-                  redact(typeof output === "string" ? output : JSON.stringify(output ?? "")),
-                ).slice(0, 4000),
-              });
-            } catch {
-              /* audit is best-effort */
-            }
+            const out = event?.toolOutput;
+            const isErr =
+              !!out && typeof out === "object" && "error" in (out as object);
+            const value = isErr
+              ? (out as { error?: unknown })?.error ?? out
+              : typeof out === "object" && out && "fullOutput" in (out as object)
+                ? (out as { fullOutput?: unknown }).fullOutput
+                : out;
+            void recordAudit({
+              assistantId,
+              chatId: realChatId,
+              userId: userId ?? DEV_USER_ID,
+              event: isErr ? "tool-error" : "tool-execution",
+              toolName: name,
+              inputJson: String(redact(JSON.stringify(input ?? null))).slice(0, 2000),
+              outputSummary: String(
+                redact(
+                  typeof value === "string" ? value : JSON.stringify(value ?? ""),
+                ),
+              ).slice(0, 4000),
+            });
+          } catch {
+            /* audit is best-effort */
           }
         },
         // Sprint 2 / Φ-docs approval layer — delegating to the rules engine
