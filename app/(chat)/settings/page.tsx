@@ -12,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MODELS } from "@/types";
-import { useState } from "react";
 import { toast } from "sonner";
+import { useConvex } from "convex/react";
+import { useState } from "react";
+import { useSettingsStore } from "@/hooks/use-settings-store";
 
 function SettingRow({ label, description, children }: {
   label: string; description?: string; children: React.ReactNode;
@@ -36,9 +38,11 @@ export default function SettingsPage() {
   const updateSettings = useMutation(api.users.updateSettings);
   const deleteChat = useMutation(api.chats.remove);
   const chats = useQuery(api.chats.list, user ? { userId: user.id } : "skip");
-  const [sendWithEnter, setSendWithEnter] = useState(true);
-  const [streaming, setStreaming] = useState(true);
+  const convex = useConvex();
+  const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
+  const setSendWithEnter = useSettingsStore((s) => s.setSendWithEnter);
   const defaultModel = dbUser?.defaultModel || "minimax-m2.7";
+  const [deleting, setDeleting] = useState(false);
 
   const handleModelChange = async (modelId: string | null) => {
     if (!user || !modelId) return;
@@ -47,11 +51,52 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAll = async () => {
-    if (!chats) return;
-    for (const chat of chats) {
-      await deleteChat({ chatId: chat._id, userId: user!.id });
+    if (!chats || chats.length === 0 || !user) return;
+    if (!window.confirm(`Delete all ${chats.length} conversations? This is permanent and cannot be undone.`)) {
+      return;
     }
-    toast.success("All conversations deleted");
+    setDeleting(true);
+    try {
+      for (const chat of chats) {
+        await deleteChat({ chatId: chat._id, userId: user.id });
+      }
+      toast.success("All conversations deleted");
+    } catch {
+      toast.error("Failed to delete conversations");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    if (!chats || chats.length === 0) return;
+    let md = `# Leopard conversations\n\n`;
+    try {
+      for (const chat of chats) {
+        md += `\n## ${chat.title ?? "Untitled"}\n\n`;
+        const msgs = await convex.query(api.messages.list, { chatId: chat._id });
+        for (const m of msgs) {
+          const role = m.role === "assistant" ? "Leopard" : "You";
+          const text =
+            m.content ??
+            (m.parts ?? [])
+              .filter((p: { type?: string }) => p.type === "text")
+              .map((p: { text?: string }) => p.text ?? "")
+              .join("");
+          md += `**${role}:**\n\n${text}\n\n`;
+        }
+      }
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "leopard-chats.md";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Exported all conversations");
+    } catch {
+      toast.error("Export failed");
+    }
   };
 
   const TABS = [
@@ -110,7 +155,7 @@ export default function SettingsPage() {
                 <span className="text-xs font-mono text-[#ffb400] px-2 py-1 rounded-md dark:bg-[#ffb40010] light:bg-[#d4960010]">Dark</span>
               </SettingRow>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
-              <SettingRow label="Send with Enter" description="Shift+Enter for new line">
+              <SettingRow label="Send with Enter" description="Enter sends, Shift+Enter for a new line">
                 <Switch checked={sendWithEnter} onCheckedChange={setSendWithEnter} className="data-[state=checked]:bg-[#ffb400]" />
               </SettingRow>
             </div>
@@ -135,9 +180,6 @@ export default function SettingsPage() {
                 </Select>
               </SettingRow>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
-              <SettingRow label="Streaming" description="Stream responses in real-time">
-                <Switch checked={streaming} onCheckedChange={setStreaming} className="data-[state=checked]:bg-[#ffb400]" />
-              </SettingRow>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">
@@ -169,7 +211,7 @@ export default function SettingsPage() {
               </SettingRow>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
               <SettingRow label="Export All" description="Download as Markdown">
-                <Button variant="outline" size="sm" className="text-xs font-mono dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5">
+                <Button variant="outline" size="sm" onClick={handleExportAll} disabled={!chats || chats.length === 0} className="text-xs font-mono dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 disabled:opacity-40">
                   Export <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               </SettingRow>
@@ -181,8 +223,8 @@ export default function SettingsPage() {
               <h3 className="text-sm font-semibold font-mono text-red-400 mb-1">Danger Zone</h3>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <SettingRow label="Delete All Conversations" description={`${chats?.length || 0} chats — permanent`}>
-                <Button variant="outline" size="sm" className="text-xs font-mono border-red-500/20 text-red-400 hover:bg-red-500/10" onClick={handleDeleteAll}>
-                  Delete All
+                <Button variant="outline" size="sm" disabled={deleting} className="text-xs font-mono border-red-500/20 text-red-400 hover:bg-red-500/10 disabled:opacity-40" onClick={handleDeleteAll}>
+                  {deleting ? "Deleting…" : "Delete All"}
                 </Button>
               </SettingRow>
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />

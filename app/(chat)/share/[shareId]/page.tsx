@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { motion } from "framer-motion";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import MessageList from "@/components/message-list";
+import { SharedThread } from "@/components/chat/shared-thread";
 
 export default function SharedChatPage() {
   const params = useParams();
@@ -42,23 +42,7 @@ export default function SharedChatPage() {
       </div>
 
       {messages ? (
-        // Interim shim: legacy MessageList expects `content: string` (required),
-        // but Phase 3 made `parts` the source of truth + `content` optional.
-        // Derive content from text parts when the legacy field is absent.
-        // Phase 9 rewrites share with the parts-based renderer.
-        <MessageList
-          messages={messages.map((m) => ({
-            _id: m._id,
-            role: m.role,
-            content:
-              m.content ??
-              (m.parts ?? [])
-                .map((p) => (p.type === "text" ? (p as { text: string }).text : ""))
-                .join(""),
-            model: m.model,
-            createdAt: m.createdAt,
-          }))}
-        />
+        <SharedThread messages={messages} />
       ) : chat === null ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-sm font-mono dark:text-[#404040] light:text-[#a3a3a3]">This shared chat is not available</p>
@@ -67,7 +51,7 @@ export default function SharedChatPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 w-[500px] rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse" />
+              <div key={i} className="h-16 w-[min(500px,86vw)] rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse" />
             ))}
           </div>
         </div>

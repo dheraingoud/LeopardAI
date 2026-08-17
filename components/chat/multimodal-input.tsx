@@ -5,12 +5,11 @@ import { Send, Square, X } from "lucide-react";
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { GlassButton } from "@/components/ui/glass-button";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
 import { PlusMenu } from "./plus-menu";
 import { ContextIndicator } from "./context-indicator";
-import { ReasoningControl } from "./reasoning-control";
 import { uploadFile } from "@/lib/upload";
-import type { ReasoningLevel } from "@/lib/nim";
 import { getModelById } from "@/lib/ai/models";
 
 /**
@@ -26,8 +25,6 @@ export function MultimodalInput() {
     status,
     stop,
     currentModelId,
-    currentReasoning,
-    setReasoning,
   } = useActiveChat();
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<
@@ -80,12 +77,8 @@ export function MultimodalInput() {
   // attach — non-VLM image-edit still rejects non-image media in addFiles.
   const modelImageEdit = modelConfig?.supportsImageEdit ?? false;
   const ctxWin = modelConfig?.contextWindow;
-  const modelReasoning = modelConfig
-    ? {
-        reasoning: modelConfig.supportsReasoning,
-        reasoningConfig: modelConfig.reasoningConfig,
-      }
-    : undefined;
+
+  const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
 
   const isStreaming = status === "submitted" || status === "streaming";
   const hasContent = input.trim().length > 0 || attachments.length > 0;
@@ -134,7 +127,10 @@ export function MultimodalInput() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    // sendWithEnter=true (default): Enter sends, Shift+Enter newline.
+    // sendWithEnter=false: Enter newline, Shift+Enter sends.
+    const sendKey = sendWithEnter ? !e.shiftKey : e.shiftKey;
+    if (e.key === "Enter" && sendKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit();
     }
@@ -208,14 +204,6 @@ export function MultimodalInput() {
                 className="flex-1 resize-none bg-transparent text-[15px] leading-[1.6] dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] outline-none py-2 px-1 min-h-[36px] max-h-[240px]"
               />
               <ModelSelectorCompact />
-              {modelReasoning?.reasoning && (
-                <ReasoningControl
-                  modelId={currentModelId}
-                  caps={modelReasoning}
-                  current={currentReasoning}
-                  onChange={(l: ReasoningLevel) => setReasoning(l)}
-                />
-              )}
               <ContextIndicator
                 contextWindow={ctxWin}
                 text={input}

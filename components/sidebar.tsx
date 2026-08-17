@@ -328,7 +328,7 @@ export default function Sidebar({
                             <span className="truncate text-sm font-body flex-1">
                               {chat.title}
                             </span>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                            <div className="action-reveal flex items-center">
                               <DropdownMenu>
                                 <DropdownMenuTrigger
                                   render={
@@ -428,7 +428,7 @@ export default function Sidebar({
       className={cn(
         "dark:bg-[#070605] light:bg-[#f8f8f8] border-r dark:border-white/[0.04] light:border-black/[0.05] shrink-0",
         isMobile
-          ? "sidebar-mobile"
+          ? cn("sidebar-mobile", !sidebarOpen && "-translate-x-full")
           : overlayDesktop
             ? "fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] flex flex-col h-full shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
             : "flex flex-col h-full"

@@ -51,16 +51,6 @@
   --shadow-glow: 0 0 20px rgba(255, 180, 0, 0.15);
   --shadow-glow-intense: 0 0 40px rgba(255, 180, 0, 0.25);
 
-  /* Spacing scale */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-8: 48px;
-  --space-10: 64px;
-
   /* Shadcn mappings */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -133,6 +123,9 @@
   --chart-3: #b34700;
   --chart-4: #993d00;
   --chart-5: #803300;
+  /* Typography System — mirror .dark so light never inherits stale vars */
+  --font-display: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
+  --font-body: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
 
   /* Leopard brand tokens (light values) */
   --leopard-amber: #d49600;
@@ -155,8 +148,7 @@
   --leopard-overlay-light: rgba(0, 0, 0, 0.03);
   --leopard-overlay-medium: rgba(0, 0, 0, 0.05);
   --leopard-border-faint: rgba(0, 0, 0, 0.04);
-  --canvas-grid-color: rgba(0, 0, 0, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
@@ -205,7 +197,6 @@
   --sidebar-accent-foreground: #ffb400;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #ffb400;
-  --canvas-grid-color: rgba(255, 255, 255, 0.06);
 
   /* Leopard brand tokens (dark values) */
   --leopard-amber: #ffb400;
@@ -238,36 +229,6 @@
   /* Typography System */
   --font-display: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
   --font-body: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
-}
-
-/* Keep .dark class identical for shadcn compatibility */
-.dark {
-  --background: #0a0907;
-  --foreground: #f5f5f5;
-  --card: #100e0b;
-  --card-foreground: #f5f5f5;
-  --popover: #14110d;
-  --popover-foreground: #f5f5f5;
-  --primary: #ffb400;
-  --primary-foreground: #000000;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #f5f5f5;
-  --muted: #1a1a1a;
-  --muted-foreground: #737373;
-  --accent: #ffb400;
-  --accent-foreground: #000000;
-  --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.12);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: #ffb400;
-  --sidebar: #070605;
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #ffb400;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: rgba(255, 180, 0, 0.08);
-  --sidebar-accent-foreground: #ffb400;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #ffb400;
 }
 
 /* ─── Base Styles ─── */
@@ -493,22 +454,6 @@
 .light .text-leopard-amber { color: #d49600; }
 .light .bg-leopard-amber { background: #d49600; }
 .light .border-leopard-amber { border-color: #d49600; }
-
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 180, 0, 0.2);
-}
 
 /* ─── Leopard Texture Background ─── */
 .leopard-texture {
@@ -817,16 +762,7 @@ pre code {
     z-index: 50;
     width: 280px;
     max-width: 85vw;
-  }
-}
-
-/* Canvas panel full-width on mobile */
-@media (max-width: 768px) {
-  .canvas-mobile {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100% !important;
-    z-index: 50;
+    transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -1023,36 +959,51 @@ pre code {
   background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.2));
 }
 
-/* Firefox scrollbar */
+/* Firefox scrollbar (thin + theme-aware thumb). WebKit handled by the
+   token-based ::-webkit-scrollbar block above. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.1)) transparent;
 }
 
-.scrollbar-thin {
-  scrollbar-width: thin;
+/* Reveal-on-hover controls (message action bars, chat kebab). Subtle on
+   desktop hover / keyboard focus; ALWAYS visible on coarse pointers — touch
+   has no :hover, so hover-only opacity made these unreachable on mobile. */
+.action-reveal {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.group:hover .action-reveal,
+.group:focus-within .action-reveal,
+.action-reveal:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .action-reveal {
+    opacity: 1;
+  }
 }
 
-/* ─── ReactFlow Canvas Overrides ─── */
-.react-flow__controls {
-  gap: 4px;
+/* Greeting lens breath — CSS-driven (no rAF). Reduced-motion honored. */
+@keyframes glass-breath {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }
-.react-flow__controls button {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px !important;
-  border: none !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.glass-breath {
+  animation: glass-breath 8s ease-in-out infinite;
+  will-change: transform, opacity;
 }
-.react-flow__controls button svg {
-  width: 14px;
-  height: 14px;
-}
-/* Make nodes not get clipped by the canvas */
-.react-flow__node {
-  will-change: transform;
+@media (prefers-reduced-motion: reduce) {
+  .glass-breath {
+    animation: none;
+  }
 }
 
 /* ─── StreamItDown: shiki dual-theme token swap + code-block chrome ─── */
@@ -1205,14 +1156,46 @@ pre code {
 }
 .markdown-body .cb-mermaid svg {
   display: block;
-  max-width: none;
+  max-width: 100%;
   height: auto;
+  margin: 0 auto;
 }
 .markdown-body .cb-mermaid-loading {
   padding: 12px 14px;
   color: #707070;
   font-size: 11px;
   font-family: var(--font-mono);
+}
+/* Inline (no-canvas) mermaid: a plain centered column that expands down the
+   page like normal chat content. The "view source" toggle is a quiet mono
+   row, not a floating box. */
+.markdown-body .cb-mermaid-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 4px 0;
+}
+.markdown-body .cb-mermaid-sourcebtn {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  color: #606060;
+  transition: color 120ms ease, opacity 120ms ease;
+  opacity: 0.65;
+}
+.markdown-body .cb-mermaid-sourcebtn:hover {
+  color: #ffb400;
+  opacity: 1;
+}
+.light .markdown-body .cb-mermaid-sourcebtn {
+  color: #8a6d2f;
 }
 /* Floating chrome — top-right, minimal & quiet. Anti-ai-slop: no icons, just text. */
 .markdown-body .cb-mermaid-chrome {
@@ -1314,14 +1297,86 @@ pre code {
   border-color: rgba(0, 0, 0, 0.06);
 }
 
-/* KaTeX (math) — light/warm theme overrides to keep the math paper-toned. */
+/* Right-to-left glimmer sweep — the live "Thinking" indicator. A short light
+   band rides a thin amber track, sweeping from the right edge to the left and
+   fading at both ends. GPU-friendly (transform + opacity only). */
+.glimmer-track {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  width: 34px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 180, 0, 0.14);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.glimmer-sweep {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 42%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    270deg,
+    rgba(255, 180, 0, 0),
+    rgba(255, 200, 60, 0.95) 50%,
+    rgba(255, 180, 0, 0)
+  );
+  animation: glimmer-rl 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+@keyframes glimmer-rl {
+  0%, 8% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-76px); /* clears the 34px track + sweep width */
+    opacity: 0;
+  }
+}
+
+/* KaTeX (math) — light/warm theme overrides to keep the math paper-toned.
+   Raised formula size (2026-08-17): inline = 1.22em, display blocks larger. */
 .markdown-body .katex {
-  font-size: 1.02em;
+  font-size: 1.22em;
 }
 .markdown-body .katex-display {
-  margin: 12px 0;
+  margin: 14px auto;
   padding: 4px 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  /* central align — katex-display is inline-flow (never a pan/zoom canvas) */
+  text-align: center;
+  max-width: 100%;
+}
+.markdown-body .katex-display .katex {
+  font-size: 1.3em;
+}
+
+/* Inline SVG fence — centered, self-scaled by its own viewBox. */
+.markdown-body .cb-svg-viewport {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 16px;
+  overflow-x: auto;
+}
+.markdown-body .cb-svg-art svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
 }
 .light .markdown-body .katex {
   color: #1f1607;

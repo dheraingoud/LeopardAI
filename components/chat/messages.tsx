@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { Glass, type GlassDynamics } from "@/components/ui/glass";
-import { prefersReducedMotion } from "@/components/ui/glass-motion";
 import { MouseGlow } from "@/components/ui/mouse-glow";
 
 /**
@@ -88,25 +87,10 @@ export function Messages() {
  * is typically sub-second. `prefersReducedMotion` freezes the drift.
  */
 function Greeting() {
+  // Static lens — the breath is now a pure CSS keyframe on the amber bloom
+  // (GPU-composited, honors prefers-reduced-motion). Kills a perpetual 60fps
+  // JS rAF that ran forever on an idle empty chat.
   const dynamicsRef = useRef<GlassDynamics | null>({ zoom: 1, depthMul: 1 });
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    const start = performance.now();
-    // ~5s breath cycle, zoom oscillates 1.00 → 1.18 → 1.00.
-    const OMEGA = (2 * Math.PI) / 5;
-    const AMP = 0.18;
-    const step = (now: number) => {
-      const t = (now - start) / 1000;
-      if (dynamicsRef.current) {
-        dynamicsRef.current.zoom = 1 + AMP * (0.5 + 0.5 * Math.sin(t * OMEGA));
-      }
-      rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
@@ -140,7 +124,7 @@ function Greeting() {
           lens={<div data-glass-lens className="absolute inset-0 rounded-[2.5rem]" />}
         >
           {/* The bitmap the lens refracts — a soft amber radial bloom. */}
-          <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
+          <div className="glass-breath absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
         </Glass>
       </div>
       {/* Amber identity text — crisp, above the lens (never enters Glass). */}

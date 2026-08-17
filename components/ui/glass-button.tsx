@@ -98,7 +98,7 @@ function GlassButton({
   return (
     <button
       className={cn(
-        "relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center text-[#1d1d1f] outline-none focus-visible:outline-2 focus-visible:outline-[#9896ff] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#f5f5f7]",
+        "relative inline-flex shrink-0 cursor-pointer select-none items-center justify-center text-[#1d1d1f] outline-none focus-visible:outline-2 focus-visible:outline-[#ffb400] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#f5f5f7]",
         className
       )}
       onKeyDown={(e) => {
