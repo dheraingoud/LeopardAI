@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -278,6 +278,11 @@ function ReasoningBlock({
               transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
             />
           )}
+          {isStreamingReasoning && (
+            <span className="glimmer-track" aria-hidden="true">
+              <span className="glimmer-sweep" />
+            </span>
+          )}
           {secondsShown !== null && !isStreamingReasoning && (
             <>
               <span className="text-[#404040]">{"·"}</span>
@@ -415,6 +420,45 @@ export const PreviewMessage = memo(function PreviewMessage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.id, text]);
 
+  // Φ9 interleaved thinking — walk the parts in stream order and collapse
+  // consecutive runs into alternating text / reasoning segments. This keeps
+  // thought blocks inline at the position where the model actually reasoned
+  // (reasoning → answer → second thought = three segments), instead of
+  // dumping every thought above the whole answer.
+  const segments = useMemo(() => {
+    if (isUser) return [] as Array<
+      { kind: "text"; content: string } | { kind: "reasoning"; content: string }
+    >;
+    const out: Array<
+      { kind: "text"; content: string } | { kind: "reasoning"; content: string }
+    > = [];
+    let cur: (typeof out)[number] | null = null;
+    for (const p of message.parts) {
+      if (p.type === "reasoning") {
+        const content = ((p as { text?: string }).text ?? "").trim();
+        if (!content) continue;
+        if (!cur || cur.kind !== "reasoning") {
+          cur = { kind: "reasoning", content };
+          out.push(cur);
+        } else {
+          cur.content += "\n" + content;
+        }
+      } else if (p.type === "text") {
+        const content = (p as { text?: string }).text ?? "";
+        if (!content) continue;
+        if (!cur || cur.kind !== "text") {
+          cur = { kind: "text", content };
+          out.push(cur);
+        } else {
+          cur.content += content;
+        }
+      }
+    }
+    return out;
+  }, [message.parts, isUser]);
+
+  const textSegCount = segments.filter((s) => s.kind === "text").length;
+
   const handleCopy = () => {
     navigator.clipboard.writeText(renderText);
     setCopied(true);
@@ -499,7 +543,7 @@ export const PreviewMessage = memo(function PreviewMessage({
       >
         <div className="max-w-[68ch] ml-auto text-right">
           <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-foreground/85 text-right">{text}</p>
-          <div className="flex items-center justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
             <button
               type="button"
               onClick={handleCopyUser}
@@ -553,19 +597,37 @@ export const PreviewMessage = memo(function PreviewMessage({
             <PulseLoader size="sm" label="Working on it…" />
           )}
 
-          {reasoning && (
-            <ReasoningBlock
-              content={reasoning}
-              effort={currentReasoning}
-              isStreamingReasoning={isStreaming && !text}
-              elapsedMs={reasoningMs}
-              isStreaming={isStreaming}
-            />
-          )}
-
-          {renderText && (
-            <StreamItDown content={renderText} streaming={isStreaming} />
-          )}
+          {segments.map((seg, i) => {
+            const isLast = i === segments.length - 1;
+            if (seg.kind === "reasoning") {
+              // A reasoning segment is "live" (open, thinking pulse) only while
+              // the whole stream is active AND it's still the tail of the
+              // message. Once later text supersedes it, it collapses to the
+              // muted "Thought" pill.
+              const live = isStreaming && isLast;
+              return (
+                <ReasoningBlock
+                  key={`r-${i}`}
+                  content={seg.content}
+                  effort={currentReasoning}
+                  isStreamingReasoning={live}
+                  elapsedMs={reasoningMs}
+                  isStreaming={live}
+                />
+              );
+            }
+            // Image placeholders hydrate against the full text concatenation;
+            // only apply that swap when there's a single text run.
+            const segText =
+              textSegCount === 1 && renderText ? renderText : seg.content;
+            return (
+              <StreamItDown
+                key={`t-${i}`}
+                content={segText}
+                streaming={isStreaming}
+              />
+            );
+          })}
 
           {isStreaming && text && (
             <motion.span
@@ -584,7 +646,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           )}
 
           {!isStreaming && renderText && (
-            <div className="flex items-center gap-0.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="flex items-center gap-0.5 mt-3 action-reveal">
               <button
                 type="button"
                 onClick={handleCopy}

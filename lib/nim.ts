@@ -1,22 +1,22 @@
 /**
  * NVIDIA NIM API core library.
  *
- * Goal-driven curation (2026-07-09): the chat registry exposes ONLY the live,
- * curated set from the user's goal model list —
- *   minimax-m3, glm-5.2, gemma-4-31b-it, deepseek-v4-flash/pro, step-3.7-flash,
- *   diffusiongemma-26b-a4b-it, cosmos-reason2-8b, cosmos3-nano-reasoner.
- * Each entry hard-codes contextWindow (NIM /v1/models exposes NO metadata), a
- * vision-modality list (image/video — gates the PlusMenu accept list + the
- * "needs VLM / no video" hint per active model), and a reasoning config that
- * drives the input bar's reasoning setter (on/off dropdown + an effort slider
- * for models that publish effort tiers). VLM flags were re-read from the
- * build.nvidia model cards 2026-07-09 — the prior session's blanket
- * `supportsVision:false` was wrong: minimax-m3 / gemma-4 / step-3.7 /
- * diffusiongemma / both cosmos are vision models; ONLY glm-5.2 + deepseek-v4
- * (flash + pro) are text-only LLMs. diffusiongemma is a TEXT-OUT VLM (takes
- * image/video, emits text via discrete diffusion) — it is NOT image-gen; image
- * gen lives in lib/ai/models.ts NIM_IMAGE_SEED (qwen-image / qwen-image-edit /
- * flux.2-klein-4b via the NIM genai namespace).
+ * Goal-driven curation (2026-08-17): the chat registry exposes ONLY the live,
+ * curated set mapped from the NIM /v1/models endpoint —
+ *   minimax-m3, glm-5.2, gemma-4-31b-it, deepseek-v4-flash-0731, step-3.7-flash,
+ *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, thinkingmachines-inkling,
+ *   poolside-laguna-xs-2.1, nemotron-3.5-lightning-30b-a3b.
+ * All ids verified present in /v1/models (2026-08-17). deepseek-v4-pro is NOT
+ * in the catalogue and was dropped. minimax-m3 is a TEXT LLM on NIM (no vision
+ * modality despite earlier card reads). diffusiongemma is a TEXT-OUT VLM (takes
+ * image/video, emits text via discrete diffusion) — it is NOT image-gen; no
+ * true image-gen model is confirmed in /v1/models, so image gen stays dormant.
+ * Each entry hard-codes contextWindow (NIM /v1/models exposes NO metadata) and
+ * a reasoning config that drives the input bar's reasoning setter (on/off
+ * dropdown + an effort slider for models that publish effort tiers). The
+ * reasoning config is the ONLY source of reasoning-effort metadata — /v1/models
+ * lists ids only, so effort tiers are curated per card (their values shape the
+ * slider stops).
  *
  * Reasoning routing — which body param each model honors (top-level
  * `reasoning_effort` vs `chat_template_kwargs.think`) — lives in
@@ -126,19 +126,17 @@ export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 // streaming end-to-end with reasoning_content + text).
 export const DEFAULT_MODEL = "z-ai/glm-5.2";
 
-// ─── MODEL_REGISTRY (curated: 6 text LLMs/VLMs + 2 vision reasoners) ──────────
+// ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
-// build.nvidia model cards (NIM /v1/models exposes no metadata). VLM vs LLM by
-// card input types: minimax-m3 / gemma-4 / step-3.7 / diffusiongemma accept
-// image/video (vision); glm-5.2 + deepseek-v4-flash/pro are text-only.
+// build.nvidia model cards (NIM /v1/models exposes no metadata). All ids below
+// verified present in /v1/models 2026-08-17. minimax-m3 is a TEXT LLM (NDA).
+// glm-5.2 + deepseek-v4-flash-0731 are text-only; gemma-4 / step-3.7 /
+// diffusiongemma accept image/video (vision). The 4 additions (muse-glimmer /
+// thinkingmachines-inkling / poolside-laguna-xs-2.1 / nemotron-3.5-lightning)
+// are lean-in-setting reasoners — binary effort toggle (param:"effort") until
+// their /chat/completions reasoning_content probes seed real tiers.
 //
-// UNAVAILABLE (2026-07-11): nvidia/cosmos-reason2-8b + nvidia/cosmos3-nano-reasoner
-// both return AI_APICallError "Not Found" from NIM — the model IDs do not resolve
-// on the NIM API endpoint. All alternative ID variants (cosmos-reason-2-8b,
-// cosmos-3-nano-reasoner, cosmos-reason2, cosmos3-nano, etc.) also 404.
-// Commented out below; re-enable when NIM surfaces them.
-//
-// DOWN (2026-07-11): minimaxai/minimax-m3 returns "Bad Request" from NIM —
+// DOWN (2026-07-11): minimaxai/minimax-m3 returned "Bad Request" from NIM —
 // external downtime, confirmed by user. Keep entry; re-test when NIM recovers.
 
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
@@ -146,9 +144,8 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     id: "minimaxai/minimax-m3",
     displayName: "MiniMax M3",
     speedTier: 1.5,
-    type: "vlm",
-    supportsVision: true,
-    visionModalities: ["image", "video"],
+    type: "llm", // text model on NIM — no vision modality (2026-08-17)
+    supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
     // Long-context reasoner; on/off toggle. NIM probe 2026-07-11:
@@ -202,9 +199,9 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     // yields 9 non-null reasoning chunks (out of 12 raw) — adopt `enable_thinking`.
     reasoning: { enabled: true, toggleable: true, param: "enable_thinking", defaultEffort: "on" },
   },
-  "deepseek-ai/deepseek-v4-flash": {
-    id: "deepseek-ai/deepseek-v4-flash",
-    displayName: "DeepSeek V4 Flash",
+  "deepseek-ai/deepseek-v4-flash-0731": {
+    id: "deepseek-ai/deepseek-v4-flash-0731",
+    displayName: "DeepSeek V4 Flash 0731",
     speedTier: 1,
     type: "llm",
     supportsVision: false,
@@ -219,25 +216,68 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       defaultEffort: "max",
     },
   },
-  "deepseek-ai/deepseek-v4-pro": {
-    id: "deepseek-ai/deepseek-v4-pro",
-    displayName: "DeepSeek V4 Pro",
-    speedTier: 3,
+  // ─── Additions mapped from /v1/models (2026-08-17) ──────────────────────────
+  // "muse glimmer", "thinkingmachines inkling", "poolside laguna", "nemotron
+  // 3.5 lightning". Lean-in reasoners — binary effort toggle until a probe
+  // seeds real effort tiers.
+  "meta/muse-glimmer-30b": {
+    id: "meta/muse-glimmer-30b",
+    displayName: "Muse Glimmer 30B",
+    speedTier: 1,
     type: "llm",
     supportsVision: false,
     supportsTools: true,
-    contextWindow: 1_000_000,
-    // Earlier cursor note said "probe verified reasoning_content emitted at
-    // high+max". NIM probe 2026-07-11 with the full SDK body shape
-    // (max_tokens, temperature, top_p, stream_options) → 0 non-null
-    // reasoning chunks. Only `chat_template_kwargs:{enable_thinking}`
-    // surfaces reasoning_content (7 chunks observed).
+    contextWindow: 262_144,
     reasoning: {
       enabled: true,
       toggleable: true,
-      param: "enable_thinking",
-      effortLevels: ["high", "max"],
-      defaultEffort: "max",
+      param: "effort",
+      defaultEffort: "on",
+    },
+  },
+  "thinkingmachines/inkling": {
+    id: "thinkingmachines/inkling",
+    displayName: "Inkling",
+    speedTier: 1.5,
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 262_144,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      defaultEffort: "on",
+    },
+  },
+  "poolside/laguna-xs-2.1": {
+    id: "poolside/laguna-xs-2.1",
+    displayName: "Laguna XS 2.1",
+    speedTier: 1.5,
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 262_144,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      defaultEffort: "on",
+    },
+  },
+  "nvidia/nemotron-3.5-lightning-30b-a3b": {
+    id: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    displayName: "Nemotron 3.5 Lightning 30B",
+    speedTier: 1,
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 262_144,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      defaultEffort: "on",
     },
   },
   "stepfun-ai/step-3.7-flash": {

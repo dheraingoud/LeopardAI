@@ -111,14 +111,14 @@ export function ChatShell() {
             <ModelLabel modelId={currentModelId} />
             <button
               onClick={handleExport}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
               title="Export as Markdown"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={handleShare}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
               title={shared ? "Share link copied" : "Share chat"}
             >
               <Share2 className="h-3.5 w-3.5" />

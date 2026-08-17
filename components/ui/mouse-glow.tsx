@@ -43,6 +43,13 @@ export function MouseGlow({
   useEffect(() => {
     const host = ref.current?.parentElement;
     if (!host) return;
+    // No hover / coarse pointer (touch, stylus, TV): the glow can never show
+    // (visibility is gated on group-hover) — skip the listeners AND the rAF
+    // so we don't spin a 60fps loop forever on devices that can't see it.
+    const canHover =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+    if (!canHover) return;
 
     const onMove = (e: MouseEvent) => {
       const rect = host.getBoundingClientRect();

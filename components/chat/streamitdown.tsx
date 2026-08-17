@@ -54,6 +54,21 @@ import { toast } from "sonner";
 import { createHighlighter, type Highlighter } from "shiki";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
+import DOMPurify from "dompurify";
+
+// ── SVG sanitizer ─────────────────────────────────────────────────────────
+// Model-emitted ```svg fences are user-visible HTML we inject with
+// dangerouslySetInnerHTML, so every byte passes DOMPurify's SVG profile
+// (strips <script>, event-handler attrs, javascript: URLs). foreignObject is
+// forbidden so no HTML/`<img onerror>` smuggling rides inside the SVG. This
+// runs client-only; during SSR streaming the fence stays a plain code block.
+function sanitizeSvg(code: string): string {
+  if (typeof window === "undefined") return "";
+  return DOMPurify.sanitize(code, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    FORBID_TAGS: ["foreignObject", "script", "style"],
+  }).trim();
+}
 
 // ── shiki singleton ────────────────────────────────────────────────────────
 // Same SHIKI_LANGS / THEMES as before; includes aliases (js→javascript etc.).
@@ -120,7 +135,15 @@ export function StreamItDown({
   content: string;
   streaming?: boolean;
 }) {
-  const deferred = useDeferredValue(sanitizeText(content));
+  // Sanitize text, then defensively drop `height="auto"` / `height='auto'` from
+// any inline SVG — an invalid <svg> attribute that react-dom throws on.
+// Old persisted messages + any model slip both surface here; this makes the
+// renderer immune instead of a console error per load.
+const sanitized = sanitizeText(content).replace(
+  /\s+height=["']auto["']/g,
+  "",
+);
+const deferred = useDeferredValue(sanitized);
   const components = useMemo(
     () => ({
       pre: (props: any) => <PreBlock {...props} streaming={!!streaming} />,
@@ -178,6 +201,16 @@ function PreBlock({
      </PreShell>
     ) : (
       <MermaidBlock code={text} />
+    );
+  }
+
+  if (lang === "svg") {
+    return streaming ? (
+      <PreShell lang="svg" copyText={text} longBlock={false}>
+        <div className="cb-mermaid-loading">rendering svg…</div>
+     </PreShell>
+    ) : (
+      <SvgBlock code={text} />
     );
   }
 
@@ -315,31 +348,90 @@ function useHighlightedHtml(
   return html;
 }
 
-// ── mermaid → SVG. Mermaid's "default" theme gives the full color palette
-// (sequence / class / state / flow / gantt retain their category colors).
-// Live-streaming-tolerant: securityLevel "loose" + a 250ms render debounce so
-// partial syntax (model mid-write) doesn't spam the renderer, and we swallow
-// render-time exceptions silently while the code keeps growing (no scary
-// "failed" fallback; the last good SVG stays on screen until a fresh delta
-// parses cleanly). Pan = native pointer-drag on the SVG canvas. Zoom +/− and
-// fit are button-only — the wheel never zooms so page scroll stays unbroken
-// while reading the chat.
+// ── svg fence → inline sanitized SVG. No pan/zoom canvas — SVG carries its
+// own viewBox so it scales natively; we just center it and gate rendering
+// behind the sanitizer. Chrome = PreShell (copy + collapse) plus a source
+// toggle so the raw markup stays inspectable.
+function SvgBlock({ code }: { code: string }) {
+  const [mode, setMode] = useState<"svg" | "code">("svg");
+  const html = useMemo(() => sanitizeSvg(code), [code]);
+
+  if (mode === "code") {
+    return (
+      <PreShell lang="svg" copyText={code} longBlock={false}>
+        <pre className="cb-plain">
+          <code>{code}</code>
+       </pre>
+        <div
+        className="cb-mermaid-chrome cb-mermaid-chrome-left"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            aria-label="View rendered SVG"
+            className="cb-mermaid-btn"
+            onClick={() => setMode("svg")}
+          >
+            render
+          </button>
+       </div>
+     </PreShell>
+    );
+  }
+
+  return (
+    <PreShell lang="svg" copyText={code} longBlock={false}>
+      <div className="cb-svg-viewport">
+        <div
+          className="cb-svg-art"
+          dangerouslySetInnerHTML={
+            html ? { __html: html } : undefined
+          }
+          role="img"
+          aria-label="Inline SVG"
+        >
+          {html ? null : <code className="cb-plain">{code}</code>}
+        </div>
+      </div>
+      <div
+        className="cb-mermaid-chrome cb-mermaid-chrome-left"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="View SVG source"
+          className="cb-mermaid-btn"
+          onClick={() => setMode("code")}
+        >
+          source
+        </button>
+      </div>
+    </PreShell>
+  );
+}
+
+// ── mermaid → INLINE colored SVG. Renders in normal chat flow — no overlay
+// canvas, no pan/zoom chrome, no fit-to-width scaling. The diagram draws at its
+// natural size, centered, and expands DOWN the page like any other message
+// block (CSS clamps max-width:100%; height:auto so a wide diagram still fits
+// the column). Multi-color via `theme:"base"` + explicit themeVariables
+// (MERMAID_DARK / MERMAID_LIGHT): every fill is paired with a contrasting
+// label color so node text never melts into the box — the model's prompt
+// instruction (lib/skills/mermaid-gen) also emits `classDef` blocks with
+// approved color pairs so distinct nodes take distinct fills.
+// Live-streaming-tolerant: securityLevel "loose" + a 250ms debounce; partial
+// syntax silently keeps the last good SVG until a delta parses. A quiet
+// "view source" affordance below toggles raw code (no floating box).
 function MermaidBlock({ code }: { code: string }) {
   const rawId = useId();
   const id = `mmd-${rawId.replace(/[^a-zA-Z0-9-]/g, "")}`;
   const { theme } = useTheme();
+  const dark = theme === "dark";
   const [svg, setSvg] = useState<string | null>(null);
   // Mode toggle: diagram (default) ↔ code (raw source). Code view lets the
   // user inspect the mermaid source when the renderer bails on a partial
   // syntax error mid-stream.
   const [mode, setMode] = useState<"diagram" | "code">("diagram");
-
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  // Drag-pan state lives on the canvas div; we apply translate(z) via direct
-  // transform mutation each pointermove (no React re-render — keeps the SVG
-  // hot path juicy smooth).
-  const dragRef = useRef({ active: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
-  const [scale, setScale] = useState(1);
   // Track the last-rendered code so a wholly different diagram (regenerate,
   // a new code fence in the same message) doesn't display the prior SVG while
   // the new render bails on the first partial release.
@@ -362,21 +454,24 @@ function MermaidBlock({ code }: { code: string }) {
       try {
         const mermaidMod = await import("mermaid");
         const mermaid = mermaidMod.default;
-        // Default mermaid theme produces the full color palette (sequence /
-        // class / state diagrams retain their category colors). `theme: "base"`
-        // was monochrome (the user's pain point). Keep `loose` security so
-        // partial syntax during stream doesn't throw.
+        // Multi-color via the "base" theme + an explicit themeVariables palette
+        // (see MERMAID_DARK / MERMAID_LIGHT below) — every fill pairs with a
+        // high-contrast label color, so box text never melts into its fill. The
+        // model's prompt instruction (lib/skills/mermaid-gen) additionally
+        // emits `classDef` blocks with approved color pairs for distinct nodes.
         mermaid.initialize({
           startOnLoad: false,
-          theme: theme === "dark" ? "dark" : "default",
+          theme: "base",
           securityLevel: "loose",
+          themeVariables: dark ? MERMAID_DARK : MERMAID_LIGHT,
           flowchart: {
             curve: "basis",
             htmlLabels: false,
             padding: 12,
-            nodeSpacing: 32,
-            rankSpacing: 36,
+            nodeSpacing: 36,
+            rankSpacing: 44,
           },
+          fontFamily: "var(--font-body), ui-sans-serif, system-ui, sans-serif",
         });
         const { svg: out } = await mermaid.render(id, code);
         if (active) setSvg(out);
@@ -392,167 +487,98 @@ function MermaidBlock({ code }: { code: string }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [code, theme, id]);
+  }, [code, dark, id]);
 
-  // After the SVG lands, fit it to width. Center via translate.
-  const [tx, setTx] = useState(0);
-  const [ty, setTy] = useState(0);
-  useEffect(() => {
-    if (!svg) return;
-    queueMicrotask(() => fitToWidth());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [svg]);
+  // Inline diagram (code view resets above). `mermaid.render` emits an svg with
+  // fixed width/height; the CSS clamps max-width:100% + height:auto so it fits
+  // the column and expands DOWN the page. No pan/zoom/scale canvas.
+  const renderSvg = svg ? (
+    <div dangerouslySetInnerHTML={{ __html: svg }} />
+  ) : (
+    <div className="cb-mermaid-loading">rendering diagram…</div>
+  );
 
-  function fitToWidth() {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const svgEl = wrap.querySelector("svg") as SVGSVGElement | null;
-    if (!svgEl) return;
-    const w = svgEl.viewBox?.baseVal?.width ?? svgEl.clientWidth ?? 0;
-    if (!w) return;
-    const target = wrap.clientWidth - 24;
-    if (target < 64) return;
-    const next = Math.max(0.5, Math.min(2, target / w));
-    setScale(next);
-    setTx(Math.max(8, (wrap.clientWidth - w * next) / 2));
-    setTy(8);
-  }
-
-  // Drag-pan (no wheel handler — wheel just scrolls the page). Pointer
-  // events on the canvas are captured & released so drag works across the
-  // entire SVG area, not just text nodes.
-  function onPointerDown(e: React.PointerEvent) {
-    if (e.button !== 0) return;
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    dragRef.current = {
-      active: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      baseX: tx,
-      baseY: ty,
-    };
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    const d = dragRef.current;
-    if (!d.active) return;
-    setTx(d.baseX + (e.clientX - d.startX));
-    setTy(d.baseY + (e.clientY - d.startY));
-  }
-  function onPointerUp(e: React.PointerEvent) {
-    if (!dragRef.current.active) return;
-    dragRef.current.active = false;
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
-  }
-
-  function zoomBy(delta: number) {
-    setScale((s) => Math.max(0.5, Math.min(4, +(s + delta).toFixed(2))));
-  }
-  function reset() {
-    fitToWidth();
-  }
-
-  // Code view: raw source inside PreShell. `diagram` button restores.
   if (mode === "code") {
     return (
-      <PreShell lang="mermaid" copyText={code} longBlock={false}>
+      <div className="cb-mermaid-inline">
+        <button
+          type="button"
+          className="cb-mermaid-sourcebtn"
+          onClick={() => setMode("diagram")}
+          aria-label="View rendered diagram"
+        >
+          view diagram
+        </button>
         <pre className="cb-plain">
           <code>{code}</code>
-       </pre>
-        <div
-          className="cb-mermaid-chrome cb-mermaid-chrome-left"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            aria-label="View diagram"
-            className="cb-mermaid-btn"
-            onClick={() => setMode("diagram")}
-          >
-            diagram
-         </button>
-       </div>
-     </PreShell>
+        </pre>
+      </div>
     );
   }
 
   return (
-    <PreShell lang="mermaid" copyText={code} longBlock={false}>
-      <div
-        ref={wrapRef}
-        className="cb-mermaid-viewport"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        role="img"
-        aria-label="Mermaid diagram — drag to pan, use +/− to zoom"
+    <div className="cb-mermaid-inline">
+      <div className="cb-mermaid">{renderSvg}</div>
+      <button
+        type="button"
+        className="cb-mermaid-sourcebtn"
+        onClick={() => setMode("code")}
+        aria-label="View mermaid source"
       >
-        <div
-          className="cb-mermaid-canvas"
-          style={{
-            transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-            transformOrigin: "0 0",
-            transition: dragRef.current.active
-              ? "none"
-              : "transform 220ms cubic-bezier(0.16, 1, 0.3, 1)",
-          }}
-        >
-          {svg ? (
-            <div
-              className="cb-mermaid"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          ) : (
-            <div className="cb-mermaid-loading">rendering diagram…</div>
-          )}
-      </div>
-        <div
-          className="cb-mermaid-chrome"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            aria-label="Zoom out"
-            className="cb-mermaid-btn"
-            onClick={() => zoomBy(-0.25)}
-          >
-            −
-        </button>
-          <button
-            type="button"
-            aria-label="Reset zoom"
-            className="cb-mermaid-btn cb-mermaid-btn-z"
-            onClick={reset}
-          >
-            {Math.round(scale * 100)}%
-        </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            className="cb-mermaid-btn"
-            onClick={() => zoomBy(0.25)}
-          >
-            +
-        </button>
-          <button
-            type="button"
-            aria-label="Fit to width"
-            className="cb-mermaid-btn"
-            onClick={fitToWidth}
-          >
-            fit
-        </button>
-          <span className="cb-mermaid-sep" aria-hidden="true" />
-          <button
-            type="button"
-            aria-label="View source"
-            className="cb-mermaid-btn"
-            onClick={() => setMode("code")}
-          >
-            code
-        </button>
-      </div>
+        view source
+      </button>
     </div>
-  </PreShell>
   );
 }
+
+// themeVariables palette — explicit fill:label pairs on every surface so the
+// node text keeps high contrast (>4.5:1) against its box. Amber = primary
+// nodes, green = class/tertiary, zinc = supporting boxes. Warm dark + paper
+// light to match the app surface.
+const MERMAID_BASE: Record<string, string> = {
+  fontSize: "15px",
+};
+const MERMAID_DARK: Record<string, string> = {
+  ...MERMAID_BASE,
+  primaryColor: "#7c2d12",
+  primaryTextColor: "#ffedd5",
+  primaryBorderColor: "#f59e0b",
+  lineColor: "#f59e0b",
+  secondaryColor: "#3f3f46",
+  secondaryTextColor: "#fafafa",
+  tertiaryColor: "#166534",
+  tertiaryTextColor: "#dcfce7",
+  textColor: "#e4e4e7",
+  clusterBkg: "#18181b",
+  clusterBorder: "#52525b",
+  actorBkg: "#27272a",
+  actorBorder: "#f59e0b",
+  actorTextColor: "#fafafa",
+  actorLineColor: "#71717a",
+  noteBkgColor: "#78350f",
+  noteTextColor: "#fef3c7",
+  noteBorderColor: "#f59e0b",
+  edgeLabelBackground: "#18181b",
+};
+const MERMAID_LIGHT: Record<string, string> = {
+  ...MERMAID_BASE,
+  primaryColor: "#fde68a",
+  primaryTextColor: "#7c2d12",
+  primaryBorderColor: "#d97706",
+  lineColor: "#b45309",
+  secondaryColor: "#e5e7eb",
+  secondaryTextColor: "#111827",
+  tertiaryColor: "#bbf7d0",
+  tertiaryTextColor: "#14532d",
+  textColor: "#1f2937",
+  clusterBkg: "#fffaf0",
+  clusterBorder: "#d6c6a3",
+  actorBkg: "#ffffff",
+  actorBorder: "#d97706",
+  actorTextColor: "#111827",
+  actorLineColor: "#9ca3af",
+  noteBkgColor: "#fef3c7",
+  noteTextColor: "#78350f",
+  noteBorderColor: "#d97706",
+  edgeLabelBackground: "#fffaf0",
+};
