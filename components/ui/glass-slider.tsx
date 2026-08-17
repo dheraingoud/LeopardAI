@@ -37,7 +37,7 @@ const DEFORM_GAIN = 0.012;
 const DEFORM_EXP = 0.75;
 const HOLD_BOOST = 0.175;
 
-const PRIMARY = "#0a84ff";
+const PRIMARY = "#ffb400";
 const BG4_LIGHT = "#e1dfdf";
 const BG4_DARK = "#2a2828";
 const SHADOW_STRONG_LIGHT = "rgba(46, 15, 15, 0.12)";

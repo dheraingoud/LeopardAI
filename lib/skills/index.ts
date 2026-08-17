@@ -24,6 +24,34 @@ const SKILLS_DIR = join(process.cwd(), "lib", "skills");
 
 const MANIFEST: SkillMeta[] = [
   {
+    name: "svg-gen",
+    description:
+      "Auto-triggers on SVG/vector output. Guarantees a self-contained, static, sanitizable, theme-aware SVG the client can inline and scale without error.",
+    triggers: ["svg", "vector", "icon", "logo", "infographic", "visual"],
+    auto: true,
+  },
+  {
+    name: "mermaid-gen",
+    description:
+      "Auto-triggers on diagram output. Guarantees parser-safe single-fence mermaid — correct keyword headers, escaped labels, never a broken fence.",
+    triggers: ["mermaid", "flowchart", "sequence diagram", "er diagram", "gantt", "pie chart"],
+    auto: true,
+  },
+  {
+    name: "code-gen",
+    description:
+      "Auto-triggers on code requests. Guarantees self-contained, runnable, language-tagged snippets the interactive client can execute without truncation or missing-API failures.",
+    triggers: ["code", "implement", "function", "component", "script", "bug"],
+    auto: true,
+  },
+  {
+    name: "response-customization",
+    description:
+      "Auto-triggers on verbosity intent. Guarantees the response is tuned to the user's requested depth (concise / detailed) before any content is written.",
+    triggers: ["concise", "tl;dr", "detailed", "short answer", "in depth", "verbose", "brief"],
+    auto: true,
+  },
+  {
     name: "diagram-clarity",
     description:
       "Auto-triggers when the response contains a diagram. Guarantees well-formed single-fence mermaid so the client never surfaces a syntax error.",

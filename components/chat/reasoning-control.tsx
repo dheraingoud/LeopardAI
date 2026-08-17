@@ -29,7 +29,7 @@ type Props = {
   onChange: (level: ReasoningLevel) => void;
 };
 
-function levelLabel(l: ReasoningLevel): string {
+export function levelLabel(l: ReasoningLevel): string {
   switch (l) {
     case "off":
       return "Off";
@@ -135,7 +135,7 @@ export function ReasoningControl({ modelId, caps, current, onChange }: Props) {
 
 // ─── Tiered effort slider popover (GLM low→max, DeepSeek high/max) ────────────
 
-function TieredPicker({
+export function TieredPicker({
   stops,
   current,
   onChange,
@@ -181,7 +181,7 @@ function TieredPicker({
 
 // ─── Binary on/off pair popover (Gemma / Diffusion / MiniMax-M3 / Step) ───────
 
-function BinaryPicker({
+export function BinaryPicker({
   active,
   onChange,
 }: {

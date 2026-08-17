@@ -1,15 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Check, Brain } from "lucide-react";
+import { ChevronDown, Check, Brain, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveModels,
   modelsByProvider,
   getDefaultChatModel,
+  getModelById,
   type Provider,
 } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import type { ReasoningLevel } from "@/lib/nim";
+import {
+  TieredPicker,
+  BinaryPicker,
+  levelLabel,
+} from "@/components/chat/reasoning-control";
 import {
   GlassPopover,
   GlassPopoverContent,
@@ -41,12 +48,23 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 };
 
 export function ModelSelectorCompact() {
-  const { currentModelId, setCurrentModel } = useActiveChat();
+  const { currentModelId, setCurrentModel, currentReasoning, setReasoning } =
+    useActiveChat();
   const [open, setOpen] = useState(false);
+  const [effortOpen, setEffortOpen] = useState(false);
 
   const current =
     getActiveModels().find((m) => m.id === currentModelId) ?? getDefaultChatModel();
   const providerKeys = Object.keys(modelsByProvider) as Provider[];
+
+  // Effort submenu: reuse ReasoningControl's pickers. Only models with a
+  // toggleable reasoning param (and active reasoning) get the entry; locked-on
+  // or non-reasoning models stay clean — same gate as the old standalone button.
+  const rcfg = getModelById(currentModelId)?.reasoningConfig;
+  const effortEnabled = !!rcfg?.enabled && !!rcfg.toggleable && !!rcfg.param;
+  const effortActive = currentReasoning !== undefined && currentReasoning !== "off";
+  const effortTiered = (rcfg?.effortLevels?.length ?? 0) > 0;
+  const effortLabel = effortActive ? levelLabel(currentReasoning as ReasoningLevel) : "Off";
 
   return (
     <div className="relative shrink-0">
@@ -150,6 +168,47 @@ export function ModelSelectorCompact() {
                 </div>
               );
             })()}
+
+            {/* Effort submenu — "reasoning effort › current". Hover or tap opens a
+                flyout reusing the ReasoningControl pickers (slider for tiered
+                models, On/Off pair otherwise). Sits inside the model menu to
+                declutter the composer bar. */}
+            {effortEnabled && (
+              <div className="p-1.5 border-t dark:border-white/[0.06] light:border-black/[0.06]">
+                <div
+                  className="relative"
+                  onMouseEnter={() => setEffortOpen(true)}
+                  onMouseLeave={() => setEffortOpen(false)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setEffortOpen((o) => !o)}
+                    aria-haspopup="true"
+                    aria-expanded={effortOpen}
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[12px] font-mono transition-colors text-left dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] dark:hover:text-white light:hover:text-black"
+                  >
+                    <span>reasoning effort</span>
+                    <span className="flex items-center gap-1">
+                      <span className="text-[#ffb400]">{effortLabel}</span>
+                      <ChevronRight className="h-3 w-3 opacity-60" />
+                    </span>
+                  </button>
+                  {effortOpen && (
+                    <div className="absolute top-0 right-full z-30 w-[220px] rounded-2xl glass-elevated dark:bg-[#161310] light:bg-[#faf8f1] border dark:border-white/[0.08] light:border-black/[0.1] shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+                      {effortTiered ? (
+                        <TieredPicker
+                          stops={(rcfg.effortLevels ?? []) as ReasoningLevel[]}
+                          current={currentReasoning}
+                          onChange={setReasoning}
+                        />
+                      ) : (
+                        <BinaryPicker active={effortActive} onChange={setReasoning} />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </GlassPopoverContent>
       </GlassPopover>

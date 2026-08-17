@@ -72,7 +72,7 @@ export default function ChatLayout({
             <div className="flex items-center px-4 h-12 border-b dark:border-white/[0.04] light:border-black/[0.05] shrink-0">
               <button
                 onClick={() => setCollapsed(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717]"
+                className="h-10 w-10 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717]"
               >
                 <Menu className="h-4.5 w-4.5" />
               </button>
