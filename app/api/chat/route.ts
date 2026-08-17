@@ -31,6 +31,7 @@ import {
   backgroundServe,
   createGenerationController,
 } from "@/lib/ai/server-generation";
+import { redact } from "@/lib/redact";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
 export const runtime = "nodejs";
@@ -53,7 +54,8 @@ function appendDebugLog(line: string): void {
       require("node:fs").mkdirSync(dir, { recursive: true });
       _debugLogDir = dir;
     }
-    require("node:fs").appendFileSync(p, line + "\n");
+    // Redact secrets/file-paths/emails before it ever hits disk (data-usage).
+    require("node:fs").appendFileSync(p, redact(line) + "\n");
   } catch {}
 }
 
@@ -411,9 +413,9 @@ export async function POST(request: Request) {
             process.env.LEOPARD_DEBUG_LOG ?? "",
             new Date().toISOString() +
               " streamText_THROW msg=" +
-              String((err as Error)?.message ?? err) +
+              redact(String((err as Error)?.message ?? err)) +
               " stack=" +
-              String((err as Error)?.stack ?? "").slice(0, 4000) +
+              redact(String((err as Error)?.stack ?? "").slice(0, 4000)) +
               "\n",
           );
           console.error("[/api/chat] streamText_THROW_MSG=", (err as Error)?.message ?? "");
@@ -481,9 +483,9 @@ export async function POST(request: Request) {
             " ROUTE_onError model=" +
             errModel(error) +
             " msg=" +
-            errMessage(error) +
+            redact(errMessage(error)) +
             " stack=" +
-            errStack(error).slice(0, 4000) +
+            redact(errStack(error).slice(0, 4000)) +
             "\n=====\n",
         );
       } catch {}
