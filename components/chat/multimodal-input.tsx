@@ -7,7 +7,6 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
-import { ReasoningControl } from "./reasoning-control";
 import { PlusMenu } from "./plus-menu";
 import { ContextIndicator } from "./context-indicator";
 import { uploadFile } from "@/lib/upload";
@@ -21,14 +20,7 @@ import { getModelById } from "@/lib/ai/models";
  * Vision gating + contextWindow arrive via /api/models capabilities[id].
  */
 export function MultimodalInput() {
-  const {
-    sendMessage,
-    status,
-    stop,
-    currentModelId,
-    currentReasoning,
-    setReasoning,
-  } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId } = useActiveChat();
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<
     { url: string; name: string; mediaType: string }[]
@@ -206,18 +198,10 @@ export function MultimodalInput() {
                 maxRows={8}
                 className="flex-1 resize-none bg-transparent text-[15px] leading-[1.6] dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] outline-none py-2 px-1 min-h-[36px] max-h-[240px]"
               />
+              {/* Model menu owns the reasoning-effort picker (per user: effort
+                  lives inside the bottom-right model popover, not the input
+                  bar). No separate composer pill. */}
               <ModelSelectorCompact />
-              {/* Reasoning toggler — hidden until the composer row is hovered,
-                  then fades in beside the model selector (single source of truth
-                  for the effort pick; model-selector no longer owns one). */}
-              <span className="opacity-0 -translate-x-1 transition-all duration-200 group-focus-within:opacity-100 group-hover:opacity-100 group-hover:translate-x-0 max-sm:hidden">
-                <ReasoningControl
-                  modelId={currentModelId}
-                  caps={{ reasoningConfig: modelConfig?.reasoningConfig }}
-                  current={currentReasoning}
-                  onChange={setReasoning}
-                />
-              </span>
               <ContextIndicator
                 contextWindow={ctxWin}
                 text={input}
@@ -229,7 +213,10 @@ export function MultimodalInput() {
                   variant="icon"
                   size={36}
                   tint={0.2}
-                  onClick={() => stop()}
+                  // Φ10/#3 M1: stopGeneration also POSTs /api/chat/stop so the
+                  // server aborts + persists the DETACHED generation (a bare
+                  // stop() only ends this browser's mirror).
+                  onClick={stopGeneration}
                   title="Stop"
                   className="max-sm:h-11! max-sm:w-11!"
                 >

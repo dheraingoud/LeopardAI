@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
-import { getDefaultChatModel, getModelById } from "@/lib/ai/models";
+import { getDefaultChatModel, getModelById, isImageModel } from "@/lib/ai/models";
 import type { ReasoningLevel } from "@/lib/nim";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import {
@@ -27,6 +27,7 @@ import {
   persistImagesForMessage,
   type ImageCacheEntry,
 } from "@/lib/image-cache";
+import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 
 /**
@@ -96,6 +97,8 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   setArtifact: (a: UIArtifact | null) => void;
   /** Suggested follow-up questions per assistant message id (ephemeral, not persisted). */
   suggestionsByMessage: Record<string, string[]>;
+  /** Abort the current server-owned generation (persist partial) then stop the local stream. */
+  stopGeneration: () => void;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -105,8 +108,12 @@ function toChatMessage(m: Doc<"messages">): ChatMessage {
   return {
     id: m.id ?? String(m._id),
     role: m.role,
-    parts: (m.parts ??
-      (m.content ? [{ type: "text", text: m.content }] : [])) as ChatMessage["parts"],
+    // Normalize persisted parts (legacy `tool-*` / `step-start` are invalid in
+    // the v7 UIMessage schema and would otherwise throw on reload→send —
+    // lib/ai/message-parts).
+    parts: normalizeUIMessageParts(
+      m.parts ?? (m.content ? [{ type: "text", text: m.content }] : []),
+    ) as ChatMessage["parts"],
   };
 }
 
@@ -198,6 +205,13 @@ export function ActiveChatProvider({
     uidRef.current = uid;
   }, [uid]);
 
+  // Φ10 / #3 — the assistant message id the SERVER persists under. The route
+  // emits `data-assistant-id` as its first (transient) chunk; we adopt it so
+  // votes + suggestions bind to the persisted row (not a ghost optimistic id).
+  // Ref keeps the stable onData/persist closures reading the latest value; the
+  // adoption itself runs in the live-mirror effect below (review M3).
+  const serverAssistantIdRef = useRef<string | null>(null);
+
   // ── Φ6: Artifact side-panel state ──────────────────────────────────────────
   // `artifact` is the panel-visible state; the refs below accumulate the
   // full document content across per-token data-*Delta parts (state updates
@@ -253,7 +267,12 @@ export function ActiveChatProvider({
           body: {
             id,
             // FULL history — /api/chat validates + converts via convertToModelMessages.
-            messages,
+            // Normalize parts so even a live in-memory message holding legacy
+            // `tool-*`/`step-start` parts still validates on the wire.
+            messages: messages.map((m) => ({
+              ...m,
+              parts: normalizeUIMessageParts(m.parts),
+            })),
             model: currentModelIdRef.current,
             // Per-model reasoning level (undefined for locked-on/no-knob models
             // → route omits the key → NIM non-think / no param). Route.ts reads
@@ -275,6 +294,17 @@ export function ActiveChatProvider({
       toast.error(error.message || "Stream error");
     },
     onData: (part) => {
+      // Φ10 / #3: route emits the persisted assistant id as its first chunk
+      // (transient). ONLY record it here — the optimistic bubble is not yet in
+      // chat.messages at onData time (write() runs after), so any rename attempt
+      // here is a no-op (review M3). Actual id adoption happens in the settle /
+      // live-mirror effect below, once the stream leaves `streaming` and the
+      // bubble actually exists as the trailing message.
+      if ((part as { type?: string }).type === "data-assistant-id") {
+        serverAssistantIdRef.current = (part as { data?: string }).data ?? null;
+        return;
+      }
+
       // Φ5: route emits { type: "data-chat-title", data: "<title>" } on the
       // first exchange. Persist it; cosmetic, so swallow failures silently.
       if (part.type === "data-chat-title") {
@@ -403,6 +433,60 @@ export function ActiveChatProvider({
     chat.setMessages(hydrated);
   }, [convexMessages, chat.setMessages]);
 
+  // ── Φ10 / #3: live-mirror the SERVER-written assistant rows into the view ─
+  // Covers reload-mid-generation: after remount, the `streaming`/`completed`
+  // row (written by the detached route task) appears in Convex; as the task
+  // patches it, useQuery re-fires and we append/update that bubble live — so a
+  // reloaded page shows the reply filling in without a manual refresh.
+  // Skipped while a LOCAL stream is live (`streaming`) so the optimistic bubble
+  // isn't ghosted by the server row — the two share an id (data-assistant-id),
+  // so once the stream settles, this mirrors parts in place with no duplicate.
+  useEffect(() => {
+    if (!convexMessages) return;
+    if (chat.status === "streaming" || chat.status === "submitted") return;
+    chat.setMessages((prev) => {
+      let changed = false;
+      let next = prev.slice();
+
+      // ── Φ10/#3 review M3: adopt the server id BY POSITION once the stream
+      // settles. onData runs before the optimistic bubble exists, so the id is
+      // renamed here instead. If the trailing message is an optimistic assistant
+      // bubble (nanoid id, not already the server row) and the server row isn't
+      // in the list yet, rename it so the merge below updates it IN PLACE rather
+      // than appending the server row as a duplicate bubble.
+      const sid = serverAssistantIdRef.current;
+      if (sid) {
+        const hasServerRow = next.some((x) => x.id === sid);
+        const last = next[next.length - 1];
+        if (
+          last?.role === "assistant" &&
+          last.id !== sid &&
+          !hasServerRow
+        ) {
+          next[next.length - 1] = { ...last, id: sid };
+          changed = true;
+        }
+      }
+
+      // ── mirror server-written assistant rows (reload-mid-generation live fill) ─
+      for (const m of convexMessages) {
+        if (m.role !== "assistant") continue;
+        const ui = toChatMessage(m);
+        const at = next.findIndex((x) => x.id === ui.id);
+        if (at >= 0) {
+          if (JSON.stringify(next[at].parts) !== JSON.stringify(ui.parts)) {
+            next[at] = ui;
+            changed = true;
+          }
+        } else {
+          next.push(ui);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [convexMessages, chat.status, chat.setMessages, serverAssistantIdRef.current]);
+
   // ── Persist effect: dedup-by-id; user msgs immediate; assistant on ready ─
   useEffect(() => {
     const u = uidRef.current;
@@ -417,19 +501,26 @@ export function ActiveChatProvider({
           chatId: convexChatId,
           userId: u,
           role: "user",
-          parts: m.parts,
+          parts: normalizeUIMessageParts(m.parts),
           id: m.id,
           model: currentModelIdRef.current,
         });
       }
     }
 
-    // Assistant message: persist only once the stream is finished (status
-    // "ready") so we don't store a partial. Touch the chat's updatedAt.
+    // Φ10 / #3: TEXT-model assistant replies are persisted SERVER-side by the
+    // route's disconnected background task (lib/ai/server-generation →
+    // api.messages.upsertAssistant). Writing a second row here would dup on
+    // remount, so the client only persists assistant replies for IMAGE
+    // generation models — whose route branch (streamImageGeneration) streams a
+    // single markdown-image text part and does NOT backgroundServe, so the server
+    // never writes those rows.
     const last = chat.messages[chat.messages.length - 1];
+    const lastIsImageGen =
+      !!last && last.role === "assistant" && isImageModel(currentModelIdRef.current);
+
     if (
-      last &&
-      last.role === "assistant" &&
+      lastIsImageGen &&
       !persistedIdsRef.current.has(last.id) &&
       chat.status === "ready"
     ) {
@@ -440,9 +531,6 @@ export function ActiveChatProvider({
       // + collect the real URLs. Store the SANITIZED parts to Convex (no base64
       // in the row) and write {id,url} entries to IndexedDB (lib/image-cache)
       // so the render path (message.tsx) hydrates placeholders back on reload.
-      // Dormant for text-only chats — sanitizeMessageForStorage returns content
-      // unchanged + images:[] when there's no image markdown, so non-gen
-      // messages pass through untouched (sanitizedParts === last.parts shape).
       const collectedImages: ImageCacheEntry[] = [];
       let touchedImages = false;
       const sanitizedParts = last.parts.map((part) => {
@@ -466,19 +554,29 @@ export function ActiveChatProvider({
         chatId: convexChatId,
         userId: u,
         role: "assistant",
-        parts: sanitizedParts,
+        parts: normalizeUIMessageParts(sanitizedParts),
         id: last.id,
         model: currentModelIdRef.current,
       });
       void touchChat({ chatId: convexChatId });
+    }
 
-      // Suggested follow-up chips: fire-and-forget, never blocks the reply.
-      const assistantText = sanitizedParts
+    // Suggested follow-up chips: fire-and-forget for ANY finished assistant reply
+    // (text + image). Keyed to the server id ONLY once the visible bubble has
+    // adopted it (review m9) — otherwise chips bind to an id that only exists
+    // server-side and get orphaned from the rendered message. Fall back to
+    // last.id for image-gen (no server id emitted) and when no adoption pending.
+    if (last && last.role === "assistant" && chat.status === "ready") {
+      const assistantText = (last.parts ?? [])
         .filter((p) => p.type === "text")
         .map((p) => (p as { text?: string }).text ?? "")
         .join(" ")
         .trim();
-      if (assistantText) void requestSuggestions(last.id, assistantText);
+      if (assistantText) {
+        const sid = serverAssistantIdRef.current;
+        const key = sid ? (last.id === sid ? sid : null) : last.id;
+        if (key) void requestSuggestions(key, assistantText);
+      }
     }
   }, [chat.messages, chat.status, convexChatId, messagesSend, requestSuggestions, touchChat]);
 
@@ -488,6 +586,31 @@ export function ActiveChatProvider({
     const u = uidRef.current;
     if (u) void updateModel({ chatId: convexChatId, userId: u, model: id });
   };
+
+  // ── Stop: cancel a server-owned generation, then stop the local stream ─────
+  // Φ10/#3 review M1 — a bare chat.stop() only aborts the browser's fetch; the
+  // route's DETACHED generation keeps running (it must, so reload completes it),
+  // which would make Stop appear to do nothing and the full reply reappear.
+  // This also asks the server (POST /api/chat/stop) to abort + persist the
+  // partial reply as `completed`, so the stopped bubble shows what it produced
+  // and the server row is final.
+  const stopGeneration = useCallback(() => {
+      // Only ask the server to abort when we know the detached generation's id
+      // (image-gen has no server row, so local stop alone suffices).
+      const sid = serverAssistantIdRef.current;
+      if (sid) {
+        void fetch("/api/chat/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assistantId: sid }),
+        }).catch(() => {
+          /* server already settled — local stop still ends the mirror */
+        });
+      }
+      chat.stop();
+    },
+    [chat.stop],
+  );
 
   // ── Reasoning change (local state + localStorage) ──────────────────────────
   const setReasoning = (level: ReasoningLevel) => {
@@ -511,6 +634,7 @@ export function ActiveChatProvider({
     artifact,
     setArtifact,
     suggestionsByMessage,
+    stopGeneration,
   };
 
   return (
