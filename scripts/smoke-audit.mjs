@@ -61,4 +61,22 @@ const r2 = await client.mutation(internal.audit.record, {
 });
 console.log("EXEC INSERT    -> committed", JSON.stringify(r2));
 
-console.log("\nSMOKE PASS — audit write path live on prod (2 rows appended)");
+// 3. Ownership enforcement (review fix): a userId that does NOT own the chat
+//    must be REFUSED, so a fabricated body.id can't pollute another user's
+//    audit trail.
+let refused = false;
+try {
+  await client.mutation(internal.audit.record, {
+    ...base,
+    userId: "someone-who-does-not-own-this-chat",
+    event: "approval",
+    toolName: "smoke-audit",
+    decision: "allow",
+  });
+} catch (e) {
+  refused = true;
+  console.log("ownerCheck: refused (expected) ->", String(e?.message ?? e).slice(0, 80));
+}
+if (!refused) throw new Error("FAIL: audit.record did not enforce chat ownership");
+
+console.log("\nSMOKE PASS — audit write path + ownership enforcement live on prod");

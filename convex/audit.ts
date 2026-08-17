@@ -19,6 +19,7 @@
 
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireChatOwner } from "./_auth";
 
 export const record = internalMutation({
   args: {
@@ -48,6 +49,12 @@ export const record = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Ownership enforced by DATA (parallel to messages.upsertAssistant): the
+    // route trust boundary is Clerk, but this internalMutation is invoked via a
+    // deploy-key admin client that bypasses per-user auth, so a fabricated
+    // client-supplied chatId (body.id) must not let an attacker append audit
+    // rows attributed to another user's chat. The row's userId must own chatId.
+    await requireChatOwner(ctx, args.chatId, args.userId);
     await ctx.db.insert("toolAuditLog", args);
   },
 });

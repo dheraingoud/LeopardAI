@@ -69,3 +69,32 @@ export function redactUrlForDisplay(url: string): string {
   );
   return redact(s);
 }
+
+/**
+ * Audit-log scrubber: redact() (secrets/PII) LAYERED with the header + query
+ * shapes the generic pass can miss, plus URL-aware masking for URL/body fields.
+ * Use for the append-only toolAuditLog inputJson/outputSummary so a fetched
+ * page body or presigned URL can never permanently leak a credential into the
+ * write-once compliance store.
+ */
+export function scrubAuditField(input: unknown): string {
+  const s = typeof input === "string" ? input : JSON.stringify(input);
+  // Headers/key-value credentials redact() misses (authorization, cookie,
+  // session, signature, x-amz-*) — including `Authorization: Basic <b64>`.
+  let out = s.replace(
+    /((?:proxy-)?authorization|set-cookie|cookie|session(?:id)?|signature|x-amz-signature)\b[^\n,;{}]*[:=]\s*(?:basic|bearer\s+)?\s*[A-Za-z0-9._~+\/-]{6,}=*/gi,
+    "$1=[REDACTED]",
+  );
+  // URL query-param credentials (sig/signature/token/key/auth/expires) — same
+  // neutralization as redactUrlForDisplay, applied to any embedded URL text.
+  out = out.replace(
+    /([?&](?:token|key|api[_-]?key|sig|signature|access_token|auth|expires|x-amz-signature)=)[^&"\s)]+/gi,
+    "$1[REDACTED]",
+  );
+  // Basic-auth userinfo in a URL (https://user:pass@host/…).
+  out = out.replace(
+    /https?:\/\/[^/@\s:]+:[^/@\s]+@/gi,
+    "https://[REDACTED]@",
+  );
+  return redact(out);
+}
