@@ -35,7 +35,7 @@ import {
   isOverDailyTokenCap,
   recordAudit,
 } from "@/lib/ai/server-generation";
-import { redact } from "@/lib/redact";
+import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
@@ -477,13 +477,15 @@ export async function POST(request: Request) {
             const tc = event?.toolCall ?? {};
             const name = String(tc?.toolName ?? "");
             const input = tc?.input ?? tc?.args;
-            const out = event?.toolOutput;
-            const isErr =
-              !!out && typeof out === "object" && "error" in (out as object);
+            const out = event?.toolOutput as Record<string, unknown> | undefined;
+            const isErr = !!out && "error" in out;
+            // Success envelope is {type:'tool-result', …, output}; failure is
+            // {type:'tool-error', …, error}. Read the real field, not the
+            // wrapper (the `fullOutput` shape doesn't exist in ai@7) — review F1.
             const value = isErr
-              ? (out as { error?: unknown })?.error ?? out
-              : typeof out === "object" && out && "fullOutput" in (out as object)
-                ? (out as { fullOutput?: unknown }).fullOutput
+              ? (out?.error ?? out)
+              : out && "output" in out
+                ? out.output
                 : out;
             void recordAudit({
               assistantId,
@@ -491,11 +493,9 @@ export async function POST(request: Request) {
               userId: userId ?? DEV_USER_ID,
               event: isErr ? "tool-error" : "tool-execution",
               toolName: name,
-              inputJson: String(redact(JSON.stringify(input ?? null))).slice(0, 2000),
-              outputSummary: String(
-                redact(
-                  typeof value === "string" ? value : JSON.stringify(value ?? ""),
-                ),
+              inputJson: scrubAuditField(input).slice(0, 2000),
+              outputSummary: scrubAuditField(
+                typeof value === "string" ? value : JSON.stringify(value ?? ""),
               ).slice(0, 4000),
             });
           } catch {
