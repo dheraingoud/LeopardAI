@@ -27,6 +27,10 @@ import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
+import {
+  backgroundServe,
+  createGenerationController,
+} from "@/lib/ai/server-generation";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
 export const runtime = "nodejs";
@@ -243,6 +247,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "messages array is required" }, { status: 400 });
   }
 
+  // Φ10/#3: the assistant reply id must be present + we can't persist without a
+  // valid Convex chat id (review m10). Body.id absent → fail loudly (400) rather
+  // than silently disabling the background persistence the route is built on.
+  if (!body.id || typeof body.id !== "string" || body.id.length === 0) {
+    return Response.json({ error: "chat id is required" }, { status: 400 });
+  }
+  // Body.id is runtime-guaranteed non-empty string past the guard above; widen
+  // to a definite string so the backgroundServe call below type-checks (the
+  // schema keeps id optional, so TS can't narrow the parsed property here).
+  const realChatId: string = body.id;
+
   // 4. Φ8: generation-only models route OUT of the streamText path.
   //
   //    Image-gen models (kind:"image") hit /api/generate/image and emit the
@@ -308,6 +323,13 @@ export async function POST(request: Request) {
       // Typed via ReturnType<streamText<BuildTools>> — the actual shape varies
       // with the optional tools map; `any` lets the optional merge still work.
       let result: any;
+      // Φ10/#3 — assistant reply id + its abort controller, created BEFORE the
+      // streamText call so (a) the signal can be wired in (review M1: abort =
+      // deliberate stop or settle timeout, never reload), and (b) the id the
+      // route broadcasts matches what backgroundServe persists. unregister on
+      // settle is handled inside backgroundServe's done().finally().
+      const assistantId = generateId();
+      const genCtrl = createGenerationController(assistantId);
       try {
         // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
         // env so the model doesn't advertise network tools in builds that
@@ -324,8 +346,31 @@ export async function POST(request: Request) {
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
         };
         const supportsTools = webFetchEnabled || webSearchEnabled;
+
+        // Sprint 2 — permission gating (deny→ask→allow). With
+        // ENABLE_TOOL_APPROVAL=1, webFetch triggers a `tool-approval-request`
+        // (client renders an AskCard → Allow/Deny → `tool-approval-response`
+        // before the tool runs). Policy:
+        //   - TOOL_APPROVAL_POLICY=allow → auto-approve everything (no cards)
+        //   - TOOL_APPROVAL_POLICY=deny  → auto-deny everything
+        //   - default (ask) → webSearch auto-allows (read-only search),
+        //     webFetch asks (arbitrary-url network fetch). Unset → no approval
+        //     layer; tools run as in Sprint 1.
+        const approvalEnabled = process.env.ENABLE_TOOL_APPROVAL === "1";
+        const approveAll =
+          approvalEnabled && process.env.TOOL_APPROVAL_POLICY === "allow";
+        const approveNone =
+          approvalEnabled && process.env.TOOL_APPROVAL_POLICY === "deny";
+        const approveOn =
+          supportsTools && approvalEnabled && !approveAll && !approveNone;
+
         result = streamText({
         model: getLanguageModel(modelId),
+        // Φ10/#3 — aborts only on deliberate stop / settle-timeout, NOT on the
+        // request signal (reload/close must let the detached generation finish).
+        // Tool streams inherit this controller, so a reload mid-webFetch no longer
+        // tears down the in-flight fetch (review M2); an explicit stop does.
+        abortSignal: genCtrl.signal,
         // `supportsTools` gates the artifact-style prompt block in prompts.ts.
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
@@ -348,6 +393,17 @@ export async function POST(request: Request) {
           tools,
           stopWhen: stepCountIs(3),
         }),
+        // Sprint 2 approval layer. Generic fn inspects the tool name; the
+        // typed param is narrowed via the toolCall. webSearch auto-passes
+        // (safe read-only), webFetch requires the user's AskCard allow.
+        ...(approveOn && {
+          toolApproval: async ({
+            toolCall,
+          }: {
+            toolCall?: { toolName?: string };
+          }) =>
+            toolCall?.toolName === "webSearch" ? "approved" : "user-approval",
+        }),
         });
       } catch (err) {
         try {
@@ -365,52 +421,37 @@ export async function POST(request: Request) {
         throw err;
       }
 
-      // Merge model stream → UI stream. sendReasoning surfaces reasoning parts
-      // (NIM reasoning_content / gateway reasoning) for reasoning-capable models.
-      try {
-        const merged = result.toUIMessageStream({
-          // Per user 2026-07-11 — disabled createDocument. Models over-triggered
-          // on conversational prompts and the artifact became unwanted. Inline
-          // is the default. Re-enable when a deliberate "save / draft" UX is wired.
-          sendReasoning: isReasoningModel,
-          onError: (err: unknown) => {
-            try {
-              require("node:fs").appendFileSync(
-                process.env.LEOPARD_DEBUG_LOG ?? "",
-                new Date().toISOString() +
-                  " STREAM_onError model=" + modelId +
-                  " msg=" + errMessage(err) +
-                  " name=" + errName(err) +
-                  "\n",
-              );
-            } catch {}
-            console.error("[/api/chat] STREAM_onError", err);
-          },
-        });
-        dataStream.merge(merged);
-      } catch (err: unknown) {
-        const e = err as Error;
-        console.error(
-          "[/api/chat] MERGE_THROW model=" + modelId +
-            " msg=" + errMessage(err) +
-            " stack=" + errStack(err),
-        );
+      // Φ10 / #3 — detached background generation. The streamText result is
+      // handed to backgroundServe, which drives it to completion INDEPENDENT of
+      // this HTTP request: it persists the assistant reply to Convex (progressive
+      // `streaming` patches + a final `completed` patch) and broadcasts the live
+      // UI-protocol chunks over an in-process bus. This SSE mirrors that bus to
+      // the connected browser. If the page reloads/exits, the response aborts —
+      // only this mirror stops; the detached task + model call + Convex writes
+      // keep running, so the reply completes and is there on remount.
+      const gen = backgroundServe({
+        result,
+        sendReasoning: isReasoningModel,
+        assistantId,
+        chatId: realChatId,
+        userId: userId ?? DEV_USER_ID,
+        model: modelId,
+        abortController: genCtrl,
+        settleTimeoutMs: maxDuration * 1000,
+      });
+      const unsubGen = gen.subscribe((chunk) => {
         try {
-          const fs = require("node:fs");
-          fs.appendFileSync(
-            process.env.LEOPARD_DEBUG_LOG ?? "",
-            new Date().toISOString() +
-              " MERGE_THROW model=" + modelId +
-              " msg=" + errMessage(err) +
-              "\n",
-          );
-        } catch {}
-        throw err;
-      }
+          // Mirror each protocol chunk (text-delta/reasoning-*/finish/error/…) to
+          // the browser. Failures mean the browser is gone → drop the mirror only.
+          dataStream.write(chunk as never);
+        } catch {
+          /* detached generation continues regardless */
+        }
+      });
 
-      // Emit a custom `data-chat-title` part so the Phase 5 client hook can
-      // call api.chats.updateTitle. (No server-side Convex save — client owns
-      // persistence; this route deliberately has no ConvexHttpClient.)
+      // Emit a custom `data-chat-title` part so the client hook can call
+      // api.chats.updateTitle. (Title stays a client-owned side effect; this is
+      // a cosmetic broadcast, not the Convex write path.)
       if (titlePromise) {
         try {
           const title = await titlePromise;
@@ -419,6 +460,17 @@ export async function POST(request: Request) {
           /* non-fatal — title is cosmetic */
         }
       }
+
+      // Keep this response open until the generation settles (so suspended SSE
+      // flushes its buffered chunks), then release the mirror. The detached
+      // task has already persisted by now, so release is safe even if the
+      // browser closed mid-flight.
+      try {
+        await gen.done;
+      } catch {
+        /* the mirror may be gone; generation already persisted */
+      }
+      unsubGen();
     },
     generateId,
     onError: (error: unknown) => {

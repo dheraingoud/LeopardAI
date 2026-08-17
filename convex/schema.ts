@@ -67,12 +67,24 @@ export default defineSchema({
     // Φ3: client UUID (UIMessage.id). Backfilled to _id by migration.
     id: v.optional(v.string()),
     model: v.optional(v.string()),
+    // Φ10: server-owned generation lifecycle. Rows written by the detached
+    // /api/chat background task are `streaming` until they complete, then
+    // flipped to `completed`. Client-persisted rows (user msgs) leave it unset
+    // — `undefined` reads as "settled". Lets a reloaded page distinguish an
+    // in-flight reply (re-render as it fills) from a finished one.
+    status: v.optional(
+      v.union(v.literal("streaming"), v.literal("completed"))
+    ),
     createdAt: v.number(),
   })
     .index("by_chat", ["chatId"])
     // Φ9: composite index — replaces the unbounded `.filter(q.gte(createdAt))`
     // scan in messages.deleteAfterTimestamp.
     .index("by_chat_createdAt", ["chatId", "createdAt"])
+    // m7 (review): composite index scoping the upsertAssistant id lookup to a
+    // single chat, so a colliding client id in a different chat can never fold
+    // into an unrelated row.
+    .index("by_chat_public_id", ["chatId", "id"])
     .index("by_public_id", ["id"]),
 
   // Φ3 NEW — message votes (thumbs up/down). One vote per message.
