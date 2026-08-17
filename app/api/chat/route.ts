@@ -18,8 +18,10 @@ import {
   isImageModel,
   isVideoModel,
   resolveImageDimensions,
+  type ChatModel,
   type ImageAspectRatio,
 } from "@/lib/ai/models";
+import { isModelRequestAllowed } from "@/lib/ai/model-allowlist";
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
 import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
@@ -251,10 +253,38 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Resolve model id → registry default if absent/unknown.
-  const requested = body.model ?? getDefaultChatModel().id;
-  const modelId = allowedModelIds.has(requested) ? requested : getDefaultChatModel().id;
-  const modelConfig = getModelById(modelId);
+  // 3. Resolve model id — fail LOUD on an explicit-but-disallowed model id.
+  //    Absent → the trusted server default (getDefaultChatModel is always an
+  //    active registry id). Present → must pass the operator allowlist
+  //    (LEOPARD_ENABLED_MODELS layered over the active registry). The prior
+  //    behavior SILENTLY downgraded an invalid id to the default — a typo'd or
+  //    injected id ran on a different model than the client believed, and a
+  //    crafted gateway id would route provider traffic once a key existed. 400
+  //    with a clear message instead.
+  let modelId: string;
+  let modelConfig: ChatModel | undefined;
+  const requestedModel = body.model;
+  if (!requestedModel) {
+    modelConfig = getDefaultChatModel();
+    modelId = modelConfig.id;
+  } else if (
+    isModelRequestAllowed(
+      requestedModel,
+      allowedModelIds,
+      process.env.LEOPARD_ENABLED_MODELS,
+    )
+  ) {
+    modelId = requestedModel;
+    modelConfig = getModelById(requestedModel);
+  } else {
+    return Response.json(
+      {
+        error: "model_not_allowed",
+        message: `Model '${requestedModel}' is not enabled for this deployment.`,
+      },
+      { status: 400 },
+    );
+  }
 
   const messages = body.messages as UIMessage[];
   if (messages.length === 0) {
