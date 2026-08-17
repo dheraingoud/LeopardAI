@@ -32,6 +32,11 @@
 import { tool, type UIMessageStreamWriter } from "ai";
 import { z } from "zod";
 import type { ChatMessage } from "@/lib/types";
+import {
+  hostFromUrl,
+  resolveFetchHostPolicy,
+} from "@/lib/ai/fetch-policy";
+import { redactUrlForDisplay } from "@/lib/redact";
 
 const MAX_BYTES_DEFAULT = 50_000;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -138,6 +143,16 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
         return { error: "protocol_not_allowed", url, got: parsed.protocol };
       }
 
+      // SSRF gate (claude-code-docs perms/mcp): a public fetch tool must never
+      // reach private/internal hosts. Private/loopback/link-local + any
+      // denylisted host are refused; if LEOPARD_FETCH_ALLOWLIST is set, only
+      // matching hosts pass. Enforced BEFORE any network I/O.
+      const hostname = hostFromUrl(url) ?? "";
+      const verdict = resolveFetchHostPolicy(hostname);
+      if (!verdict.allowed) {
+        return { error: "host_blocked", url: redactUrlForDisplay(url), reason: verdict.reason };
+      }
+
       // Compose route abort + our 10s timeout into a single AbortSignal
       // (Node 20+) so one signal flows into fetch(). Eliminates manual
       // addEventListener bookkeeping that would otherwise leak listeners over
@@ -204,10 +219,18 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
       reader.releaseLock();
 
       const looksLikeHtml = /<[a-z][^>]*>/i.test(buf) || /text\/html/.test(ctype);
-      const content = looksLikeHtml ? htmlToText(buf) : buf;
+      const clean = looksLikeHtml ? htmlToText(buf) : buf;
+
+      // Prompt-injection guard (docs/mcp.md): mark fetched content as UNTRUSTED
+      // DATA via provenance delimiters so the model (which is told in the system
+      // prompt to treat web content as data, never instructions) can ignore any
+      // directive a hostile page smuggles in. The source URL is redacted for
+      // display in case it carries creds/tokens.
+      const safeUrl = redactUrlForDisplay(url);
+      const content = `<web_content source="${safeUrl}">\n${clean}\n</web_content>`;
 
       return {
-        url,
+        url: safeUrl,
         status,
         content_type: ctype,
         bytes_read: received,
