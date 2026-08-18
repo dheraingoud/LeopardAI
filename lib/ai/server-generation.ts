@@ -237,6 +237,73 @@ export async function recordAudit(input: AuditInput): Promise<void> {
   }
 }
 
+// ── Per-user long-term memory (Φ-docs recall loop) ──────────────────────────
+export type UserMemory = { id: string; text: string; pinned?: boolean; updatedAt: number };
+
+/** Ordered recall list for the route to inject into the system prompt AND for
+ * the model's listMemories tool. Returns [] when unconfigured (no admin
+ * client) — memory is additive, never fatal to a turn. */
+export async function listUserMemories(userId: string): Promise<UserMemory[]> {
+  const c = convexClient();
+  if (!c) return [];
+  try {
+    const rows = (await c.query(internal.userMemory.listForUser as never, {
+      userId,
+    } as never)) as unknown;
+    if (!Array.isArray(rows)) return [];
+    return rows.map((r: any) => ({
+      id: String((r as { _id?: unknown })._id ?? ""),
+      text: String((r as { text?: unknown }).text ?? ""),
+      pinned: Boolean((r as { pinned?: unknown }).pinned),
+      updatedAt: Number((r as { updatedAt?: unknown }).updatedAt ?? 0),
+    }));
+  } catch (err) {
+    logWarn("memory recall failed", err);
+    return [];
+  }
+}
+
+/** Remember a fact (deduplicated by normalized text). Returns total count, or
+ * 0 when unconfigured (no admin client) so a stray write can't fail a turn. */
+export async function rememberUserMemory(input: {
+  userId: string;
+  text: string;
+  pinned?: boolean;
+}): Promise<number> {
+  const c = convexClient();
+  if (!c) return 0;
+  try {
+    const total = (await c.mutation(internal.userMemory.remember as never, {
+      userId: input.userId,
+      text: input.text,
+      pinned: input.pinned,
+    } as never)) as unknown;
+    return typeof total === "number" ? total : 0;
+  } catch (err) {
+    logWarn("memory remember failed", err);
+    return 0;
+  }
+}
+
+/** Forget a specific memory. True on success. */
+export async function forgetUserMemory(input: {
+  userId: string;
+  memoryId: string;
+}): Promise<boolean> {
+  const c = convexClient();
+  if (!c) return false;
+  try {
+    const ok = (await c.mutation(internal.userMemory.forgetById as never, {
+      userId: input.userId,
+      memoryId: input.memoryId,
+    } as never)) as unknown;
+    return ok === true;
+  } catch (err) {
+    logWarn("memory forget failed", err);
+    return false;
+  }
+}
+
 /**
  * True when a user has consumed ≥ LEOPARD_DAILY_TOKEN_CAP tokens in the last
  * 24h. Cap off unless LEOPARD_DAILY_TOKEN_CAP is set to a positive integer.

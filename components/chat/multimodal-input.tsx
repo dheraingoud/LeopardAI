@@ -9,6 +9,7 @@ import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
 import { PlusMenu } from "./plus-menu";
 import { ContextDescriptor } from "./context-descriptor";
+import { MemoryBadge } from "./memory-badge";
 import { uploadFile } from "@/lib/upload";
 import { getModelById } from "@/lib/ai/models";
 
@@ -208,6 +209,8 @@ export function MultimodalInput() {
                 attachmentCount={attachments.length}
                 attachments={attachments}
               />
+              {/* Φ-docs · per-user long-term memory chip — count + one-click forget */}
+              <MemoryBadge />
               {isStreaming ? (
                 <GlassButton
                   type="button"
