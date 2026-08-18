@@ -41,6 +41,7 @@ import {
   type UserMemory,
 } from "@/lib/ai/server-generation";
 import { memoryTools } from "@/lib/ai/tools/memory";
+import { researchTools } from "@/lib/ai/tools/research";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 
@@ -440,13 +441,20 @@ export async function POST(request: Request) {
         // long-term facts (injected into the system prompt on every turn).
         const memEnabled = process.env.LEOPARD_MEMORY === "1";
         const memUserId = userId ?? DEV_USER_ID;
+        // Φ-docs · deep-research — LEOPARD_DEEP_RESEARCH=1 gives the model a
+        // detached multi-source research worker (lib/ai/research/worker). It
+        // shares the chat model + Tavily; spawn is fire-and-forget (jobId back,
+        // report later in the research panel).
+        const researchEnabled = process.env.LEOPARD_DEEP_RESEARCH === "1";
         const tools = {
           ...(webFetchEnabled ? { webFetch: webFetch({ dataStream }) } : {}),
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
           ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
+          ...(researchEnabled ? researchTools({ userId: memUserId, modelId }) : {}),
           ...mcpHandle.tools,
         };
-        const supportsTools = webFetchEnabled || webSearchEnabled || memEnabled || mcpHasTools;
+        const supportsTools =
+          webFetchEnabled || webSearchEnabled || memEnabled || researchEnabled || mcpHasTools;
         // Φ-docs · recall injection — the user's stored facts ride into the
         // system prompt each turn (listUserMemories returns [] when the admin
         // client or storage is unavailable; memory is additive, never fatal).
@@ -481,13 +489,13 @@ export async function POST(request: Request) {
             approvalRules,
             approveNone ? "deny" : approveAll ? "allow" : "ask",
           );
-          // Φ-docs · memory tools are low-risk (the user's own reversible
-          // recall store) — auto-approve unless the operator's rules EXPLICITLY
-          // deny them. An explicit deny still vetoes.
-          const isMemoryTool = (toolName ?? "").startsWith("memory_");
+          // Φ-docs · memory + research tools are low-risk (the user's own reversible
+          // recall store / a read-only background search) — auto-approve unless
+          // the operator's rules EXPLICITLY deny them. An explicit deny vetoes.
+          const lowRiskTool = (toolName ?? "").startsWith("memory_") || (toolName ?? "").startsWith("research_");
           let decision: "approved" | "denied" | "user-approval" =
             d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
-          if (isMemoryTool && d.mode !== "deny") decision = "approved";
+          if (lowRiskTool && d.mode !== "deny") decision = "approved";
           // Φ-docs: append the gate decision to the enterprise tool-audit trail
           // (who/what-tool/when/was-it-approved). Fire-and-forget; a failed
           // write is logged, never fatal to the stream.

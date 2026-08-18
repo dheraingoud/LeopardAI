@@ -24,6 +24,73 @@ const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 const TAVILY_TIMEOUT_MS = 10_000;
 const MAX_RESULTS = 8;
 
+export type TavilyResult = { title: string; url: string; score?: number; content?: string };
+
+/**
+ * Core Tavily search — NO AI SDK tool wrapper. Returns plain structured
+ * results so non-model code (the deep-research worker) can search directly.
+ * `withContent` requests Tavily's advanced depth so each result carries a
+ * readable snippet (`content`), which the research loop uses as raw evidence;
+ * the `webSearch` tool leaves it off to keep that path content-free.
+ */
+export async function tavilySearch(opts: {
+  query: string;
+  maxResults?: number;
+  withContent?: boolean;
+  allowedDomains?: string[];
+  blockedDomains?: string[];
+  abortSignal?: AbortSignal;
+}): Promise<{ results: TavilyResult[] } | { error: string; detail?: string; status?: number }> {
+  const timedCtrl = new AbortController();
+  const t = setTimeout(() => timedCtrl.abort(), TAVILY_TIMEOUT_MS);
+  const composed = opts.abortSignal
+    ? AbortSignal.any([timedCtrl.signal, opts.abortSignal])
+    : timedCtrl.signal;
+
+  let res: Response;
+  try {
+    res = await fetch(TAVILY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: opts.query,
+        max_results: opts.maxResults ?? MAX_RESULTS,
+        search_depth: opts.withContent ? "advanced" : "basic",
+        ...(opts.allowedDomains?.length ? { include_domains: opts.allowedDomains } : {}),
+        ...(opts.blockedDomains?.length ? { exclude_domains: opts.blockedDomains } : {}),
+      }),
+      signal: composed,
+    });
+  } catch (e) {
+    clearTimeout(t);
+    return { error: "search_failed", detail: e instanceof Error ? e.message : String(e) };
+  }
+  clearTimeout(t);
+
+  if (!res.ok) {
+    return { error: "search_http_error", status: res.status };
+  }
+
+  const data = (await res.json().catch(() => ({}))) as {
+    results?: Array<{ title?: string; url?: string; score?: number; content?: string }>;
+    error?: string;
+  };
+  if (data.error) return { error: "search_api_error", detail: data.error };
+
+  const results = (data.results ?? [])
+    .filter((r) => r.title && r.url)
+    .slice(0, opts.maxResults ?? MAX_RESULTS)
+    .map((r) => ({
+      title: r.title as string,
+      url: r.url as string,
+      score: typeof r.score === "number" ? r.score : undefined,
+      ...(opts.withContent && r.content ? { content: r.content } : {}),
+    }));
+
+  return { results };
+}
+
 export const webSearch = () =>
   tool({
     description:
@@ -52,64 +119,17 @@ export const webSearch = () =>
         "allowed_domains and blocked_domains are mutually exclusive",
       ),
     execute: async (input, { abortSignal }) => {
-      const timedCtrl = new AbortController();
-      const t = setTimeout(() => timedCtrl.abort(), TAVILY_TIMEOUT_MS);
-      const composed = abortSignal
-        ? AbortSignal.any([timedCtrl.signal, abortSignal])
-        : timedCtrl.signal;
-
-      let res: Response;
-      try {
-        res = await fetch(TAVILY_ENDPOINT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            api_key: process.env.TAVILY_API_KEY,
-            query: input.query,
-            max_results: MAX_RESULTS,
-            // Empty arrays would be sent as "allowances" — omit when unset.
-            ...(input.allowed_domains?.length
-              ? { include_domains: input.allowed_domains }
-              : {}),
-            ...(input.blocked_domains?.length
-              ? { exclude_domains: input.blocked_domains }
-              : {}),
-          }),
-          signal: composed,
-        });
-      } catch (e) {
-        clearTimeout(t);
-        return {
-          error: "search_failed",
-          detail: e instanceof Error ? e.message : String(e),
-        };
+      const out = await tavilySearch({
+        query: input.query,
+        allowedDomains: input.allowed_domains,
+        blockedDomains: input.blocked_domains,
+        abortSignal,
+      });
+      if ("error" in out) {
+        // Tavily 401 → bad key; 429 → rate limit. Surface status so the model
+        // knows the tool is temporarily unavailable, not a bad query.
+        return { error: out.error, detail: out.detail, status: out.status };
       }
-      clearTimeout(t);
-
-      if (!res.ok) {
-        // Tavily 401 → bad key; 429 → rate limit. Give the model the status
-        // so it knows the tool is temporarily unavailable, not a bad query.
-        return { error: "search_http_error", status: res.status };
-      }
-
-      const data = (await res.json().catch(() => ({}))) as {
-        results?: Array<{ title?: string; url?: string; score?: number }>;
-        error?: string;
-      };
-
-      if (data.error) return { error: "search_api_error", detail: data.error };
-
-      const results = (data.results ?? [])
-        .filter((r) => r.title && r.url)
-        .slice(0, MAX_RESULTS)
-        .map((r) => ({
-          title: r.title as string,
-          url: r.url as string,
-          score: typeof r.score === "number" ? r.score : undefined,
-        }));
-
-      return { query: input.query, results };
+      return { query: input.query, results: out.results.map(({ title, url, score }) => ({ title, url, score })) };
     },
   });

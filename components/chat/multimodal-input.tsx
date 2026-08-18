@@ -10,6 +10,7 @@ import { ModelSelectorCompact } from "./model-selector-compact";
 import { PlusMenu } from "./plus-menu";
 import { ContextDescriptor } from "./context-descriptor";
 import { MemoryBadge } from "./memory-badge";
+import { ResearchPanel } from "./research-panel";
 import { uploadFile } from "@/lib/upload";
 import { getModelById } from "@/lib/ai/models";
 
@@ -211,6 +212,8 @@ export function MultimodalInput() {
               />
               {/* Φ-docs · per-user long-term memory chip — count + one-click forget */}
               <MemoryBadge />
+              {/* Φ-docs · detached deep-research worker panel */}
+              <ResearchPanel />
               {isStreaming ? (
                 <GlassButton
                   type="button"
