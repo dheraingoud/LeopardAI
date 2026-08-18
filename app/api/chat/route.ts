@@ -27,6 +27,7 @@ import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
+import { loadMcpTools } from "@/lib/ai/mcp";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import {
@@ -375,6 +376,9 @@ export async function POST(request: Request) {
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
       let buildStream: (() => any) | null = null;
+      // MCP connects ONCE per request (before the retry factory) so a retry
+      // never re-spawns child processes/sessions; released after the turn.
+      const mcpHandle = await loadMcpTools();
       try {
         // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
         // env so the model doesn't advertise network tools in builds that
@@ -386,11 +390,19 @@ export async function POST(request: Request) {
         const webFetchEnabled = process.env.ENABLE_WEB_FETCH === "1";
         const webSearchEnabled =
           process.env.ENABLE_WEB_SEARCH === "1" && !!process.env.TAVILY_API_KEY;
+        // LEOPARD MCP — operator-configured external tool servers (http/sse/
+        // stdio). Fail-closed: LEOPARD_MCP_SERVERS unset → no MCP at all. A
+        // broken server is logged + skipped; healthy ones contribute tools.
+        // MCP tools keep the `mcp__server__tool` prefix (docs agent-sdk__mcp
+        // naming) so approval rules (`^mcp__=deny`), the per-tool ask/deny gate,
+        // and the audit trail all scope them cleanly.
+        const mcpHasTools = mcpHandle.toolNames.length > 0;
         const tools = {
           ...(webFetchEnabled ? { webFetch: webFetch({ dataStream }) } : {}),
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
+          ...mcpHandle.tools,
         };
-        const supportsTools = webFetchEnabled || webSearchEnabled;
+        const supportsTools = webFetchEnabled || webSearchEnabled || mcpHasTools;
 
         // Sprint 2 — permission gating (deny→ask→allow). With
         // ENABLE_TOOL_APPROVAL=1, webFetch triggers a `tool-approval-request`
@@ -582,6 +594,11 @@ export async function POST(request: Request) {
         /* the mirror may be gone; generation already persisted */
       }
       unsubGen();
+      // Release MCP server connections (stdio child processes / http sessions).
+      // Best-effort — a close failure must never surface as a route error.
+      try {
+        await mcpHandle.close();
+      } catch {}
     },
     generateId,
     onError: (error: unknown) => {
