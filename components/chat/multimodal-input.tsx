@@ -8,7 +8,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
 import { PlusMenu } from "./plus-menu";
-import { ContextIndicator } from "./context-indicator";
+import { ContextDescriptor } from "./context-descriptor";
 import { uploadFile } from "@/lib/upload";
 import { getModelById } from "@/lib/ai/models";
 
@@ -202,10 +202,11 @@ export function MultimodalInput() {
                   lives inside the bottom-right model popover, not the input
                   bar). No separate composer pill. */}
               <ModelSelectorCompact />
-              <ContextIndicator
+              <ContextDescriptor
                 contextWindow={ctxWin}
                 text={input}
                 attachmentCount={attachments.length}
+                attachments={attachments}
               />
               {isStreaming ? (
                 <GlassButton
