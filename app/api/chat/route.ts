@@ -28,6 +28,8 @@ import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { loadMcpTools } from "@/lib/ai/mcp";
+import { compactMessages } from "@/lib/context-manager";
+import { estimateConversationTokens, getContextBudget, type TokenMessage } from "@/lib/token-estimator";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import {
@@ -345,8 +347,41 @@ export async function POST(request: Request) {
   const capabilities = await getCapabilities();
   const isReasoningModel = capabilities[modelId]?.reasoning === true;
 
-  // 7. Convert the full UIMessage history → CoreMessage[] for streamText.
-  const modelMessages = await convertToModelMessages(messages);
+  // 6b. Φ-docs: automatic context compaction (LEOPARD_CONTEXT_COMPACT=1, OFF by
+//     default → zero behavior change unless an operator opts in). When the
+//     history nears the model window, fold the older ~60% into a summary via
+//     /api/summarize (falling back to a pure sliding window), keeping the tail.
+//     Fail-open: any compaction error keeps the FULL history. A folded summary
+//     is broadcast (data-compaction) so the UI can surface it.
+  let modelMessages = await convertToModelMessages(messages);
+  let compactedSummary: string | undefined;
+  if (process.env.LEOPARD_CONTEXT_COMPACT === "1") {
+    const contextWindow = modelConfig?.contextWindow ?? 128_000;
+    try {
+      const tokenMsgs: TokenMessage[] = messages.map((m) => {
+        const parts = (m.parts ?? []) as Array<{ type?: string; text?: string }>;
+        const text = parts
+          .filter((p) => p.type === "text" || p.type === "reasoning")
+          .map((p) => p.text ?? "")
+          .join("\n");
+        return { role: m.role ?? "user", content: text };
+      });
+      const usedTokens = estimateConversationTokens(tokenMsgs);
+      const budget = getContextBudget(contextWindow);
+      if (budget > 0 && usedTokens > budget * 0.85) {
+        const result = await compactMessages(tokenMsgs, contextWindow, "summarize");
+        if (result.compactedTokenCount < result.originalTokenCount) {
+          modelMessages = result.messages.map((m) => ({
+            role: m.role,
+            content: [{ type: "text", text: m.content }],
+          })) as typeof modelMessages;
+          compactedSummary = result.summary;
+        }
+      }
+    } catch {
+      /* compaction is best-effort — keep the full history */
+    }
+  }
 
   // 8. Title gen: only on the first exchange (no assistant turn yet).
   const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
@@ -581,6 +616,15 @@ export async function POST(request: Request) {
           dataStream.write({ type: "data-chat-title", data: title });
         } catch {
           /* non-fatal — title is cosmetic */
+        }
+      }
+
+      // Broadcast a compaction notice when the route folded older history.
+      if (compactedSummary) {
+        try {
+          dataStream.write({ type: "data-compaction", data: compactedSummary, transient: true });
+        } catch {
+          /* cosmetic — the model already ran on compacted history */
         }
       }
 
