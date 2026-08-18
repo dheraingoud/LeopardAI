@@ -90,11 +90,14 @@ export function systemPrompt({
   requestHints,
   supportsTools,
   context,
+  memories,
 }: {
   requestHints?: RequestHints;
   supportsTools: boolean;
   /** Recent conversation text — matched against `auto` skill triggers. */
   context?: string;
+  /** Per-user long-term facts (LEOPARD_MEMORY=1). Injected as trusted recall. */
+  memories?: Array<{ text: string; pinned?: boolean }>;
 }) {
   const base = `You are Leopard, a high-performance AI assistant.
 
@@ -121,6 +124,19 @@ ${locationLine(requestHints ?? {})}`.trim();
   // artifact tool contract so the model emits createDocument calls instead of
   // inlining long-form content.
   let prompt = supportsTools ? `${base}\n\n${artifactsPrompt}`.trim() : base;
+
+  // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the
+  // route provided them; pinned facts come first. These are first-party, not
+  // untrusted web content — no hostile-handling caveat needed.
+  if (memories && memories.length > 0) {
+    const lines = [...memories] // pinned first, stable order otherwise
+      .sort((a, b) => (!!b.pinned ? 1 : 0) - (!!a.pinned ? 1 : 0))
+      .map((m) => `- ${m.text.trim()}`)
+      .join("\n");
+    if (lines) {
+      prompt = `${prompt}\n\nTHINGS YOU REMEMBER ABOUT THE USER (persistent, cross-chat):\n${lines}\nUse these when they're relevant. The user can delete any of these at any time.`;
+    }
+  }
 
   // Internal skills: inject instruction bodies whose triggers match the recent
   // conversation. diagram-clarity keeps mermaid well-formed so the client never

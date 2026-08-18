@@ -36,8 +36,11 @@ import {
   backgroundServe,
   createGenerationController,
   isOverDailyTokenCap,
+  listUserMemories,
   recordAudit,
+  type UserMemory,
 } from "@/lib/ai/server-generation";
+import { memoryTools } from "@/lib/ai/tools/memory";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 
@@ -432,12 +435,22 @@ export async function POST(request: Request) {
         // naming) so approval rules (`^mcp__=deny`), the per-tool ask/deny gate,
         // and the audit trail all scope them cleanly.
         const mcpHasTools = mcpHandle.toolNames.length > 0;
+        // Φ-docs · per-user memory loop. LEOPARD_MEMORY=1 → give the model
+        // remember / listMemories / forgetById over the user's Convex-backed
+        // long-term facts (injected into the system prompt on every turn).
+        const memEnabled = process.env.LEOPARD_MEMORY === "1";
+        const memUserId = userId ?? DEV_USER_ID;
         const tools = {
           ...(webFetchEnabled ? { webFetch: webFetch({ dataStream }) } : {}),
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
+          ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
           ...mcpHandle.tools,
         };
-        const supportsTools = webFetchEnabled || webSearchEnabled || mcpHasTools;
+        const supportsTools = webFetchEnabled || webSearchEnabled || memEnabled || mcpHasTools;
+        // Φ-docs · recall injection — the user's stored facts ride into the
+        // system prompt each turn (listUserMemories returns [] when the admin
+        // client or storage is unavailable; memory is additive, never fatal).
+        const memories = memEnabled ? await listUserMemories(memUserId) : undefined;
 
         // Sprint 2 — permission gating (deny→ask→allow). With
         // ENABLE_TOOL_APPROVAL=1, webFetch triggers a `tool-approval-request`
@@ -468,7 +481,13 @@ export async function POST(request: Request) {
             approvalRules,
             approveNone ? "deny" : approveAll ? "allow" : "ask",
           );
-          const decision = d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
+          // Φ-docs · memory tools are low-risk (the user's own reversible
+          // recall store) — auto-approve unless the operator's rules EXPLICITLY
+          // deny them. An explicit deny still vetoes.
+          const isMemoryTool = (toolName ?? "").startsWith("memory_");
+          let decision: "approved" | "denied" | "user-approval" =
+            d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
+          if (isMemoryTool && d.mode !== "deny") decision = "approved";
           // Φ-docs: append the gate decision to the enterprise tool-audit trail
           // (who/what-tool/when/was-it-approved). Fire-and-forget; a failed
           // write is logged, never fatal to the stream.
@@ -495,7 +514,7 @@ export async function POST(request: Request) {
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
         // AI SDK v7: `system` → `instructions`.
-        instructions: systemPrompt({ requestHints: {}, supportsTools, context: promptContext }),
+        instructions: systemPrompt({ requestHints: {}, supportsTools, context: promptContext, memories }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since

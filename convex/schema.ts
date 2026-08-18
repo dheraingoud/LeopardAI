@@ -145,6 +145,22 @@ export default defineSchema({
     .index("by_user_ts", ["userId", "ts"])
     .index("by_chat", ["chatId"]),
 
+  // Φ-docs · per-user long-term memory (recall loop). One row per recalled fact.
+  // Route injects these into the system prompt (LEOPARD_MEMORY=1); a memory
+  // tool can add/remove them mid-conversation; the UI affordance lists the
+  // count and lets the user delete. Pinned facts float to the top. Index by
+  // user + recency so recall pulls newest-first (pinned first).
+  userMemory: defineTable({
+    userId: v.string(),
+    text: v.string(), // the fact, as the model/memory tool stored it
+    pinned: v.optional(v.boolean()),
+    sourceChatId: v.optional(v.id("chats")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user_updatedAt", ["userId", "updatedAt"])
+    .index("by_user", ["userId"]),
+
   // Φ-docs · enterprise tool audit trail — append-only log of every gate
   // decision + tool execution the model runs. Written via internal.audit.record
   // (internalMutation; no public client surface). Immutable: insert-only.
