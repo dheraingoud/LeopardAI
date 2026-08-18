@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requireGenAccess } from "@/lib/api/guard";
 import {
   enqueueVideoJob,
   setVideoJobProcessing,
@@ -914,6 +915,10 @@ async function processVideoJob(params: {
 
 export async function POST(req: NextRequest) {
   try {
+    // Φ-docs · fail-closed gate: signed-in session OR internal service token.
+    const gate = await requireGenAccess(req);
+    if (!gate.ok) return gate.res;
+
     const apiKey = process.env.NVIDIA_API_KEY;
     if (!apiKey) {
       return Response.json({ error: "NVIDIA_API_KEY is not configured" }, { status: 500 });

@@ -44,6 +44,7 @@ import { memoryTools } from "@/lib/ai/tools/memory";
 import { researchTools } from "@/lib/ai/tools/research";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
+import { internalHeaders } from "@/lib/api/guard";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
 export const runtime = "nodejs";
@@ -183,7 +184,9 @@ async function streamImageGeneration({
 
   const imageResponse = await fetch(new URL("/api/generate/image", request.url), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    // Φ-docs · internal service token so the fail-closed media gate recognizes
+    // this server-initiated call (this route already passed Clerk auth()).
+    headers: internalHeaders(),
     body: JSON.stringify({
       prompt,
       model: modelId,

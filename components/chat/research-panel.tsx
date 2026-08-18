@@ -11,11 +11,13 @@
 // Gating mirrors the other compos fature toggles: renders nothing unless
 // NEXT_PUBLIC_LEOPARD_DEEP_RESEARCH=1 or the URL carries ?research=1.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "@clerk/nextjs";
 import { Search, X, Loader2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { retryingFetch } from "@/lib/client/retrying-fetch";
 
 interface Job {
   id: string;
@@ -45,6 +47,16 @@ const STATUS_LABEL: Record<Job["status"], string> = {
 };
 
 export function ResearchPanel() {
+  const { session } = useSession();
+  // Φ-docs · token-refresh-once: getToken() is the current bearer; refresh
+  // reissues it (skipCache). A stale Clerk token gets refreshed + retried once.
+  const auth = useMemo(
+    () => ({
+      getToken: async () => (await session?.getToken().catch(() => null)) ?? undefined,
+      refreshToken: async () => (await session?.getToken({ skipCache: true }).catch(() => null)) ?? undefined,
+    }),
+    [session],
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -55,7 +67,7 @@ export function ResearchPanel() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/research", { cache: "no-store" });
+      const res = await retryingFetch("/api/research", { cache: "no-store" }, auth);
       if (res.ok) {
         const data = (await res.json()) as { jobs: Job[] };
         setJobs(data.jobs ?? []);
@@ -63,7 +75,8 @@ export function ResearchPanel() {
     } catch {
       /* keep last known jobs */
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.getToken, auth.refreshToken]);
 
   // Fetch on open + refresh every 2s while any job is active.
   useEffect(() => {
@@ -91,11 +104,15 @@ export function ResearchPanel() {
     if (!q || spawning) return;
     setSpawning(true);
     try {
-      const res = await fetch("/api/research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: q }),
-      });
+      const res = await retryingFetch(
+        "/api/research",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
+        },
+        auth,
+      );
       if (res.ok) {
         const { id } = (await res.json()) as { id: string };
         setQuery("");
@@ -120,7 +137,7 @@ export function ResearchPanel() {
       setSpawning(false);
     }
     void refresh();
-  }, [query, spawning, refresh]);
+  }, [query, spawning, refresh, auth]);
 
   if (!UI_ENABLED) return null;
 

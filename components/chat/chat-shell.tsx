@@ -16,6 +16,7 @@ import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
 import { ArtifactPanel } from "./artifact-panel";
 import { PulseLoader } from "./pulse-loader";
+import { SessionExpiryToast } from "./session-expiry-toast";
 
 /**
  * ChatShell — the per-chat surface injected into the (chat) layout's main
@@ -100,6 +101,7 @@ export function ChatShell() {
 
   return (
     <div className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
+      <SessionExpiryToast />
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
