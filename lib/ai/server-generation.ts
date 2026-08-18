@@ -339,8 +339,28 @@ const REPLAY_CAP = 5000;
 const PERSIST_INTERVAL_MS = 800;
 const PERSIST_BATCH = 120;
 
+/** A chunk that proves the model actually produced output (vs. an empty/stalled
+ * attempt). Drives the retry gate — we NEVER auto-retry once real content or a
+ * tool call has committed (docs/errors.md idempotency: re-running a turn that
+ * already executed tools would fire the side effects twice). */
+function isGenerationContent(chunk: UIMessageStreamChunk): boolean {
+  return (
+    chunk?.type === "text-delta" ||
+    chunk?.type === "reasoning-delta" ||
+    chunk?.type === "tool-call-end" ||
+    chunk?.type === "tool-call-start"
+  );
+}
+
 export function backgroundServe(args: {
-  result: any;
+  result?: any;
+  /** Re-invoked for each retry attempt — MUST return a FRESH streamText result
+   * (a consumed result cannot be re-derived). Required for retries to engage. */
+  streamFactory?: () => Promise<any>;
+  /** Total attempts incl. the first. Only meaningful with streamFactory. */
+  maxAttempts?: number;
+  /** Fixed delay before each retry (docs: "Retrying in Ns · attempt x/y"). */
+  retryBackoffMs?: number;
   sendReasoning: boolean;
   assistantId: string;
   chatId: string;
@@ -354,6 +374,7 @@ export function backgroundServe(args: {
 }): ServerGenerationHandle {
   const {
     result,
+    streamFactory,
     sendReasoning,
     assistantId,
     chatId,
@@ -363,6 +384,12 @@ export function backgroundServe(args: {
     abortController: ctrl,
     settleTimeoutMs = 300_000,
   } = args;
+  const maxAttempts = Math.max(1, args.maxAttempts ?? (streamFactory ? 3 : 1));
+  const retryBackoffMs = args.retryBackoffMs ?? 2_500;
+  /** First attempt = explicit `result` when given, else the factory. */
+  const makeResult =
+    streamFactory ??
+    (result ? (async () => result) : undefined);
 
   const bus = new EventEmitter();
   const replay: UIMessageStreamChunk[] = [];
@@ -454,25 +481,84 @@ export function backgroundServe(args: {
     }
   }, settleTimeoutMs);
 
+  // True once ANY text / reasoning / tool output landed. Guards the retry gate:
+  // a turn that already produced content (or executed tools) is NEVER re-run —
+  // that would duplicate side effects (docs/errors.md idempotency + partial-
+  // output preservation).
+  let committed = false;
+  let lastResult: any = null;
+
+  /** Consume ONE streamText result to its end, forwarding every chunk. Returns
+   * `error` if the stream's terminal state was a failure. Safe to re-invoke on a
+   * FRESH result from the factory. */
+  const driveAttempt = async (r: any): Promise<{ error?: string }> => {
+    let attemptError: string | undefined;
+    try {
+      const merged = (await r.toUIMessageStream({
+        sendReasoning,
+        onError: (err: unknown) => {
+          attemptError = errMsg(err);
+          emit({ type: "error", error: errMsg(err) });
+        },
+      })) as AsyncIterable<UIMessageStreamChunk>;
+      for await (const chunk of merged) {
+        acc.push(chunk);
+        emit(chunk);
+        committed = committed || isGenerationContent(chunk);
+        void maybePersistProgressive(); // throttled; serialized by the write chain
+      }
+    } catch (err) {
+      attemptError = attemptError ?? errMsg(err);
+    }
+    return { error: attemptError };
+  };
+
   const done = (async () => {
     try {
-      let merged;
-      try {
-        merged = result.toUIMessageStream({
-          sendReasoning,
-          onError: (err: unknown) => emit({ type: "error", error: errMsg(err) }),
-        });
-      } catch (err) {
-        generationAborted = ctrl.signal.aborted;
-        emit({ type: "error", error: errMsg(err) });
+      if (!makeResult) {
+        emit({ type: "error", error: "missing generation source" });
         await finalizePartial();
         return;
       }
 
-      for await (const chunk of merged) {
-        acc.push(chunk as UIMessageStreamChunk);
-        emit(chunk as UIMessageStreamChunk);
-        void maybePersistProgressive(); // throttled; serialized by the write chain
+      let outcome: { error?: string } | undefined;
+      let attempt = 1;
+      while (attempt <= maxAttempts) {
+        if (ctrl.signal.aborted) {
+          generationAborted = true;
+          await finalizePartial();
+          return;
+        }
+        let r: any;
+        try {
+          r = await makeResult();
+        } catch (err) {
+          outcome = { error: errMsg(err) };
+          break;
+        }
+        lastResult = r;
+        outcome = await driveAttempt(r);
+
+        if (ctrl.signal.aborted) {
+          generationAborted = true;
+          await finalizePartial();
+          return;
+        }
+        // Retry ONLY a terminal, content-free attempt (empty completion or an
+        // error before a single token/tool landed). committed → break (keep
+        // the partial, end turn) — never re-run a side-effecting turn.
+        if (committed || attempt >= maxAttempts) break;
+
+        // Client-visible "Retrying in Ns · attempt x/y" (docs retry-progress UX).
+        emit({
+          type: "retry",
+          attempt,
+          maxRetries: maxAttempts - attempt,
+          delayMs: retryBackoffMs,
+          transient: true,
+        });
+        await new Promise((res) => setTimeout(res, retryBackoffMs * attempt));
+        attempt += 1;
       }
 
       if (ctrl.signal.aborted) {
@@ -481,33 +567,37 @@ export function backgroundServe(args: {
         return;
       }
 
-      // Stream exhausted → canonical final parts + completed status.
-      const finalParts = normalizeUIMessageParts(
-        Array.isArray(await result.parts) ? await result.parts : acc.parts(),
-      ) as unknown[];
-      await enqueueWrite(() =>
-        persistAssistantRow({
-          chatId,
-          userId,
-          id: assistantId,
-          model,
-          parts: finalParts,
-          status: "completed",
-        }),
-      );
-
-      // Enterprise cost observability: persist real per-request usage from the
-      // provider / streamText result (Φ-docs admin-setup). Failures are logged,
-      // never fatal to the generation.
-      let usage: unknown;
-      try {
-        usage = await result.usage;
-      } catch {
-        usage = undefined;
+      if (committed) {
+        // Stream produced output (or was finalized) → canonical completed status.
+        const finalParts = normalizeUIMessageParts(
+          Array.isArray(await lastResult.parts) ? await lastResult.parts : acc.parts(),
+        ) as unknown[];
+        await enqueueWrite(() =>
+          persistAssistantRow({
+            chatId,
+            userId,
+            id: assistantId,
+            model,
+            parts: finalParts,
+            status: "completed",
+          }),
+        );
+        // Enterprise cost observability (Φ-docs). Failures logged, never fatal.
+        let usage: unknown;
+        try {
+          usage = await lastResult.usage;
+        } catch {
+          usage = undefined;
+        }
+        void recordUsage(
+          toUsageInput(chatId, userId, (model as string) ?? "", usage, Date.now() - genStart),
+        ).catch(() => {});
+      } else {
+        // Exhausted every attempt with no output → keep the (empty) partial as
+        // completed + surface the failure. Stuck generation → settle timer aborts.
+        emit({ type: "error", error: outcome?.error ?? "Generation produced no output." });
+        await finalizePartial();
       }
-      void recordUsage(
-        toUsageInput(chatId, userId, (model as string) ?? "", usage, Date.now() - genStart),
-      ).catch(() => {});
     } catch (err) {
       generationAborted = ctrl.signal.aborted;
       emit({ type: "error", error: errMsg(err) });

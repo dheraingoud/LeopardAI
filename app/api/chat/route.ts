@@ -365,9 +365,6 @@ export async function POST(request: Request) {
       // upstream stack. The createUIMessageStream onError only catches errors
       // INSIDE the stream iteration; throws from streamText() or merge() bubble
       // to Next.js as 500. We need to know what's being thrown.
-      // Typed via ReturnType<streamText<BuildTools>> — the actual shape varies
-      // with the optional tools map; `any` lets the optional merge still work.
-      let result: any;
       // Φ10/#3 — assistant reply id + its abort controller, created BEFORE the
       // streamText call so (a) the signal can be wired in (review M1: abort =
       // deliberate stop or settle timeout, never reload), and (b) the id the
@@ -375,6 +372,9 @@ export async function POST(request: Request) {
       // settle is handled inside backgroundServe's done().finally().
       const assistantId = generateId();
       const genCtrl = createGenerationController(assistantId);
+      // Declared OUTSIDE the try (its catch rethrows on streamText construction
+      // errors) so the retry factory stays visible to backgroundServe below.
+      let buildStream: (() => any) | null = null;
       try {
         // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
         // env so the model doesn't advertise network tools in builds that
@@ -437,7 +437,7 @@ export async function POST(request: Request) {
           return decision;
         };
 
-        result = streamText({
+        buildStream = () => streamText({
         model: getLanguageModel(modelId),
         // Φ10/#3 — aborts only on deliberate stop / settle-timeout, NOT on the
         // request signal (reload/close must let the detached generation finish).
@@ -538,7 +538,10 @@ export async function POST(request: Request) {
       // only this mirror stops; the detached task + model call + Convex writes
       // keep running, so the reply completes and is there on remount.
       const gen = backgroundServe({
-        result,
+        // Retry = a FRESH streamText per attempt (only fires when nothing
+        // committed yet → no duplicate tool runs; docs/errors.md idempotency).
+        streamFactory: buildStream! as () => Promise<any>,
+        maxAttempts: 2,
         sendReasoning: isReasoningModel,
         assistantId,
         chatId: realChatId,
