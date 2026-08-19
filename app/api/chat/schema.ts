@@ -27,6 +27,14 @@ export const postRequestBodySchema = z.object({
   // Per-model reasoning level (set by the input-bar reasoning control).
   // undefined / "off" → route sends no reasoning param (NIM non-think mode).
   reasoning: z.enum(REASONING_LEVELS).optional(),
+  // Φ-docs · output style (addon A): optional per-turn override of the
+  // LEOPARD_OUTPUT_STYLE env default. String, sanitized in output-styles.ts
+  // ("default"/unknown → baseline voice; never degrades the prompt).
+  styleRequested: z.string().optional(),
+  // Φ-docs · compaction focus (addon B): optional directive telling the
+  // summarizer what to prioritize keeping (mirror of `/compact <focus>`).
+  // Bounded in the route.
+  focus: z.string().optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

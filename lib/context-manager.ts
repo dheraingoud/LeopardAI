@@ -2,6 +2,14 @@ import { estimateMessageTokens, getContextBudget, type TokenMessage } from "./to
 
 export type ContextStrategy = "sliding-window" | "summarize" | "priority";
 
+/** Clamp the auto-compact fill threshold to a sane band. Read from
+ * LEOPARD_CONTEXT_COMPACT_AT by callers; mirrors `/autocompact <tokens>` in
+ * spirit — earlier/later auto-compaction per model rather than a hardcoded 85%. */
+export function clampCompactThreshold(value: number): number {
+  if (!Number.isFinite(value)) return 0.85;
+  return Math.min(0.95, Math.max(0.5, value));
+}
+
 export interface CompactionResult {
   messages: TokenMessage[];
   summary?: string;
@@ -58,9 +66,34 @@ export function applySlidingWindow(
   };
 }
 
+/** Contract for a summarizer the caller injects (DI). Returns the folded summary
+ * text, or undefined to signal summarization failed (caller then degrades to a
+ * sliding window). `focus` carries an optional user directive — mirror of Claude
+ * Code's `/compact <focus>` — telling the summarizer what to prioritize keeping. */
+export type Summarizer = (
+  messages: TokenMessage[],
+  focus?: string,
+) => Promise<string | undefined>;
+
+/** Browser-fetch summarizer, kept only for downward compatibility with callers
+ * running in a browser context. Server callers (the chat route) inject a
+ * server-side summarizer instead — a browser-relative fetch cannot reach the
+ * route from Node, so the default must NOT be used by the route. */
+const defaultBrowserSummarizer: Summarizer = async (messages, focus) => {
+  const res = await fetch("/api/summarize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, focus }),
+  });
+  if (!res.ok) return undefined;
+  const data = (await res.json()) as { summary?: string };
+  return data.summary;
+};
+
 export async function applySummarizeStrategy(
   messages: TokenMessage[],
   budget: number,
+  opts?: { summarize?: Summarizer; focus?: string },
 ): Promise<CompactionResult> {
   const originalTokenCount = messages.reduce((s, m) => s + estimateMessageTokens(m), 0);
 
@@ -83,16 +116,7 @@ export async function applySummarizeStrategy(
   let summary: string | undefined;
 
   try {
-    const res = await fetch("/api/summarize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: toSummarize }),
-    });
-
-    if (res.ok) {
-      const data = (await res.json()) as { summary?: string };
-      summary = data.summary;
-    }
+    summary = await (opts?.summarize ?? defaultBrowserSummarizer)(toSummarize, opts?.focus);
   } catch {
     // If summarization fails, fall through to sliding window
   }
@@ -202,12 +226,13 @@ export function compactMessages(
   messages: TokenMessage[],
   contextWindow: number,
   strategy: ContextStrategy = "sliding-window",
+  opts?: { summarize?: Summarizer; focus?: string },
 ): Promise<CompactionResult> | CompactionResult {
   const budget = getContextBudget(contextWindow);
 
   switch (strategy) {
     case "summarize":
-      return applySummarizeStrategy(messages, budget);
+      return applySummarizeStrategy(messages, budget, opts);
     case "priority":
       return applyPriorityStrategy(messages, budget);
     default:
