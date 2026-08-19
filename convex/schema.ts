@@ -49,7 +49,9 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_share_id", ["shareId"])
-    .index("by_public_id", ["id"]),
+    .index("by_public_id", ["id"])
+    // Φ-docs · retention sweep — oldest-first drain for the periodic cleanup.
+    .index("by_created_at", ["createdAt"]),
 
   messages: defineTable({
     chatId: v.id("chats"),
