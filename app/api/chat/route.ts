@@ -37,6 +37,7 @@ import {
   createGenerationController,
   isOverDailyTokenCap,
   listUserMemories,
+  semanticRankMemories,
   recordAudit,
   type UserMemory,
 } from "@/lib/ai/server-generation";
@@ -477,7 +478,15 @@ export async function POST(request: Request) {
         // Φ-docs · recall injection — the user's stored facts ride into the
         // system prompt each turn (listUserMemories returns [] when the admin
         // client or storage is unavailable; memory is additive, never fatal).
-        const memories = memEnabled ? await listUserMemories(memUserId) : undefined;
+        // Φ-semantic: LEOPARD_SEMANTIC_MEMORY=1 reranks recall by similarity to
+        // the current question (pinned first, others by cosine desc) so the
+        // prompt-bound slice surfaces the most relevant facts — no vector DB
+        // (embeddings stored on the row; brute-force cosine over the set).
+        const memories = memEnabled
+          ? process.env.LEOPARD_SEMANTIC_MEMORY === "1"
+            ? await semanticRankMemories({ userId: memUserId, query: promptContext ?? "" })
+            : await listUserMemories(memUserId)
+          : undefined;
 
         // Sprint 2 — permission gating (deny→ask→allow). With
         // ENABLE_TOOL_APPROVAL=1, webFetch triggers a `tool-approval-request`

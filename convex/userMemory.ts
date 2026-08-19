@@ -102,6 +102,8 @@ export const listForUser = internalQuery({
       text: v.string(),
       pinned: v.optional(v.boolean()),
       updatedAt: v.number(),
+      embedding: v.optional(v.array(v.number())),
+      embedModel: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -109,11 +111,15 @@ export const listForUser = internalQuery({
       .query("userMemory")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
-    return orderMemories(rows).map(({ _id, text, pinned, updatedAt }) => ({
+    return orderMemories(rows).map(({ _id, text, pinned, updatedAt, embedding, embedModel }) => ({
       _id,
       text,
       pinned,
       updatedAt,
+      ...(embedding && Array.isArray(embedding) && embedding.length
+        ? { embedding }
+        : {}),
+      ...(embedModel ? { embedModel } : {}),
     }));
   },
 });
@@ -126,6 +132,8 @@ export const remember = internalMutation({
     text: v.string(),
     pinned: v.optional(v.boolean()),
     sourceChatId: v.optional(v.id("chats")),
+    embedding: v.optional(v.array(v.number())),
+    embedModel: v.optional(v.string()),
   },
   returns: v.number(), // total memories after this write
   handler: async (ctx, args) => {
@@ -134,11 +142,18 @@ export const remember = internalMutation({
     if (!key) return all.length;
     const existing = all.find((m) => normalizeMemoryKey(m.text) === key);
     const now = Date.now();
+    const embedFields = {
+      ...(args.embedding && Array.isArray(args.embedding) && args.embedding.length
+        ? { embedding: args.embedding }
+        : {}),
+      ...(args.embedModel ? { embedModel: args.embedModel } : {}),
+    };
     if (existing) {
       await ctx.db.patch(existing._id, {
         text: args.text,
         pinned: args.pinned ?? existing.pinned,
         ...(args.sourceChatId ? { sourceChatId: args.sourceChatId } : {}),
+        ...embedFields,
         updatedAt: now,
       });
     } else {
@@ -147,6 +162,7 @@ export const remember = internalMutation({
         text: args.text,
         pinned: args.pinned,
         ...(args.sourceChatId ? { sourceChatId: args.sourceChatId } : {}),
+        ...embedFields,
         createdAt: now,
         updatedAt: now,
       });
