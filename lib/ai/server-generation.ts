@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { ConvexHttpClient } from "convex/browser";
 import { internal } from "@/convex/_generated/api";
+import { estimateCostUsd } from "@/lib/ai/telemetry";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -168,14 +169,17 @@ function toUsageInput(
   const input = u.promptTokens ?? u.inputTokens ?? u.input ?? 0;
   const output = u.completionTokens ?? u.outputTokens ?? u.output ?? 0;
   const total = u.totalTokens ?? input + output;
+  const inTokens = typeof input === "number" ? input : 0;
+  const outTokens = typeof output === "number" ? output : 0;
   return {
     chatId,
     userId,
     model,
-    inputTokens: typeof input === "number" ? input : 0,
-    outputTokens: typeof output === "number" ? output : 0,
-    totalTokens: typeof total === "number" ? total : input + output,
+    inputTokens: inTokens,
+    outputTokens: outTokens,
+    totalTokens: typeof total === "number" ? total : inTokens + outTokens,
     durationMs,
+    estimatedCostUsd: estimateCostUsd(model, inTokens, outTokens) ?? undefined,
   };
 }
 
