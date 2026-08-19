@@ -43,6 +43,7 @@ import {
 import { memoryTools } from "@/lib/ai/tools/memory";
 import { researchTools } from "@/lib/ai/tools/research";
 import { buildFallbackModelChain, isFallbackableErrorText } from "@/lib/ai/fallback";
+import { chatUsageTelemetry } from "@/lib/ai/telemetry";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 import { internalHeaders } from "@/lib/api/guard";
@@ -553,6 +554,19 @@ export async function POST(request: Request) {
         // gateway defaults for comparable models. AI SDK v6 streams use
         // `maxOutputTokens` (NOT `maxTokens`).
         maxOutputTokens: 16384,
+        // Φ-docs · per-turn cost/latency/tool observability (P2.4 feeder).
+        // recordInputs/outputs:false still emits the usage/latency/tool-call
+        // events (it only drops payloads) — cost estimate + latency + tool list
+        // logged per LLM call; the usage ROW stays owned by backgroundServe's
+        // committed-turn recordUsage (no double-count, no failed-attempt rows).
+        telemetry: {
+          functionId: "chat-turn",
+          recordInputs: false,
+          recordOutputs: false,
+          integrations: [
+            chatUsageTelemetry({ chatId: realChatId, userId: userId ?? DEV_USER_ID }),
+          ],
+        },
         providerOptions: {
           ...(attemptCfg?.gatewayOrder && {
             gateway: { order: attemptCfg.gatewayOrder },
