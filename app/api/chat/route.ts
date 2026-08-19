@@ -28,7 +28,8 @@ import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { loadMcpTools } from "@/lib/ai/mcp";
-import { compactMessages } from "@/lib/context-manager";
+import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
+import { resolveOutputStyleDirective } from "@/lib/ai/output-styles";
 import { estimateConversationTokens, getContextBudget, type TokenMessage } from "@/lib/token-estimator";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
@@ -378,8 +379,26 @@ export async function POST(request: Request) {
       });
       const usedTokens = estimateConversationTokens(tokenMsgs);
       const budget = getContextBudget(contextWindow);
-      if (budget > 0 && usedTokens > budget * 0.85) {
-        const result = await compactMessages(tokenMsgs, contextWindow, "summarize");
+      // Addon B: configurable threshold (defaults to the original 85%) so an
+      // operator can compact earlier/later per model. Clamped to a sane band.
+      const compactAt = clampCompactThreshold(Number(process.env.LEOPARD_CONTEXT_COMPACT_AT) || 0.85);
+      if (budget > 0 && usedTokens > budget * compactAt) {
+        // Addon B: server-side summarizer — the default browser fetch cannot
+        // reach /api/summarize from Node, so we inject one that targets this
+        // origin. Also threads the (optional) user focus through.
+        const origin = new URL(request.url).origin;
+        const summarize: Summarizer = async (msgs, focus) => {
+          const res = await fetch(`${origin}/api/summarize`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: msgs, focus }),
+          });
+          if (!res.ok) return undefined;
+          const data = (await res.json()) as { summary?: string };
+          return data.summary;
+        };
+        const focus = typeof body.focus === "string" ? body.focus.slice(0, 400) : undefined;
+        const result = await compactMessages(tokenMsgs, contextWindow, "summarize", { summarize, focus });
         if (result.compactedTokenCount < result.originalTokenCount) {
           modelMessages = result.messages.map((m) => ({
             role: m.role,
@@ -555,7 +574,15 @@ export async function POST(request: Request) {
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
         // AI SDK v7: `system` → `instructions`.
-        instructions: systemPrompt({ requestHints: {}, supportsTools, context: promptContext, memories }),
+        instructions: systemPrompt({
+          requestHints: {},
+          supportsTools,
+          context: promptContext,
+          memories,
+          // Φ-docs · output style (addon A): per-turn override wins, else the
+          // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
+          styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),
+        }),
         messages: modelMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since

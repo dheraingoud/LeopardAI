@@ -7,6 +7,13 @@ const SUMMARIZE_TIMEOUT = 60_000;
 
 const SUMMARIZE_SYSTEM_PROMPT = `You are a concise conversation summarizer. Summarize the following conversation in 200-400 words. Preserve key decisions, code changes, the user's goal, and any important technical details. Omit pleasantries and repetition. Output only the summary, no preamble.`;
 
+/** Optional user focus (mirror of `/compact <focus>`): build the system prompt so
+ * the summarizer keeps what the user cares about, on top of the default base. */
+export function buildSummarizePrompt(focus?: string): string {
+  if (!focus?.trim()) return SUMMARIZE_SYSTEM_PROMPT;
+  return `${SUMMARIZE_SYSTEM_PROMPT}\n\nTake special care to preserve what the user is focused on: "${focus.trim()}". Keep every concrete detail relevant to it. Other parts may be compressed more aggressively.`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.NVIDIA_API_KEY;
@@ -16,12 +23,14 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as {
       messages?: Array<{ role: string; content: string }>;
+      focus?: string;
     };
 
     const messages = body.messages;
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: "messages array is required" }, { status: 400 });
     }
+    const focus = typeof body.focus === "string" ? body.focus.slice(0, 400) : undefined;
 
     const conversationText = messages
       .map((m) => `${m.role.toUpperCase()}:\n${m.content}`)
@@ -40,7 +49,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           model: SUMMARIZE_MODEL,
           messages: [
-            { role: "system", content: SUMMARIZE_SYSTEM_PROMPT },
+            { role: "system", content: buildSummarizePrompt(focus) },
             { role: "user", content: conversationText },
           ],
           temperature: 0.3,
