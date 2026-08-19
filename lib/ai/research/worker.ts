@@ -19,7 +19,8 @@
 // full plan→search→synthesize loop without a live model or network.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { generateText } from "ai";
+import { generateText, Output, NoObjectGeneratedError } from "ai";
+import { z } from "zod";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { tavilySearch } from "@/lib/ai/tools/web-search";
 
@@ -48,6 +49,9 @@ export type LLMCall = (
   opts?: { system?: string; maxTokens?: number },
 ) => Promise<string>;
 
+/** A structured plan → concrete sub-query list. Injectable for tests. */
+export type PlanCall = (query: string) => Promise<string[]>;
+
 /** A single web search → plain result list. Injectable for tests. */
 export type SearchCall = (
   query: string,
@@ -55,6 +59,9 @@ export type SearchCall = (
 
 export interface ResearchDeps {
   llm?: LLMCall;
+  /** Structured plan step (Output.object) — overrides the default + the
+   * injected-`llm` fallback. Injectable for tests to exercise the typed path. */
+  plan?: PlanCall;
   search?: SearchCall;
   now?: () => number;
 }
@@ -118,6 +125,51 @@ export function parsePlan(llmOut: string, fallbackQuery: string): string[] {
   return out.length ? out : [fallbackQuery];
 }
 
+/** Typed plan schema (AI SDK `Output.object`) — replaces hand-parsing the
+ * planner when the model supports structured output. */
+const planSchema = z.object({
+  subQueries: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(MAX_SUB_QUERIES)
+    .describe("The concrete, independently-searchable sub-questions"),
+});
+
+const planPrompt = (query: string): string =>
+  `Research question: ${query}\n\nBreak this down into searchable sub-queries.`;
+
+/**
+ * Default structured plan step. Tries `Output.object` (typed, validated);
+ * on a model that can't/ won't produce structured output (NoObjectGeneratedError
+ * or a non-stop finish), gracefully falls back to the regex parsePlan path —
+ * so a weak NIM model degrades to the old behavior instead of failing the job.
+ */
+export function defaultPlan(modelId: string): PlanCall {
+  return async (query) => {
+    try {
+      const r = await generateText({
+        model: getLanguageModel(modelId),
+        instructions: PLAN_SYSTEM,
+        output: Output.object({ schema: planSchema, name: "research_plan" }),
+        prompt: planPrompt(query),
+        maxOutputTokens: 800,
+      });
+      const sqs = (r.output?.subQueries ?? [])
+        .map((s) => (typeof s === "string" ? s.trim() : ""))
+        .filter(Boolean);
+      return sqs.length ? sqs.slice(0, MAX_SUB_QUERIES) : [query];
+    } catch {
+      // Any structured-output failure (no object, or the model refuses/pipes
+      // plain text) → regex fallback on a plain text call. Graceful, never fatal.
+      const raw = await defaultLlm(modelId)(planPrompt(query), {
+        system: PLAN_SYSTEM,
+        maxTokens: 400,
+      });
+      return parsePlan(raw, query);
+    }
+  };
+}
+
 export function createResearchJob(input: {
   id: string;
   query: string;
@@ -139,12 +191,16 @@ async function runJob(job: ResearchJob, deps: ResearchDeps): Promise<void> {
   try {
     patch({ status: "running", step: 0, totalSteps: 1 });
 
-    // 1. Plan.
-    const planRaw = await llm(
-      `Research question: ${job.query}\n\nBreak this down into searchable sub-queries.`,
-      { system: PLAN_SYSTEM, maxTokens: 400 },
-    );
-    const subQueries = parsePlan(planRaw, job.query);
+    // 1. Plan — structured (Output.object) by default; an injected `plan`
+    // overrides; a test-injected `llm` keeps the old parsePlan path so canned
+    // raw-text fixtures still drive the loop. Graceful on any plan failure.
+    const plan =
+      deps.plan ??
+      (deps.llm
+        ? async (q: string) =>
+            parsePlan(await (deps.llm as LLMCall)(planPrompt(q), { system: PLAN_SYSTEM, maxTokens: 400 }), q)
+        : defaultPlan(job.modelId));
+    const subQueries = await plan(job.query).catch(() => [job.query]);
     patch({ totalSteps: subQueries.length, steps: subQueries });
 
     // 2. Gather evidence.
