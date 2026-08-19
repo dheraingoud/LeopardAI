@@ -24,6 +24,16 @@ export type RequestHints = {
   country?: string | null;
 };
 
+/**
+ * Φ-bound (P2.3) · cap on how many memories ride into the system prompt each
+ * turn. Mirrors the docs' memory-index bound: pin the most relevant subset
+ * (pinned first, then newest), drop the tail, and say so — a few dozen facts
+ * is plenty of cross-chat recall and a few HUNDRED bleed tokens with no caching
+ * (NIM reshoots the whole prompt per request). Kept facts are `updatedAt`
+ * newest-first so the most recent standing decisions surface.
+ */
+const MAX_MEMORIES = 24;
+
 function locationLine(h: RequestHints): string {
   if (!h.city && !h.country) return "";
   const loc = [h.city, h.country].filter(Boolean).join(", ");
@@ -97,7 +107,7 @@ export function systemPrompt({
   /** Recent conversation text — matched against `auto` skill triggers. */
   context?: string;
   /** Per-user long-term facts (LEOPARD_MEMORY=1). Injected as trusted recall. */
-  memories?: Array<{ text: string; pinned?: boolean }>;
+  memories?: Array<{ text: string; pinned?: boolean; updatedAt?: number }>;
 }) {
   const base = `You are Leopard, a high-performance AI assistant.
 
@@ -129,12 +139,19 @@ ${locationLine(requestHints ?? {})}`.trim();
   // route provided them; pinned facts come first. These are first-party, not
   // untrusted web content — no hostile-handling caveat needed.
   if (memories && memories.length > 0) {
-    const lines = [...memories] // pinned first, stable order otherwise
-      .sort((a, b) => (!!b.pinned ? 1 : 0) - (!!a.pinned ? 1 : 0))
-      .map((m) => `- ${m.text.trim()}`)
-      .join("\n");
+    // P2.3 bound: pinned first, then newest `updatedAt`, then cap at MAX_MEMORIES.
+    const ordered = [...memories].sort(
+      (a, b) =>
+        (!!b.pinned ? 1 : 0) - (!!a.pinned ? 1 : 0) ||
+        (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+    );
+    const kept = ordered.slice(0, MAX_MEMORIES);
+    const lines = kept.map((m) => `- ${m.text.trim()}`).join("\n");
     if (lines) {
-      prompt = `${prompt}\n\nTHINGS YOU REMEMBER ABOUT THE USER (persistent, cross-chat):\n${lines}\nUse these when they're relevant. The user can delete any of these at any time.`;
+      const omitted = ordered.length - kept.length;
+      prompt = `${prompt}\n\nTHINGS YOU REMEMBER ABOUT THE USER (persistent, cross-chat):\n${lines}${
+        omitted > 0 ? `\n… and ${omitted} older/relevant-lower recorded fact${omitted === 1 ? "" : "s"} omitted.` : ""
+      }\nUse these when they're relevant. The user can delete any of these at any time.`;
     }
   }
 

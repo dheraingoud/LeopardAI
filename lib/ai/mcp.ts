@@ -99,6 +99,19 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
  * Match a `mcp__server__tool` name against LEOPARD_MCP_ALLOWED_TOOLS (comma
  * list, `*` wildcard per segment, e.g. `mcp__github__*`). Empty/unset → allow.
  */
+// Φ-fallback/P1.1 · bound the MCP tool surface. External MCP servers can expose
+// MANY tools with large JSON schemas, and on NIM (no prompt caching) every
+// schema line reshots per request. LEOPARD_MCP_MAX_TOOLS caps the TOTAL number
+// of `mcp__` tools mounted this request (deterministic server config order),
+// so a chatty server can't bloat the request payload unboundedly. Default 48.
+const MAX_TOOLS_DEFAULT = 48;
+
+/** Resolve the per-request MCP tool cap from `LEOPARD_MCP_MAX_TOOLS` (default 48). */
+export function maxMcpTools(env: string | undefined): number {
+  const n = Number(env);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : MAX_TOOLS_DEFAULT;
+}
+
 export function isMcpToolAllowed(toolName: string, allowlistEnv: string | undefined): boolean {
   if (!allowlistEnv) return true;
   const patterns = allowlistEnv.split(",").map((p) => p.trim()).filter(Boolean);
@@ -124,6 +137,10 @@ export async function loadMcpTools(): Promise<McpHandle> {
   const tools: Record<string, unknown> = {};
   const toolNames: string[] = [];
   const instructions: string[] = [];
+  // P1.1 · cap the total mounted MCP tool count across ALL servers (per-request
+  // token economy on NIM — schemas reshot when there's no prompt caching).
+  const budget = maxMcpTools(process.env.LEOPARD_MCP_MAX_TOOLS);
+  let mounted = 0;
 
   for (const server of servers) {
     let client: MCPClient | null = null;
@@ -156,11 +173,23 @@ export async function loadMcpTools(): Promise<McpHandle> {
         await client.close();
         continue;
       }
-      const set = client.toolsFromDefinitions(filtered);
+      // Trim this server's contribution to the remaining budget BEFORE building
+      // tool defs (deterministic order — don't construct unused schemas).
+      const remaining = Math.max(0, budget - mounted);
+      const trimmed: ListToolsResult = {
+        tools: filtered.tools.slice(0, remaining),
+      };
+      if (!trimmed.tools.length) {
+        await client.close();
+        continue;
+      }
+      const set = client.toolsFromDefinitions(trimmed);
       for (const [toolName, tool] of Object.entries(set)) {
         const prefixed = `mcp__${server.name}__${toolName}`;
+        if (mounted >= budget) break;
         tools[prefixed] = tool;
         toolNames.push(prefixed);
+        mounted += 1;
       }
       if (client.instructions) instructions.push(`[${server.name}] ${client.instructions}`);
       clients.push({ name: server.name, client });
