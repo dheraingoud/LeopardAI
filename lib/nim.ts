@@ -120,11 +120,15 @@ export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 // for server-side title generation (low stakes — no reasoning sent for titles).
 export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 
-// Default chat model = Z-AI/GLM-5.2 (per user 2026-07-12 — minimax-m3 has been
-// rate-limited / intermittently failing "Bad Request" from NIM; GLM-5.2 is the
-// next-fastest reasoning-capable model from the curated set and confirmed
-// streaming end-to-end with reasoning_content + text).
-export const DEFAULT_MODEL = "z-ai/glm-5.2";
+// Default chat model. Measured 2026-08-19: z-ai/glm-5.2 (1M-context reasoner)
+// is STALLED on the NIM integrate endpoint — ~68s to first token in a non-stream
+// probe and zero bytes within 40s on the streaming path (both attempts), while
+// small models stream at 0s. The prior default maximized per-turn latency (the
+// exact complaint: "models take too long even for reasoning to start"). Default
+// to step-3.7-flash (measured ~0.9s TTFT, live in /v1/models, VLM + reasoning,
+// already the utility model) so a fresh chat is responsive by default. glm/minimax
+// stay selectable in the picker for heavy 1M-context turns.
+export const DEFAULT_MODEL = "stepfun-ai/step-3.7-flash";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the

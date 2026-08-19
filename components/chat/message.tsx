@@ -18,7 +18,7 @@ import {
   ThumbsDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, compactWhitespace } from "@/lib/utils";
 import { hydrateMessageImages } from "@/lib/image-cache";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
@@ -231,7 +231,10 @@ function ReasoningBlock({
       : "Thought process";
   const showBadge =
     !isStreamingReasoning && effort !== undefined && effort !== "off";
-  const charCount = content.length;
+  // Compact the model's raw thought (collapse runaway blank lines) so the card
+  // reads as tight paragraphs — one gap between paragraphs, no trailing spaces.
+  const normalizedContent = compactWhitespace(content);
+  const charCount = normalizedContent.length;
 
   return (
     <div
@@ -331,7 +334,7 @@ function ReasoningBlock({
                 "[&_.markdown-body]:text-[13.5px]",
               )}
             >
-              <StreamItDown content={content} streaming={isStreamingReasoning} />
+              <StreamItDown content={normalizedContent} streaming={isStreamingReasoning} />
          </div>
        </motion.div>
         )}
@@ -351,11 +354,15 @@ function ToolCard({
   state,
   input,
   output,
+  approvalId,
+  onDecision,
 }: {
   toolName: string;
   state: string;
   input?: unknown;
   output?: unknown;
+  approvalId?: string;
+  onDecision?: (approved: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -427,6 +434,62 @@ function ToolCard({
   };
 
   const urlLabel = isSearch ? "search" : "url";
+
+  // ── Sprint 2: permission-gating AskCard ───────────────────────────────────
+  // A tool call awaiting user approval (state "ask"). Themed decision card —
+  // allow (amber) / deny (neutral). `onDecision` fires addToolApprovalResponse;
+  // the server then runs (or skips) the tool and the builder morphs this card
+  // into the running/result card — never two cards for one round.
+  if (state === "ask") {
+    return (
+      <div className={cn("cb-tool cb-ask my-3 overflow-hidden rounded-2xl", "border dark:border-[#ffb400]/20 light:border-[#d49600]/25", "dark:bg-white/[0.03] light:bg-black/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]")}>
+        <div className="flex flex-col gap-2.5 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+              <MeshGlobe className="h-[18px] w-[18px] text-[#ffb400] animate-[cb-meshspin_6s_linear_infinite]" />
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#ffb400]">
+              {toolName === "webSearch" ? "search access" : "web access request"}
+            </span>
+          </div>
+          <div className="pl-[28px] text-[12px] leading-[1.7] dark:text-[#a3a3a3] light:text-[#464646]">
+            Leopard wants to run{" "}
+            <code className="rounded bg-[#ffb400]/10 px-1 py-px font-mono text-[11px] text-[#ffb400]">
+              {toolName}
+            </code>
+            {summary && (
+              <>
+                {" on "}
+                <span className="font-mono text-[11px] break-all dark:text-[#cfcfcf] light:text-[#1d1d1f]">
+                  {summary}
+                </span>
+              </>
+            )}
+            . Allow?
+          </div>
+          <div className="flex items-center gap-2 pl-[28px] pt-0.5">
+            <button
+              type="button"
+              onClick={() => onDecision?.(true)}
+              className="rounded-full bg-[#ffb400] px-4 py-1.5 text-[11px] font-semibold text-black transition-transform duration-150 active:scale-[0.97] hover:brightness-110"
+            >
+              Allow
+            </button>
+            <button
+              type="button"
+              onClick={() => onDecision?.(false)}
+              className="rounded-full px-4 py-1.5 text-[11px] font-semibold dark:text-[#a3a3a3] light:text-[#525252] dark:bg-white/[0.06] light:bg-black/[0.05] transition-colors hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08]"
+            >
+              Deny
+            </button>
+            {(!approvalId || !onDecision) && (
+              <span className="text-[10px] font-mono text-[#606060]">waiting for server…</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("cb-tool my-3 overflow-hidden rounded-2xl", "border dark:border-white/[0.06] light:border-black/[0.08]", "dark:bg-white/[0.02] light:bg-black/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]")}>
@@ -647,18 +710,48 @@ export const PreviewMessage = memo(function PreviewMessage({
     if (isUser) return [] as Array<
       | { kind: "text"; content: string }
       | { kind: "reasoning"; content: string }
-      | { kind: "tool"; toolName: string; state: string; input?: unknown; output?: unknown }
+      | {
+          kind: "tool";
+          toolName: string;
+          state: string;
+          input?: unknown;
+          output?: unknown;
+          approvalId?: string;
+          toolCallId?: string;
+        }
     >;
     type Seg = (typeof out)[number];
     const out: Array<
       | { kind: "text"; content: string }
       | { kind: "reasoning"; content: string }
-      | { kind: "tool"; toolName: string; state: string; input?: unknown; output?: unknown }
+      | {
+          kind: "tool";
+          toolName: string;
+          state: string;
+          input?: unknown;
+          output?: unknown;
+          // AskCard state — set while a tool waits on user approval.
+          approvalId?: string;
+          toolCallId?: string;
+        }
     > = [];
     let cur: Seg | null = null;
-    for (const p of message.parts) {
+    // Indexed loop so an approval-request can look ahead to the matching
+    // tool-call (which carries toolName + input) for the card preview.
+    for (let pi = 0; pi < message.parts.length; pi++) {
+      const p = message.parts[pi] as {
+        type: string;
+        text?: string;
+        toolCallId?: string;
+        toolName?: string;
+        state?: string;
+        args?: unknown;
+        input?: unknown;
+        output?: unknown;
+        approvalId?: string;
+      };
       if (p.type === "reasoning") {
-        const content = ((p as { text?: string }).text ?? "").trim();
+        const content = (p.text ?? "").trim();
         if (!content) continue;
         if (!cur || cur.kind !== "reasoning") {
           cur = { kind: "reasoning", content };
@@ -667,7 +760,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           cur.content += "\n" + content;
         }
       } else if (p.type === "text") {
-        const content = (p as { text?: string }).text ?? "";
+        const content = p.text ?? "";
         if (!content) continue;
         if (!cur || cur.kind !== "text") {
           cur = { kind: "text", content };
@@ -675,20 +768,99 @@ export const PreviewMessage = memo(function PreviewMessage({
         } else {
           cur.content += content;
         }
-      } else if (p.type === "tool-call" || p.type === "tool-result") {
-        const tp = p as {
-          type: string;
-          toolName?: string;
-          state?: string;
-          args?: unknown;
-          input?: unknown;
-          output?: unknown;
-        };
-        const toolName = tp.toolName ?? "tool";
-        // Fresh segment per tool part (don't coalesce tool cards) — but merge
-        // a tool-result into the preceding tool-call if one exists so the two
-        // halves of a tool round render as ONE card (call → state → result).
+      } else if (p.type === "tool") {
+        // v7 native tool part (and legacy `tool-*` parts normalized to `tool`
+        // by lib/ai/message-parts on hydrate). toolName/input/output/state live
+        // on the part directly; merge a consecutive same-name completed tool
+        // into the preceding pending one so a call→result round is ONE card.
+        //
+        // Φ-docs·BUGFIX: an unanswered tool-approval surfaces from the SDK as a
+        // TOOL part with `state: "approval-requested"` and the approval id on
+        // `part.approval.id` (NOT a raw `tool-approval-request` part and NOT a
+        // top-level `approvalId`). Previously neither was read here, so the
+        // AskCard never mounted and the gate hung silently. Map it to the same
+        // `state:"ask"` segment the raw-type branch produces (which carries
+        // approvalId for the Allow/Deny → addToolApprovalResponse call).
+        const toolName = p.toolName ?? "tool";
+        const isApproval = p.state === "approval-requested";
+        const approvalId = isApproval
+          ? (p as unknown as { approval?: { id?: string } }).approval?.id
+          : undefined;
         const last = out[out.length - 1] as Seg | undefined;
+        if (
+          last &&
+          last.kind === "tool" &&
+          last.toolName === toolName &&
+          (last.state === "pending" || last.state === "streaming")
+        ) {
+          last.state = p.state ?? "complete";
+          last.output = p.output ?? last.output;
+          continue;
+        }
+        cur = {
+          kind: "tool",
+          toolName,
+          state: isApproval ? "ask" : (p.state ?? "complete"),
+          input: p.input ?? p.args ?? undefined,
+          output: p.output ?? undefined,
+          toolCallId: p.toolCallId,
+          approvalId,
+        };
+        out.push(cur);
+      } else if (p.type === "tool-approval-request") {
+        // The request part carries only approvalId + toolCallId — the tool
+        // name / args come in the FOLLOWING tool-call part (emitted once the
+        // user approves). Look ahead for it so the AskCard can preview
+        // "Allow webFetch: <url>" before the user decides.
+        const req = p as { approvalId?: string; toolCallId?: string };
+        const toolCallId = req.toolCallId;
+        const approvalId = req.approvalId;
+        let toolName = "tool";
+        let preview: unknown;
+        for (let j = pi + 1; j < message.parts.length; j++) {
+          const later = message.parts[j] as {
+            type?: string;
+            toolCallId?: string;
+            toolName?: string;
+            input?: unknown;
+          };
+          if (later.type === "tool-call" && later.toolCallId === toolCallId) {
+            toolName = later.toolName ?? "tool";
+            preview = later.input;
+            break;
+          }
+        }
+        cur = {
+          kind: "tool",
+          toolName,
+          state: "ask",
+          input: preview,
+          approvalId,
+          toolCallId,
+        };
+        out.push(cur);
+      } else if (p.type === "tool-call" || p.type === "tool-result") {
+        const toolName = p.toolName ?? "tool";
+        const last = out[out.length - 1] as Seg | undefined;
+        // An APPROVED tool-call arrives after its approval-request. Morph the
+        // AskCard (same toolCallId) into the running card so it's ONE card,
+        // not "Allow?" then a duplicate "calling…" card.
+        if (
+          p.type === "tool-call" &&
+          last &&
+          last.kind === "tool" &&
+          last.state === "ask" &&
+          last.toolCallId === p.toolCallId
+        ) {
+          last.state = p.state ?? "pending";
+          last.toolName = toolName;
+          last.input = p.input ?? last.input;
+          last.approvalId = undefined;
+          last.toolCallId = undefined;
+          continue;
+        }
+        // Merge a tool-result into the preceding tool-call so the two halves
+        // of a tool round render as ONE card (call → state → result).
         if (
           p.type === "tool-result" &&
           last &&
@@ -696,20 +868,18 @@ export const PreviewMessage = memo(function PreviewMessage({
           last.toolName === toolName &&
           (last.state === "pending" || last.state === "streaming")
         ) {
-          last.state = tp.state ?? "complete";
-          last.output = tp.output ?? last.output;
+          last.state = p.state ?? "complete";
+          last.output = p.output ?? last.output;
           continue;
         }
+        // UIMessage tool-call / tool-result parts carry the schema-mapped args
+        // on `input` (never `args` — that's the old provider stream shape).
         cur = {
           kind: "tool",
           toolName,
-          state: tp.state ?? "pending",
-          // UIMessage tool-call / tool-result parts both carry the input
-          // (the schema-mapped args) on `input`, never `args` (that's the old
-          // provider stream shape). Read `input` for both so the card renders
-          // e.g. "calling webfetch: <url>".
-          input: tp.input ?? undefined,
-          output: tp.output ?? undefined,
+          state: p.state ?? "pending",
+          input: p.input ?? undefined,
+          output: p.output ?? undefined,
         };
         out.push(cur);
       }
@@ -885,6 +1055,16 @@ export const PreviewMessage = memo(function PreviewMessage({
                   state={live ? "streaming" : seg.state}
                   input={seg.input}
                   output={seg.output}
+                  approvalId={seg.approvalId}
+                  onDecision={
+                    seg.state === "ask" && seg.approvalId
+                      ? (approved: boolean) =>
+                          chat.addToolApprovalResponse?.({
+                            id: seg.approvalId as string,
+                            approved,
+                          })
+                      : undefined
+                  }
                 />
               );
             }
