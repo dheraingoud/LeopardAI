@@ -64,6 +64,32 @@ function main() {
     check("loop: search ran per sub-query", searches === 3, `searches=${searches}`);
     check("loop: step labels stored", Array.isArray(done?.steps) && done.steps.length === 3);
 
+    // Structured plan dep (Output.object path) — typed sub-query list drives the
+    // loop exactly, no regex, no live model.
+    {
+      let sCount = 0;
+      const s2: SearchCall = async (q) => {
+        sCount++;
+        return [{ title: `T ${q}`, url: `https://e.com/${encodeURIComponent(q)}`, content: `c ${q}` }];
+      };
+      const sj2 = spawnResearch({
+        query: "QQ",
+        modelId: "m",
+        deps: {
+          plan: async () => ["aa", "bb", "cc"],
+          llm: async () => "## Report\n# Structured plan driven synthesis.",
+          search: s2,
+          now: () => 300,
+        },
+      });
+      const d2 = await waitDone(sj2.id);
+      check("struct: injected plan drives loop", d2?.status === "done", d2?.error);
+      check("struct: totalSteps == plan length (3)", d2?.totalSteps === 3, `totalSteps=${d2?.totalSteps}`);
+      check("struct: step kept == 3", d2?.step === 3, `step=${d2?.step}`);
+      check("struct: 3 searches ran", sCount === 3, `sCount=${sCount}`);
+      check("struct: step labels stored", Array.isArray(d2?.steps) && d2.steps.length === 3);
+    }
+
     // Error path: search returns nothing → explicit error, never silent.
     const e = spawnResearch({
       query: "Q",
