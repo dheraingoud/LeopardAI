@@ -101,6 +101,7 @@ export function systemPrompt({
   supportsTools,
   context,
   memories,
+  styleDirective,
 }: {
   requestHints?: RequestHints;
   supportsTools: boolean;
@@ -108,6 +109,10 @@ export function systemPrompt({
   context?: string;
   /** Per-user long-term facts (LEOPARD_MEMORY=1). Injected as trusted recall. */
   memories?: Array<{ text: string; pinned?: boolean; updatedAt?: number }>;
+  /** Pre-resolved output-style directive (see lib/ai/output-styles.ts). Empty
+   * string (the default) leaves the prompt unchanged. Appended last so a style
+   * can't clobber the baseline rules or byline. */
+  styleDirective?: string;
 }) {
   const base = `You are Leopard, a high-performance AI assistant.
 
@@ -162,6 +167,8 @@ ${locationLine(requestHints ?? {})}`.trim();
     const blocks = renderSkillBlocks(getRelevantSkills(context));
     if (blocks) prompt = `${prompt}${blocks}`;
   }
+
+  if (styleDirective) prompt = `${prompt}\n\n${styleDirective.trim()}`;
 
   return prompt;
 }
