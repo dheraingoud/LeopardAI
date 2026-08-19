@@ -44,3 +44,81 @@ export const sumTokensSince = internalQuery({
     return rows.reduce((acc, r) => acc + (r.totalTokens ?? 0), 0);
   },
 });
+
+/** Per-chat usage readout (P2.4): one row per assistant generation for a chat,
+ * aggregated + newest-first row list. Enables the per-chat cost/token/turn
+ * display without a dashboard. `chatId` here is the CLIENT chat UUID (what the
+ * route thread through usageLog.chatId). Internal surface — admin client only. */
+export const USAGE_ROWS_CAP = 200;
+
+type UsageRow = {
+  model: string;
+  ts: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  durationMs?: number;
+  estimatedCostUsd?: number;
+};
+
+export const listForChat = internalQuery({
+  args: { userId: v.string(), chatId: v.string() },
+  returns: v.object({
+    count: v.number(),
+    totalTokens: v.number(),
+    totalInputTokens: v.number(),
+    totalOutputTokens: v.number(),
+    totalDurationMs: v.number(),
+    estimatedCostUsd: v.number(),
+    rows: v.array(
+      v.object({
+        model: v.string(),
+        ts: v.number(),
+        inputTokens: v.number(),
+        outputTokens: v.number(),
+        totalTokens: v.number(),
+        durationMs: v.optional(v.number()),
+        estimatedCostUsd: v.optional(v.number()),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("usageLog")
+      .withIndex("by_user_ts", (q) => q.eq("userId", args.userId))
+      .collect();
+    return rows
+      .filter((r) => r.chatId === args.chatId)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, USAGE_ROWS_CAP)
+      .reduce(
+        (acc, r) => {
+          acc.count += 1;
+          acc.totalTokens += r.totalTokens ?? 0;
+          acc.totalInputTokens += r.inputTokens ?? 0;
+          acc.totalOutputTokens += r.outputTokens ?? 0;
+          acc.totalDurationMs += r.durationMs ?? 0;
+          acc.estimatedCostUsd += r.estimatedCostUsd ?? 0;
+          acc.rows.push({
+            model: r.model ?? "",
+            ts: r.ts ?? 0,
+            inputTokens: r.inputTokens ?? 0,
+            outputTokens: r.outputTokens ?? 0,
+            totalTokens: r.totalTokens ?? 0,
+            ...(r.durationMs != null ? { durationMs: r.durationMs } : {}),
+            ...(r.estimatedCostUsd != null ? { estimatedCostUsd: r.estimatedCostUsd } : {}),
+          });
+          return acc;
+        },
+        {
+          count: 0,
+          totalTokens: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalDurationMs: 0,
+          estimatedCostUsd: 0,
+          rows: [] as UsageRow[],
+        },
+      );
+  },
+});
