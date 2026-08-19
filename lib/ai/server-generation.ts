@@ -2,6 +2,12 @@ import { EventEmitter } from "node:events";
 import { ConvexHttpClient } from "convex/browser";
 import { internal } from "@/convex/_generated/api";
 import { estimateCostUsd } from "@/lib/ai/telemetry";
+import {
+  EMBED_MODEL_DEFAULT,
+  embedTexts,
+  isSemanticMemoryEnabled,
+  rankMemoriesByQuery,
+} from "@/lib/ai/embeddings";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -280,7 +286,16 @@ export async function recordAudit(input: AuditInput): Promise<void> {
 }
 
 // ── Per-user long-term memory (Φ-docs recall loop) ──────────────────────────
-export type UserMemory = { id: string; text: string; pinned?: boolean; updatedAt: number };
+export type UserMemory = {
+  id: string;
+  text: string;
+  pinned?: boolean;
+  updatedAt: number;
+  /** Φ-semantic: the fact's NIM embedding (present when LEOPARD_SEMANTIC_MEMORY
+   * stored it). Used only for similarity ranking; never injected into prompts. */
+  embedding?: number[];
+  embedModel?: string;
+};
 
 /** Ordered recall list for the route to inject into the system prompt AND for
  * the model's listMemories tool. Returns [] when unconfigured (no admin
@@ -293,12 +308,18 @@ export async function listUserMemories(userId: string): Promise<UserMemory[]> {
       userId,
     } as never)) as unknown;
     if (!Array.isArray(rows)) return [];
-    return rows.map((r: any) => ({
-      id: String((r as { _id?: unknown })._id ?? ""),
-      text: String((r as { text?: unknown }).text ?? ""),
-      pinned: Boolean((r as { pinned?: unknown }).pinned),
-      updatedAt: Number((r as { updatedAt?: unknown }).updatedAt ?? 0),
-    }));
+    return rows.map((r: any) => {
+      const emb = (r as { embedding?: unknown }).embedding;
+      return {
+        id: String((r as { _id?: unknown })._id ?? ""),
+        text: String((r as { text?: unknown }).text ?? ""),
+        pinned: Boolean((r as { pinned?: unknown }).pinned),
+        updatedAt: Number((r as { updatedAt?: unknown }).updatedAt ?? 0),
+        ...(Array.isArray(emb) && emb.length
+          ? { embedding: emb as number[], embedModel: String((r as { embedModel?: unknown }).embedModel ?? "") }
+          : {}),
+      };
+    });
   } catch (err) {
     logWarn("memory recall failed", err);
     return [];
@@ -314,16 +335,56 @@ export async function rememberUserMemory(input: {
 }): Promise<number> {
   const c = convexClient();
   if (!c) return 0;
+  // Φ-semantic: when enabled (+ key present), embed the fact so future turns can
+  // rank it by meaning. Fail-open: an embed failure still saves the plain fact
+  // (recall degrades to pinned+newest) — memory must never be lost to a vector
+  // hiccup.
+  let semantic: { embedding: number[]; embedModel: string } | undefined;
+  if (isSemanticMemoryEnabled()) {
+    try {
+      const vecs = await embedTexts([input.text]);
+      if (vecs[0]?.length) {
+        semantic = {
+          embedding: vecs[0],
+          embedModel: process.env.NIM_EMBED_MODEL || EMBED_MODEL_DEFAULT,
+        };
+      }
+    } catch {}
+  }
   try {
     const total = (await c.mutation(internal.userMemory.remember as never, {
       userId: input.userId,
       text: input.text,
       pinned: input.pinned,
+      ...(semantic ? semantic : {}),
     } as never)) as unknown;
     return typeof total === "number" ? total : 0;
   } catch (err) {
     logWarn("memory remember failed", err);
     return 0;
+  }
+}
+
+/**
+ * Φ-semantic recall: order a user's memories by similarity to the current query
+ * (pinned always first, newest within pinned; the rest by cosine desc) so the
+ * prompt-bound slice (MAX_MEMORIES) surfaces the most relevant facts. Falls back
+ * to the existing ordered recall when semantic recall is off, the query is
+ * empty, or an embed/rank step fails — never throws into the turn.
+ */
+export async function semanticRankMemories(input: {
+  userId: string;
+  query: string;
+}): Promise<UserMemory[]> {
+  const base = await listUserMemories(input.userId);
+  if (!isSemanticMemoryEnabled() || !input.query) return base;
+  try {
+    const vec = await embedTexts([input.query]);
+    if (!vec[0]?.length) return base;
+    return rankMemoriesByQuery(vec[0], base);
+  } catch (err) {
+    logWarn("semantic recall failed", err);
+    return base;
   }
 }
 
