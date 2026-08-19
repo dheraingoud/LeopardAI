@@ -17,6 +17,7 @@ import { MultimodalInput } from "./multimodal-input";
 import { ArtifactPanel } from "./artifact-panel";
 import { PulseLoader } from "./pulse-loader";
 import { SessionExpiryToast } from "./session-expiry-toast";
+import { UsageReadout } from "./usage-readout";
 
 /**
  * ChatShell — the per-chat surface injected into the (chat) layout's main
@@ -111,6 +112,7 @@ export function ChatShell() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ModelLabel modelId={currentModelId} />
+            <UsageReadout chatId={chatMeta.id ?? undefined} />
             <button
               onClick={handleExport}
               className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"

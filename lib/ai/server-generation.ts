@@ -214,6 +214,44 @@ type AuditInput = {
   outputSummary?: string;
 };
 
+// ── P2.4 per-chat usage readout ──────────────────────────────────────────────
+export type ChatUsage = {
+  count: number;
+  totalTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalDurationMs: number;
+  estimatedCostUsd: number;
+  rows: Array<{
+    model: string;
+    ts: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    durationMs?: number;
+    estimatedCostUsd?: number;
+  }>;
+};
+
+/** Per-chat usage aggregate for the readout (`chatId` = client chat UUID). Null
+ * when the admin client / storage is unavailable. Never throws. */
+export async function listChatUsage(input: {
+  userId: string;
+  chatId: string;
+}): Promise<ChatUsage | null> {
+  const c = convexClient();
+  if (!c) return null;
+  try {
+    return (await c.query(internal.usage.listForChat as never, {
+      userId: input.userId,
+      chatId: input.chatId,
+    } as never)) as unknown as ChatUsage;
+  } catch (err) {
+    logWarn("usage readout failed", err);
+    return null;
+  }
+}
+
 /** Append one tool-audit row (approval gate or execution). Best-effort: logs a
  * warning on failure, never throws into the generation. */
 export async function recordAudit(input: AuditInput): Promise<void> {
