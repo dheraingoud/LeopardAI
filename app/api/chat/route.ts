@@ -42,6 +42,7 @@ import {
 } from "@/lib/ai/server-generation";
 import { memoryTools } from "@/lib/ai/tools/memory";
 import { researchTools } from "@/lib/ai/tools/research";
+import { buildFallbackModelChain, isFallbackableErrorText } from "@/lib/ai/fallback";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
 import { internalHeaders } from "@/lib/api/guard";
@@ -418,6 +419,20 @@ export async function POST(request: Request) {
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
       let buildStream: (() => any) | null = null;
+      // Φ-fallback (P1.2) · cross-model failover. AI SDK v7 has no native
+      // cross-model dispatch (customProvider fallbackProvider is interface
+      // inheritance, not error failover — see lib/ai/fallback.ts). The
+      // backgroundServe retry loop builds a FRESH streamText per attempt, so
+      // each call to buildStream advances to the next id in an ordered
+      // allow-list (requested → best candidate). Escalation only on a
+      // content-free HARD failure (isFallbackableErrorText); auth/rate-limit
+      // errors stop instead of burning a reshot candidate. Declared OUTSIDE the
+      // try so the retry factory + model recorder stay visible to the
+      // backgroundServe call below; the image/video branches earlier already
+      // excluded gen models from reaching here.
+      const fallbackModels = buildFallbackModelChain(modelId, { max: 2 });
+      let attemptIndex = 0;
+      let actualModel = modelId;
       // MCP connects ONCE per request (before the retry factory) so a retry
       // never re-spawns child processes/sessions; released after the turn.
       const mcpHandle = await loadMcpTools();
@@ -514,8 +529,13 @@ export async function POST(request: Request) {
           return decision;
         };
 
-        buildStream = () => streamText({
-        model: getLanguageModel(modelId),
+        buildStream = () => {
+          const attemptModel = fallbackModels[Math.min(attemptIndex, fallbackModels.length - 1)];
+          attemptIndex += 1;
+          actualModel = attemptModel;
+          const attemptCfg = getModelById(attemptModel);
+          return streamText({
+        model: getLanguageModel(attemptModel),
         // Φ10/#3 — aborts only on deliberate stop / settle-timeout, NOT on the
         // request signal (reload/close must let the detached generation finish).
         // Tool streams inherit this controller, so a reload mid-webFetch no longer
@@ -534,10 +554,10 @@ export async function POST(request: Request) {
         // `maxOutputTokens` (NOT `maxTokens`).
         maxOutputTokens: 16384,
         providerOptions: {
-          ...(modelConfig?.gatewayOrder && {
-            gateway: { order: modelConfig.gatewayOrder },
+          ...(attemptCfg?.gatewayOrder && {
+            gateway: { order: attemptCfg.gatewayOrder },
           }),
-          ...nimReasoningProviderOptions(modelConfig, body.reasoning),
+          ...nimReasoningProviderOptions(attemptCfg, body.reasoning),
         },
         ...(supportsTools && {
           tools,
@@ -590,6 +610,7 @@ export async function POST(request: Request) {
           }) => toolApprovalDecision(toolCall?.toolName),
         }),
         });
+        };
       } catch (err) {
         try {
           require("node:fs").appendFileSync(
@@ -618,7 +639,12 @@ export async function POST(request: Request) {
         // Retry = a FRESH streamText per attempt (only fires when nothing
         // committed yet → no duplicate tool runs; docs/errors.md idempotency).
         streamFactory: buildStream! as () => Promise<any>,
-        maxAttempts: 2,
+        // P1.2: one attempt per model in the fallback chain; record the model
+        // that ACTUALLY served; only escalate on a hard/transient error (not
+        // 4xx/auth/rate-limit — those fail on any candidate).
+        maxAttempts: fallbackModels.length,
+        modelProvider: () => actualModel,
+        retryPredicate: isFallbackableErrorText,
         sendReasoning: isReasoningModel,
         assistantId,
         chatId: realChatId,

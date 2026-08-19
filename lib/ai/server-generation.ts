@@ -434,6 +434,14 @@ export function backgroundServe(args: {
   userId: string;
   model?: string;
   persist?: boolean;
+  /** Resolves the model id ACTUALLY serving the current attempt — lets a
+   * cross-model fallback (see lib/ai/fallback.ts) record the real model in the
+   * usage row instead of the requested id. Defaults to the static `model`. */
+  modelProvider?: () => string;
+  /** Returns false to STOP retrying a terminal, content-free failure (no next
+   * attempt/model). Lets a caller skip fallback on auth/rate-limit/config errors
+   * that would recur identically on every candidate. Defaults to retry-always. */
+  retryPredicate?: (errorMessage: string) => boolean;
   /** The controller driving this generation (see createGenerationController). */
   abortController: AbortController;
   /** Hard ceiling before a stuck generation is force-persisted + aborted. */
@@ -448,6 +456,8 @@ export function backgroundServe(args: {
     userId,
     model,
     persist = true,
+    modelProvider,
+    retryPredicate,
     abortController: ctrl,
     settleTimeoutMs = 300_000,
   } = args;
@@ -613,8 +623,11 @@ export function backgroundServe(args: {
         }
         // Retry ONLY a terminal, content-free attempt (empty completion or an
         // error before a single token/tool landed). committed → break (keep
-        // the partial, end turn) — never re-run a side-effecting turn.
+        // the partial, end turn) — never re-run a side-effecting turn. A caller
+        // retryPredicate can also veto escalation (e.g. don't swap to another
+        // model on an auth/rate-limit error that would recur identically).
         if (committed || attempt >= maxAttempts) break;
+        if (retryPredicate && !retryPredicate(outcome?.error ?? "")) break;
 
         // Client-visible "Retrying in Ns · attempt x/y" (docs retry-progress UX).
         emit({
@@ -656,8 +669,9 @@ export function backgroundServe(args: {
         } catch {
           usage = undefined;
         }
+        const usedModel = modelProvider ? modelProvider() : (model as string) ?? "";
         void recordUsage(
-          toUsageInput(chatId, userId, (model as string) ?? "", usage, Date.now() - genStart),
+          toUsageInput(chatId, userId, usedModel, usage, Date.now() - genStart),
         ).catch(() => {});
       } else {
         // Exhausted every attempt with no output → keep the (empty) partial as
