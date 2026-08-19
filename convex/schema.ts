@@ -155,6 +155,12 @@ export default defineSchema({
     text: v.string(), // the fact, as the model/memory tool stored it
     pinned: v.optional(v.boolean()),
     sourceChatId: v.optional(v.id("chats")),
+    // Φ-semantic (LEOPARD_SEMANTIC_MEMORY): the fact's NIM embedding as a plain
+    // float array — brute-force cosine over it at recall, no vector DB. All
+    // three optional so rows written before / without semantic recall still
+    // validate (and the model swap guard stays cheap).
+    embedding: v.optional(v.array(v.number())),
+    embedModel: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
