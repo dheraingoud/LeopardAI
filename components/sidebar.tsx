@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getDefaultChatModel } from "@/lib/ai/models";
+import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /** Group chats by relative date buckets */
 function groupChats(
@@ -88,8 +89,12 @@ export default function Sidebar({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Effective user id — Clerk id, or DEV_USER_ID under BYPASS_CLERK so a fresh
+  // unauth'd browser can list/create chats (matches the chat route + new-chat page).
+  const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
+
   // Convex data
-  const chats = useQuery(api.chats.list, user ? { userId: user.id } : "skip");
+  const chats = useQuery(api.chats.list, userId ? { userId } : "skip");
   const createChat = useMutation(api.chats.create);
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
@@ -114,9 +119,9 @@ export default function Sidebar({
   }, [editingId]);
 
   const handleNewChat = async () => {
-    if (!user) return;
+    if (!userId) return;
     const id = await createChat({
-      userId: user.id,
+      userId,
       title: "New Chat",
       model: getDefaultChatModel().id,
     });
@@ -130,10 +135,10 @@ export default function Sidebar({
   };
 
   const handleRename = async (chatId: string) => {
-    if (editTitle.trim() && user) {
+    if (editTitle.trim() && userId) {
       await renameChat({
         chatId: chatId as Id<"chats">,
-        userId: user.id,
+        userId,
         title: editTitle.trim(),
       });
     }
@@ -142,8 +147,8 @@ export default function Sidebar({
 
   const handleDelete = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    if (!user) return;
-    await deleteChat({ chatId: chatId as Id<"chats">, userId: user.id });
+    if (!userId) return;
+    await deleteChat({ chatId: chatId as Id<"chats">, userId });
     if (pathname === `/chat/${chatId}`) {
       router.push("/chat");
     }
