@@ -115,7 +115,7 @@ export function ChatShell() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ModelLabel modelId={currentModelId} />
-            <UsageReadout chatId={chatMeta.id ?? undefined} />
+            <UsageReadout chatId={chatMeta._id ?? undefined} />
             <button
               onClick={handleExport}
               className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
