@@ -12,7 +12,7 @@
 import { memo, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Brain, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, compactWhitespace } from "@/lib/utils";
 import { StreamItDown } from "@/components/chat/streamitdown";
 
 type Part = { type: string; text?: string };
@@ -51,6 +51,7 @@ function messageSegments(m: SharedMessage) {
 /** Collapsed reasoning pill, expandable on tap. */
 function ThoughtPill({ content }: { content: string }) {
   const [open, setOpen] = useState(false);
+  const normalizedContent = compactWhitespace(content);
   return (
     <div className="mb-3 my-3 overflow-hidden rounded-2xl border dark:border-white/[0.06] light:border-black/[0.08] dark:bg-[linear-gradient(160deg,rgba(255,180,0,0.05)_0%,rgba(255,255,255,0.02)_50%,rgba(255,255,255,0.015)_100%)] light:bg-[linear-gradient(160deg,rgba(255,180,0,0.06)_0%,rgba(255,255,255,0.65)_60%)]">
       <button
@@ -64,7 +65,7 @@ function ThoughtPill({ content }: { content: string }) {
           Thought
         </span>
         <span className="ml-1 text-[10px] font-mono text-[#606060] tabular-nums">
-          {content.length.toLocaleString()} chars
+          {normalizedContent.length.toLocaleString()} chars
         </span>
         <span className="flex-1" />
         <ChevronDown
@@ -84,7 +85,7 @@ function ThoughtPill({ content }: { content: string }) {
             className="overflow-hidden"
           >
             <div className="border-t px-4 pb-3.5 pt-1 pl-5 dark:border-white/[0.05] light:border-black/[0.06] max-h-[420px] overflow-y-auto text-[13.5px] leading-[1.7] tracking-[-0.005em] dark:text-[#9a9a9a] light:text-[#404040] whitespace-pre-wrap break-words">
-              {content}
+              {normalizedContent}
             </div>
           </motion.div>
         )}

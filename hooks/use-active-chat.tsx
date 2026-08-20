@@ -291,7 +291,28 @@ export function ActiveChatProvider({
     generateId: nanoid,
     transport,
     onError: (error) => {
-      toast.error(error.message || "Stream error");
+      // Φ-hardening: never surface a cryptic engine/parse message (nobody can
+      // act on "Syntax error in text…", "Session creation failed", empty-content
+      // 400s, or protocol mismatches). Log the raw detail for diagnostics, show
+      // a concise human toast. Recognized noise → targeted copy; unknown → a
+      // generic retry prompt.
+      console.error("[chat] stream error:", error);
+      const raw = String((error as Error)?.message ?? error ?? "");
+      const noise: Array<[RegExp, string]> = [
+        [/Empty content is not allowed|empty.*(content|response)|AIMessageEmpty/,
+          "The model returned an empty response — try asking again."],
+        [/Syntax error in text|Parse error on line/, "A diagram in the reply couldn’t be rendered — shown as its source."],
+        [/Protocol|stream.*(mismatch|interrupted|error)|Response body is empty/,
+          "The response stream was interrupted — check your connection and retry."],
+        [/[Vv]alidat(e|ion)|did not match|Expected.*received|zod|Schema|Unexpected part/,
+          "The reply didn’t match the expected format — try asking again."],
+        [/Session creation failed|rate.?limit|429/,
+          "Too many requests right now — wait a moment and retry."],
+        [/API key|401|Authentication/,
+          "Model authentication failed — check your API credentials."],
+      ];
+      const hit = noise.find(([re]) => re.test(raw));
+      toast.error(hit ? hit[1] : "Something went wrong streaming the response — try again.");
     },
     onData: (part) => {
       // Φ10 / #3: route emits the persisted assistant id as its first chunk

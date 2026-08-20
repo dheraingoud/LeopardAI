@@ -148,6 +148,18 @@ const deferred = useDeferredValue(sanitized);
     () => ({
       pre: (props: any) => <PreBlock {...props} streaming={!!streaming} />,
       code: InlineCode,
+      // Every clickable link in chat content opens in a NEW tab (never the
+      // same tab) — per user requirement. rel="noopener noreferrer" stops the
+      // new tab from reaching back into the app.
+      a: (props: any) => (
+        <a
+          href={props.href}
+          target="_blank"
+          rel="nofollow noopener noreferrer"
+        >
+          {props.children}
+        </a>
+      ),
     }),
     [streaming],
   );
@@ -195,13 +207,12 @@ function PreBlock({
   const longBlock = lineCount > 16;
 
   if (lang === "mermaid") {
-    return streaming ? (
-      <PreShell lang="mermaid" copyText={text} longBlock={false}>
-        <div className="cb-mermaid-loading">rendering diagram…</div>
-     </PreShell>
-    ) : (
-      <MermaidBlock code={text} />
-    );
+    // Always render live via MermaidBlock (never the streaming placeholder):
+    // MermaidBlock is already streaming-tolerant (250ms debounce + keeps the
+    // last good SVG when a partial code block throws), so the diagram appears
+    // as the model emits it instead of flashing a "rendering diagram…" box and
+    // swapping in only after the stream finishes.
+    return <MermaidBlock code={text} />;
   }
 
   if (lang === "svg") {
@@ -428,6 +439,11 @@ function MermaidBlock({ code }: { code: string }) {
   const { theme } = useTheme();
   const dark = theme === "dark";
   const [svg, setSvg] = useState<string | null>(null);
+  // Φ-hardening: once a FINAL (non-extending) code fence has failed to parse,
+  // don't loop "rendering diagram…" forever — show a quiet "view source"
+  // fallback so the user isn't left with a dead spinner and no raw error leaks
+  // to a toast. Set only after a render reject; cleared when one succeeds.
+  const [softFailed, setSoftFailed] = useState(false);
   // Mode toggle: diagram (default) ↔ code (raw source). Code view lets the
   // user inspect the mermaid source when the renderer bails on a partial
   // syntax error mid-stream.
@@ -474,11 +490,18 @@ function MermaidBlock({ code }: { code: string }) {
           fontFamily: "var(--font-body), ui-sans-serif, system-ui, sans-serif",
         });
         const { svg: out } = await mermaid.render(id, code);
-        if (active) setSvg(out);
+        if (active) {
+          setSvg(out);
+          setSoftFailed(false);
+        }
       } catch {
-        // Partial mermaid syntax during stream throws here. Stay silent:
-        // keep the last good SVG on screen and retry on the next code delta.
-        // We don't setFailed — the user shouldn't see a hard fallback mid-stream.
+        // A partial mermaid fence mid-stream throws here. Stay silent: keep
+        // the last good SVG on screen and retry on the next code delta. If NO
+        // good SVG ever rendered (a genuinely broken final diagram), mark
+        // softFailed so the branch below shows a quiet "view source" fallback
+        // instead of an eternal "rendering diagram…" spinner. The error is
+        // swallowed — it never reaches the chat onError toast.
+        if (active && !svg) setSoftFailed(true);
       }
     };
     // 250ms debounce so streaming tokens collapse cleanly.
@@ -492,8 +515,23 @@ function MermaidBlock({ code }: { code: string }) {
   // Inline diagram (code view resets above). `mermaid.render` emits an svg with
   // fixed width/height; the CSS clamps max-width:100% + height:auto so it fits
   // the column and expands DOWN the page. No pan/zoom/scale canvas.
-  const renderSvg = svg ? (
+  const renderBody = svg ? (
     <div dangerouslySetInnerHTML={{ __html: svg }} />
+  ) : softFailed ? (
+    // Broken final diagram: a neutral, non-error affordance. The user can read
+    // the raw mermaid (mode → code) but nothing printed raw "Syntax error" to
+    // the UI, and no toast fired.
+    <div className="cb-mermaid-softfail">
+      <span>diagram couldn’t be rendered</span>
+      <button
+        type="button"
+        className="cb-mermaid-sourcebtn"
+        onClick={() => setMode("code")}
+        aria-label="View mermaid source"
+      >
+        view source
+      </button>
+    </div>
   ) : (
     <div className="cb-mermaid-loading">rendering diagram…</div>
   );
@@ -518,15 +556,17 @@ function MermaidBlock({ code }: { code: string }) {
 
   return (
     <div className="cb-mermaid-inline">
-      <div className="cb-mermaid">{renderSvg}</div>
-      <button
-        type="button"
-        className="cb-mermaid-sourcebtn"
-        onClick={() => setMode("code")}
-        aria-label="View mermaid source"
-      >
-        view source
-      </button>
+      <div className="cb-mermaid">{renderBody}</div>
+      {!softFailed && (
+        <button
+          type="button"
+          className="cb-mermaid-sourcebtn"
+          onClick={() => setMode("code")}
+          aria-label="View mermaid source"
+        >
+          view source
+        </button>
+      )}
     </div>
   );
 }
