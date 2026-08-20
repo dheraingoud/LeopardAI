@@ -123,6 +123,91 @@ function isFirstExchange(messages: UIMessage[]): boolean {
   return hasUser && !hasAssistant;
 }
 
+/**
+ * Φ-latency · T4: NIM rejects an assistant whose content is only reasoning/empty
+ * ("Empty content is not allowed for assistant messages" → 400). A force-settled
+ * reasoning-only turn (max-effort think that never reached a text answer) leaves
+ * such a row in history, and EVERY later turn re-sends it → the recurring 400.
+ * Browser history also carries `tool` parts whose `state` is "approval-requested"
+ * (an AskCard for a tool the turn didn't answer). Both are meaningful to the UI
+ * but must NOT ride as model messages — the provider can't serialize them.
+ * Reasoning is ephemeral (the final text/tool-call is the context that matters),
+ * so dropping trailing thought-only assistant blocks is safe. Keep any assistant
+ * with a real text answer, a tool-call, a tool-result, or a tool-approval.
+ */
+function hasModelWorthyAssistantContent<
+  T extends { role?: string; content?: unknown },
+>(m: T): boolean {
+  if (m.role !== "assistant") return true;
+  const c = m.content;
+  if (typeof c === "string") return c.trim().length > 0;
+  if (!Array.isArray(c)) return true;
+  return c.some(
+    (p: unknown) =>
+      (p as { type?: string })?.type === "tool-call" ||
+      (p as { type?: string })?.type === "tool-result" ||
+      (p as { type?: string })?.type === "tool-approval-request" ||
+      ((p as { type?: string; text?: string })?.type === "text" &&
+        typeof (p as { text?: string }).text === "string" &&
+        ((p as { text?: string }).text ?? "").trim().length > 0),
+  );
+}
+
+/** Flatten a model message's content (string or part array) to text for token
+ * estimation — mirrors TokenMessage for estimateConversationTokens. */
+function modelMessagesToTokenInput(
+  msgs: Array<{ role?: string; content?: unknown }>,
+): TokenMessage[] {
+  return msgs.map((m) => {
+    const c = m.content;
+    let text = "";
+    if (typeof c === "string") text = c;
+    else if (Array.isArray(c)) {
+      text = c
+        .filter((p: unknown) => (p as { type?: string })?.type === "text")
+        .map((p) => (p as { text?: string }).text ?? "")
+        .join("\n");
+    }
+    return { role: m.role ?? "user", content: text };
+  });
+}
+
+/**
+ * Φ-latency · T1: bound NIM input PREFILL — the model-speed-INDEPENDENT latency
+ * driver. A long chat re-sends the full transcript every turn, so prefill time
+ * grows with history no matter how "flash" the model is. When history exceeds
+ * the model's budget, drop the OLDEST non-tool messages from the front (never
+ * the newest user question, never a tool/tool-result — that would orphan the
+ * tool-call pairing). No-op when under budget or anything is ambiguous (fail-
+ * simple: keep the full history).
+ */
+function trimModelMessagesToBudget<
+  T extends { role?: string; content?: unknown },
+>(msgs: T[], budget: number): T[] {
+  if (!(budget > 0) || msgs.length <= 1) return msgs;
+  let trimmed = msgs;
+  let guard = 0;
+  while (
+    estimateConversationTokens(modelMessagesToTokenInput(trimmed)) > budget &&
+    trimmed.length > 1 &&
+    guard++ < 500
+  ) {
+    const first = trimmed[0] as { content?: unknown };
+    const isTool =
+      (Array.isArray(first.content) &&
+        first.content.some(
+          (p: unknown) =>
+            (p as { type?: string })?.type === "tool-call" ||
+            (p as { type?: string })?.type === "tool-result",
+        )) ||
+      (typeof first.content === "string" &&
+        /tool|structured-content|json-schema/.test(first.content));
+    if (isTool) break; // preserve tool-call ↔ tool-result pairing
+    trimmed = trimmed.slice(1);
+  }
+  return trimmed.length === msgs.length ? msgs : trimmed;
+}
+
 /** Generate a 3-5 word chat title from the first user message. */
 async function generateTitleFromUserMessage(message: UIMessage): Promise<string> {
   const { text } = await generateText({
@@ -411,6 +496,18 @@ export async function POST(request: Request) {
       /* compaction is best-effort — keep the full history */
     }
   }
+
+  // Φ-latency · T4 + T1 (see helpers above). Applied AFTER compaction so they
+  // hold on every path: (T4) drop reasoning-only/empty assistant rows — a
+  // force-settled max-effort think that never reached a text answer leaves one
+  // in history and the recurring NIM 400 "Empty content is not allowed for
+  // assistant messages" blocks every later turn — and (T1) bound input prefill
+  // to a token budget, the model-speed-independent latency driver on long chats.
+  modelMessages = modelMessages.filter(hasModelWorthyAssistantContent);
+  modelMessages = trimModelMessagesToBudget(
+    modelMessages,
+    getContextBudget(modelConfig?.contextWindow ?? 128_000),
+  );
 
   // 8. Title gen: only on the first exchange (no assistant turn yet).
   const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
