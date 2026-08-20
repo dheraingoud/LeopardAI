@@ -36,7 +36,10 @@ function GlassPopoverContent({
       >
         <MenuPrimitive.Popup
           className={cn(
-            "origin-[var(--transform-origin)] outline-none transition-[scale,opacity] duration-300 ease-[cubic-bezier(0.34,1.3,0.64,1)] data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[ending-style]:duration-150 data-[ending-style]:ease-out data-[starting-style]:scale-[0.6]",
+            // Liquid glass open/close: gentle translate+scale (transform-only for
+            // GPU), a soft spring that just kisses past 1.0 — no 0.6 jarring pop
+            // / squeeze. Transform+opacity transition to avoid repaint stutter.
+            "origin-[var(--transform-origin)] outline-none transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(0.32,1.28,0.5,1)] data-[ending-style]:scale-[0.96] data-[ending-style]:opacity-0 data-[ending-style]:translate-y-1 data-[ending-style]:duration-150 data-[ending-style]:ease-out data-[starting-style]:scale-[0.95] data-[starting-style]:opacity-0 data-[starting-style]:translate-y-2",
             className
           )}
           {...props}
