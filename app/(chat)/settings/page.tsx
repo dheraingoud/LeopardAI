@@ -3,6 +3,7 @@
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { motion } from "framer-motion";
 import { User, Palette, Cpu, HardDrive, AlertTriangle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MODELS } from "@/types";
+import { getActiveModels, getDefaultChatModel } from "@/lib/ai/models";
 import { toast } from "sonner";
 import { useConvex } from "convex/react";
 import { useState } from "react";
@@ -37,11 +38,17 @@ export default function SettingsPage() {
   const dbUser = useQuery(api.users.getByClerkId, user ? { clerkId: user.id } : "skip");
   const updateSettings = useMutation(api.users.updateSettings);
   const deleteChat = useMutation(api.chats.remove);
-  const chats = useQuery(api.chats.list, user ? { userId: user.id } : "skip");
+  // Effective user id — Clerk id, or DEV_USER_ID under BYPASS_CLERK so the bypass
+  // session's own chats (stored under DEV_USER_ID) are listed/counted, matching
+  // the sidebar + chat route.
+  const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
+  const chats = useQuery(api.chats.list, userId ? { userId } : "skip");
   const convex = useConvex();
   const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
   const setSendWithEnter = useSettingsStore((s) => s.setSendWithEnter);
-  const defaultModel = dbUser?.defaultModel || "minimax-m2.7";
+  // Live NIM registry (kinds: text/vlm), not the stale hardcoded @/types list.
+  const liveModels = getActiveModels().filter((m) => m.kind !== "image" && m.kind !== "video");
+  const defaultModel = dbUser?.defaultModel || getDefaultChatModel().id;
   const [deleting, setDeleting] = useState(false);
 
   const handleModelChange = async (modelId: string | null) => {
@@ -51,14 +58,14 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAll = async () => {
-    if (!chats || chats.length === 0 || !user) return;
+    if (!chats || chats.length === 0 || !userId) return;
     if (!window.confirm(`Delete all ${chats.length} conversations? This is permanent and cannot be undone.`)) {
       return;
     }
     setDeleting(true);
     try {
       for (const chat of chats) {
-        await deleteChat({ chatId: chat._id, userId: user.id });
+        await deleteChat({ chatId: chat._id, userId });
       }
       toast.success("All conversations deleted");
     } catch {
@@ -171,7 +178,7 @@ export default function SettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="glass-elevated dark:bg-[#111] light:bg-[#f0f0f0] dark:border-white/[0.08] light:border-black/[0.08]">
-                    {MODELS.map((m) => (
+                    {liveModels.map((m) => (
                       <SelectItem key={m.id} value={m.id} className="font-mono text-xs dark:text-[#d4d4d4] light:text-[#404040] focus:dark:bg-white/5 light:bg-black/5 focus:dark:text-white light:text-[#171717]">
                         {m.name} — {m.provider}
                       </SelectItem>
@@ -183,18 +190,18 @@ export default function SettingsPage() {
               <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">
-                {MODELS.map((m) => (
+                {liveModels.map((m) => (
                   <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] border dark:border-white/[0.04] light:border-black/[0.05]">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-mono font-medium dark:text-[#d4d4d4] light:text-[#404040]">{m.name}</p>
                         <span className="text-[9px] font-mono dark:text-[#525252] light:text-[#8c8c8c]">{m.provider}</span>
-                        {m.badge && <span className="text-[8px] px-1.5 py-0.5 rounded-full dark:bg-[#ffb40010] light:bg-[#d4960010] text-[#ffb400]">{m.badge}</span>}
+                        {m.supportsVision && <span className="text-[8px] px-1.5 py-0.5 rounded-full dark:bg-[#ffb40010] light:bg-[#d4960010] text-[#ffb400]">vision</span>}
                       </div>
                       <p className="text-[10px] font-mono dark:text-[#404040] light:text-[#a3a3a3] mt-0.5">{m.description}</p>
                     </div>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${m.speed === "fast" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>
-                      {m.speed}
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${m.speedTier === "fast" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>
+                      {m.speedTier}
                     </span>
                   </div>
                 ))}

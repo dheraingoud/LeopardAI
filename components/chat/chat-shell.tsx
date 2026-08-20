@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { getMessageText } from "./message";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
@@ -30,6 +31,8 @@ export function ChatShell() {
   const { chatMeta, isLoading, messages, currentModelId } = useActiveChat();
   const { user } = useUser();
   const router = useRouter();
+  // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
+  const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
   const shareChat = useMutation(api.chats.share);
   const [shared, setShared] = useState(false);
 
@@ -57,11 +60,11 @@ export function ChatShell() {
   }, [chatMeta, messages]);
 
   const handleShare = useCallback(async () => {
-    if (!chatMeta || !user) return;
+    if (!chatMeta || !userId) return;
     try {
       const shareUrl = chatMeta.shared && chatMeta.shareId
         ? `${window.location.origin}/share/${chatMeta.shareId}`
-        : `${window.location.origin}/share/${await shareChat({ chatId: chatMeta._id, userId: user.id })}`;
+        : `${window.location.origin}/share/${await shareChat({ chatId: chatMeta._id, userId })}`;
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Share link copied!");
       setShared(true);
