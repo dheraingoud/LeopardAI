@@ -23,21 +23,21 @@ export function ContextIndicator({ contextWindow, text, attachmentCount }: Props
   const known = typeof contextWindow === "number" && contextWindow > 0;
   const used = estimateTokens(text, attachmentCount);
   const pct = known ? Math.min(1, used / contextWindow) : 0;
-  const tone = !known
-    ? "#5a5a5a"
-    : pct > 0.9
-      ? "#ff5555"
-      : pct > 0.6
-        ? "#ffb400"
-        : "#737373";
+  // Leopard-yellow context ring. The active arc is always #ffb400; only
+  // >90% tips to red as an overload warning. Idle (unknown window) renders
+  // as a dimmable amber "?" so the slot never looks cold grey.
+  const tone = !known ? "#ffb400" : pct > 0.9 ? "#ff5555" : "#ffb400";
 
   const R = 8;
   const C = 2 * Math.PI * R;
   const dash = pct * C;
 
   return (
+    // h-9 matches the neighboring model-selector (h-9) and send (36px) band, and
+    // items-center keeps the ring vertically centered against those controls —
+    // NOT bottom-hugging, which the parent row's items-end would otherwise do.
     <div
-      className="hidden sm:flex shrink-0 items-center self-center"
+      className="hidden sm:flex shrink-0 h-9 items-center"
       title={
         known
           ? `${used.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (est.)`
@@ -70,7 +70,7 @@ export function ContextIndicator({ contextWindow, text, attachmentCount }: Props
             x="11"
             y="14"
             textAnchor="middle"
-            className="dark:fill-[#737373] light:fill-[#737373]"
+            className="dark:fill-[#ffb400]/70 light:fill-[#d49600]/80"
             style={{ font: "bold 9px ui-monospace, monospace" }}
           >
             ?

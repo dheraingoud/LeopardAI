@@ -971,8 +971,13 @@ export const PreviewMessage = memo(function PreviewMessage({
         transition={{ duration: 0.2 }}
         className="group flex justify-end py-3"
       >
-        <div className="max-w-[68ch] ml-auto text-right">
-          <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-foreground/85 text-right">{text}</p>
+        <div className="max-w-[68ch] ml-auto flex flex-col items-end">
+          {/* User bubble — amber-tinted glass so the user's own turns read as
+           * distinct from the assistant's bare text: a subtle fill + hairline
+           * amber edge + readable foreground in both themes. Right aligned. */}
+          <div className="cb-user-bubble rounded-2xl rounded-br-md px-4 py-2.5 max-w-full text-left border dark:border-[#ffb400]/[0.22] light:border-[#d49600]/[0.3] dark:bg-[linear-gradient(160deg,rgba(255,180,0,0.14)_0%,rgba(255,180,0,0.05)_100%)] light:bg-[linear-gradient(160deg,rgba(212,150,0,0.14)_0%,rgba(212,150,0,0.05)_100%)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] light:shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
+            <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-right dark:text-[#f3e9cf] light:text-[#3a2c08]">{text}</p>
+          </div>
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
             <button
               type="button"

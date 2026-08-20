@@ -109,8 +109,21 @@ const speedTierMap: Record<ModelCapability["speedTier"], SpeedTier> = {
   3: "slow",
 };
 
+// Cap the effective context window fed to the model + shown on the context
+// indicator. The registry declares each model's TRUE window (e.g. minimax-m3
+// advertises 1M); the cap bounds prompt cost/size. All text models → 256k;
+// the compact muse line → 128k. Gen models (declared 0) keep 0 = "unknown".
+const CONTEXT_CAP_DEFAULT = 256_000;
+const CONTEXT_CAP_MUSE = 128_000;
+function effectiveContextWindow(id: string, declared: number): number {
+  if (!declared || declared <= 0) return declared;
+  return Math.min(declared, id.includes("muse") ? CONTEXT_CAP_MUSE : CONTEXT_CAP_DEFAULT);
+}
+
 /** Chat models are read straight from nim.ts MODEL_REGISTRY — contextWindow +
- * reasoningConfig come from the curated per-model cards there. */
+ * reasoningConfig come from the curated per-model cards there. contextWindow is
+ * run through effectiveContextWindow() so every consumer (selector, /api/models,
+ * capability check, context indicator) shares the CAP, not the raw registry value. */
 function nimTextSeed(): ChatModel[] {
   return Object.values(MODEL_REGISTRY).map((m) => ({
     id: m.id,
@@ -128,7 +141,7 @@ function nimTextSeed(): ChatModel[] {
     // regardless; this drives the selector Wrench icon + getCapabilities
     // fallback, so it's accurate per model rather than a blanket false.
     supportsTools: m.supportsTools ?? false,
-    contextWindow: m.contextWindow,
+    contextWindow: effectiveContextWindow(m.id, m.contextWindow),
     reasoningConfig: m.reasoning,
     kind: "text",
   }));

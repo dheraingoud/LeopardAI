@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Check, Brain } from "lucide-react";
+import { useRef, useState } from "react";
+import { ChevronDown, Check, Brain, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActiveModels,
   modelsByProvider,
   getDefaultChatModel,
+  getModelById,
   type Provider,
 } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
@@ -15,6 +16,8 @@ import {
   GlassPopoverContent,
   GlassPopoverTrigger,
 } from "@/components/ui/glass-popover";
+import { TieredPicker, BinaryPicker, levelLabel } from "./reasoning-control";
+import type { ReasoningLevel } from "@/lib/nim";
 
 /**
  * ModelSelectorCompact — a Copilot-style popover anchored to the input bar.
@@ -41,12 +44,37 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 };
 
 export function ModelSelectorCompact() {
-  const { currentModelId, setCurrentModel } = useActiveChat();
+  const { currentModelId, setCurrentModel, currentReasoning, setReasoning } =
+    useActiveChat();
   const [open, setOpen] = useState(false);
+
+  // Effort submenu slides toward the page's free space: with the sidebar open or
+  // the menu near the right edge, opening right would push it off-screen, so we
+  // measure the footer's rect on hover and flip to open left instead.
+  const effortRef = useRef<HTMLDivElement | null>(null);
+  const [effortRight, setEffortRight] = useState(true);
+  const measureEffortDir = () => {
+    const el = effortRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const w = 280; // submenu ~width
+    setEffortRight(r.right + w + 8 <= window.innerWidth);
+  };
 
   const current =
     getActiveModels().find((m) => m.id === currentModelId) ?? getDefaultChatModel();
   const providerKeys = Object.keys(modelsByProvider) as Provider[];
+
+  // Shared reasoning-effort state (composer pill + effort footer). rEnabled =
+  // the model exposes a toggleable param; locked-on reasoners (no param) still
+  // show a plain Brain but no toggleable effort.
+  const rcfg = getModelById(currentModelId)?.reasoningConfig;
+  const rEnabled = !!rcfg?.enabled && !!rcfg.toggleable && !!rcfg.param;
+  const rActive = currentReasoning !== undefined && currentReasoning !== "off";
+  const rLabel = rActive
+    ? levelLabel(currentReasoning as ReasoningLevel)
+    : "Off";
+  const rTiered = (rcfg?.effortLevels?.length ?? 0) > 0;
 
   return (
     <div className="relative shrink-0">
@@ -60,7 +88,35 @@ export function ModelSelectorCompact() {
             >
               <span className="truncate">{current.name}</span>
               {current.supportsReasoning && (
-                <Brain className="h-3 w-3 text-[#ffb400]/60 shrink-0" />
+                <span
+                  className={cn(
+                    "relative inline-flex shrink-0",
+                    rEnabled && rActive && "brain-shimmer"
+                  )}
+                >
+                  <Brain
+                    className={cn(
+                      "h-3 w-3",
+                      rEnabled
+                        ? rActive
+                          ? "text-[#ffb400]"
+                          : "dark:text-[#6b6b6b] light:text-[#a9a9a9]"
+                        : "text-[#ffb400]/60"
+                    )}
+                  />
+                </span>
+              )}
+              {rEnabled && (
+                <span
+                  className={cn(
+                    "shrink-0 text-[12px] font-mono leading-none",
+                    rActive
+                      ? "text-[#ffb400]"
+                      : "dark:text-[#8a8a8a] light:text-[#5a5a5a]"
+                  )}
+                >
+                  {rLabel}
+                </span>
               )}
               <ChevronDown
                 className={cn(
@@ -72,7 +128,8 @@ export function ModelSelectorCompact() {
           }
         />
         <GlassPopoverContent side="top" align="start" sideOffset={8} tint={0.6}>
-          <div className="w-[280px] max-h-[60vh] overflow-y-auto py-1">
+          <div className="w-[280px] flex flex-col">
+            <div className="max-h-[55vh] overflow-y-auto py-1">
             {providerKeys.map((p) => {
               const chatModels = modelsByProvider[p].filter((m) => m.kind === "text");
               if (chatModels.length === 0) return null;
@@ -150,8 +207,68 @@ export function ModelSelectorCompact() {
                 </div>
               );
             })()}
-
             </div>
+            {(() => {
+              // Reasoning effort — pinned to the menu (never scrolls with the
+              // model list above). Hovering it opens a RIGHT-side glass submenu
+              // that slides out with a lazy liquid ease; the slider/picker lives
+              // there, not inline.
+              if (!rEnabled) return null;
+              return (
+                <div className="shrink-0 border-t dark:border-white/[0.06] light:border-black/[0.06] p-1.5">
+                  <div
+                    ref={effortRef}
+                    onMouseEnter={measureEffortDir}
+                    className="group relative"
+                  >
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[12px] font-mono transition-colors dark:text-[#a3a3a3] light:text-[#525252] group-hover:dark:bg-white/[0.04] group-hover:light:bg-black/[0.03]"
+                    >
+                      <span className="uppercase tracking-tighter text-[10px] dark:text-[#505050] light:text-[#a3a3a3]">
+                        effort
+                      </span>
+                      <span className="flex items-center gap-1 text-[#ffb400]">
+                        {rActive ? rLabel : "Off"}
+                        <ChevronRight
+                          className={cn(
+                            "h-3 w-3 opacity-70 transition-transform duration-300 group-hover:translate-x-0.5",
+                            effortRight ? "" : "rotate-180 group-hover:-translate-x-0.5"
+                          )}
+                        />
+                      </span>
+                    </button>
+                    {/* Hover submenu: crisp glass (no blur), liquid opacity +
+                        translate slide. Anchors toward free space — right by
+                        default, flips left when the sidebar leaves no room so it
+                        never runs off-screen or sinks behind the page. */}
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute top-0 z-20 opacity-0 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:pointer-events-auto group-hover:opacity-100 group-hover:translate-x-0",
+                        effortRight
+                          ? "left-full ml-1.5 translate-x-1.5"
+                          : "right-full mr-1.5 -translate-x-1.5"
+                      )}
+                    >
+                      <div className="rounded-2xl border dark:border-white/10 light:border-black/10 bg-white/90 dark:bg-[#181818]/95 shadow-[0_16px_48px_-16px_rgba(0,0,0,0.55)]">
+                        {rTiered ? (
+                          <TieredPicker
+                            stops={rcfg.effortLevels as ReasoningLevel[]}
+                            current={
+                              currentReasoning as ReasoningLevel | undefined
+                            }
+                            onChange={setReasoning}
+                          />
+                        ) : (
+                          <BinaryPicker active={rActive} onChange={setReasoning} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </GlassPopoverContent>
       </GlassPopover>
     </div>

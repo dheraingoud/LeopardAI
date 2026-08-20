@@ -134,31 +134,6 @@ export function ChatShell() {
         </div>
 
         <Messages />
-        {messages.length === 0 && (
-          /* Starter chips — fire `composer:set-text` so they reuse the same
-             channel multimodal-input already listens on for the Edit-back-
-             to-composer flow (see message.tsx handleEditUser + multimodal-
-             input onSet). Hover/press fill the input + focus the textarea,
-             no auto-send. */
-          <div className="absolute inset-x-0 bottom-[124px] z-10 flex flex-wrap items-center justify-center gap-3 px-4 pointer-events-none">
-            {["Summarize", "Sketch diagram", "Write tests"].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("composer:set-text", {
-                      detail: { text: s },
-                    }),
-                  )
-                }
-                className="pointer-events-auto rounded-full border border-amber-500/20 bg-amber-500/[0.04] px-4 py-2 font-mono text-sm text-amber-700 dark:text-amber-200 transition-colors hover:bg-amber-500/10 hover:border-amber-500/30"
-              >
-                {s}
-             </button>
-            ))}
-         </div>
-        )}
         <MultimodalInput />
       </div>
       {/* Φ6: artifact side panel. Renders null until a createDocument tool

@@ -9,6 +9,7 @@ import {
   GlassPopoverContent,
   GlassPopoverTrigger,
 } from "@/components/ui/glass-popover";
+import { McpConfigModal } from "@/components/chat/mcp-config-modal";
 
 type Props = {
   modelVision: boolean;
@@ -40,6 +41,8 @@ export function PlusMenu({
   onPickSkill,
 }: Props) {
   const [open, setOpen] = useState(false);
+  // "+ → mcp servers" no longer a bare stub — lifts a centered config overlay.
+  const [mcpOpen, setMcpOpen] = useState(false);
   const mediaRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const skillRef = useRef<HTMLInputElement>(null);
@@ -93,10 +96,17 @@ return (
                 skillRef.current?.click();
               }}
             />
-            <Item label="mcp servers" hint="soon" onClick={() => setOpen(false)} />
+            <Item
+              label="mcp servers"
+              onClick={() => {
+                setOpen(false);
+                setMcpOpen(true);
+              }}
+            />
           </div>
         </GlassPopoverContent>
       </GlassPopover>
+      <McpConfigModal open={mcpOpen} onClose={() => setMcpOpen(false)} />
       <input
         ref={mediaRef}
         type="file"

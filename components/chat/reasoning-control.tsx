@@ -148,7 +148,7 @@ export function TieredPicker({
   const idx = sliderOn ? stops.indexOf(current) : -1;
   const live = sliderOn ? levelLabel(current as ReasoningLevel) : "Off";
   return (
-    <div className="px-7 pt-3 pb-3">
+    <div className="px-4 pt-3 pb-3">
       <div className="mb-2.5 flex items-center justify-between">
         <span className="text-[11px] font-mono dark:text-[#a3a3a3] light:text-[#525252]">
           Reasoning effort

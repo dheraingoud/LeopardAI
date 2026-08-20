@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ExternalLinksNewTab } from "@/components/external-links";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToaster } from "@/components/theme-toaster";
@@ -85,7 +86,10 @@ export default function RootLayout({
         <ThemeProvider>
           <DynamicClerkProvider>
             <ConvexClientProvider>
-              <TooltipProvider delay={200}>{children}</TooltipProvider>
+              <TooltipProvider delay={200}>
+                {children}
+                <ExternalLinksNewTab />
+              </TooltipProvider>
             </ConvexClientProvider>
             <ThemeToaster />
           </DynamicClerkProvider>
