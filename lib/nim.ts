@@ -183,7 +183,7 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       toggleable: true,
       param: "enable_thinking",
       effortLevels: ["low", "medium", "high", "max"],
-      defaultEffort: "max",
+      defaultEffort: "medium",
     },
   },
   "google/gemma-4-31b-it": {
@@ -215,7 +215,11 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       toggleable: true,
       param: "effort",
       effortLevels: ["high", "max"],
-      defaultEffort: "max",
+      // Latency-optimized default (2026-08-20): the "medium" intent here is
+      // "HIGH", this card's only non-extreme stop. "max" held the first token
+      // behind long deliberation on a speed-1 flash model. Users who want deep
+      // thinking still get it via the picker (max is one tick away).
+      defaultEffort: "high",
     },
   },
   // ─── Additions mapped from /v1/models (2026-08-17) ──────────────────────────
