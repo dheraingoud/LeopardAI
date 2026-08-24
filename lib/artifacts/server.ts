@@ -1,5 +1,10 @@
 import type { UIMessageStreamWriter } from "ai";
 import { textDocumentHandler } from "@/artifacts/text/server";
+import {
+  codeDocumentHandler,
+  fileDocumentHandler,
+  sheetDocumentHandler,
+} from "@/artifacts/file/server";
 import type { ArtifactKind } from "@/lib/types";
 import type { ChatMessage } from "@/lib/types";
 
@@ -67,10 +72,17 @@ export function createDocumentHandler<T extends ArtifactKind>(config: {
 
 export const documentHandlersByArtifactKind: DocumentHandler[] = [
   textDocumentHandler,
-  // codeDocumentHandler, sheetDocumentHandler, imageDocumentHandler — ported
-  // in the next increment (need CodeMirror / react-data-grid / image editor).
+  // Generic file handler (kind "file") + code/sheet aliases — all three stream
+  // via data-textDelta so ANY requested file (md/txt/json/csv/script) assembles
+  // client-side, persists to Convex, and renders as a downloadable FileCard.
+  // No handler throws "No document handler found" anymore; imageDocumentHandler
+  // stays deferred (needs an image editor).
+  fileDocumentHandler,
+  codeDocumentHandler,
+  sheetDocumentHandler,
 ];
 
 /** Kinds the createDocument tool advertises to the model. Matches the union
- * the input schema accepts. Only `text` has a registered handler today. */
-export const artifactKinds = ["text", "code", "sheet"] as const;
+ * the input schema accepts. Every kind has a registered handler (text + the
+ * file/code/sheet trio above). */
+export const artifactKinds = ["text", "file", "code", "sheet"] as const;

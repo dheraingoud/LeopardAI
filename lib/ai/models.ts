@@ -92,6 +92,10 @@ export type ChatModel = {
   /** Per-model reasoning shape — drives the reasoning control + the route. */
   reasoningConfig: ReasoningConfig;
   kind: ModelKind;
+  /** TRUE = upstream down/hanging — selector greys out, selection blocked. */
+  unavailable?: boolean;
+  /** Why unavailable (selector tooltip). */
+  unavailableReason?: string;
   /** Gateway provider order hint — unused NIM (undefined). */
   gatewayOrder?: string[];
 };
@@ -144,6 +148,8 @@ function nimTextSeed(): ChatModel[] {
     contextWindow: effectiveContextWindow(m.id, m.contextWindow),
     reasoningConfig: m.reasoning,
     kind: "text",
+    unavailable: m.unavailable,
+    unavailableReason: m.unavailableReason,
   }));
 }
 

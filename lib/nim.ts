@@ -1,12 +1,15 @@
 /**
  * NVIDIA NIM API core library.
  *
- * Goal-driven curation (2026-08-17): the chat registry exposes ONLY the live,
+ * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   minimax-m3, glm-5.2, gemma-4-31b-it, deepseek-v4-flash-0731, step-3.7-flash,
+ *   moonshotai/kimi-k3 (DEFAULT), minimax-m3, gemma-4-31b-it, step-3.7-flash,
  *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, thinkingmachines-inkling,
- *   poolside-laguna-xs-2.1, nemotron-3.5-lightning-30b-a3b.
- * All ids verified present in /v1/models (2026-08-17). deepseek-v4-pro is NOT
+ *   poolside-laguna-xs-2.1, nemotron-3.5-lightning-30b-a3b,
+ *   deepseek-v4-flash-0731 (kept, flagged unavailable — upstream hang).
+ * glm-5.2 removed 2026-08-24 (deprecated — no longer in /v1/models).
+ * All ids verified present in /v1/models (2026-08-24 probe: 102 models).
+ * deepseek-v4-pro is NOT
  * in the catalogue and was dropped. minimax-m3 is a TEXT LLM on NIM (no vision
  * modality despite earlier card reads). diffusiongemma is a TEXT-OUT VLM (takes
  * image/video, emits text via discrete diffusion) — it is NOT image-gen; no
@@ -110,6 +113,12 @@ export interface ModelCapability {
   // of the curated models use these — kept on the type for buildNIMPayload parity.
   disableParam?: Record<string, unknown>;
   hideReasoningParam?: Record<string, unknown>;
+  /** TRUE = upstream is down/hanging (NIM returns empty or 5xx for every
+   * request) — the selector greys it out and blocks selection while keeping it
+   * visible for transparency. Re-checked live; flip back when NIM recovers. */
+  unavailable?: boolean;
+  /** Why the model is flagged unavailable (tooltip). */
+  unavailableReason?: string;
 }
 
 // ─── Base URL and model defaults ────────────────────────────────────────────
@@ -120,13 +129,16 @@ export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 // for server-side title generation (low stakes — no reasoning sent for titles).
 export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
 
-// Default chat model. The root latency bug (2026-08-19) was that the default
-// z-ai/glm-5.2 is STALLED on the NIM integrate endpoint (~68s TTFT non-stream,
-// zero bytes in 40s streaming) — a bad upstream default, not an app fix. The
-// operator defaulted to step-3.7-flash for a responsive fresh chat; the chosen
-// default is now deepseek-v4-flash-0731 (speedTier 1, 1M context, effort-gated
-// reasoning) — fast and capable. Other models stay selectable in the picker.
-export const DEFAULT_MODEL = "deepseek-ai/deepseek-v4-flash-0731";
+// Default chat model. History of the default:
+//   z-ai/glm-5.2 (stalled upstream, then pulled from the NIM catalogue 2026-08-24)
+//   → step-3.7-flash (interim) → deepseek-v4-flash-0731 (defaulted 2026-08-20,
+//     then HUNG both thinking + non-thinking 2026-08-24 — empty body in 45s).
+// Default is now moonshotai/kimi-k3 (probed live 2026-08-24: responds, honors
+// reasoning_effort low/medium/high/max, emits reasoning_content, and
+// chat_template_kwargs:{enable_thinking:false} cleanly disables reasoning).
+// deepseek-v4-flash stays in the picker (kept per operator) but is flagged
+// unavailable in the UI until NIM restores it.
+export const DEFAULT_MODEL = "moonshotai/kimi-k3";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
@@ -162,28 +174,27 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       defaultEffort: "on",
     },
   },
-  "z-ai/glm-5.2": {
-    id: "z-ai/glm-5.2",
-    displayName: "GLM 5.2",
+  // GLM 5.2 removed 2026-08-24 — deprecated + pulled from the NIM /v1/models
+  // catalogue (probe returns zero glm ids). Do not re-add.
+  "moonshotai/kimi-k3": {
+    id: "moonshotai/kimi-k3",
+    displayName: "Kimi K3",
     speedTier: 1.5,
     type: "llm",
     supportsVision: false,
     supportsTools: true,
-    contextWindow: 1_000_000,
-    // Card: "multiple thinking effort levels". NIM probe 2026-07-11:
-    // `reasoning_effort:"max"` + `chat_template_kwargs:{think:true}` →
-    // NIM emits `reasoning_content:null` on every chunk. With
-    // `chat_template_kwargs:{thinking:true}` NIM emits 120 reasoning chunks,
-    // with `{enable_thinking:true}` NIM emits 114 reasoning chunks.
-    // We route via `enable_thinking` (matches deepseek-pro / gemma-4 /
-    // minimax-m3) and rely on the `defaultEffort*:1..4` / `level` enum
-    // to toggle the bool.
+    contextWindow: 262_144,
+    // Probed live 2026-08-24: responds without params (reasoning_content
+    // populated by default); `reasoning_effort` accepts ONLY low/high/max —
+    // NIM 400s on "medium" ("supported values are low, high, and max").
+    // high/max emit long reasoning (need a generous token budget);
+    // `chat_template_kwargs:{enable_thinking:false}` cleanly disables reasoning.
     reasoning: {
       enabled: true,
       toggleable: true,
-      param: "enable_thinking",
-      effortLevels: ["low", "medium", "high", "max"],
-      defaultEffort: "medium",
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
     },
   },
   "google/gemma-4-31b-it": {
@@ -209,6 +220,11 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
+    // 2026-08-24: hangs on NIM — empty body after 45s in BOTH thinking and
+    // non-thinking modes. Kept in the picker (operator request) but flagged
+    // unavailable so the UI greys it out until NIM restores the upstream.
+    unavailable: true,
+    unavailableReason: "Upstream hang (empty response) — NIM",
     // Probe 2026-07-09: reasoning_effort "high"+"max" both → 200 + reasoning_content emitted.
     reasoning: {
       enabled: true,

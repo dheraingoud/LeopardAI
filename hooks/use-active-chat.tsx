@@ -28,6 +28,8 @@ import {
   type ImageCacheEntry,
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
+import { getEnabledSkillBodies } from "@/lib/skill-store";
+import { useSkillLibrary } from "@/hooks/use-skill-library";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 
 /**
@@ -95,9 +97,7 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   artifact: UIArtifact | null;
   /** Close/clear the artifact panel. Φ6. */
   setArtifact: (a: UIArtifact | null) => void;
-  /** Suggested follow-up questions per assistant message id (ephemeral, not persisted). */
-  suggestionsByMessage: Record<string, string[]>;
-  /** Abort the current server-owned generation (persist partial) then stop the local stream. */
+    /** Abort the current server-owned generation (persist partial) then stop the local stream. */
   stopGeneration: () => void;
 };
 
@@ -132,6 +132,10 @@ export function ActiveChatProvider({
   // ── Convex: load chat + messages ──────────────────────────────────────────
   const chatMeta = useQuery(api.chats.get, { chatId: convexChatId, userId: uid });
   const convexMessages = useQuery(api.messages.list, { chatId: convexChatId });
+
+  // Φ-skill-library — seed + load curated skills into the shared store so the
+  // +→add-skill modal can render them and the transport injects their bodies.
+  useSkillLibrary();
 
   // ── Convex: mutations (stable refs from useMutation) ──────────────────────
   const messagesSend = useMutation(api.messages.send);
@@ -222,31 +226,7 @@ export function ActiveChatProvider({
   const setArtifact = useCallback((a: UIArtifact | null) => {
     setArtifactState(a);
   }, []);
-  // Suggested follow-up chips: messageId → string[]. Ephemeral (never Convex);
-  // populated fire-and-forget after an assistant stream finishes.
-  const [suggestionsByMessage, setSuggestionsByMessage] = useState<
-    Record<string, string[]>
-  >({});
-
-  // Fire the /api/suggest request for a finished assistant message. No-op on
-  // error / no key → the message just renders without chips.
-  const requestSuggestions = useCallback(async (messageId: string, text: string) => {
-    try {
-      const res = await fetch("/api/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, modelId: currentModelIdRef.current }),
-      });
-      if (!res.ok) return;
-      const { suggestions } = (await res.json()) as { suggestions?: string[] };
-      if (Array.isArray(suggestions) && suggestions.length > 0) {
-        setSuggestionsByMessage((prev) => ({ ...prev, [messageId]: suggestions }));
-      }
-    } catch {
-      /* cosmetic — no chips is fine */
-    }
-  }, []);
-  // Accumulate the full doc content across deltas — refs are read sync inside
+    // Accumulate the full doc content across deltas — refs are read sync inside
   // onData (state is async-batched → would race per-token). Plus id/kind/title
   // so the finish persist closure has everything without depending on state.
   const artifactContentRef = useRef("");
@@ -278,6 +258,9 @@ export function ActiveChatProvider({
             // → route omits the key → NIM non-think / no param). Route.ts reads
             // this + nimReasoningProviderOptions() builds providerOptions.nim.
             reasoning: currentReasoningRef.current,
+            // Φ-skill-library — enabled skill bodies (library + local) injected
+            // into the system prompt server-side as ## Instructions blocks.
+            skills: getEnabledSkillBodies(),
           },
         }),
       }),
@@ -581,25 +564,7 @@ export function ActiveChatProvider({
       });
       void touchChat({ chatId: convexChatId });
     }
-
-    // Suggested follow-up chips: fire-and-forget for ANY finished assistant reply
-    // (text + image). Keyed to the server id ONLY once the visible bubble has
-    // adopted it (review m9) — otherwise chips bind to an id that only exists
-    // server-side and get orphaned from the rendered message. Fall back to
-    // last.id for image-gen (no server id emitted) and when no adoption pending.
-    if (last && last.role === "assistant" && chat.status === "ready") {
-      const assistantText = (last.parts ?? [])
-        .filter((p) => p.type === "text")
-        .map((p) => (p as { text?: string }).text ?? "")
-        .join(" ")
-        .trim();
-      if (assistantText) {
-        const sid = serverAssistantIdRef.current;
-        const key = sid ? (last.id === sid ? sid : null) : last.id;
-        if (key) void requestSuggestions(key, assistantText);
-      }
-    }
-  }, [chat.messages, chat.status, convexChatId, messagesSend, requestSuggestions, touchChat]);
+  }, [chat.messages, chat.status, convexChatId, messagesSend, touchChat]);
 
   // ── Model change (local state + persist) ───────────────────────────────────
   const setCurrentModel = (id: string) => {
@@ -654,7 +619,6 @@ export function ActiveChatProvider({
     setReasoning,
     artifact,
     setArtifact,
-    suggestionsByMessage,
     stopGeneration,
   };
 

@@ -27,6 +27,7 @@ import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
+import { createDocument } from "@/lib/ai/tools/create-document";
 import { loadMcpTools } from "@/lib/ai/mcp";
 import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
 import { resolveOutputStyleDirective } from "@/lib/ai/output-styles";
@@ -582,15 +583,28 @@ export async function POST(request: Request) {
         // shares the chat model + Tavily; spawn is fire-and-forget (jobId back,
         // report later in the research panel).
         const researchEnabled = process.env.LEOPARD_DEEP_RESEARCH === "1";
+        // Φ6: createDocument — the downloadable-file tool. Gate consistent with
+        // the other server tools: ENABLE_ARTIFACTS=1 (the flag the client uses
+        // to decide whether artifact/file cards render). The tool needs the
+        // dataStream writer (to stream the assembled doc) + the resolved model.
+        const artifactsEnabled = process.env.ENABLE_ARTIFACTS === "1";
         const tools = {
           ...(webFetchEnabled ? { webFetch: webFetch({ dataStream }) } : {}),
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
           ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
           ...(researchEnabled ? researchTools({ userId: memUserId, modelId }) : {}),
+          ...(artifactsEnabled
+            ? { createDocument: createDocument({ dataStream, modelId }) }
+            : {}),
           ...mcpHandle.tools,
         };
         const supportsTools =
-          webFetchEnabled || webSearchEnabled || memEnabled || researchEnabled || mcpHasTools;
+          webFetchEnabled ||
+          webSearchEnabled ||
+          memEnabled ||
+          researchEnabled ||
+          artifactsEnabled ||
+          mcpHasTools;
         // Φ-docs · recall injection — the user's stored facts ride into the
         // system prompt each turn (listUserMemories returns [] when the admin
         // client or storage is unavailable; memory is additive, never fatal).
@@ -633,10 +647,26 @@ export async function POST(request: Request) {
             approvalRules,
             approveNone ? "deny" : approveAll ? "allow" : "ask",
           );
-          // Φ-docs · memory + research tools are low-risk (the user's own reversible
-          // recall store / a read-only background search) — auto-approve unless
-          // the operator's rules EXPLICITLY deny them. An explicit deny vetoes.
-          const lowRiskTool = (toolName ?? "").startsWith("memory_") || (toolName ?? "").startsWith("research_");
+          // Φ-docs · low-risk tools auto-approve unless the operator's rules
+          // EXPLICITLY deny them. Low-risk = read-only network + content tools
+          // the user already invoked by asking, whose result lands only in their
+          // own chat (webFetch/webSearch read the web; createDocument generates
+          // an in-chat artifact), plus the user's own reversible recall store /
+          // a read-only background search (memory_/research_).
+          //
+          // BUGFIX (tool-approval freeze): these used to return "user-approval"
+          // under the default ask policy, but the detached backgroundServe drain
+          // has no resume path for the client's tool-approval-response — the SDK
+          // paused the stream, the card never resolved, and the model response
+          // froze until the settle timeout. Auto-approving read-only/content
+          // tools removes the freeze on the common path; genuinely risky MCP
+          // tools still gate behind the AskCard.
+          const lowRiskTool =
+            (toolName ?? "").startsWith("memory_") ||
+            (toolName ?? "").startsWith("research_") ||
+            toolName === "webFetch" ||
+            toolName === "webSearch" ||
+            toolName === "createDocument";
           let decision: "approved" | "denied" | "user-approval" =
             d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
           if (lowRiskTool && d.mode !== "deny") decision = "approved";
@@ -676,6 +706,11 @@ export async function POST(request: Request) {
           supportsTools,
           context: promptContext,
           memories,
+          // Client-selected skill bodies (permanent library + local "+" skills).
+          // Bounded server-side; rendered as ## Instructions blocks.
+          skills: body.skills
+            ?.filter((s) => typeof s === "string" && s.trim().length > 0)
+            .slice(0, 20),
           // Φ-docs · output style (addon A): per-turn override wins, else the
           // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
           styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),

@@ -8,6 +8,9 @@ import {
   loadMcpConfig,
   saveMcpConfig,
   nextMcpId,
+  MCP_PRESETS,
+  parseMcpJson,
+  toMcpJson,
   type McpServerConfig,
   type McpTransport,
 } from "@/lib/mcp-config";
@@ -40,6 +43,9 @@ export function McpConfigModal({ open, onClose }: Props) {
   const draftCommand = draft.command ?? "";
   const [showHeaders, setShowHeaders] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [mode, setMode] = useState<"manual" | "json">("manual");
+  const [jsonDraft, setJsonDraft] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) setServers(loadMcpConfig());
@@ -104,6 +110,45 @@ export function McpConfigModal({ open, onClose }: Props) {
     const updated = servers.filter((s) => s.id !== id);
     setServers(updated);
     saveMcpConfig(updated);
+  };
+
+  const addPreset = (preset: (typeof MCP_PRESETS)[number]) => {
+    // De-dupe by name — adding the same preset twice is a no-op.
+    if (servers.some((s) => s.name === preset.server.name)) return;
+    const row: McpServerConfig = { ...preset.server, id: nextMcpId(), enabled: true };
+    const updated = [...servers, row];
+    setServers(updated);
+    saveMcpConfig(updated);
+  };
+
+  const importJson = () => {
+    setJsonError(null);
+    const res = parseMcpJson(jsonDraft);
+    if (!res.ok) {
+      setJsonError(res.error);
+      return;
+    }
+    const merged = [...servers, ...res.servers];
+    setServers(merged);
+    saveMcpConfig(merged);
+    setJsonDraft("");
+    setFormOpen(false);
+    setMode("manual");
+  };
+
+  const exportJson = async () => {
+    const body = toMcpJson(servers);
+    try {
+      await navigator.clipboard.writeText(body);
+    } catch {
+      /* clipboard may be denied — fall back to a blob download */
+      const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mcp-servers.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
@@ -192,6 +237,93 @@ export function McpConfigModal({ open, onClose }: Props) {
                     className="overflow-hidden"
                   >
                     <div className="mt-3 p-4 rounded-xl border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.03] light:bg-black/[0.02]">
+                      {/* presets — one-click add */}
+                      {MCP_PRESETS.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono uppercase tracking-tight dark:text-[#6a6a6a] light:text-[#909090]">
+                            quick add
+                          </span>
+                          {MCP_PRESETS.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => addPreset(p)}
+                              disabled={servers.some((s) => s.name === p.server.name)}
+                              className={cn(
+                                "px-2.5 h-6 rounded-md text-[10px] font-mono uppercase tracking-tight border transition-colors",
+                                servers.some((s) => s.name === p.server.name)
+                                  ? "dark:text-[#505050] light:text-[#b8b8b8] dark:border-white/5 light:border-black/5 cursor-not-allowed"
+                                  : "dark:text-[#a3a3a3] light:text-[#525252] dark:border-white/10 light:border-black/10 hover:dark:border-[#ffb400]/[0.4] hover:light:border-[#b8860b]/[0.4] hover:dark:text-white hover:light:text-black",
+                              )}
+                            >
+                              {p.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-3">
+                        <div className="flex gap-1 p-1 rounded-lg w-fit dark:bg-black/30 light:bg-white/40 border dark:border-white/[0.06] light:border-black/[0.06]">
+                          {(
+                            [
+                              ["manual", "manual"],
+                              ["json", "import json"],
+                            ] as const
+                          ).map(([val, label]) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => {
+                                setMode(val);
+                                setJsonError(null);
+                              }}
+                              className={cn(
+                                "px-3 h-7 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors",
+                                mode === val
+                                  ? "dark:bg-[#ffb400] light:bg-[#ffb400] dark:text-black light:text-black"
+                                  : "dark:text-[#808080] light:text-[#808080] hover:dark:text-white hover:light:text-black",
+                              )}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {mode === "json" ? (
+                        <div className="mt-2">
+                          <textarea
+                            value={jsonDraft}
+                            onChange={(e) => {
+                              setJsonDraft(e.target.value);
+                              setJsonError(null);
+                            }}
+                            rows={6}
+                            placeholder={'{"mcpServers": [{"name": "server", "type": "http", "url": "https://..."}]}'}
+                            className="w-full px-3 py-2 rounded-lg text-[11px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#b8860b]/[0.5] resize-none"
+                          />
+                          {jsonError && (
+                            <p className="mt-1.5 text-[10px] font-mono dark:text-red-400 light:text-red-500">
+                              {jsonError}
+                            </p>
+                          )}
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              onClick={importJson}
+                              disabled={!jsonDraft.trim()}
+                              className={cn(
+                                "px-4 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight transition-colors",
+                                jsonDraft.trim()
+                                  ? "dark:bg-[#ffb400] light:bg-[#ffb400] dark:text-black light:text-black hover:brightness-110"
+                                  : "dark:bg-white/[0.04] light:bg-black/[0.04] dark:text-[#505050] light:text-[#b0b0b0] cursor-not-allowed",
+                              )}
+                            >
+                              Import
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
                       <input
                         value={draft.name}
                         onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -302,6 +434,8 @@ export function McpConfigModal({ open, onClose }: Props) {
                           Add server
                         </button>
                       </div>
+                        </>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -310,9 +444,17 @@ export function McpConfigModal({ open, onClose }: Props) {
 
             {/* Footer */}
             <div className="flex items-center justify-between px-5 h-14 border-t dark:border-white/[0.07] light:border-black/[0.07] shrink-0">
-              <p className="text-[10px] font-mono dark:text-[#505050] light:text-[#a0a0a0]">
-                {servers.filter((s) => s.enabled).length} enabled
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-[10px] font-mono dark:text-[#505050] light:text-[#a0a0a0]">
+                  {servers.filter((s) => s.enabled).length} enabled
+                </p>
+                <button
+                  onClick={exportJson}
+                  className="text-[10px] font-mono uppercase tracking-tight dark:text-[#606060] light:text-[#8a8a8a] hover:dark:text-[#ffb400] hover:light:text-[#b8860b] transition-colors"
+                >
+                  export json
+                </button>
+              </div>
               <button
                 onClick={() => setFormOpen((o) => !o)}
                 className="flex items-center gap-1.5 px-3.5 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight dark:bg-white/[0.06] light:bg-black/[0.05] dark:text-[#e5e5e5] light:text-[#262626] border dark:border-white/10 light:border-black/10 hover:dark:border-[#ffb400]/[0.4] hover:light:border-[#b8860b]/[0.4] transition-colors"
