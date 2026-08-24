@@ -16,8 +16,12 @@ import {
   RotateCcw,
   ThumbsUp,
   ThumbsDown,
+  Download,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { cn, compactWhitespace } from "@/lib/utils";
 import { hydrateMessageImages } from "@/lib/image-cache";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
@@ -113,20 +117,83 @@ const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
   code: Code,
   sheet: Table,
   image: ImageIcon,
+  file: FileText,
 };
 
+/** MIME type for a filename's extension, so the Download Blob is typed. */
+function mimeForFilename(filename: string): string {
+  const ext = (filename.split(".").pop() ?? "").toLowerCase();
+  const map: Record<string, string> = {
+    md: "text/markdown",
+    txt: "text/plain",
+    json: "application/json",
+    csv: "text/csv",
+    yaml: "text/yaml",
+    yml: "text/yaml",
+    toml: "text/plain",
+    py: "text/x-python",
+    js: "text/javascript",
+    mjs: "text/javascript",
+    ts: "text/plain",
+    tsx: "text/plain",
+    jsx: "text/plain",
+    html: "text/html",
+    htm: "text/html",
+    css: "text/css",
+    xml: "application/xml",
+    svg: "image/svg+xml",
+  };
+  return map[ext] ?? "text/plain";
+}
+
+/** Trigger a client-side file download from assembled content. */
+function downloadFile(filename: string, content: string): void {
+  if (!content) return;
+  const blob = new Blob([content], { type: mimeForFilename(filename) });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.split("/").pop() ?? filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Derive a short file-type label from the filename's extension. */
+function extensionOf(filename: string): string {
+  const ext = (filename.split(".").pop() ?? "").trim();
+  return ext ? ext.toUpperCase() : "";
+}
+
 /**
- * Inline "Document created" card — the artifact opener rendered in the
- * transcript for each `tool-createDocument` part. After the stream finishes
- * (state "output-available") it shows the title + kind; clicking reopens the
- * side panel — setArtifact seeds metadata and the panel rehydrates content
- * from Convex via api.documents.getLatest (see artifact-panel.tsx). While
- * the tool is still streaming (no output yet) it shows a muted "creating…"
- * state so the user sees the doc is being assembled before the panel opens.
+ * Inline FILE CARD — the downloadable/previewable card rendered in the
+ * transcript under the assistant reply for each `tool-createDocument` part.
+ * After the stream finishes (state "output-available") it shows the file icon,
+ * filename (title with extension), kind/extension label, and Preview + Download
+ * buttons. Preview opens a themed modal showing the raw text content; Download
+ * builds a Blob with the correct MIME + filename and saves it.
+ *
+ * Content is NOT re-assembled here — the client's data-stream handler already
+ * assembled it and persisted it to Convex via `api.documents.save` on
+ * `data-finish` (see use-active-chat onData). This card reads that stored doc
+ * via `api.documents.getLatest` keyed by the part's output.id (the same uuid
+ * the tool minted + the client persisted under), so nothing is double-stored.
+ * The title region still opens the side ArtifactPanel (existing behavior).
  */
 function DocumentCard({ part }: { part: DocToolPart }) {
   const { setArtifact } = useActiveChat();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // Hooks run unconditionally (React rules): the getLatest query belongs above
+  // the provisional "creating…" early-return so hook count stays stable when the
+  // part flips from streaming → output-available. Reads the client-persisted doc
+  // keyed by the exact id the tool minted (part.output?.id === Convex id); while
+  // still streaming, docId is undefined → args "skip" → no query issued.
+  const docId = part.output?.id;
+  const fetched = useQuery(api.documents.getLatest, docId ? { id: docId } : "skip");
+  const content = fetched?.content ?? "";
 
+  // Streaming / not-yet-complete → muted "creating…" state.
   if (part.state !== "output-available" || !part.output) {
     const kind = part.input?.kind ?? "text";
     const Icon = KIND_ICON[kind] ?? FileText;
@@ -140,9 +207,10 @@ function DocumentCard({ part }: { part: DocToolPart }) {
 
   const { id, title, kind } = part.output;
   const Icon = KIND_ICON[kind] ?? FileText;
+  const extLabel = extensionOf(title) || kind;
+
   const handleOpen = () => {
-    // Seed metadata; content rehydrates from Convex (getLatest) in the panel
-    // effect — avoids a second client fetch path + keeps this card stateless.
+    // Seed metadata; the panel rehydrates the same Convex doc (artifact-panel).
     setArtifact({
       documentId: id,
       title,
@@ -154,24 +222,87 @@ function DocumentCard({ part }: { part: DocToolPart }) {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleOpen}
-      className="group/card mt-3 w-full sm:max-w-sm flex items-center gap-3 rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.03] px-3 py-2.5 text-left transition-colors"
-    >
-      <span className="flex items-center justify-center h-7 w-7 rounded-md dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15 shrink-0">
-        <Icon className="h-3.5 w-3.5 text-[#ffb400]" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-body dark:text-[#e5e5e5] light:text-[#262626] truncate">
-          {title || "Untitled"}
-        </span>
-        <span className="block text-[10px] font-mono dark:text-[#606060] light:text-[#8a8a8a] uppercase tracking-tighter">
-          {kind} · created
-        </span>
-      </span>
-      <ArrowUpRight className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#8a8a8a] group-hover/card:text-[#ffb400] transition-colors shrink-0" />
-    </button>
+    <>
+      <div className="group/card mt-3 w-full sm:max-w-sm overflow-hidden rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] transition-colors">
+        <button
+          type="button"
+          onClick={handleOpen}
+          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:dark:bg-white/[0.04] hover:light:bg-black/[0.02] transition-colors"
+        >
+          <span className="flex items-center justify-center h-7 w-7 rounded-md dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15 shrink-0">
+            <Icon className="h-3.5 w-3.5 text-[#ffb400]" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-body dark:text-[#e5e5e5] light:text-[#262626] truncate">
+              {title || "Untitled"}
+            </span>
+            <span className="block text-[10px] font-mono dark:text-[#606060] light:text-[#8a8a8a] uppercase tracking-tighter">
+              {extLabel} · {content ? `${(content.length / 1024).toFixed(1)} KB` : "created"}
+            </span>
+          </span>
+          <ArrowUpRight className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#8a8a8a] group-hover/card:text-[#ffb400] transition-colors shrink-0" />
+        </button>
+
+        <div className="flex items-center gap-1 border-t px-2.5 py-1.5 dark:border-white/[0.05] light:border-black/[0.06]">
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!content}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-mono dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#1d1d1f] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.03] disabled:opacity-40 transition-colors"
+          >
+            <Eye className="h-3 w-3" /> Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadFile(title || "file", content)}
+            disabled={!content}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-mono dark:text-[#505050] light:text-[#737373] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] disabled:opacity-40 transition-colors"
+          >
+            <Download className="h-3 w-3" /> Download
+          </button>
+        </div>
+      </div>
+
+      {/* Preview modal — themed overlay showing the raw file text in mono. */}
+      {previewOpen && content && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div
+            className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border dark:border-white/15 light:border-black/10 dark:bg-[#0a0a0a] light:bg-[#faf8f1] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3 dark:border-white/[0.08] light:border-black/[0.08]">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15">
+                  <Icon className="h-3.5 w-3.5 text-[#ffb400]" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626]">
+                    {title || "Untitled"}
+                  </h3>
+                  <span className="text-[10px] font-mono uppercase tracking-tighter dark:text-[#606060] light:text-[#8a8a8a]">
+                    {extLabel} · {content.length.toLocaleString()} chars
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors"
+                title="Close preview"
+              >
+                <ArrowUpRight className="h-4 w-4 rotate-45" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 text-[13px] leading-[1.6] font-mono dark:text-[#cfcfcf] light:text-[#262626]">
+              {content}
+            </pre>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -648,8 +779,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   const { currentReasoning } = chat;
   // Suggested follow-up chips (ephemeral, set by use-active-chat after the
   // assistant stream finishes). Tap → populates the composer.
-  const suggestions = chat.suggestionsByMessage[message.id] ?? [];
-  const [copiedUser, setCopiedUser] = useState(false);
+    const [copiedUser, setCopiedUser] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
     feedbackStore(message?.id ?? ""),
@@ -1150,26 +1280,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           </div>
           )}
 
-          {/* Suggested follow-up chips — tap fills the composer, no auto-send */}
-          {!isStreaming && !isUser && suggestions.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent("composer:set-text", { detail: { text: s } }),
-                    )
-                  }
-                  className="rounded-full border border-amber-500/20 bg-amber-500/[0.04] px-3 py-1.5 font-mono text-[12px] leading-tight text-left text-amber-700 dark:text-amber-200 transition-colors hover:bg-amber-500/10 hover:border-amber-500/30"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
     </motion.div>
   );
 });

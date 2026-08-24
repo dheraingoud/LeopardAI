@@ -35,6 +35,10 @@ export const postRequestBodySchema = z.object({
   // summarizer what to prioritize keeping (mirror of `/compact <focus>`).
   // Bounded in the route.
   focus: z.string().optional(),
+  // Client-selected skill instruction bodies (permanent library + local "+"
+  // skills). Returned server-side only as pre-filtered instruction strings;
+  // bounded in the route before reaching the prompt.
+  skills: z.array(z.string()).optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

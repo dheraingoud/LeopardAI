@@ -34,13 +34,17 @@ type CreateDocumentProps = {
 export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
   tool({
     description:
-      "Create an artifact. You MUST specify kind: use 'code' for any programming/algorithm request (creates a script), 'text' for essays/writing (creates a document), 'sheet' for spreadsheets/data.",
+      "Create a downloadable file card that appears in the chat after your reply. Use this whenever the user asks for a real file ('.md file', '.txt file', '.json', '.csv', 'a script', 'make me a sheet', etc). Set kind='file' for any arbitrary file and include the extension in the title (e.g. title: 'notes.md'). kind='text' for a document/essay. kind='code' for a script. kind='sheet' for tabular/CSV data.",
     inputSchema: z.object({
-      title: z.string().describe("The title of the artifact"),
+      title: z
+        .string()
+        .describe(
+          "The filename with extension (e.g. 'notes.md', 'data.csv', 'script.py', 'draft.txt'). Extension drives the file type + download."
+        ),
       kind: z
         .enum(artifactKinds)
         .describe(
-          "REQUIRED. 'code' for programming/algorithms, 'text' for essays/writing, 'sheet' for spreadsheets"
+          "REQUIRED. 'file' for any downloadable file (md/txt/json/csv/script — include the extension in the title), 'text' for essays/writing, 'code' for a script, 'sheet' for tabular data"
         ),
     }),
     execute: async ({ title, kind }) => {
@@ -77,7 +81,9 @@ export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
         content:
           kind === "code"
             ? "A script was created and is now visible to the user."
-            : "A document was created and is now visible to the user.",
+            : kind === "file"
+              ? "A file was created and is now visible to the user."
+              : "A document was created and is now visible to the user.",
       };
     },
   });

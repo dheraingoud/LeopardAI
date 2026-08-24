@@ -38,7 +38,8 @@ export const save = mutation({
       v.literal("text"),
       v.literal("code"),
       v.literal("image"),
-      v.literal("sheet")
+      v.literal("sheet"),
+      v.literal("file")
     ),
     content: v.optional(v.string()),
     userId: v.string(),
