@@ -108,7 +108,8 @@ export default defineSchema({
       v.literal("text"),
       v.literal("code"),
       v.literal("image"),
-      v.literal("sheet")
+      v.literal("sheet"),
+      v.literal("file")
     ),
     content: v.optional(v.string()),
     userId: v.string(),
@@ -168,6 +169,25 @@ export default defineSchema({
   })
     .index("by_user_updatedAt", ["userId", "updatedAt"])
     .index("by_user", ["userId"]),
+
+  // Φ-skill-library · permanent curated skills. GLOBAL table — no userId — so
+  // the same skills persist on ALL accounts (seeded idempotently by slug by the
+  // detached task + a one-shot seed script). The client merges these with the
+  // user's localStorage skills; library skills are permanent + non-removable but
+  // toggleable. When enabled, their bodies ride the /api/chat POST payload and
+  // get appended to the system prompt as `## Instructions` blocks.
+  skillLibrary: defineTable({
+    slug: v.string(), // stable id, e.g. "frontend-design" — seeded/enabled by this
+    name: v.string(), // display name, e.g. "Frontend Design"
+    description: v.string(),
+    triggers: v.array(v.string()), // context keywords (informational for now)
+    body: v.string(), // instruction body injected into the system prompt
+    origin: v.string(), // provenance: "anthropic", "github", "community", ...
+    enabled: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_enabled", ["enabled"]),
 
   // Φ-docs · enterprise tool audit trail — append-only log of every gate
   // decision + tool execution the model runs. Written via internal.audit.record

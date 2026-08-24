@@ -140,29 +140,43 @@ export function ModelSelectorCompact() {
                   </div>
                   {chatModels.map((m) => {
                     const active = m.id === currentModelId;
+                    const unavailable = !!m.unavailable;
                     return (
                       <button
                         key={m.id}
                         type="button"
+                        disabled={unavailable}
                         onClick={() => {
+                          if (unavailable) return;
                           setCurrentModel(m.id);
                           setOpen(false);
                         }}
                         className={cn(
                           "w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[12px] font-mono transition-colors text-left",
-                          active
+                          unavailable &&
+                            "opacity-45 cursor-not-allowed dark:text-[#555] light:text-[#b8b8b8]",
+                          !unavailable && (active
                             ? "dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15 text-[#ffb400]"
-                            : "dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] dark:hover:text-white light:hover:text-black",
+                            : "dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] dark:hover:text-white light:hover:text-black"),
                         )}
-                        title={m.description}
+                        title={
+                          unavailable
+                            ? `${m.name} — ${m.unavailableReason ?? "unavailable"}`
+                            : m.description
+                        }
                       >
                         <span className="flex items-center gap-1.5 min-w-0">
                           <span className="truncate">{m.name}</span>
-                          {m.supportsReasoning && (
+                          {m.supportsReasoning && !unavailable && (
                             <Brain className="h-3 w-3 text-[#ffb400]/60 shrink-0" />
                           )}
+                          {unavailable && (
+                            <span className="shrink-0 text-[9px] font-mono uppercase tracking-wide dark:text-[#ffb400]/50 light:text-[#b8860b]/60">
+                              down
+                            </span>
+                          )}
                         </span>
-                        {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                        {active && !unavailable && <Check className="h-3.5 w-3.5 shrink-0" />}
                       </button>
                     );
                   })}

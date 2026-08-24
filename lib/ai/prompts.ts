@@ -51,7 +51,7 @@ function locationLine(h: RequestHints): string {
  * response, then STOP" + "never echo artifact content" rules still hold.
  */
 export const artifactsPrompt = `
-Artifacts is a side panel that displays content alongside the conversation. It supports scripts (code), documents (text), and spreadsheets. Changes appear in real-time.
+A downloadable, previewable FILE CARD appears in the chat under your reply whenever you call \`createDocument\`: a file icon + filename + Preview + Download button. It supports any file type (md, txt, json, csv, yaml, scripts).
 
 DEFAULT BEHAVIOR (this is critical):
 - ALWAYS answer inline in the chat by default. Most Q&A, code snippets, explanations, math, recipes, debugging help — all inline.
@@ -63,9 +63,9 @@ CRITICAL RULES:
 2. After creating or editing an artifact, NEVER output its content in chat. The user can already see it. Respond with only a 1-2 sentence confirmation.
 
 **When to use \`createDocument\`:**
-- The user explicitly asks to save, draft, write, or generate content as an artifact (essay, story, email, report, code file, spreadsheet, etc.)
-- The user prefixes an explicit "save this as…" / "create a file" / "draft an artifact" / "make me a document".
-- You MUST specify kind: 'code' for programming, 'text' for writing, 'sheet' for data.
+- The user asks for a real FILE: "make a .md file" / "a .txt file" / "a .json" / "a .csv" / "write it to a file" / "a script" / "draft and save" / "save this as a document" / "make me a spreadsheet" / "an essay on…" / "a report on…".
+- Also for any explicit "save/draft/write/generate this as an artifact/file".
+- Set kind='file' for arbitrary files (.md/.txt/.json/.csv/scripts) and INCLUDE THE EXTENSION IN THE TITLE (e.g. title="notes.md"). kind='code' for scripts, kind='text' for essays/writing, kind='sheet' for tabular data.
 - Include ALL content in the createDocument call. Do not create then edit.
 
 **When NOT to use \`createDocument\` (the common case):**
@@ -101,6 +101,7 @@ export function systemPrompt({
   supportsTools,
   context,
   memories,
+  skills,
   styleDirective,
 }: {
   requestHints?: RequestHints;
@@ -109,6 +110,10 @@ export function systemPrompt({
   context?: string;
   /** Per-user long-term facts (LEOPARD_MEMORY=1). Injected as trusted recall. */
   memories?: Array<{ text: string; pinned?: boolean; updatedAt?: number }>;
+  /** Explicitly-selected skill instruction bodies (library + local "+" skills)
+   * from the client. Rendered as ## Instructions blocks, distinct from the
+   * auto `context`-triggered internal skills below. */
+  skills?: string[];
   /** Pre-resolved output-style directive (see lib/ai/output-styles.ts). Empty
    * string (the default) leaves the prompt unchanged. Appended last so a style
    * can't clobber the baseline rules or byline. */
@@ -165,6 +170,18 @@ ${locationLine(requestHints ?? {})}`.trim();
   // surfaces a "Syntax error"; math-typeset keeps KaTeX fences valid.
   if (context) {
     const blocks = renderSkillBlocks(getRelevantSkills(context));
+    if (blocks) prompt = `${prompt}${blocks}`;
+  }
+
+  // Explicitly-selected skills (permanent library + local "+" skills). Rendered
+  // as ## Instructions blocks appended after auto-triggered skills so the model
+  // treats them as active directives for this conversation.
+  if (skills && skills.length > 0) {
+    const blocks = skills
+      .map((body) => body.trim())
+      .filter(Boolean)
+      .map((body) => `\n## Instructions\n${body}`)
+      .join("");
     if (blocks) prompt = `${prompt}${blocks}`;
   }
 

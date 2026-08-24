@@ -17,7 +17,7 @@ import type { UIMessage } from "ai";
  * ConvexHttpClient). `suggestion` parts (request-suggestions tool) are typed
  * now even though that tool is deferred, so the client types stay forward-fit.
  */
-export type ArtifactKind = "text" | "code" | "sheet" | "image";
+export type ArtifactKind = "text" | "code" | "sheet" | "image" | "file";
 
 export type Suggestion = {
   originalText: string;

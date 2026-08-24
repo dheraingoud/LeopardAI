@@ -34,6 +34,7 @@ const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
   code: Code,
   sheet: Table,
   image: ImageIcon,
+  file: FileText,
 };
 
 const KIND_LABEL: Record<ArtifactKind, string> = {
@@ -41,6 +42,7 @@ const KIND_LABEL: Record<ArtifactKind, string> = {
   code: "Code",
   sheet: "Sheet",
   image: "Image",
+  file: "File",
 };
 
 export function ArtifactPanel() {
