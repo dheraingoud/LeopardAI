@@ -513,10 +513,28 @@ function MermaidBlock({ code }: { code: string }) {
   }, [code, dark, id]);
 
   // Inline diagram (code view resets above). `mermaid.render` emits an svg with
-  // fixed width/height; the CSS clamps max-width:100% + height:auto so it fits
-  // the column and expands DOWN the page. No pan/zoom/scale canvas.
+  // fixed width/height. Wide LR diagrams used to get crushed by
+  // `width:100% !important` (height:auto shrinks the whole thing to the column
+  // width → tiny illegible text). Φ-mermaid-wide (2026-08-25): read the SVG
+  // viewBox aspect ratio; when width/height exceeds ~1.5 the diagram is WIDE,
+  // so we drop the width clamp and render it at natural size inside a
+  // horizontal-scroll container (`.cb-mermaid-wide`) — text stays legible and
+  // the user scrolls/pans instead of squinting. Narrow diagrams keep the
+  // fit-to-column behavior.
+  const wide = useMemo(() => {
+    if (!svg) return false;
+    const m = svg.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/);
+    if (!m) return false;
+    const w = parseFloat(m[3]);
+    const h = parseFloat(m[4]);
+    return h > 0 && w / h > 1.5;
+  }, [svg]);
+
   const renderBody = svg ? (
-    <div dangerouslySetInnerHTML={{ __html: svg }} />
+    <div
+      className={wide ? "cb-mermaid-wide" : undefined}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   ) : softFailed ? (
     // Broken final diagram: a neutral, non-error affordance. The user can read
     // the raw mermaid (mode → code) but nothing printed raw "Syntax error" to
