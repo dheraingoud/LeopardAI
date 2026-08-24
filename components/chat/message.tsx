@@ -340,18 +340,23 @@ function ReasoningBlock({
    * thought batch live; auto-collapse only happens once the whole stream ends. */
   isStreaming?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
-
-  // Φ7.7 — forced open while streaming, forced closed once the whole stream
-  // ends. The auto-collapse respects manual toggles: subsequent stream
-  // transitions re-open if reasoning is actively streaming.
-  useEffect(() => {
-    if (isStreaming || isStreamingReasoning) {
-      setExpanded(true);
-    } else {
-      setExpanded(false);
-    }
-  }, [isStreaming, isStreamingReasoning]);
+  // Φ-stale-card fix (2026-08-25): expansion is DERIVED from the live stream
+  // state, not a useState(true) + forced-effect pair. The old pattern mounted
+  // expanded=true and only collapsed in an effect — after a remount (persist
+  // id-swap) or a skipped effect the completed card could stay stuck open,
+  // surfacing a PREVIOUS message's thinking card above the latest reply. Now:
+  //   expanded = manualToggle ?? live
+  // A completed (non-streaming) card defaults to collapsed; it auto-opens only
+  // while reasoning/stream is actually live; a user's explicit click overrides.
+  const live = !!(isStreaming || isStreamingReasoning);
+  const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+  const expanded = manualToggle ?? live;
+  const setExpanded = (v: boolean | ((p: boolean) => boolean)) => {
+    setManualToggle((prev) => {
+      const cur = prev ?? live;
+      return typeof v === "function" ? v(cur) : v;
+    });
+  };
 
   const secondsShown =
     elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;

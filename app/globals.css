@@ -1163,6 +1163,26 @@ pre code {
   height: auto !important;
   margin: 0 auto;
 }
+/* Φ-mermaid-wide (2026-08-25): wide LR flowcharts get crushed by the 100%
+   clamp above (height:auto shrinks the whole thing → tiny illegible text).
+   When the renderer flags a diagram as wide, drop the clamp and let the SVG
+   draw at its natural width inside a horizontal-scroll container, so node text
+   stays legible and the user scrolls sideways instead of squinting. */
+.markdown-body .cb-mermaid .cb-mermaid-wide {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 4px; /* room for the scrollbar */
+}
+.markdown-body .cb-mermaid .cb-mermaid-wide svg {
+  width: auto !important;      /* natural width, not column-clamped */
+  max-width: none !important;  /* don't shrink wide diagrams */
+  height: auto !important;
+  min-width: 480px;            /* floor: never render microscopic */
+  margin: 0 auto;
+}
 .markdown-body .cb-mermaid-loading {
   padding: 12px 14px;
   color: #707070;
