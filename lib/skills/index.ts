@@ -70,7 +70,7 @@ const MANIFEST: SkillMeta[] = [
     name: "math-typeset",
     description:
       "Auto-triggers when the response contains math. Guarantees KaTeX-compatible delimiters so equations typeset immediately, never as raw $ prose.",
-    triggers: ["∫", "∑", "$$", "\\frac", "equation", "integral", "derivative"],
+    triggers: ["∫", "∑", "$$", "\\frac", "equation", "integral", "derivative", "math", "formula", "solve", "quadratic", "sqrt", "algebra", "calculus", "trigonometr", "polynomial"],
     auto: true,
   },
   {
