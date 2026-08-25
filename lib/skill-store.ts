@@ -17,7 +17,11 @@ import {
   saveSkills,
   loadPermanentToggles,
   savePermanentToggles,
+  loadSkillOverrides,
+  saveSkillOverrides,
   mergeSkills,
+  getInvokedBodies,
+  skillSlug,
   type LibrarySkill,
   type SkillConfig,
 } from "@/lib/skill-config";
@@ -90,6 +94,37 @@ export function togglePermanentSkill(slug: string, enabled: boolean): void {
 /** Enabled skill bodies, for /api/chat injection. */
 export function getEnabledSkillBodies(): string[] {
   return merged.filter((s) => s.enabled).map((s) => s.body.trim());
+}
+
+/** Slash-invoked skill bodies for a user message — only `/<slug>` skills fire. */
+export function getInvokedSkillBodies(text: string): string[] {
+  return getInvokedBodies(merged, text);
+}
+
+/** Edit a skill body. Permanent (library) skills get a local override (the
+ *  global Convex row is shared across accounts — never written back); local
+ *  skills update in place. */
+export function updateSkillBody(id: string, body: string): void {
+  const target = merged.find((s) => s.id === id);
+  if (!target) return;
+  if (target.permanent) {
+    const overrides = loadSkillOverrides();
+    overrides[skillSlug(target)] = body;
+    saveSkillOverrides(overrides);
+  } else {
+    saveSkills(loadSkills().map((s) => (s.id === id ? { ...s, body } : s)));
+  }
+  refreshMerged();
+}
+
+/** Revert a permanent skill's local override back to the library body. */
+export function resetSkillOverride(id: string): void {
+  const target = merged.find((s) => s.id === id);
+  if (!target?.permanent) return;
+  const overrides = loadSkillOverrides();
+  delete overrides[skillSlug(target)];
+  saveSkillOverrides(overrides);
+  refreshMerged();
 }
 
 /** Non-reactive read for one-shot contexts (rarely needed). */

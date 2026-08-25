@@ -28,7 +28,7 @@ import {
   type ImageCacheEntry,
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
-import { getEnabledSkillBodies } from "@/lib/skill-store";
+import { getInvokedSkillBodies } from "@/lib/skill-store";
 import { useSkillLibrary } from "@/hooks/use-skill-library";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 
@@ -258,9 +258,11 @@ export function ActiveChatProvider({
             // → route omits the key → NIM non-think / no param). Route.ts reads
             // this + nimReasoningProviderOptions() builds providerOptions.nim.
             reasoning: currentReasoningRef.current,
-            // Φ-skill-library — enabled skill bodies (library + local) injected
-            // into the system prompt server-side as ## Instructions blocks.
-            skills: getEnabledSkillBodies(),
+            // Φ-skill-library — slash-gated: only skills the user invoked with
+            // `/<slug>` in THIS message inject (e.g. `/frontend-design …`). No
+            // invocation → no skill bodies → no per-request token cost (NIM has
+            // no prompt caching, so always-on injection was a pure tax).
+            skills: getInvokedSkillBodies(lastUserText(messages)),
           },
         }),
       }),
@@ -269,6 +271,21 @@ export function ActiveChatProvider({
   // eslint-enable react-hooks/refs
 
   // ── useChat ───────────────────────────────────────────────────────────────
+  //
+  // Slash-invocation source: the text of the LAST user message in the outgoing
+  // batch (the one just sent). Only its `/slug` tokens gate skill injection.
+  function lastUserText(list: ChatMessage[]): string {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i];
+      if (m.role !== "user") continue;
+      return (m.parts ?? [])
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("\n");
+    }
+    return "";
+  }
+
   const chat = useChat<ChatMessage>({
     id: chatId,
     generateId: nanoid,

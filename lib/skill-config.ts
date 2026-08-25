@@ -23,6 +23,8 @@ export type SkillConfig = {
   enabled: boolean;
   /** library skills are global/permanent — non-removable, toggleable */
   permanent?: boolean;
+  /** TRUE when a permanent skill's body is locally overridden (edited). */
+  overridden?: boolean;
 };
 
 /** A skill row as it comes back from the Convex `skillLibrary` table. */
@@ -40,6 +42,31 @@ export type LibrarySkill = {
 
 const KEY = "leopard.skills.v1";
 const PERMANENT_KEY = "leopard.permanent-skills.v1";
+const OVERRIDE_KEY = "leopard.skill-overrides.v1";
+
+/** Per-install body edits for PERMANENT (library) skills. The global Convex row
+ *  is shared across accounts, so an edit can't write back to it — it's stored
+ *  as a local override that wins on merge. slug → edited body. */
+export function loadSkillOverrides(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(OVERRIDE_KEY) ?? "{}",
+    ) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSkillOverrides(overrides: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify(overrides));
+  } catch {
+    /* non-fatal */
+  }
+}
 
 export function loadSkills(): SkillConfig[] {
   if (typeof window === "undefined") return [];
@@ -101,17 +128,50 @@ export function mergeSkills(
   local: SkillConfig[],
 ): SkillConfig[] {
   const toggles = loadPermanentToggles();
-  const lib: SkillConfig[] = (library ?? []).map((s) => ({
-    id: `lib-${s.slug}`,
-    name: s.name,
-    body: s.body,
-    enabled: toggles[s.slug] ?? s.enabled,
-    permanent: true,
-  }));
+  const overrides = loadSkillOverrides();
+  const lib: SkillConfig[] = (library ?? []).map((s) => {
+    const body = overrides[s.slug];
+    return {
+      id: `lib-${s.slug}`,
+      name: s.name,
+      body: body ?? s.body,
+      enabled: toggles[s.slug] ?? s.enabled,
+      permanent: true,
+      overridden: body !== undefined,
+    };
+  });
   return [...lib, ...local];
 }
 
 /** Enabled skill bodies, for /api/chat injection. Library first, then local. */
 export function getEnabledBodies(all: SkillConfig[]): string[] {
   return all.filter((s) => s.enabled).map((s) => s.body.trim());
+}
+
+/** Slug for a skill — library skills carry `lib-<slug>`; local use a kebab'd name. */
+export function skillSlug(s: SkillConfig): string {
+  if (s.permanent) return s.id.replace(/^lib-/, "");
+  return s.name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Slash-command invocation. A skill body is injected ONLY when the user message
+ * invokes it with `/<slug>` (e.g. `/frontend-design build me a hero`). Returns
+ * the bodies of enabled skills whose slug appears as a `/token` in `text`.
+ * Matches `/slug` at a word boundary; disabled skills never fire.
+ */
+export function getInvokedBodies(all: SkillConfig[], text: string): string[] {
+  if (!text) return [];
+  const invoked = new Set(
+    [...text.matchAll(/\/([a-z0-9][a-z0-9-]*)/gi)].map((m) => m[1].toLowerCase()),
+  );
+  if (invoked.size === 0) return [];
+  return all
+    .filter((s) => s.enabled && invoked.has(skillSlug(s)))
+    .map((s) => s.body.trim())
+    .filter(Boolean);
 }
