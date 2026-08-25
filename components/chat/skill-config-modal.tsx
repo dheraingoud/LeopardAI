@@ -10,6 +10,8 @@ import {
   getSkillsSnapshot,
   setLocalSkills,
   togglePermanentSkill,
+  updateSkillBody,
+  resetSkillOverride,
 } from "@/lib/skill-store";
 import { useSyncExternalStore } from "react";
 
@@ -270,65 +272,150 @@ function SkillRow({
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
 }) {
+  // Φ-skill-view/edit — the row expands to reveal the skill body (read-only)
+  // and an edit mode (textarea). Permanent skills edit via a LOCAL override
+  // (the global Convex row is shared across accounts); reset restores it.
+  const [viewing, setViewing] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(skill.body);
+
+  const startEdit = () => {
+    setDraft(skill.body);
+    setEditing(true);
+    setViewing(true);
+  };
+  const saveEdit = () => {
+    const body = draft.trim();
+    if (!body || body === skill.body) {
+      setEditing(false);
+      return;
+    }
+    updateSkillBody(skill.id, body);
+    setEditing(false);
+  };
+
   return (
     <li
       className={cn(
-        "group flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-colors",
+        "group rounded-xl border transition-colors",
         skill.enabled
           ? "dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.03] light:bg-black/[0.02]"
           : "dark:border-white/[0.04] light:border-black/[0.04] dark:bg-black/20 light:bg-black/[0.01]",
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full shrink-0",
-              skill.enabled ? "dark:bg-[#ffb400] light:bg-[#b8860b]" : "dark:bg-[#404040] light:bg-[#c0c0c0]",
+      <div className="flex items-center gap-3 px-3.5 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full shrink-0",
+                skill.enabled ? "dark:bg-[#ffb400] light:bg-[#b8860b]" : "dark:bg-[#404040] light:bg-[#c0c0c0]",
+              )}
+            />
+            <p
+              className={cn(
+                "text-[12.5px] truncate",
+                skill.enabled
+                  ? "dark:text-[#e5e5e5] light:text-[#262626]"
+                  : "dark:text-[#666666] light:text-[#909090]",
+              )}
+            >
+              {skill.name}
+            </p>
+            {skill.permanent && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#ffb400]/[0.85] light:text-[#b8860b] dark:bg-[#ffb400]/[0.08] light:bg-[#b8860b]/[0.1]">
+                permanent
+              </span>
             )}
-          />
-          <p
-            className={cn(
-              "text-[12.5px] truncate",
-              skill.enabled
-                ? "dark:text-[#e5e5e5] light:text-[#262626]"
-                : "dark:text-[#666666] light:text-[#909090]",
+            {skill.overridden && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#7ecbff]/[0.9] light:text-[#1d6fd1] dark:bg-[#7ecbff]/[0.08] light:bg-[#1d6fd1]/[0.1]">
+                edited
+              </span>
             )}
-          >
-            {skill.name}
-          </p>
-          {skill.permanent && (
-            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#ffb400]/[0.85] light:text-[#b8860b] dark:bg-[#ffb400]/[0.08] light:bg-[#b8860b]/[0.1]">
-              permanent
-            </span>
-          )}
-        </div>
-        {skill.filename && (
+          </div>
           <p className="mt-0.5 pl-3.5 text-[10.5px] font-mono truncate dark:text-[#5a5a5a] light:text-[#999999]">
-            {skill.filename}
+            {skill.filename ?? `/${skill.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`}
           </p>
+        </div>
+        <button
+          onClick={() => (editing ? undefined : setViewing((v) => !v))}
+          title={viewing ? "Hide body" : "View body"}
+          className="h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors dark:text-[#8a8a8a] light:text-[#808080] hover:dark:text-white hover:light:text-black"
+        >
+          {viewing ? "hide" : "view"}
+        </button>
+        <button
+          onClick={startEdit}
+          title="Edit body"
+          className="h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors dark:text-[#8a8a8a] light:text-[#808080] hover:dark:text-[#ffb400] hover:light:text-[#b8860b]"
+        >
+          edit
+        </button>
+        <button
+          onClick={() => onToggle(skill.id)}
+          title={skill.enabled ? "Disable" : "Enable"}
+          className={cn(
+            "h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors",
+            skill.enabled
+              ? "dark:text-[#ffb400] light:text-[#b8860b] hover:dark:bg-[#ffb400]/[0.08] hover:light:bg-[#b8860b]/[0.08]"
+              : "dark:text-[#666666] light:text-[#909090] hover:dark:text-white hover:light:text-black",
+          )}
+        >
+          {skill.enabled ? "on" : "off"}
+        </button>
+        {!skill.permanent && (
+          <button
+            onClick={() => onRemove(skill.id)}
+            title="Remove"
+            className="h-7 w-7 flex items-center justify-center rounded-md dark:text-[#5a5a5a] light:text-[#a0a0a0] opacity-0 group-hover:opacity-100 transition-opacity hover:dark:text-red-400 hover:light:text-red-500 hover:dark:bg-red-500/10 hover:light:bg-red-500/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
-      <button
-        onClick={() => onToggle(skill.id)}
-        title={skill.enabled ? "Disable" : "Enable"}
-        className={cn(
-          "h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors",
-          skill.enabled
-            ? "dark:text-[#ffb400] light:text-[#b8860b] hover:dark:bg-[#ffb400]/[0.08] hover:light:bg-[#b8860b]/[0.08]"
-            : "dark:text-[#666666] light:text-[#909090] hover:dark:text-white hover:light:text-black",
-        )}
-      >
-        {skill.enabled ? "on" : "off"}
-      </button>
-      {!skill.permanent && (
-        <button
-          onClick={() => onRemove(skill.id)}
-          title="Remove"
-          className="h-7 w-7 flex items-center justify-center rounded-md dark:text-[#5a5a5a] light:text-[#a0a0a0] opacity-0 group-hover:opacity-100 transition-opacity hover:dark:text-red-400 hover:light:text-red-500 hover:dark:bg-red-500/10 hover:light:bg-red-500/10"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+
+      {viewing && !editing && (
+        <div className="px-3.5 pb-3">
+          <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border px-3 py-2 text-[11px] font-mono leading-relaxed dark:border-white/[0.07] light:border-black/[0.07] dark:bg-black/40 light:bg-black/[0.03] dark:text-[#b5b5b5] light:text-[#4a4a4a]">
+            {skill.body}
+          </pre>
+        </div>
+      )}
+
+      {editing && (
+        <div className="px-3.5 pb-3">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={10}
+            className="w-full px-3 py-2 rounded-lg text-[11px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#b8860b]/[0.5] resize-y"
+          />
+          <div className="mt-2 flex items-center justify-end gap-2">
+            {skill.overridden && (
+              <button
+                onClick={() => {
+                  resetSkillOverride(skill.id);
+                  setEditing(false);
+                }}
+                className="mr-auto px-3 h-8 rounded-lg text-[10px] font-mono uppercase tracking-tight dark:text-[#7ecbff] light:text-[#1d6fd1] hover:dark:bg-[#7ecbff]/[0.08] transition-colors"
+              >
+                reset to default
+              </button>
+            )}
+            <button
+              onClick={() => setEditing(false)}
+              className="px-3 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight dark:text-[#8a8a8a] light:text-[#808080] hover:dark:text-white hover:light:text-black transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveEdit}
+              className="px-4 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight transition-colors dark:bg-[#ffb400] light:bg-[#ffb400] dark:text-black light:text-black hover:brightness-110"
+            >
+              Save
+            </button>
+          </div>
+        </div>
       )}
     </li>
   );
