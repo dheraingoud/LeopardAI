@@ -720,11 +720,20 @@ export const PreviewMessage = memo(function PreviewMessage({
         } else {
           cur.content += content;
         }
-      } else if (p.type === "tool") {
-        // v7 native tool part (and legacy `tool-*` parts normalized to `tool`
-        // by lib/ai/message-parts on hydrate). toolName/input/output/state live
-        // on the part directly; merge a consecutive same-name completed tool
-        // into the preceding pending one so a call→result round is ONE card.
+      } else if (
+        p.type === "tool" ||
+        (p.type.startsWith("tool-") &&
+          p.type !== "tool-approval-request" &&
+          p.type !== "tool-approval-response")
+      ) {
+        // v7 tool parts arrive LIVE as `tool-<name>` (e.g. `tool-webFetch`) —
+        // the normalize-to-`tool` step only runs on hydrate/persist, so without
+        // this prefix match the live card (incl. the approval AskCard, whose
+        // state `approval-requested` is set on THIS part by the SDK, not on a
+        // separate part) never mounted and the gate looked like a frozen turn.
+        // toolName/input/output/state live on the part directly; merge a
+        // consecutive same-name completed tool into the preceding pending one
+        // so a call→result round is ONE card.
         //
         // Φ-docs·BUGFIX: an unanswered tool-approval surfaces from the SDK as a
         // TOOL part with `state: "approval-requested"` and the approval id on
@@ -738,6 +747,20 @@ export const PreviewMessage = memo(function PreviewMessage({
         const approvalId = isApproval
           ? (p as unknown as { approval?: { id?: string } }).approval?.id
           : undefined;
+        // Map raw v7 tool-part states onto the card's vocabulary — live parts
+        // carry e.g. "input-available" which is NOT a resting state.
+        const mapToolState = (s?: string): string =>
+          s === "input-streaming"
+            ? "streaming"
+            : s === "input-available" || s === "approval-responded"
+              ? "pending"
+              : s === "output-available"
+                ? "complete"
+                : s === "output-error"
+                  ? "error"
+                  : s === "output-denied"
+                    ? "denied"
+                    : (s ?? "complete");
         const last = out[out.length - 1] as Seg | undefined;
         if (
           last &&
@@ -745,14 +768,14 @@ export const PreviewMessage = memo(function PreviewMessage({
           last.toolName === toolName &&
           (last.state === "pending" || last.state === "streaming")
         ) {
-          last.state = p.state ?? "complete";
+          last.state = mapToolState(p.state);
           last.output = p.output ?? last.output;
           continue;
         }
         cur = {
           kind: "tool",
           toolName,
-          state: isApproval ? "ask" : (p.state ?? "complete"),
+          state: isApproval ? "ask" : mapToolState(p.state),
           input: p.input ?? p.args ?? undefined,
           output: p.output ?? undefined,
           toolCallId: p.toolCallId,
@@ -1035,7 +1058,14 @@ export const PreviewMessage = memo(function PreviewMessage({
               );
             }
             if (seg.kind === "tool") {
-              const live = isStreaming && isLast && seg.state !== "complete";
+              // Never mask "ask" as "streaming" — the AskCard must stay
+              // clickable the moment approval is requested, even if the stream
+              // hasn't fully settled yet.
+              const live =
+                isStreaming &&
+                isLast &&
+                seg.state !== "complete" &&
+                seg.state !== "ask";
               return (
                 <ToolCard
                   key={`t-${i}`}
@@ -1046,11 +1076,18 @@ export const PreviewMessage = memo(function PreviewMessage({
                   approvalId={seg.approvalId}
                   onDecision={
                     seg.state === "ask" && seg.approvalId
-                      ? (approved: boolean) =>
-                          chat.addToolApprovalResponse?.({
+                      ? (approved: boolean) => {
+                          // Φ-approval-resume: record the decision, then RESEND —
+                          // the SDK only auto-submits with sendAutomaticallyWhen
+                          // configured (we don't), so without this the Allow/Deny
+                          // click updated local state but the server never heard
+                          // it and the turn hung until the settle timeout.
+                          void chat.addToolApprovalResponse?.({
                             id: seg.approvalId as string,
                             approved,
-                          })
+                          });
+                          void chat.sendMessage();
+                        }
                       : undefined
                   }
                 />

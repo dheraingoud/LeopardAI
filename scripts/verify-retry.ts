@@ -78,9 +78,9 @@ async function run() {
   await gen.done;
 
   check("factory invoked exactly twice (1 empty + 1 success)", factoryCalls === 2, `calls=${factoryCalls}`);
-  const hasRetrySignal = received.some((c) => c.type === "retry");
+  const hasRetrySignal = received.some((c) => c.type === "data-retry");
   check("a `retry` signal chunk was emitted", hasRetrySignal);
-  const retried = received.find((c) => c.type === "retry") as Chunk | undefined;
+  const retried = received.find((c) => c.type === "data-retry") as Chunk | undefined;
   check("retry signal carries attempt/maxRetries for UX", !!retried && typeof retried.attempt === "number" && typeof retried.maxRetries === "number");
   const text = received
     .filter((c) => c.type === "text-delta")
@@ -115,7 +115,7 @@ async function run() {
   genB.subscribe((c) => receivedB.push(c));
   await genB.done;
   check("committed turn does NOT retry (idempotency)", factoryCallsB === 1, `calls=${factoryCallsB}`);
-  check("no retry signal on committed turn", !receivedB.some((c) => c.type === "retry"));
+  check("no retry signal on committed turn", !receivedB.some((c) => c.type === "data-retry"));
 
   console.log(`\nretry gate: ${pass} pass, ${fail} fail`);
   process.exit(fail > 0 ? 1 : 0);

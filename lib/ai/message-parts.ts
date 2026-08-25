@@ -37,13 +37,12 @@ export function normalizeUIMessageParts<T extends { type?: unknown }>(
     if (!p || typeof p !== "object" || typeof p.type !== "string") continue;
     const t = p.type as string;
     if (DROP_PART_TYPES.has(t)) continue;
-    // Legacy `tool-<name>` part → canonical v7 `tool` part. Keeps toolName,
-    // input/output/state/toolCallId so the renderer's ToolCard still works.
-    if (t.startsWith("tool-")) {
-      out.push({ ...p, type: "tool" } as T);
-    } else {
-      out.push(p);
-    }
+    // KEEP `tool-<name>` typing intact: the SDK's convertToModelMessages only
+    // recognizes isToolUIPart (type startsWith "tool-"), so renaming to plain
+    // "tool" made tool calls (and their approval-responded state) invisible to
+    // the model on the wire — an approved webFetch was never executed, the
+    // model just re-asked. The renderer matches the prefix itself.
+    out.push(p);
   }
   return out;
 }
