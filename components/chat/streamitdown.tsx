@@ -521,20 +521,35 @@ function MermaidBlock({ code }: { code: string }) {
   // horizontal-scroll container (`.cb-mermaid-wide`) — text stays legible and
   // the user scrolls/pans instead of squinting. Narrow diagrams keep the
   // fit-to-column behavior.
-  const wide = useMemo(() => {
-    if (!svg) return false;
+  const wideDims = useMemo(() => {
+    if (!svg) return null;
     const m = svg.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/);
-    if (!m) return false;
+    if (!m) return null;
     const w = parseFloat(m[3]);
     const h = parseFloat(m[4]);
-    return h > 0 && w / h > 1.5;
+    return h > 0 && w / h > 1.5 ? { w, h } : null;
   }, [svg]);
 
+  // Wide LR diagram: drop the width:100% clamp and pin the SVG to its NATURAL
+  // pixel width (from the viewBox), so node text renders 1:1 legible and the
+  // container scrolls horizontally when the diagram is wider than the column.
+  // The svg ships width="100%"; we rewrite it to the natural px inline.
   const renderBody = svg ? (
-    <div
-      className={wide ? "cb-mermaid-wide" : undefined}
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    wideDims ? (
+      <div
+        className="cb-mermaid-wide"
+        dangerouslySetInnerHTML={{
+          // Inline style !important beats the global `.cb-mermaid svg { width:
+          // 100% !important }` clamp, pinning the diagram to its natural px.
+          __html: svg.replace(
+            /(<svg[^>]*?)\swidth="100%"/,
+            `$1 style="width:${Math.round(wideDims.w)}px !important;max-width:none !important;height:auto !important"`,
+          ),
+        }}
+      />
+    ) : (
+      <div dangerouslySetInnerHTML={{ __html: svg }} />
+    )
   ) : softFailed ? (
     // Broken final diagram: a neutral, non-error affordance. The user can read
     // the raw mermaid (mode → code) but nothing printed raw "Syntax error" to

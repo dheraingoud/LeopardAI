@@ -1135,6 +1135,12 @@ pre code {
   justify-content: center;
   align-items: center;
   padding: 0;
+  width: 100%;
+  max-width: 100%;
+  /* Don't let a wide inline diagram stretch the message column; the
+     .cb-mermaid-wide child scrolls horizontally instead. */
+  min-width: 0;
+  overflow: hidden;
 }
 .markdown-body .cb-mermaid-viewport {
   position: relative;
@@ -1169,7 +1175,11 @@ pre code {
    draw at its natural width inside a horizontal-scroll container, so node text
    stays legible and the user scrolls sideways instead of squinting. */
 .markdown-body .cb-mermaid .cb-mermaid-wide {
+  /* Constrain to the column so the natural-width SVG inside overflows into a
+     horizontal scroll instead of stretching the message. */
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -1177,11 +1187,11 @@ pre code {
   padding-bottom: 4px; /* room for the scrollbar */
 }
 .markdown-body .cb-mermaid .cb-mermaid-wide svg {
-  width: auto !important;      /* natural width, not column-clamped */
-  max-width: none !important;  /* don't shrink wide diagrams */
-  height: auto !important;
-  min-width: 480px;            /* floor: never render microscopic */
-  margin: 0 auto;
+  /* width/height pinned to the natural viewBox px via inline style in the
+     component (inline !important beats the global 100% clamp above). Here we
+     only guarantee the clamp can't re-shrink a wide diagram. */
+  max-width: none !important;
+  margin: 0;
 }
 .markdown-body .cb-mermaid-loading {
   padding: 12px 14px;
