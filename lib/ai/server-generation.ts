@@ -678,7 +678,7 @@ export function backgroundServe(args: {
         sendReasoning,
         onError: (err: unknown) => {
           attemptError = errMsg(err);
-          emit({ type: "error", error: errMsg(err) });
+          emit({ type: "error", errorText: errMsg(err) });
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
       // Φ-stall watchdog: an upstream that opens fine but then hangs (observed:
@@ -728,7 +728,7 @@ export function backgroundServe(args: {
   const done = (async () => {
     try {
       if (!makeResult) {
-        emit({ type: "error", error: "missing generation source" });
+        emit({ type: "error", errorText: "missing generation source" });
         await finalizePartial();
         return;
       }
@@ -765,11 +765,12 @@ export function backgroundServe(args: {
         if (retryPredicate && !retryPredicate(outcome?.error ?? "")) break;
 
         // Client-visible "Retrying in Ns · attempt x/y" (docs retry-progress UX).
+        // MUST be a data-* part: the client's uiMessageChunkSchema rejects any
+        // unknown non-data type with a hard AI_TypeValidationError (observed:
+        // our `{type:"error", error}` shape crashed streams the same way).
         emit({
-          type: "retry",
-          attempt,
-          maxRetries: maxAttempts - attempt,
-          delayMs: retryBackoffMs,
+          type: "data-retry",
+          data: { attempt, maxRetries: maxAttempts - attempt, delayMs: retryBackoffMs },
           transient: true,
         });
         await new Promise((res) => setTimeout(res, retryBackoffMs * attempt));
@@ -811,12 +812,12 @@ export function backgroundServe(args: {
       } else {
         // Exhausted every attempt with no output → keep the (empty) partial as
         // completed + surface the failure. Stuck generation → settle timer aborts.
-        emit({ type: "error", error: outcome?.error ?? "Generation produced no output." });
+        emit({ type: "error", errorText: outcome?.error ?? "Generation produced no output." });
         await finalizePartial();
       }
     } catch (err) {
       generationAborted = ctrl.signal.aborted;
-      emit({ type: "error", error: errMsg(err) });
+      emit({ type: "error", errorText: errMsg(err) });
       await finalizePartial();
     } finally {
       clearTimeout(settleTimer);

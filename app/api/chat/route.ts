@@ -533,7 +533,21 @@ export async function POST(request: Request) {
       // deliberate stop or settle timeout, never reload), and (b) the id the
       // route broadcasts matches what backgroundServe persists. unregister on
       // settle is handled inside backgroundServe's done().finally().
-      const assistantId = generateId();
+      // Φ-approval-resume: an Allow/Deny resend arrives as a new POST whose LAST
+      // message is the assistant row carrying a `state:"approval-responded"` tool
+      // part. Reuse that message's id so the server-side persistence UPSERTS the
+      // same row (a fresh id would dup the bubble via the client's live-mirror)
+      // and the SDK's streamText continues the paused tool call from history.
+      const lastWire = messages[messages.length - 1];
+      const isApprovalResume =
+        lastWire?.role === "assistant" &&
+        ((lastWire.parts ?? []) as Array<{ type?: string; state?: string }>).some(
+          (p) => p?.state === "approval-responded",
+        );
+      const assistantId =
+        isApprovalResume && typeof lastWire.id === "string" && lastWire.id
+          ? lastWire.id
+          : generateId();
       const genCtrl = createGenerationController(assistantId);
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
@@ -669,7 +683,12 @@ export async function POST(request: Request) {
             toolName === "createDocument";
           let decision: "approved" | "denied" | "user-approval" =
             d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
-          if (lowRiskTool && d.mode !== "deny") decision = "approved";
+          // Auto-approve low-risk tools ONLY under the bare default (no operator
+          // rules). An explicit TOOL_APPROVAL_RULES entry (e.g. webFetch=ask)
+          // must win — else the AskCard can never surface and the gate is theatre.
+          if (lowRiskTool && approvalRules.length === 0 && d.mode !== "deny") {
+            decision = "approved";
+          }
           // Φ-docs: append the gate decision to the enterprise tool-audit trail
           // (who/what-tool/when/was-it-approved). Fire-and-forget; a failed
           // write is logged, never fatal to the stream.

@@ -471,12 +471,31 @@ export function ActiveChatProvider({
   // key={chatId} already resets refs on switch; this is the in-mount guard.
   const hydratedRef = useRef(false);
   const persistedIdsRef = useRef<Set<string>>(new Set());
+  // Reconcile, never clobber: Convex rows in server order first, then any
+  // local-only messages (optimistic user bubble from the draft handoff that
+  // hasn't persisted yet, a live assistant bubble) appended by id. A blind
+  // setMessages(convexRows) wiped the in-flight user message when hydration
+  // resolved AFTER the deferred-create pickup had already sent it — the user
+  // bubble vanished, the approval-resume POST went out assistant-only
+  // ("messages must not be empty"), and the mirror re-added colliding ids.
+  const reconcile = (
+    local: typeof chat.messages,
+    server: typeof convexMessages,
+  ): typeof chat.messages => {
+    const rows = (server ?? []).map(toChatMessage);
+    const seen = new Set(rows.map((r) => r.id));
+    const localOnly = local.filter((m) => !seen.has(m.id));
+    return [...rows, ...localOnly];
+  };
   useEffect(() => {
     if (isDraft || !convexMessages || hydratedRef.current) return;
     hydratedRef.current = true;
-    const hydrated = convexMessages.map(toChatMessage);
-    for (const m of hydrated) persistedIdsRef.current.add(m.id);
-    chat.setMessages(hydrated);
+    const next = reconcile(chat.messages, convexMessages);
+    // Only SERVER rows count as persisted — a local-only optimistic user
+    // message (draft handoff) must still hit the persist effect below.
+    for (const m of convexMessages.map(toChatMessage)) persistedIdsRef.current.add(m.id);
+    chat.setMessages(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.setMessages]);
 
   // ── Φ10 / #3: live-mirror the SERVER-written assistant rows into the view ─
@@ -514,9 +533,11 @@ export function ActiveChatProvider({
         }
       }
 
-      // ── mirror server-written assistant rows (reload-mid-generation live fill) ─
+      // ── mirror server rows (reload-mid-generation live fill + self-heal).
+      // Assistant rows update in place; a missing USER row (wiped by a draft-
+      // handoff race before reconcile landed) is restored in SERVER ORDER, not
+      // appended — append would put it after the reply it prompted.
       for (const m of convexMessages) {
-        if (m.role !== "assistant") continue;
         const ui = toChatMessage(m);
         const at = next.findIndex((x) => x.id === ui.id);
         if (at >= 0) {
@@ -524,8 +545,20 @@ export function ActiveChatProvider({
             next[at] = ui;
             changed = true;
           }
-        } else {
+        } else if (m.role === "assistant") {
           next.push(ui);
+          changed = true;
+        } else {
+          // Non-assistant (user) row missing locally → reinsert at its
+          // chronological slot among server rows.
+          const serverIds = convexMessages.map((c) => toChatMessage(c).id);
+          const serverIdx = serverIds.indexOf(ui.id);
+          let insertAt = next.length;
+          for (let k = serverIdx + 1; k < serverIds.length; k++) {
+            const pos = next.findIndex((x) => x.id === serverIds[k]);
+            if (pos >= 0) { insertAt = pos; break; }
+          }
+          next.splice(insertAt, 0, ui);
           changed = true;
         }
       }
