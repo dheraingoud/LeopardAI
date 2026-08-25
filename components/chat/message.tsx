@@ -29,6 +29,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamItDown } from "@/components/chat/streamitdown";
 import type { ReasoningLevel } from "@/lib/nim";
 import { PulseLoader } from "./pulse-loader";
+import { ReasoningPanel } from "./aui/reasoning-panel";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -324,160 +325,6 @@ const EFFORT_LABEL: Record<ReasoningLevel, string> = {
  * rather than as a banner. Reasoning text renders as markdown via StreamItDown
  * (plain during streaming → syntax-highlighted once the answer lands).
  */
-function ReasoningBlock({
-  content,
-  effort,
-  isStreamingReasoning,
-  elapsedMs,
-  isStreaming,
-}: {
-  content: string;
-  effort?: ReasoningLevel;
-  isStreamingReasoning?: boolean;
-  elapsedMs?: number;
-  /** Φ7.7 — overall stream state, not just reasoning. During interleaved
-   * reasoning→text→reasoning the card stays open so the user sees the second
-   * thought batch live; auto-collapse only happens once the whole stream ends. */
-  isStreaming?: boolean;
-}) {
-  // Φ-stale-card fix (2026-08-25): expansion is DERIVED from the live stream
-  // state, not a useState(true) + forced-effect pair. The old pattern mounted
-  // expanded=true and only collapsed in an effect — after a remount (persist
-  // id-swap) or a skipped effect the completed card could stay stuck open,
-  // surfacing a PREVIOUS message's thinking card above the latest reply. Now:
-  //   expanded = manualToggle ?? live
-  // A completed (non-streaming) card defaults to collapsed; it auto-opens only
-  // while reasoning/stream is actually live; a user's explicit click overrides.
-  const live = !!(isStreaming || isStreamingReasoning);
-  const [manualToggle, setManualToggle] = useState<boolean | null>(null);
-  const expanded = manualToggle ?? live;
-  const setExpanded = (v: boolean | ((p: boolean) => boolean)) => {
-    setManualToggle((prev) => {
-      const cur = prev ?? live;
-      return typeof v === "function" ? v(cur) : v;
-    });
-  };
-
-  const secondsShown =
-    elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;
-  const headerText = isStreamingReasoning
-    ? "Thinking"
-    : secondsShown !== null
-      ? `Thought for ${secondsShown}s`
-      : "Thought process";
-  const showBadge =
-    !isStreamingReasoning && effort !== undefined && effort !== "off";
-  // Compact the model's raw thought (collapse runaway blank lines) so the card
-  // reads as tight paragraphs — one gap between paragraphs, no trailing spaces.
-  const normalizedContent = compactWhitespace(content);
-  const charCount = normalizedContent.length;
-
-  return (
-    <div
-      className={cn(
-        "cb-reasoning mb-3 my-3 overflow-hidden rounded-2xl",
-        "border dark:border-white/[0.06] light:border-black/[0.08]",
-        // Card-within-a-card feel — amber wash sits inside the existing
-        // surface tint so the reasoning reads as part of the assistant bubble
-        // without competing for attention.
-        "dark:bg-[linear-gradient(160deg,rgba(255,180,0,0.05)_0%,rgba(255,255,255,0.02)_50%,rgba(255,255,255,0.015)_100%)]",
-        "light:bg-[linear-gradient(160deg,rgba(255,180,0,0.06)_0%,rgba(255,255,255,0.65)_60%)]",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
-      )}
-    >
-     <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className={cn(
-          "group flex w-full items-center gap-2.5 px-4 py-2.5 text-left",
-          "transition-colors duration-200",
-          "hover:dark:bg-white/[0.02] light:hover:bg-black/[0.02]",
-        )}
-      >
-        <Brain
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 transition-colors duration-300",
-            isStreamingReasoning ? "text-[#ffb400]" : "text-[#606060]",
-          )}
-        />
-        <span
-          className={cn(
-            "text-[11px] font-semibold uppercase tracking-[0.16em]",
-            isStreamingReasoning ? "text-[#ffb400]" : "text-[#909090]",
-          )}
-        >
-          {headerText}
-     </span>
-
-        <span className="ml-1 flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
-          {isStreamingReasoning && (
-            <motion.span
-              className="inline-block h-1.5 w-1.5 rounded-full bg-[#ffb400]"
-              animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-          {isStreamingReasoning && (
-            <span className="glimmer-track" aria-hidden="true">
-              <span className="glimmer-sweep" />
-            </span>
-          )}
-          {secondsShown !== null && !isStreamingReasoning && (
-            <>
-              <span className="text-[#404040]">{"·"}</span>
-              <span>{charCount.toLocaleString()} chars</span>
-            </>
-          )}
-     </span>
-
-        {showBadge && (
-          <span className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-tighter dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#a3a3a3] light:border-black/[0.08] light:bg-black/[0.02] light:text-[#525252]">
-            {EFFORT_LABEL[effort as ReasoningLevel]}
-        </span>
-        )}
-
-        <span className="flex-1" />
-
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 text-[#606060] transition-transform duration-300 ease-out",
-            !expanded && "-rotate-90",
-          )}
-        />
-   </button>
-
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
-          >
-            <div
-              className={cn(
-                "border-t px-4 pb-3.5 pt-1 pl-5",
-                "dark:border-white/[0.05] light:border-black/[0.06]",
-                "max-h-[420px] overflow-y-auto",
-                "text-[13.5px] leading-[1.7] tracking-[-0.005em]",
-                "dark:text-[#9a9a9a] light:text-[#404040]",
-                "whitespace-pre-wrap break-words",
-                // Reasoning markdown inside: prose typography. math / code /
-                // mermaid all render through StreamItDown (highlighted
-                // post-stream; math stripped to text mid-stream and typeset on
-                // completion).
-                "[&_.markdown-body]:text-[13.5px]",
-              )}
-            >
-              <StreamItDown content={normalizedContent} streaming={isStreamingReasoning} />
-         </div>
-       </motion.div>
-        )}
-   </AnimatePresence>
- </div>
-  );
-}
 
 // Φ10 web tool card — an inline, expandable card documenting a webSearch /
 // webFetch call, styled to match the thinking card (same chroma, same
@@ -788,6 +635,12 @@ export const PreviewMessage = memo(function PreviewMessage({
   const [copied, setCopied] = useState(false);
   const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
     feedbackStore(message?.id ?? ""),
+  );
+  // Reasoning panel open overrides — keyed by segment index. Default is
+  // derived (`live`): completed cards default collapsed, live ones open; an
+  // explicit click wins. (Keeps the stale-card fix: no mount-time open state.)
+  const [reasoningOpen, setReasoningOpen] = useState<Record<number, boolean>>(
+    {},
   );
   useEffect(() => {
     // Re-read vote if message.id changes (e.g. after streaming completes and
@@ -1170,19 +1023,28 @@ export const PreviewMessage = memo(function PreviewMessage({
           {segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
             if (seg.kind === "reasoning") {
-              // A reasoning segment is "live" (open, thinking pulse) only while
-              // the whole stream is active AND it's still the tail of the
-              // message. Once later text supersedes it, it collapses to the
-              // muted "Thought" pill.
+              // A reasoning segment is "live" (open, shimmer) only while the
+              // whole stream is active AND it's still the tail of the message.
+              // Once later text supersedes it, it collapses to "Thought for Ns".
               const live = isStreaming && isLast;
               return (
-                <ReasoningBlock
+                <ReasoningPanel
                   key={`r-${i}`}
-                  content={seg.content}
-                  effort={currentReasoning}
-                  isStreamingReasoning={live}
+                  className="max-w-none"
+                  content={compactWhitespace(seg.content)}
+                  streaming={live}
+                  open={reasoningOpen[i] ?? live}
+                  onOpenChange={(o) =>
+                    setReasoningOpen((m) => ({ ...m, [i]: o }))
+                  }
                   elapsedMs={reasoningMs}
-                  isStreaming={live}
+                  effortBadge={
+                    !live &&
+                    currentReasoning &&
+                    currentReasoning !== "off"
+                      ? EFFORT_LABEL[currentReasoning]
+                      : undefined
+                  }
                 />
               );
             }
