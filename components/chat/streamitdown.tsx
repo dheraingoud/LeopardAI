@@ -33,7 +33,6 @@
  */
 import {
   memo,
-  useDeferredValue,
   useEffect,
   useId,
   useMemo,
@@ -152,7 +151,7 @@ const sanitized = sanitizeText(content).replace(
   // ReactMarkdown re-parse per token is O(n²) over the response length and is
   // the "interleaved thinking makes the whole app lag" hot path — each text and
   // reasoning segment re-parses its full content per token. Throttle the parsed
-  // source to ~120ms commits while streaming so the UI stays responsive; the
+  // source to ~48ms commits while streaming so the UI stays responsive; the
   // final (streaming=false) render always shows the complete text.
   const [throttled, setThrottled] = useState(sanitized);
   const lastCommit = useRef(0);
@@ -172,7 +171,7 @@ const sanitized = sanitizeText(content).replace(
     }
     const now = Date.now();
     const since = now - lastCommit.current;
-    if (since >= 120) {
+    if (since >= 48) {
       lastCommit.current = now;
       setThrottled(sanitized);
     } else if (!pending.current) {
@@ -180,14 +179,85 @@ const sanitized = sanitizeText(content).replace(
         lastCommit.current = Date.now();
         setThrottled(sanitizedRef.current);
         pending.current = null;
-      }, 120 - since);
+      }, 48 - since);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sanitized, streaming]);
-  const deferred = useDeferredValue(throttled);
+  // Φ-live: block-level memoization. The whole-document re-parse per throttle
+  // commit was O(n²) over the reply length and the visible "UI trails the
+  // model" lag. Split the source into fence-aware blocks (``` fences, $$
+  // display math, and tables never split mid-block); every block is a memoized
+  // <MarkdownBlock>, so per commit only the single growing tail block re-parses
+  // while settled blocks keep their parsed tree. Commits drop to ~50ms cadence.
+  const blocks = useMemo(() => splitMarkdownBlocks(throttled), [throttled]);
+  return (
+    <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">
+      {blocks.map((b, i) => {
+        const blockStreaming = !!streaming && i === blocks.length - 1;
+        return (
+          <MarkdownBlock
+            key={i}
+            content={b}
+            streaming={blockStreaming}
+          />
+        );
+      })}
+      {streaming && (
+        <span aria-hidden className="leopard-stream-caret" />
+      )}
+    </div>
+  );
+});
+
+/** Fence-aware markdown block splitter — never cuts inside ``` fences or
+ * $$ display math; splits only on blank lines outside them. */
+function splitMarkdownBlocks(src: string): string[] {
+  const blocks: string[] = [];
+  let cur: string[] = [];
+  let inFence = false;
+  let fenceChar = "";
+  let inMath = false;
+  for (const line of src.split("\n")) {
+    const fence = /^\s*(```+|~~~+)/.exec(line);
+    if (fence) {
+      if (!inFence) {
+        inFence = true;
+        fenceChar = fence[1][0];
+      } else if (fence[1][0] === fenceChar) {
+        inFence = false;
+      }
+      cur.push(line);
+      continue;
+    }
+    if (!inFence && /^\s*\$\$\s*$/.test(line)) {
+      inMath = !inMath;
+      cur.push(line);
+      continue;
+    }
+    if (!inFence && !inMath && line.trim() === "") {
+      if (cur.length > 0) {
+        blocks.push(cur.join("\n"));
+        cur = [];
+      }
+      continue;
+    }
+    cur.push(line);
+  }
+  if (cur.length > 0) blocks.push(cur.join("\n"));
+  return blocks;
+}
+
+/** One memoized markdown block — re-parses only when ITS content changes. */
+const MarkdownBlock = memo(function MarkdownBlock({
+  content,
+  streaming,
+}: {
+  content: string;
+  streaming: boolean;
+}) {
   const components = useMemo(
     () => ({
-      pre: (props: any) => <PreBlock {...props} streaming={!!streaming} />,
+      pre: (props: any) => <PreBlock {...props} streaming={streaming} />,
       code: InlineCode,
       // Every clickable link in chat content opens in a NEW tab (never the
       // same tab) — per user requirement. rel="noopener noreferrer" stops the
@@ -205,19 +275,17 @@ const sanitized = sanitizeText(content).replace(
     [streaming],
   );
   return (
-    <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">
+    <div className={streaming ? "animate-in fade-in duration-300" : undefined}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        // KaTeX rendering is heavy and not streaming-safe — only run after the
-        // stream finishes. While streaming, remark-math passes through plain
-        // $...$ and $$...$$ tokens unchanged, with KaTeX kicking in on the
-        // next useDeferredValue commit.
+        rehypePlugins={streaming ? [] : [rehypeKatex]}
+        // KaTeX rendering is heavy and not streaming-safe — it runs on settled
+        // blocks only (streaming tail strips $$ pairs to plain text below).
         skipHtml={false}
         urlTransform={(u) => u}
         components={components}
       >
-        {streaming ? deferred.replace(/\$\$([^$]+)\$\$/g, "$1") : deferred}
+        {streaming ? content.replace(/\$\$([^$]+)\$\$/g, "$1") : content}
      </ReactMarkdown>
    </div>
   );
@@ -501,7 +569,11 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
     // instead of a previous diagram misattributed.
     const prev = prevCodeRef.current;
     const isExtension = code.startsWith(prev) && code.length >= prev.length;
-    if (prev && !isExtension) {
+    // Φ-flicker: while streaming, NEVER blank the last good SVG — a wholesale
+    // code change mid-stream (new fence) briefly mis-shows the old diagram,
+    // which beats the appear/disappear flash. On settle (streaming=false) a
+    // non-extension resets so the final render can't misattribute.
+    if (prev && !isExtension && !streaming) {
       setSvg(null);
     }
     prevCodeRef.current = code;
@@ -536,6 +608,19 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
           setSoftFailed(false);
         }
       } catch {
+        // Φ-mermaid-errors: a failed mermaid.render APPENDS its error graphic
+        // (the big "Syntax error in text" bomb SVG) to document.body under
+        // #d<id> / #<id> — that was the huge red error block users saw at the
+        // bottom of the chat. Purge every stray node for this render id so a
+        // parse error is NEVER painted into the page.
+        if (typeof document !== "undefined") {
+          for (const sel of [`#${id}`, `#d${id}`]) {
+            document.querySelectorAll(sel).forEach((n) => n.remove());
+          }
+          document
+            .querySelectorAll('.mermaid [aria-roledescription="error"], div[id^="dmmd-"]')
+            .forEach((n) => n.remove());
+        }
         // A partial mermaid fence mid-stream throws here. Stay silent: keep the
         // last good SVG (or the "rendering…" placeholder) and retry on the next
         // code delta. Only mark softFailed once the stream has ENDED and the
@@ -565,35 +650,34 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
   // horizontal-scroll container (`.cb-mermaid-wide`) — text stays legible and
   // the user scrolls/pans instead of squinting. Narrow diagrams keep the
   // fit-to-column behavior.
-  const wideDims = useMemo(() => {
+  // Φ-mermaid-natural (2026-08-25): EVERY diagram renders at its natural
+  // viewBox pixel size — never stretched to the column (small diagrams blew up
+  // blurry) and never crushed by the width:100% clamp (wide diagrams went
+  // illegibly small). Narrower than the column → centered at 1:1; wider →
+  // horizontal scroll at 1:1. Text is always true-size legible.
+  const naturalDims = useMemo(() => {
     if (!svg) return null;
     const m = svg.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/);
     if (!m) return null;
     const w = parseFloat(m[3]);
     const h = parseFloat(m[4]);
-    return h > 0 && w / h > 1.5 ? { w, h } : null;
+    return h > 0 ? { w, h } : null;
   }, [svg]);
 
-  // Wide LR diagram: drop the width:100% clamp and pin the SVG to its NATURAL
-  // pixel width (from the viewBox), so node text renders 1:1 legible and the
-  // container scrolls horizontally when the diagram is wider than the column.
-  // The svg ships width="100%"; we rewrite it to the natural px inline.
   const renderBody = svg ? (
-    wideDims ? (
-      <div
-        className="cb-mermaid-wide"
-        dangerouslySetInnerHTML={{
-          // Inline style !important beats the global `.cb-mermaid svg { width:
-          // 100% !important }` clamp, pinning the diagram to its natural px.
-          __html: svg.replace(
-            /(<svg[^>]*?)\swidth="100%"/,
-            `$1 style="width:${Math.round(wideDims.w)}px !important;max-width:none !important;height:auto !important"`,
-          ),
-        }}
-      />
-    ) : (
-      <div dangerouslySetInnerHTML={{ __html: svg }} />
-    )
+    <div
+      className="cb-mermaid-wide"
+      dangerouslySetInnerHTML={{
+        // Inline style !important beats the global `.cb-mermaid svg { width:
+        // 100% !important }` clamp, pinning the diagram to its natural px.
+        __html: naturalDims
+          ? svg.replace(
+              /(<svg[^>]*?)\swidth="100%"/,
+              `$1 style="width:${Math.round(naturalDims.w)}px !important;max-width:none !important;height:auto !important;margin:0 auto"`,
+            )
+          : svg,
+      }}
+    />
   ) : softFailed ? (
     // Broken final diagram: a neutral, non-error affordance. The user can read
     // the raw mermaid (mode → code) but nothing printed raw "Syntax error" to

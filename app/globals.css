@@ -1137,6 +1137,9 @@ pre code {
   padding: 0;
   width: 100%;
   max-width: 100%;
+  /* Φ-flicker: steady floor height so placeholder→diagram→re-render swaps
+     don't collapse the row mid-stream (the "appears and disappears" bug). */
+  min-height: 160px;
   /* Don't let a wide inline diagram stretch the message column; the
      .cb-mermaid-wide child scrolls horizontally instead. */
   min-width: 0;
@@ -1706,4 +1709,31 @@ pre code {
 
   animation: tw-shimmer 1s linear 0s infinite backwards;
   animation-duration: calc((var(--_duration) + var(--_repeat-delay)) * 1ms);
+}
+
+/* Φ-live: amber streaming caret — blinks at the end of the growing markdown
+   tail while a reply streams (aui StreamingText look, leopard hue). */
+.leopard-stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  border-radius: 9999px;
+  vertical-align: -0.12em;
+  animation: leopard-caret-pulse 0.9s ease-in-out infinite;
+}
+.dark .leopard-stream-caret {
+  background: #ffb400;
+  box-shadow: 0 0 10px rgba(255, 180, 0, 0.55);
+}
+.light .leopard-stream-caret {
+  background: #d49600;
+  box-shadow: 0 0 8px rgba(212, 150, 0, 0.4);
+}
+@keyframes leopard-caret-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .leopard-stream-caret { animation: none; }
 }

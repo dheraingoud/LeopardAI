@@ -161,3 +161,31 @@ export const touch = mutation({
     await ctx.db.patch(args.chatId, { updatedAt: Date.now() });
   },
 });
+
+/**
+ * One-shot cleanup: delete a user's chats that have ZERO messages (the old
+ * eager-create flow minted an empty "New Chat" row on every /chat visit).
+ * Safe to keep around — deletes nothing once the deferred-create flow has
+ * been the only writer for a while.
+ */
+export const purgeEmpty = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const mine = await ctx.db
+      .query("chats")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    let removed = 0;
+    for (const chat of mine) {
+      const first = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .first();
+      if (!first) {
+        await ctx.db.delete(chat._id);
+        removed++;
+      }
+    }
+    return { removed };
+  },
+});

@@ -97,6 +97,8 @@ interface GlassSurfaceProps extends ComponentProps<"div"> {
   specular?: boolean;
   tint?: number;
   tintColor?: string;
+  /** Dark-mode-only veil override — beats tintColor when the theme is dark. */
+  darkTintColor?: string;
 }
 
 function GlassSurface({
@@ -108,6 +110,7 @@ function GlassSurface({
   specular = true,
   tint = 0.5,
   tintColor,
+  darkTintColor,
   className,
   style,
   children,
@@ -115,7 +118,7 @@ function GlassSurface({
 }: GlassSurfaceProps) {
   const dark = useGlassDark();
   const t = clamp01(tint);
-  const tintRGB = tintColor ?? (dark ? "58,58,62" : "255,255,255");
+  const tintRGB = (dark ? darkTintColor : undefined) ?? tintColor ?? (dark ? "58,58,62" : "255,255,255");
   const tintRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const feImageRef = useRef<SVGFEImageElement | null>(null);
