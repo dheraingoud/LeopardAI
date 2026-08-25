@@ -118,15 +118,11 @@ export default function Sidebar({
     if (editingId && editRef.current) editRef.current.focus();
   }, [editingId]);
 
-  const handleNewChat = async () => {
-    if (!userId) return;
-    const id = await createChat({
-      userId,
-      title: "New Chat",
-      model: getDefaultChatModel().id,
-    });
+  // Deferred-create: just open the draft surface; the row is minted on the
+  // first actual send (see use-active-chat's draft branch).
+  const handleNewChat = () => {
     if (isMobile && onClose) onClose();
-    router.push(`/chat/${id}`);
+    router.push("/chat");
   };
 
   const handleChatClick = (chatId: string) => {
