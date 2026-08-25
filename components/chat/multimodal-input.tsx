@@ -178,7 +178,11 @@ export function MultimodalInput() {
         >
           <GlassSurface
             radius={22}
-            tint={0.4}
+            tint={0.28}
+            // Φ-glass: near-black veil in dark mode — the default 58,58,62 grey
+            // veil read as a milky white tint over the dark transcript. Liquid
+            // (refraction + specular) stays; the tint goes deep-charcoal.
+            darkTintColor="10,10,12"
             className="rounded-[1.375rem]"
           >
             <div className="relative flex items-end gap-1.5 px-2 py-2 h-full w-full">

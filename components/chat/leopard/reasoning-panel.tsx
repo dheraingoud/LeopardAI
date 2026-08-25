@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -50,14 +50,12 @@ export function ReasoningPanel({
       className={cn("my-3 w-full max-w-sm", className)}
     >
       <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 py-1 text-[13.5px] text-foreground/55 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98]">
-        <Brain
-          className={cn(
-            "size-3.5 shrink-0 transition-colors duration-300",
-            streaming
-              ? "dark:text-[#ffb400] light:text-[#d49600]"
-              : "text-foreground/35",
-          )}
-        />
+        {streaming && (
+          <span
+            aria-hidden
+            className="inline-block size-1.5 rounded-full dark:bg-[#ffb400] light:bg-[#d49600] animate-pulse"
+          />
+        )}
         <SwapLabel active={streaming ? 0 : 1} className="text-start">
           <>
             <ShimmerLabel
