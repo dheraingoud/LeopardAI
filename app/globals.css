@@ -1737,3 +1737,18 @@ pre code {
 @media (prefers-reduced-motion: reduce) {
   .leopard-stream-caret { animation: none; }
 }
+
+/* Φ-live: fresh-tail tint — the actively-streaming markdown block reads amber
+   and transitions back to body ink when the class drops (settle). */
+.markdown-body .leopard-fresh-tail {
+  transition: color 700ms ease;
+}
+.dark .markdown-body .leopard-fresh-tail {
+  color: #ffd274;
+}
+.light .markdown-body .leopard-fresh-tail {
+  color: #b47e00;
+}
+@media (prefers-reduced-motion: reduce) {
+  .markdown-body .leopard-fresh-tail { transition: none; }
+}

@@ -681,11 +681,43 @@ export function backgroundServe(args: {
           emit({ type: "error", error: errMsg(err) });
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
-      for await (const chunk of merged) {
-        acc.push(chunk);
-        emit(chunk);
-        committed = committed || isGenerationContent(chunk);
-        void maybePersistProgressive(); // throttled; serialized by the write chain
+      // Φ-stall watchdog: an upstream that opens fine but then hangs (observed:
+      // kimi-k3 occasionally stalls with zero chunks for 60s+, the "response
+      // never arrives" bug) used to sit until the 60s settle ceiling. Now any
+      // chunk-gap over LEOPARD_STALL_MS (default 18s) ends the attempt as a
+      // stall error → the retry loop escalates to the next fallback model when
+      // nothing committed yet, or keeps the partial when it has.
+      const STALL_MS = Math.max(
+        4_000,
+        Number(process.env.LEOPARD_STALL_MS ?? 18_000) || 18_000,
+      );
+      const it = merged[Symbol.asyncIterator]();
+      try {
+        for (;;) {
+          let stall: ReturnType<typeof setTimeout> | undefined;
+          const next = await Promise.race([
+            it.next(),
+            new Promise<never>((_, rej) => {
+              stall = setTimeout(
+                () => rej(new Error(`stall: no chunk for ${STALL_MS}ms`)),
+                STALL_MS,
+              );
+            }),
+          ]).finally(() => {
+            if (stall) clearTimeout(stall);
+          });
+          if (next.done) break;
+          const chunk = next.value;
+          acc.push(chunk);
+          emit(chunk);
+          committed = committed || isGenerationContent(chunk);
+          void maybePersistProgressive(); // throttled; serialized by the write chain
+        }
+      } finally {
+        // Release the hung upstream iterator (its fetch is torn down when the
+        // attempt's result is GC'd / the generation controller eventually
+        // aborts; we never block the retry loop on it).
+        void it.return?.().catch(() => {});
       }
     } catch (err) {
       attemptError = attemptError ?? errMsg(err);
