@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, ChevronRightIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -22,6 +22,10 @@ export interface ToolCallProps {
   request: string;
   result: string;
   running: boolean;
+  /** Settled duration, e.g. "1.8s" — mono chip beside the done check. */
+  elapsed?: string;
+  /** True = the tool round failed (red ✕ instead of emerald ✓). */
+  failed?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
@@ -34,6 +38,8 @@ export function ToolCall({
   request,
   result,
   running,
+  elapsed,
+  failed = false,
   open,
   onOpenChange,
   className,
@@ -64,10 +70,18 @@ export function ToolCall({
         >
           {query}
         </span>
+        {elapsed !== undefined && !running && (
+          <span className={cn(mono, "text-foreground/30 tabular-nums")}>
+            {elapsed}
+          </span>
+        )}
         <span className="ms-auto flex w-4 items-center justify-end">
-          {!running && (
-            <CheckIcon className="fade-in zoom-in-90 animate-in size-3.5 text-emerald-500 duration-200" />
-          )}
+          {!running &&
+            (failed ? (
+              <XIcon className="fade-in zoom-in-90 animate-in size-3.5 text-red-500 duration-200" />
+            ) : (
+              <CheckIcon className="fade-in zoom-in-90 animate-in size-3.5 text-emerald-500 duration-200" />
+            ))}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent className={cn(collapsePanel, "outline-none")}>

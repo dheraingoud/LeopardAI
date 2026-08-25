@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { Glass, type GlassDynamics } from "@/components/ui/glass";
 import { MouseGlow } from "@/components/ui/mouse-glow";
+import type { ChatMessage } from "@/lib/types";
 
 /**
  * Messages — the scrollable transcript. Phase 5 renders text + reasoning
@@ -21,6 +22,25 @@ export function Messages() {
   const { messages, status } = useActiveChat();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+
+  // Φ-regen-ghost: while a regenerate runs, the SDK has dropped the old
+  // assistant row from state — show the snapshot (dimmed) in its place so the
+  // reply never visually vanishes. Clears the moment the stream settles or the
+  // id reappears (mirror restored it).
+  const [ghost, setGhost] = useState<ChatMessage | null>(null);
+  useEffect(() => {
+    const onGhost = (e: Event) => {
+      const d = (e as CustomEvent).detail as { id: string; message: ChatMessage };
+      if (d?.message) setGhost(d.message);
+    };
+    window.addEventListener("leopard:regen-ghost", onGhost);
+    return () => window.removeEventListener("leopard:regen-ghost", onGhost);
+  }, []);
+  useEffect(() => {
+    if (status === "ready" || status === "error") setGhost(null);
+  }, [status, messages]);
+  const showGhost =
+    ghost !== null && !messages.some((m) => m.id === ghost.id);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -58,6 +78,11 @@ export function Messages() {
             status={status}
           />
         ))}
+        {showGhost && (
+          <div className="opacity-50 pointer-events-none select-none">
+            <PreviewMessage message={ghost} isLast={false} status="ready" />
+          </div>
+        )}
         {isThinking && <ThinkingMessage />}
         <div className="h-32" /> {/* spacer for the floating input bar */}
       </div>

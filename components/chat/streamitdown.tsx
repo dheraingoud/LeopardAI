@@ -275,7 +275,15 @@ const MarkdownBlock = memo(function MarkdownBlock({
     [streaming],
   );
   return (
-    <div className={streaming ? "animate-in fade-in duration-300" : undefined}>
+    <div
+      className={
+        streaming
+          ? // Φ-live: the growing tail block reads amber (aui fresh-word tint,
+            // leopard hue) and eases back to body ink when the stream settles.
+            "animate-in fade-in duration-300 leopard-fresh-tail"
+          : undefined
+      }
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={streaming ? [] : [rehypeKatex]}
