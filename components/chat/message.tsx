@@ -30,6 +30,9 @@ import { StreamItDown } from "@/components/chat/streamitdown";
 import type { ReasoningLevel } from "@/lib/nim";
 import { PulseLoader } from "./pulse-loader";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
+import { ThinkingIndicator } from "./leopard/thinking-indicator";
+import { ToolCall } from "./leopard/tool-call";
+import { MessageActions } from "./leopard/message-actions";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -474,103 +477,41 @@ function ToolCard({
     );
   }
 
+  // ── Leopard ToolCall (forked kit element) — quiet trigger row with a live
+  // shimmer label while running, resting past-tense label + elapsed mono chip
+  // when done, and a field-surface Request/Result disclosure. Failed rounds
+  // tint the label red instead of the green check.
+  const requestStr = (() => {
+    if (input == null) return summary;
+    try {
+      const s = JSON.stringify(input);
+      return s.length > 400 ? s.slice(0, 400) + "…" : s;
+    } catch {
+      return summary;
+    }
+  })();
   return (
-    <div className={cn("cb-tool my-3 overflow-hidden rounded-2xl", "border dark:border-white/[0.06] light:border-black/[0.08]", "dark:bg-white/[0.02] light:bg-black/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]")}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "group flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors duration-200",
-          "hover:dark:bg-white/[0.02] hover:light:bg-black/[0.02]",
-        )}
-      >
-        {/* Mesh globe — wireframe sphere, shimmers on the leading edge while live. */}
-        <span className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center overflow-visible">
-          <MeshGlobe
-            className={cn(
-              "h-[18px] w-[18px] transition-colors duration-300",
-              pending ? "text-[#ffb400]" : resultOk ? "text-[#5f8bff]" : "text-red-400",
-            )}
-            animate={pending}
-          />
-          {pending && (
-            <span className="absolute inset-0 animate-pulse">
-              <span className="absolute inset-0 rounded-full bg-[#ffb400]/25 blur-[3px]" />
-            </span>
-          )}
-        </span>
-
-        <span
-          className={cn(
-            "min-w-0 text-[11px] font-semibold uppercase tracking-[0.14em]",
-            pending ? "text-[#ffb400]" : resultOk ? "text-[#909090]" : "text-red-400",
-          )}
-        >
-          {pending ? `${verb}…` : resultOk ? "fetched" : "failed"}
-        </span>
-
-        <span className="flex min-w-0 flex-1 items-center gap-1">
-          {pending ? (
-            <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
-              <span className="glimmer-track" aria-hidden="true">
-                <span className="glimmer-sweep" />
-              </span>
-              <span className="truncate text-[#ffb400]/90">{summary}</span>
-            </span>
-          ) : seconds !== null ? (
-            <span className="flex items-center gap-1.5 text-[10px] font-mono text-[#606060] tabular-nums">
-              <span className="text-[#404040]">·</span>
-              <span>{seconds}s</span>
-              {summary && <span className="truncate text-[#909090]">{summary}</span>}
-            </span>
-          ) : null}
-        </span>
-
-        <span className="flex-1" />
-
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 text-[#606060] transition-transform duration-300 ease-out",
-            !open && "-rotate-90",
-          )}
-        />
-      </button>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="space-y-1.5 border-t px-4 py-3 dark:border-white/[0.05] light:border-black/[0.06] text-[12px] leading-[1.7] dark:text-[#9a9a9a] light:text-[#404040]">
-              <p className="flex items-start gap-1.5">
-                <span className="mt-px shrink-0 text-[10px] font-mono uppercase tracking-tighter dark:text-[#505050] light:text-[#9a9a9a]">{urlLabel}</span>
-                <span className="break-all">{summary}</span>
-              </p>
-              {resultLine && (
-                <p className="flex items-start gap-1.5">
-                  <span className="mt-px shrink-0 text-[10px] font-mono uppercase tracking-tighter dark:text-[#505050] light:text-[#9a9a9a]">result</span>
-                  <span className="break-words">{resultLine}</span>
-                </p>
-              )}
-              {summary && !isSearch && (
-                <button
-                  type="button"
-                  onClick={copyUrl}
-                  className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#e5e5e5] hover:light:text-[#1f1607] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors"
-                >
-                  {copiedUrl ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-                  {copiedUrl ? "Copied" : "Copy URL"}
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <ToolCall
+      className="max-w-none"
+      label={
+        pending
+          ? `${verb}…`
+          : resultOk
+            ? isSearch
+              ? "Searched the web"
+              : "Fetched"
+            : `${verb} failed`
+      }
+      activeLabel={`${verb}…`}
+      query={summary}
+      request={requestStr}
+      result={resultLine || (resultOk ? "Done" : "Failed")}
+      running={pending}
+      failed={!pending && !resultOk}
+      elapsed={seconds !== null ? `${seconds}s` : undefined}
+      open={open}
+      onOpenChange={setOpen}
+    />
   );
 }
 
@@ -668,6 +609,29 @@ export const PreviewMessage = memo(function PreviewMessage({
     // reasoningMs intentionally excluded (would loop on every tick).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reasoning, text, isStreaming]);
+  // Φ-live response timer — ticks beside the header while the reply streams
+  // ("12.4s"), freezes to the final duration when it settles. Resets on a new
+  // stream (regenerate starts a fresh clock).
+  const genStartRef = useRef<number | null>(null);
+  const [genMs, setGenMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (isUser) return;
+    if (isStreaming) {
+      if (genStartRef.current === null) genStartRef.current = performance.now();
+      const id = setInterval(() => {
+        if (genStartRef.current !== null)
+          setGenMs(performance.now() - genStartRef.current);
+      }, 100);
+      return () => clearInterval(id);
+    }
+    if (genStartRef.current !== null) {
+      setGenMs(performance.now() - genStartRef.current);
+      genStartRef.current = null;
+    }
+    return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, isUser]);
+
   // Φ8: hydrate persisted image placeholders (post-reload) from IndexedDB.
   // Render `text` immediately (no blank), then swap once hydrate resolves.
   // For non-image content (the common case) hydrate is a no-op (returns the
@@ -914,9 +878,18 @@ export const PreviewMessage = memo(function PreviewMessage({
 
   const handleRegenerate = () => {
     try {
-      const r = (chat as unknown as { regenerate?: (opts?: { messageId?: string }) => void })
-        .regenerate;
-      if (typeof r === "function") void r({ messageId: message.id });
+      // Φ-regen-ghost: the SDK drops this assistant row from state the moment
+      // regeneration starts, so the reply visually VANISHES until the new one
+      // completes. Hand the transcript a snapshot (dimmed, in-place) to show
+      // while the new stream runs — cleared when the reply settles.
+      window.dispatchEvent(
+        new CustomEvent("leopard:regen-ghost", {
+          detail: { id: message.id, message },
+        }),
+      );
+      // Provider wrapper deletes the old server-persisted row FIRST (else the
+      // live-mirror resurrects it next to the new reply), then regenerates.
+      chat.regenerateMessage(message.id);
     } catch {
       toast.error("Couldn't regenerate");
     }
@@ -1004,7 +977,22 @@ export const PreviewMessage = memo(function PreviewMessage({
     >
       <div>
           <div className="flex items-center gap-2 mb-1.5">
-            
+            {/* Φ-live response timer — amber ticking mono while streaming,
+                neutral settled duration after. Header row is otherwise bare. */}
+            {genMs !== null && (
+              <span
+                className={cn(
+                  "font-mono text-[10.5px] tabular-nums transition-colors",
+                  isStreaming
+                    ? "dark:text-[#ffb400]/80 light:text-[#d49600]"
+                    : "dark:text-[#505050] light:text-[#9a9a9a]",
+                )}
+              >
+                {isStreaming
+                  ? `${(genMs / 1000).toFixed(1)}s`
+                  : `${Math.max(0.1, genMs / 1000).toFixed(1)}s`}
+              </span>
+            )}
           </div>
 
           {/* Φ6.1: streaming-empty fallback. Some NIM reasoning models (e.g.
@@ -1015,7 +1003,7 @@ export const PreviewMessage = memo(function PreviewMessage({
            * but nothing shows". Show the working dots exactly in that window;
            * the moment the first text/reasoning/doc lands, the gate closes. */}
                     {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
-            <PulseLoader size="sm" label="Working on it…" />
+            <ThinkingIndicator className="max-w-none" label="Working on it…" />
           )}
 
           {segments.map((seg, i) => {
@@ -1076,18 +1064,16 @@ export const PreviewMessage = memo(function PreviewMessage({
               <StreamItDown
                 key={`t-${i}`}
                 content={segText}
-                streaming={isStreaming}
+                // Only the TAIL segment streams (caret + amber tail + throttle).
+                // Passing isStreaming to every segment rendered one blinking
+                // caret per text run — the "two indicators" bug.
+                streaming={isStreaming && isLast}
               />
             );
           })}
 
-          {isStreaming && text && (
-            <motion.span
-              className="inline-block w-[6px] h-[16px] bg-[#ffb400] rounded-[1px] ml-0.5 align-text-bottom"
-              animate={{ opacity: [1, 0, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            />
-          )}
+          {/* Φ-live: the single amber caret lives INSIDE StreamItDown
+              (leopard-stream-caret) — no second cursor here. */}
 
           {docParts.length > 0 && (
             <div className="mt-1">
@@ -1098,51 +1084,34 @@ export const PreviewMessage = memo(function PreviewMessage({
           )}
 
           {!isStreaming && renderText && (
-            <div className="flex items-center gap-0.5 mt-3 action-reveal">
-              <button
-                type="button"
-                onClick={handleCopy}
-                aria-label="Copy"
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#e5e5e5] hover:light:text-[#1f1607] hover:dark:bg-white/[0.04] hover:light:bg-black/[0.03] transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3 w-3 text-green-400" /> Copied
-                </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" /> Copy
-                </>
-                )}
-            </button>
-              <button
-                type="button"
-                onClick={handleRegenerate}
-                aria-label="Regenerate"
-                disabled={chat.status === "submitted" || chat.status === "streaming"}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#ffb400] hover:light:text-[#d49600] disabled:opacity-40 hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] transition-colors"
-              >
-                <RotateCcw className="h-3 w-3" /> Regen
-            </button>
-              <button
-                type="button"
-                onClick={handleLike}
-                aria-label="Like"
-                title="Mark as helpful"
-                className={["flex items-center justify-center h-7 w-7 rounded-md transition-colors",feedbackVote === "up" ? "dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.16] dark:text-[#ffb400] light:text-[#d49600]" : "dark:text-[#505050] light:text-[#b8b8b8] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08]"].join(" ")}
-              >
-                <ThumbsUp className="h-3 w-3" />
-            </button>
-              <button
-                type="button"
-                onClick={handleDislike}
-                aria-label="Dislike"
-                title="Mark as unhelpful"
-                className={["flex items-center justify-center h-7 w-7 rounded-md transition-colors",feedbackVote === "down" ? "dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.16] dark:text-[#ffb400] light:text-[#d49600]" : "dark:text-[#505050] light:text-[#b8b8b8] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08]"].join(" ")}
-              >
-                <ThumbsDown className="h-3 w-3" />
-            </button>
-          </div>
+            <div className="mt-3 action-reveal">
+              {/* Leopard MessageActions (forked kit element) — icon-swap copy,
+                  amber active reaction, spinning regen while streaming. */}
+              <MessageActions
+                copied={copied}
+                reaction={feedbackVote}
+                regenerating={chat.status === "submitted" || chat.status === "streaming"}
+                onCopy={handleCopy}
+                onReactionChange={(r) => {
+                  if (r === feedbackVote) return;
+                  if (r === null) {
+                    try {
+                      window.localStorage.removeItem(`lf:fb:${message.id}`);
+                    } catch {}
+                    setFeedbackVote(null);
+                  } else {
+                    setFeedback(message.id, r);
+                    setFeedbackVote(r);
+                    toast.success(
+                      r === "up"
+                        ? "Marked as helpful"
+                        : "Marked — we'll improve the next reply",
+                    );
+                  }
+                }}
+                onRegenerate={handleRegenerate}
+              />
+            </div>
           )}
 
           </div>
@@ -1158,10 +1127,7 @@ export function ThinkingMessage() {
       className="max-w-3xl mx-auto"
     >
       <div className="flex items-start gap-3 py-5">
-        <div className="flex flex-col gap-2 pt-0.5">
-          
-          <PulseLoader size="sm" labelSize="md" label="Working on it…" className="gap-3" />
-       </div>
+        <ThinkingIndicator className="max-w-none" label="Working on it…" />
      </div>
    </motion.div>
   );

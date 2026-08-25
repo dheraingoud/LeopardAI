@@ -107,6 +107,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   stopGeneration: () => void;
   /** True at /chat before the first send — no Convex row exists yet. */
   isDraft: boolean;
+  /** Regenerate an assistant reply: deletes the old server row FIRST (else the
+   * live-mirror resurrects it next to the new reply), then SDK-regenerates. */
+  regenerateMessage: (messageId: string) => void;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -160,6 +163,7 @@ export function ActiveChatProvider({
 
   // ── Convex: mutations (stable refs from useMutation) ──────────────────────
   const messagesSend = useMutation(api.messages.send);
+  const deleteAfterTimestamp = useMutation(api.messages.deleteAfterTimestamp);
   const updateTitle = useMutation(api.chats.updateTitle);
   const updateModel = useMutation(api.chats.updateModel);
   const touchChat = useMutation(api.chats.touch);
@@ -689,6 +693,36 @@ export function ActiveChatProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per mount
   }, [isDraft, chatId]);
 
+  // ── Regenerate with server-row cleanup ────────────────────────────────────
+  // chat.regenerate drops the old assistant bubble from SDK state, but the
+  // SERVER-persisted row stays in Convex — the live-mirror effect then appends
+  // it next to the new reply (the "old answer reappears" bug). Delete every
+  // persisted message at-or-after the target's createdAt first, then regen.
+  const regenerateMessage = useCallback(
+    (messageId: string) => {
+      const u = uidRef.current;
+      if (!isDraft && u && convexMessages) {
+        const target = convexMessages.find((m) => m.id === messageId);
+        if (target) {
+          void deleteAfterTimestamp({
+            chatId: convexChatId,
+            timestamp: target.createdAt,
+            userId: u,
+          }).catch(() => {
+            /* cosmetic — worst case the mirror re-adds the stale row */
+          });
+        }
+      }
+      const r = (
+        chat as unknown as {
+          regenerate?: (opts?: { messageId?: string }) => void;
+        }
+      ).regenerate;
+      if (typeof r === "function") void r({ messageId });
+    },
+    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat],
+  );
+
   const isLoading = isDraft
     ? false
     : chatMeta === undefined || convexMessages === undefined;
@@ -705,6 +739,7 @@ export function ActiveChatProvider({
     setArtifact,
     stopGeneration,
     isDraft,
+    regenerateMessage,
   };
 
   return (

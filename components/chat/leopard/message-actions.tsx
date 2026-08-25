@@ -24,7 +24,8 @@ export interface MessageActionsProps extends Omit<
   onCopy: () => void;
   onReactionChange: (reaction: Reaction) => void;
   onRegenerate: () => void;
-  onMore: () => void;
+  /** Optional — the ellipsis button renders only when provided. */
+  onMore?: () => void;
 }
 
 export function MessageActions({
@@ -80,7 +81,7 @@ export function MessageActions({
         className={cn(
           buttonClassName,
           reaction === "up" &&
-            "bg-foreground/[0.06] text-foreground/90 dark:bg-foreground/[0.09]",
+            "dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.16] dark:text-[#ffb400] light:text-[#d49600]",
         )}
       >
         <ThumbsUpIcon className="size-3.5" />
@@ -93,7 +94,7 @@ export function MessageActions({
         className={cn(
           buttonClassName,
           reaction === "down" &&
-            "bg-foreground/[0.06] text-foreground/90 dark:bg-foreground/[0.09]",
+            "dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.16] dark:text-[#ffb400] light:text-[#d49600]",
         )}
       >
         <ThumbsDownIcon className="size-3.5" />
@@ -111,14 +112,16 @@ export function MessageActions({
           )}
         />
       </button>
-      <button
-        type="button"
-        aria-label="More response actions"
-        onClick={onMore}
-        className={buttonClassName}
-      >
-        <EllipsisIcon className="size-3.5" />
-      </button>
+      {onMore && (
+        <button
+          type="button"
+          aria-label="More response actions"
+          onClick={onMore}
+          className={buttonClassName}
+        >
+          <EllipsisIcon className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }
