@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon } from "lucide-react";
+import { Brain, ChevronDownIcon } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -8,44 +8,56 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { collapsePanel, mono, ShimmerLabel, SwapLabel } from "./surfaces";
-import { take } from "./range";
+import { StreamItDown } from "@/components/chat/streamitdown";
 
-export interface ReasoningStep {
-  title: string;
-  body: string;
-}
+// Leopard fork of aui ReasoningPanel: steps[]→single markdown body rendered
+// through StreamItDown (one prose pipeline), effort badge kept from the old
+// ReasoningBlock, Brain icon keeps the "thought" identity, amber accents via
+// the forked surfaces (ShimmerLabel) + inline amber dot.
 
-export interface ReasoningPanelProps {
-  steps: ReasoningStep[];
-  visibleSteps: number;
+export interface LeopardReasoningPanelProps {
+  /** Normalized reasoning text (compactWhitespace applied by caller). */
+  content: string;
+  /** Live reasoning tail — shimmers + defaults open. */
   streaming: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  restingLabel: string;
-  elapsed?: string;
+  elapsedMs?: number;
+  /** e.g. "HIGH" — resting mono chip, only when not streaming. */
+  effortBadge?: string;
   className?: string;
 }
 
 export function ReasoningPanel({
-  steps,
-  visibleSteps,
+  content,
   streaming,
   open,
   onOpenChange,
-  restingLabel,
-  elapsed,
+  elapsedMs,
+  effortBadge,
   className,
-}: ReasoningPanelProps) {
-  const shown = take(steps, visibleSteps);
+}: LeopardReasoningPanelProps) {
+  const seconds =
+    elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;
+  const resting =
+    seconds !== null ? `Thought for ${seconds}s` : "Thought process";
 
   return (
     <Collapsible
       data-slot="reasoning-panel"
       open={open}
       onOpenChange={onOpenChange}
-      className={cn("w-full max-w-sm", className)}
+      className={cn("my-3 w-full max-w-sm", className)}
     >
-      <CollapsibleTrigger className="group/trigger text-foreground/55 hover:text-foreground/90 flex items-center gap-1.5 py-1 text-[13.5px] transition-[color,scale] outline-none active:scale-[0.98]">
+      <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 py-1 text-[13.5px] text-foreground/55 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98]">
+        <Brain
+          className={cn(
+            "size-3.5 shrink-0 transition-colors duration-300",
+            streaming
+              ? "dark:text-[#ffb400] light:text-[#d49600]"
+              : "text-foreground/35",
+          )}
+        />
         <SwapLabel active={streaming ? 0 : 1} className="text-start">
           <>
             <ShimmerLabel
@@ -54,46 +66,32 @@ export function ReasoningPanel({
             >
               Thinking
             </ShimmerLabel>
-            {elapsed !== undefined && (
+            {elapsedMs !== undefined && (
               <span className={cn(mono, "text-foreground/30 tabular-nums")}>
-                {elapsed}
+                {Math.max(0.1, elapsedMs / 1000).toFixed(1)}s
               </span>
             )}
           </>
-          <>{restingLabel}</>
+          <>
+            <span>{resting}</span>
+            {effortBadge && (
+              <span
+                className={cn(
+                  mono,
+                  "rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-foreground/50 uppercase",
+                )}
+              >
+                {effortBadge}
+              </span>
+            )}
+          </>
         </SwapLabel>
         <ChevronDownIcon className="size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] group-data-open/trigger:rotate-180 group-data-panel-open/trigger:rotate-180 motion-reduce:transition-none" />
       </CollapsibleTrigger>
       <CollapsibleContent className={cn(collapsePanel, "outline-none")}>
-        <ol className="flex flex-col gap-4 pt-3 pb-1">
-          {shown.map((step, i) => {
-            const active = streaming && i === shown.length - 1;
-            return (
-              <li
-                key={step.title}
-                className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both flex gap-3 duration-300"
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mt-[7px] size-[5px] shrink-0 rounded-full transition-colors duration-300",
-                    active
-                      ? "animate-pulse dark:bg-[#ffb400] light:bg-[#d49600]"
-                      : "bg-foreground/20",
-                  )}
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <p className="text-foreground/90 text-[13.5px] font-medium">
-                    {step.title}
-                  </p>
-                  <p className="text-foreground/50 mt-0.5 text-[13px] leading-relaxed break-words">
-                    {step.body}
-                  </p>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+        <div className="max-h-[420px] overflow-y-auto pt-2 pb-1 text-[13.5px] leading-[1.7] text-foreground/70 [&_.markdown-body]:text-[13.5px]">
+          <StreamItDown content={content} streaming={streaming} />
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
