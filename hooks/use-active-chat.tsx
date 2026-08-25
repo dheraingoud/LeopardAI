@@ -14,6 +14,7 @@ import { useChat, type UseChatHelpers } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { nanoid } from "nanoid";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 
@@ -30,6 +31,11 @@ import {
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
 import { useSkillLibrary } from "@/hooks/use-skill-library";
+import {
+  stashPendingMessage,
+  takePendingMessage,
+  type PendingPart,
+} from "@/lib/draft-chat";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 
 /**
@@ -99,6 +105,8 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   setArtifact: (a: UIArtifact | null) => void;
     /** Abort the current server-owned generation (persist partial) then stop the local stream. */
   stopGeneration: () => void;
+  /** True at /chat before the first send — no Convex row exists yet. */
+  isDraft: boolean;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -125,13 +133,26 @@ export function ActiveChatProvider({
   children: ReactNode;
 }) {
   const { user } = useUser();
+  const router = useRouter();
   // TEMP: DEV_USER_ID fallback when BYPASS_CLERK is on (Phase 5 browser E2E).
   const uid: string | undefined = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : undefined);
+  // Deferred-create: /chat mounts the provider with "draft" — NO Convex row
+  // exists yet (kills the empty-chat-on-every-visit bug). All queries/mutations
+  // skip; the first send mints the row, stashes the parts, and routes to
+  // /chat/<realId> where the remounted provider picks the pending message up.
+  const isDraft = chatId === "draft";
   const convexChatId = chatId as Id<"chats">;
 
   // ── Convex: load chat + messages ──────────────────────────────────────────
-  const chatMeta = useQuery(api.chats.get, { chatId: convexChatId, userId: uid });
-  const convexMessages = useQuery(api.messages.list, { chatId: convexChatId });
+  const chatMeta = useQuery(
+    api.chats.get,
+    isDraft || !uid ? "skip" : { chatId: convexChatId, userId: uid },
+  );
+  const convexMessages = useQuery(
+    api.messages.list,
+    isDraft ? "skip" : { chatId: convexChatId },
+  );
+  const createChat = useMutation(api.chats.create);
 
   // Φ-skill-library — seed + load curated skills into the shared store so the
   // +→add-skill modal can render them and the transport injects their bodies.
@@ -447,7 +468,7 @@ export function ActiveChatProvider({
   const hydratedRef = useRef(false);
   const persistedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!convexMessages || hydratedRef.current) return;
+    if (isDraft || !convexMessages || hydratedRef.current) return;
     hydratedRef.current = true;
     const hydrated = convexMessages.map(toChatMessage);
     for (const m of hydrated) persistedIdsRef.current.add(m.id);
@@ -510,6 +531,7 @@ export function ActiveChatProvider({
 
   // ── Persist effect: dedup-by-id; user msgs immediate; assistant on ready ─
   useEffect(() => {
+    if (isDraft) return;
     const u = uidRef.current;
     if (!u) return;
 
@@ -586,6 +608,7 @@ export function ActiveChatProvider({
   // ── Model change (local state + persist) ───────────────────────────────────
   const setCurrentModel = (id: string) => {
     setCurrentModelIdState(id);
+    if (isDraft) return; // no row yet — the draft send persists the picked model
     const u = uidRef.current;
     if (u) void updateModel({ chatId: convexChatId, userId: u, model: id });
   };
@@ -625,9 +648,53 @@ export function ActiveChatProvider({
     }
   };
 
-  const isLoading = chatMeta === undefined || convexMessages === undefined;
+  // ── Deferred-create: draft send mints the row, then routes ─────────────────
+  // /chat mounts this provider with chatId="draft" and NO Convex row (kills the
+  // empty-chat-on-every-open bug). First send: create the row, stash the parts
+  // in sessionStorage, router.replace to /chat/<id>; the remounted provider
+  // below picks the stash up and fires the REAL send through the normal path
+  // (persistence, server title, live-mirror all behave as usual).
+  const sendMessage = useCallback<ActiveChatContextValue["sendMessage"]>(
+    (message, options) => {
+      if (!isDraft) return chat.sendMessage(message, options);
+      const u = uidRef.current;
+      if (!u) return Promise.resolve(undefined as never);
+      const parts =
+        message && typeof message === "object" && "parts" in message
+          ? (message.parts as PendingPart[])
+          : [{ type: "text", text: String((message as { text?: string })?.text ?? "") }];
+      return (async () => {
+        const id = await createChat({
+          userId: u,
+          title: "New Chat",
+          model: currentModelIdRef.current,
+        });
+        stashPendingMessage(id, parts);
+        router.replace(`/chat/${id}`);
+        return undefined as never;
+      })();
+    },
+    [isDraft, chat.sendMessage, createChat, router],
+  );
+
+  // ── Pending-message pickup: a fresh /chat/<id> created from a draft sends
+  // the stashed first message once (refs reset per chatId key — safe).
+  const pendingSentRef = useRef(false);
+  useEffect(() => {
+    if (isDraft || pendingSentRef.current) return;
+    const pending = takePendingMessage(chatId);
+    if (!pending || pending.length === 0) return;
+    pendingSentRef.current = true;
+    void chat.sendMessage({ parts: pending } as never);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per mount
+  }, [isDraft, chatId]);
+
+  const isLoading = isDraft
+    ? false
+    : chatMeta === undefined || convexMessages === undefined;
   const value: ActiveChatContextValue = {
     ...chat,
+    sendMessage,
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,
@@ -637,6 +704,7 @@ export function ActiveChatProvider({
     artifact,
     setArtifact,
     stopGeneration,
+    isDraft,
   };
 
   return (

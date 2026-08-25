@@ -28,7 +28,7 @@ import { UsageReadout } from "./usage-readout";
  * createDocument tool call streams in — see use-active-chat.onData).
  */
 export function ChatShell() {
-  const { chatMeta, isLoading, messages, currentModelId } = useActiveChat();
+  const { chatMeta, isLoading, isDraft, messages, currentModelId } = useActiveChat();
   const { user } = useUser();
   const router = useRouter();
   // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
@@ -77,6 +77,30 @@ export function ChatShell() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <PulseLoader size="lg" />
+      </div>
+    );
+  }
+  // Draft (/chat before first send): no Convex row — render the shell with a
+  // bare header (no usage/export/share, they need a real chat row).
+  if (isDraft) {
+    return (
+      <div className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
+        <SessionExpiryToast />
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <h2 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
+                Start a conversation
+              </h2>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <ModelLabel modelId={currentModelId} />
+            </div>
+          </div>
+          <Messages />
+          <MultimodalInput />
+        </div>
+        <ArtifactPanel />
       </div>
     );
   }
