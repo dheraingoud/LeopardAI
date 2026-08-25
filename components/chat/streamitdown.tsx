@@ -32,6 +32,7 @@
  * turns text into DOM.
  */
 import {
+  memo,
   useDeferredValue,
   useEffect,
   useId,
@@ -128,7 +129,11 @@ function extractText(node: ReactNode): string {
 }
 
 // ── public renderer ───────────────────────────────────────────────────────
-export function StreamItDown({
+// Memoized: during interleaved thinking the parent re-renders on every token,
+// and each text/reasoning segment runs its own ReactMarkdown. A closed segment
+// (its content no longer changing) must not re-parse on every sibling token —
+// memo on content+streaming means only the actively-growing segment re-renders.
+export const StreamItDown = memo(function StreamItDown({
   content,
   streaming,
 }: {
@@ -143,7 +148,43 @@ const sanitized = sanitizeText(content).replace(
   /\s+height=["']auto["']/g,
   "",
 );
-const deferred = useDeferredValue(sanitized);
+  // Φ-perf: during an active stream the parent re-renders on EVERY token. A full
+  // ReactMarkdown re-parse per token is O(n²) over the response length and is
+  // the "interleaved thinking makes the whole app lag" hot path — each text and
+  // reasoning segment re-parses its full content per token. Throttle the parsed
+  // source to ~120ms commits while streaming so the UI stays responsive; the
+  // final (streaming=false) render always shows the complete text.
+  const [throttled, setThrottled] = useState(sanitized);
+  const lastCommit = useRef(0);
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep a live ref so the trailing flush reads the latest content, not a stale
+  // closure from when the timer was scheduled.
+  const sanitizedRef = useRef(sanitized);
+  sanitizedRef.current = sanitized;
+  useEffect(() => {
+    if (!streaming) {
+      // Stream finished — commit the full content immediately and cancel any
+      // pending throttle flush so the tail (incl. math) renders at once.
+      if (pending.current) clearTimeout(pending.current);
+      pending.current = null;
+      setThrottled(sanitized);
+      return;
+    }
+    const now = Date.now();
+    const since = now - lastCommit.current;
+    if (since >= 120) {
+      lastCommit.current = now;
+      setThrottled(sanitized);
+    } else if (!pending.current) {
+      pending.current = setTimeout(() => {
+        lastCommit.current = Date.now();
+        setThrottled(sanitizedRef.current);
+        pending.current = null;
+      }, 120 - since);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sanitized, streaming]);
+  const deferred = useDeferredValue(throttled);
   const components = useMemo(
     () => ({
       pre: (props: any) => <PreBlock {...props} streaming={!!streaming} />,
@@ -180,7 +221,7 @@ const deferred = useDeferredValue(sanitized);
      </ReactMarkdown>
    </div>
   );
-}
+});
 
 function InlineCode({ className, children, ...rest }: any) {
   return (
@@ -212,7 +253,7 @@ function PreBlock({
     // last good SVG when a partial code block throws), so the diagram appears
     // as the model emits it instead of flashing a "rendering diagram…" box and
     // swapping in only after the stream finishes.
-    return <MermaidBlock code={text} />;
+    return <MermaidBlock code={text} streaming={streaming} />;
   }
 
   if (lang === "svg") {
@@ -433,7 +474,7 @@ function SvgBlock({ code }: { code: string }) {
 // Live-streaming-tolerant: securityLevel "loose" + a 250ms debounce; partial
 // syntax silently keeps the last good SVG until a delta parses. A quiet
 // "view source" affordance below toggles raw code (no floating box).
-function MermaidBlock({ code }: { code: string }) {
+function MermaidBlock({ code, streaming }: { code: string; streaming: boolean }) {
   const rawId = useId();
   const id = `mmd-${rawId.replace(/[^a-zA-Z0-9-]/g, "")}`;
   const { theme } = useTheme();
@@ -495,13 +536,14 @@ function MermaidBlock({ code }: { code: string }) {
           setSoftFailed(false);
         }
       } catch {
-        // A partial mermaid fence mid-stream throws here. Stay silent: keep
-        // the last good SVG on screen and retry on the next code delta. If NO
-        // good SVG ever rendered (a genuinely broken final diagram), mark
-        // softFailed so the branch below shows a quiet "view source" fallback
-        // instead of an eternal "rendering diagram…" spinner. The error is
-        // swallowed — it never reaches the chat onError toast.
-        if (active && !svg) setSoftFailed(true);
+        // A partial mermaid fence mid-stream throws here. Stay silent: keep the
+        // last good SVG (or the "rendering…" placeholder) and retry on the next
+        // code delta. Only mark softFailed once the stream has ENDED and the
+        // final code still doesn't parse — never on a partial mid-stream block,
+        // which is exactly what caused the "diagram couldn't be rendered" flash
+        // that later swapped to the real diagram. `streaming` is in the dep
+        // array so the final throw (streaming=false) is the one that can set it.
+        if (active && !svg && !streaming) setSoftFailed(true);
       }
     };
     // 250ms debounce so streaming tokens collapse cleanly.
@@ -510,7 +552,9 @@ function MermaidBlock({ code }: { code: string }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [code, dark, id]);
+    // streaming flips false on the final delta → the last parse is authoritative
+    // for softFailed; a fresh stream (streaming=true) re-runs and re-renders.
+  }, [code, dark, id, streaming]);
 
   // Inline diagram (code view resets above). `mermaid.render` emits an svg with
   // fixed width/height. Wide LR diagrams used to get crushed by
