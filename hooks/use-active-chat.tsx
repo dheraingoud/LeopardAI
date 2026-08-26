@@ -110,6 +110,10 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Regenerate an assistant reply: deletes the old server row FIRST (else the
    * live-mirror resurrects it next to the new reply), then SDK-regenerates. */
   regenerateMessage: (messageId: string) => void;
+  /** Edit a user message: deletes server rows at-or-after it FIRST (else the
+   * live-mirror resurrects them and the edited resend duplicates the old
+   * bubble), then truncates local state so the resend starts clean. */
+  editMessage: (messageId: string) => void;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -756,6 +760,39 @@ export function ActiveChatProvider({
     [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat],
   );
 
+  // ── Edit (user message) with server-row cleanup ───────────────────────────
+  // Same resurrection trap as regen: truncating only SDK state leaves the
+  // Convex rows intact, and the live-mirror heal re-inserts them — the user
+  // saw their message TWICE (old server row + edited resend). Delete every
+  // persisted row at-or-after the target first, then truncate local state.
+  const editMessage = useCallback(
+    (messageId: string) => {
+      // Stop any in-flight stream FIRST — truncating the message list out from
+      // under a live stream orphans it: the SDK never sees its finish chunk
+      // and status sticks at "streaming", deadlocking the composer. Uses the
+      // provider stop (also aborts the detached server generation).
+      stopGeneration();
+      const u = uidRef.current;
+      if (!isDraft && u && convexMessages) {
+        const target = convexMessages.find((m) => m.id === messageId);
+        if (target) {
+          void deleteAfterTimestamp({
+            chatId: convexChatId,
+            timestamp: target.createdAt,
+            userId: u,
+          }).catch(() => {
+            /* cosmetic — mirror may briefly re-add the stale row */
+          });
+        }
+      }
+      chat.setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === messageId);
+        return idx >= 0 ? prev.slice(0, idx) : prev;
+      });
+    },
+    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
+  );
+
   const isLoading = isDraft
     ? false
     : chatMeta === undefined || convexMessages === undefined;
@@ -773,6 +810,7 @@ export function ActiveChatProvider({
     stopGeneration,
     isDraft,
     regenerateMessage,
+    editMessage,
   };
 
   return (

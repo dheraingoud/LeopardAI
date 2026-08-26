@@ -356,30 +356,10 @@ function ToolCard({
   const pending = state === "streaming" || state === "pending" || state === "loading";
   const verb = isSearch ? "searching web" : toolName;
 
-  // Elapsed clock — starts when the card mounts pending, freezes on complete.
-  // Mirrors the reasoning tracker: live → ticking, done → "Fetched in Ns".
-  const startRef = useRef<number | null>(null);
-  const [elapsedMs, setElapsedMs] = useState<number | undefined>(undefined);
-  useEffect(() => {
-    if (pending) {
-      if (startRef.current === null) startRef.current = performance.now();
-      const id = setInterval(() => {
-        if (startRef.current !== null)
-          setElapsedMs(performance.now() - startRef.current);
-      }, 100);
-      return () => clearInterval(id);
-    }
-    if (startRef.current !== null) {
-      setElapsedMs(performance.now() - startRef.current);
-      startRef.current = null;
-    }
-    return;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending]);
+  // No elapsed clock on tool cards — time chips live on the reasoning panel
+  // header only (user directive 2026-08-26).
 
-  const seconds = elapsedMs !== undefined ? Math.max(0.1, elapsedMs / 1000).toFixed(1) : null;
-
-  // Human-readable summary of what the tool did (query string / url host path).
+// Human-readable summary of what the tool did (query string / url host path).
   let summary = "";
   if (isSearch && input && typeof input === "object") {
     const q = (input as { query?: string }).query;
@@ -508,7 +488,6 @@ function ToolCard({
       result={resultLine || (resultOk ? "Done" : "Failed")}
       running={pending}
       failed={!pending && !resultOk}
-      elapsed={seconds !== null ? `${seconds}s` : undefined}
       open={open}
       onOpenChange={setOpen}
     />
@@ -609,30 +588,10 @@ export const PreviewMessage = memo(function PreviewMessage({
     // reasoningMs intentionally excluded (would loop on every tick).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reasoning, text, isStreaming]);
-  // Φ-live response timer — ticks beside the header while the reply streams
-  // ("12.4s"), freezes to the final duration when it settles. Resets on a new
-  // stream (regenerate starts a fresh clock).
-  const genStartRef = useRef<number | null>(null);
-  const [genMs, setGenMs] = useState<number | null>(null);
-  useEffect(() => {
-    if (isUser) return;
-    if (isStreaming) {
-      if (genStartRef.current === null) genStartRef.current = performance.now();
-      const id = setInterval(() => {
-        if (genStartRef.current !== null)
-          setGenMs(performance.now() - genStartRef.current);
-      }, 100);
-      return () => clearInterval(id);
-    }
-    if (genStartRef.current !== null) {
-      setGenMs(performance.now() - genStartRef.current);
-      genStartRef.current = null;
-    }
-    return;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStreaming, isUser]);
+  // (No response-level timer — elapsed time lives on the reasoning panel's
+  // collapsible header only, per user directive 2026-08-26.)
 
-  // Φ8: hydrate persisted image placeholders (post-reload) from IndexedDB.
+// Φ8: hydrate persisted image placeholders (post-reload) from IndexedDB.
   // Render `text` immediately (no blank), then swap once hydrate resolves.
   // For non-image content (the common case) hydrate is a no-op (returns the
   // string unchanged) → renderText never diverges → no extra render.
@@ -879,17 +838,13 @@ export const PreviewMessage = memo(function PreviewMessage({
     setTimeout(() => setCopiedUser(false), 1600);
   };
 
-  // Edit (user): truncate messages[] from this one onward so the assistant
-  // response downstream is replaced on next send, then fire `composer:set-text`
-  // — the composer listens (multimodal-input effect) and repopulates + focuses.
+  // Edit (user): delete the server rows at-or-after this message FIRST (else
+  // the live-mirror heal resurrects them and the edited resend shows the old
+  // bubble twice), then truncate local state and fire `composer:set-text` —
+  // the composer listens (multimodal-input effect) and repopulates + focuses.
   const handleEditUser = () => {
     try {
-      const messages = chat.messages;
-      const idx = messages.findIndex((m) => m.id === message.id);
-      if (idx >= 0)
-        (chat.setMessages as unknown as (m: typeof messages) => void)?.(
-          messages.slice(0, idx),
-        );
+      chat.editMessage?.(message.id);
     } catch {
       /* non-fatal — composer still populates */
     }
@@ -999,26 +954,10 @@ export const PreviewMessage = memo(function PreviewMessage({
       className="group py-4"
     >
       <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            {/* Φ-live response timer — amber ticking mono while streaming,
-                neutral settled duration after. Header row is otherwise bare. */}
-            {genMs !== null && (
-              <span
-                className={cn(
-                  "font-mono text-[10.5px] tabular-nums transition-colors",
-                  isStreaming
-                    ? "dark:text-[#ffb400]/80 light:text-[#d49600]"
-                    : "dark:text-[#505050] light:text-[#9a9a9a]",
-                )}
-              >
-                {isStreaming
-                  ? `${(genMs / 1000).toFixed(1)}s`
-                  : `${Math.max(0.1, genMs / 1000).toFixed(1)}s`}
-              </span>
-            )}
-          </div>
+          {/* No header timer row — elapsed time belongs on the thinking
+              panel's collapsible header only (user directive 2026-08-26). */}
 
-          {/* Φ6.1: streaming-empty fallback. Some NIM reasoning models (e.g.
+{/* Φ6.1: streaming-empty fallback. Some NIM reasoning models (e.g.
            * glm-5.2 at "max") emit ONLY `delta.content` — no `reasoning_content`
            * — so before the first text-delta there's neither a reasoning card
            * nor any text nor a doc card. Without this gate the assistant row
