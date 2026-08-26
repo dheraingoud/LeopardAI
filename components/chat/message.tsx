@@ -997,6 +997,12 @@ export const PreviewMessage = memo(function PreviewMessage({
               );
             }
             if (seg.kind === "tool") {
+              // A pending approval renders ONLY as the composer-zone
+              // ApprovalDock (user directive 2026-08-26: one permission card,
+              // at the bottom, replacing the input). The transcript shows
+              // nothing until the decision morphs this segment into the
+              // running/result card.
+              if (seg.state === "ask") return null;
               // Never mask "ask" as "streaming" — the AskCard must stay
               // clickable the moment approval is requested, even if the stream
               // hasn't fully settled yet.
