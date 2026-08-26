@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { getModelById } from "@/lib/ai/models";
@@ -15,6 +15,7 @@ import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { getMessageText } from "./message";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
+import { ApprovalDock } from "./approval-dock";
 import { ArtifactPanel } from "./artifact-panel";
 import { PulseLoader } from "./pulse-loader";
 import { SessionExpiryToast } from "./session-expiry-toast";
@@ -35,6 +36,32 @@ export function ChatShell() {
   const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
   const shareChat = useMutation(api.chats.share);
   const [shared, setShared] = useState(false);
+
+  // Pending tool-approval → the composer zone swaps the input for the
+  // ApprovalDock (user directive: the permission card replaces the input
+  // box). Scans the trailing assistant message for a tool part in state
+  // "approval-requested" (live SDK parts are `tool-<name>` typed).
+  const pendingApproval = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== "assistant") break;
+      for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
+        const t = typeof p.type === "string" ? p.type : "";
+        const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
+        if (isTool && p.state === "approval-requested") {
+          const approval = p.approval as { id?: string } | undefined;
+          if (approval?.id) {
+            return {
+              approvalId: approval.id,
+              toolName: (p.toolName as string) ?? "tool",
+              input: p.input,
+            };
+          }
+        }
+      }
+    }
+    return null;
+  }, [messages]);
 
   const handleExport = useCallback(() => {
     if (!chatMeta || messages.length === 0) return;
@@ -98,7 +125,15 @@ export function ChatShell() {
             </div>
           </div>
           <Messages />
-          <MultimodalInput />
+          {pendingApproval ? (
+            <ApprovalDock
+              approvalId={pendingApproval.approvalId}
+              toolName={pendingApproval.toolName}
+              input={pendingApproval.input}
+            />
+          ) : (
+            <MultimodalInput />
+          )}
         </div>
         <ArtifactPanel />
       </div>
@@ -158,7 +193,15 @@ export function ChatShell() {
         </div>
 
         <Messages />
-        <MultimodalInput />
+        {pendingApproval ? (
+          <ApprovalDock
+            approvalId={pendingApproval.approvalId}
+            toolName={pendingApproval.toolName}
+            input={pendingApproval.input}
+          />
+        ) : (
+          <MultimodalInput />
+        )}
       </div>
       {/* Φ6: artifact side panel. Renders null until a createDocument tool
           streams data-* parts (see use-active-chat.onData). Slides in beside
