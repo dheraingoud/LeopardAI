@@ -20,10 +20,20 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-instrument), "Bricolage Grotesque", "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "Geist Mono", "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+  /* DESIGN.md law: geometric sans (Geist) for all sans text — weight ceiling
+     600 (below); Instrument Sans / Bricolage stay as fallbacks only. */
+  --font-sans: var(--font-geist), var(--font-instrument), "Bricolage Grotesque", "Segoe UI", sans-serif;
+  /* DESIGN.md law: Geist Mono first for code/technical labels, weight 400. */
+  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+  /* --font-heading stays Bricolage-based (the display voice). DESIGN.md
+     display weight ceiling is 600 — keep display/heading weights ≤ 600. */
   --font-heading: var(--font-bricolage), "Instrument Sans", "Segoe UI", sans-serif;
   --font-signature: "Momo Signature", "Instrument Sans", ui-serif, cursive;
+
+  /* DESIGN.md radii tokens */
+  --radius-ds-sm: 6px;   /* in-app buttons/inputs */
+  --radius-ds-md: 8px;   /* cards */
+  --radius-ds-pill: 100px; /* big CTAs */
 
   /* Leopard brand colors — theme-aware via CSS vars */
   --color-leopard-amber: var(--leopard-amber);
@@ -1724,4 +1734,53 @@ pre code {
 }
 @media (prefers-reduced-motion: reduce) {
   .markdown-body .leopard-fresh-tail { transition: none; }
+}
+
+/* ─── DESIGN.md Elevation & Depth ───
+   The brand uses STACKED shadows — multiple small offsets layered to fake
+   natural light — never a single heavy drop-shadow. Inset hairline rings keep
+   the card edge crisp. Base values are the dark-canvas adaptation (Leopard's
+   default): black offsets (0.2–0.35) on dark + white-alpha inset hairlines
+   (0.04–0.08). Light-theme values follow the DESIGN.md table (4–12% black)
+   and live under .light. Never pair these with heavy single drop-shadows. */
+.elev-1 {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.elev-2 {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 2px 2px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.elev-3 {
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.3), 0 8px 8px -8px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.elev-4 {
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.3), 0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.elev-5 {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 8px 16px -4px rgba(0, 0, 0, 0.3),
+    0 24px 32px -8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Light-theme elevation — per DESIGN.md table (4–12% black offsets + inset
+   hairline #00000014 ≈ rgba(0,0,0,0.08)) */
+.light .elev-1 {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.light .elev-2 {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05), 0 2px 2px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.light .elev-3 {
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1), 0 8px 8px -8px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.light .elev-4 {
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1), 0 8px 16px -4px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.light .elev-5 {
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05), 0 8px 16px -4px rgba(0, 0, 0, 0.1),
+    0 24px 32px -8px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
