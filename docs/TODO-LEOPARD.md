@@ -42,3 +42,12 @@ re-read claude-code docs
 
 ## RULES
 Local commits only, never push. Port 3001 (3000 = MAYA). Verify before commit.
+
+## 2026-08-27 — DESIGN.md strict + aui full fork (IN PROGRESS)
+- [x] Glass retired app-wide (4536d9e): primitives gutted API-compatibly, globals solid, glass.tsx/webgl/motion deleted
+- [~] DESIGN.md token layer: Geist/Geist Mono fonts, elevation ladder .elev-1..5, radii tokens (workflow wf_75620707-488)
+- [~] Composer slash-command popover (skill-store backed) + @mentions popover (chat titles) — aui pattern fork
+- [ ] Kit fidelity audit: leopard/* vs aui behavior (streaming text esp.)
+- [ ] Sidebar chat-rename via data-chat-title (open)
+- [ ] Mermaid trio (error text, flicker, size)
+- [ ] Watchdog agenda P1.1/P1.2/P2.3/P2.4/OTel/structured-outputs/semantic-memory
