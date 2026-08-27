@@ -2,8 +2,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { Send, Square, X } from "lucide-react";
-import { GlassSurface } from "@/components/ui/glass-surface";
-import { GlassButton } from "@/components/ui/glass-button";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelectorCompact } from "./model-selector-compact";
@@ -12,6 +10,7 @@ import { ContextDescriptor } from "./context-descriptor";
 import { MemoryBadge } from "./memory-badge";
 import { ResearchPanel } from "./research-panel";
 import { uploadFile } from "@/lib/upload";
+import { cn } from "@/lib/utils";
 import { getModelById } from "@/lib/ai/models";
 
 /**
@@ -176,15 +175,10 @@ export function MultimodalInput() {
           onSubmit={handleSubmit}
           className="group relative rounded-[1.75rem] ring-1 ring-white/5 dark:ring-white/5 light:ring-black/5 p-1.5 transition-shadow focus-within:ring-[#ffb400]/40"
         >
-          <GlassSurface
-            radius={22}
-            tint={0.28}
-            // Φ-glass: near-black veil in dark mode — the default 58,58,62 grey
-            // veil read as a milky white tint over the dark transcript. Liquid
-            // (refraction + specular) stays; the tint goes deep-charcoal.
-            darkTintColor="10,10,12"
-            className="rounded-[1.375rem]"
-          >
+          {/* Solid field surface (was GlassSurface) — user directive
+              2026-08-26: the composer is an opaque aui-style field; liquid
+              glass survives only on the reasoning-effort slider. */}
+          <div className="rounded-[1.375rem] dark:bg-[#141414] light:bg-white border dark:border-white/10 light:border-black/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)] light:shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
             <div className="relative flex items-end gap-1.5 px-2 py-2 h-full w-full">
               <PlusMenu
                 modelVision={modelVision}
@@ -219,38 +213,34 @@ export function MultimodalInput() {
               {/* Φ-docs · detached deep-research worker panel */}
               <ResearchPanel />
               {isStreaming ? (
-                <GlassButton
+                <button
                   type="button"
-                  variant="icon"
-                  size={36}
-                  tint={0.2}
                   // Φ10/#3 M1: stopGeneration also POSTs /api/chat/stop so the
                   // server aborts + persists the DETACHED generation (a bare
                   // stop() only ends this browser's mirror).
                   onClick={stopGeneration}
                   title="Stop"
-                  className="max-sm:h-11! max-sm:w-11!"
+                  className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center dark:bg-white/[0.08] light:bg-black/[0.06] hover:dark:bg-white/[0.14] hover:light:bg-black/[0.1] transition-colors max-sm:h-11 max-sm:w-11"
                 >
                   <Square className="h-3.5 w-3.5 fill-current text-[#ffb400]" />
-                </GlassButton>
+                </button>
               ) : (
-                <GlassButton
+                <button
                   type="submit"
-                  variant="capsule"
-                  size={36}
-                  tint={canSend ? 0.7 : 0.1}
-                  tintColor={canSend ? "255,180,0" : undefined}
                   disabled={!canSend}
                   title="Send"
-                  className={`max-sm:h-11! max-sm:w-11! ${
-                    canSend ? "text-black dark:text-black" : ""
-                  }`}
+                  className={cn(
+                    "h-9 w-9 shrink-0 rounded-full flex items-center justify-center transition-all max-sm:h-11 max-sm:w-11",
+                    canSend
+                      ? "bg-[#ffb400] text-black hover:brightness-110 active:scale-[0.94]"
+                      : "dark:bg-white/[0.06] light:bg-black/[0.05] dark:text-[#505050] light:text-[#9a9a9a]",
+                  )}
                 >
                   <Send className="h-3.5 w-3.5" />
-                </GlassButton>
+                </button>
               )}
             </div>
-          </GlassSurface>
+          </div>
         </form>
         <p className="mt-2 text-center text-[10px] font-mono dark:text-[#3a3a3a] light:text-[#b8b8b8]">
           Leopard can make mistakes. Verify important info.

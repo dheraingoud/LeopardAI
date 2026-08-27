@@ -159,7 +159,7 @@
   /* Scrollbar & Glass */
   --scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
-  --glass-premium-bg: rgba(253, 246, 227, 0.85);
+  --glass-premium-bg: #ffffff;
   --glass-premium-border: rgba(0, 0, 0, 0.06);
 }
 
@@ -223,7 +223,7 @@
   /* Scrollbar & Glass (dark values) */
   --scrollbar-thumb: rgba(255, 255, 255, 0.1);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
-  --glass-premium-bg: rgba(10, 10, 10, 0.8);
+  --glass-premium-bg: #141414;
   --glass-premium-border: rgba(255, 255, 255, 0.04);
 
   /* Typography System */
@@ -283,31 +283,26 @@
 
 /* Glass classes */
 .light .glass {
-  background: rgba(253, 246, 227, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  background: #ffffff;
+  border: 1px solid #ebebeb;
 }
 .light .glass-elevated {
-  background: rgba(253, 246, 227, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(253, 246, 227, 0.6);
-  backdrop-filter: blur(60px) saturate(1.6);
-  -webkit-backdrop-filter: blur(60px) saturate(1.6);
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 .light .glass-intense {
-  background: rgba(253, 246, 227, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05), 0 1px 0 rgba(0, 0, 0, 0.04) inset;
-  backdrop-filter: blur(80px) saturate(1.5);
-  -webkit-backdrop-filter: blur(80px) saturate(1.5);
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04),
+              0 24px 32px -8px rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 .light .glass-card {
-  background: linear-gradient(135deg, rgba(253, 246, 227, 0.8) 0%, rgba(253, 246, 227, 0.6) 100%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02), 0 2px 2px rgba(0, 0, 0, 0.04),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.01);
 }
 .light .glass-premium {
   background: rgba(253, 246, 227, 0.85);
@@ -477,54 +472,39 @@
 
 /* ─── Liquid Glass (Apple-style) ─── */
 .glass {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* ─── Solid surfaces (2026-08-26 glass retirement, DESIGN.md) ─────────────
+ * Class names kept so existing consumers don't churn; every rule is now an
+ * OPAQUE surface with the DESIGN.md elevation recipe: stacked small-offset
+ * shadows + inset hairline. No backdrop-filter anywhere. */
 .glass-elevated {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(60px) saturate(2);
-  -webkit-backdrop-filter: blur(60px) saturate(2);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.glass-amber {
-  background: rgba(255, 180, 0, 0.04);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  border: 1px solid rgba(255, 180, 0, 0.1);
-}
-
-.glass-card {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(255, 255, 255, 0.01) 100%
-  );
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 8px 16px -4px rgba(0, 0, 0, 0.25),
               inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.glass-amber {
+  background: #141414;
+  border: 1px solid rgba(255, 180, 0, 0.15);
+}
+
+.glass-card {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15), 0 2px 2px rgba(0, 0, 0, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
 .glass-intense {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.06) 0%,
-    rgba(255, 255, 255, 0.02) 50%,
-    rgba(255, 180, 0, 0.03) 100%
-  );
-  backdrop-filter: blur(80px) saturate(2.2);
-  -webkit-backdrop-filter: blur(80px) saturate(2.2);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4),
-              0 0 0 0.5px rgba(255, 255, 255, 0.08) inset,
-              0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 8px 16px -4px rgba(0, 0, 0, 0.25),
+              0 24px 32px -8px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* ─── Amber Glow Effects ─── */
@@ -751,8 +731,7 @@ pre code {
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.7);
   }
   .sidebar-mobile {
     position: fixed;
@@ -930,17 +909,13 @@ pre code {
 
 /* ─── Enhanced Glass Classes ─── */
 .glass-premium {
-  background: var(--glass-premium-bg, rgba(10, 10, 10, 0.8));
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1px solid var(--glass-premium-border, rgba(255, 255, 255, 0.04));
+  background: var(--glass-premium-bg, #141414);
+  border: 1px solid var(--glass-premium-border, rgba(255, 255, 255, 0.08));
 }
 
 .glass-amber-subtle {
-  background: rgba(255, 180, 0, 0.03);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 180, 0, 0.08);
+  background: rgba(255, 180, 0, 0.05);
+  border: 1px solid rgba(255, 180, 0, 0.12);
 }
 
 /* ─── macOS-style thin scrollbars ─── */
@@ -1258,10 +1233,8 @@ pre code {
   align-items: center;
   padding: 3px 6px;
   border-radius: 8px;
-  background: rgba(20, 20, 22, 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #141416;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: auto;
   z-index: 1;
 }
