@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { Send, Square, X } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
@@ -12,6 +12,16 @@ import { ResearchPanel } from "./research-panel";
 import { uploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { getModelById } from "@/lib/ai/models";
+import {
+  getSkillsSnapshot,
+  subscribeSkills,
+} from "@/lib/skill-store";
+import { getSlashMatches, SlashMenu, type SlashMatch } from "./slash-menu";
+import {
+  MentionMenu,
+  useRecentChatTitles,
+} from "./mention-menu";
+import { applyMention, useMentionMatches } from "./leopard/composer";
 
 /**
  * MultimodalInput — floating command bar. Plus-menu (vision-gated media attach,
@@ -28,6 +38,36 @@ export function MultimodalInput() {
   >([]);
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Slash-command + @-mention popovers ─────────────────────────────────────
+  // Open is DERIVED from the input; Esc just suppresses the popover until the
+  // next keystroke (so the user can keep typing "/..." or "@..." without it
+  // re-popping). `activeIndex` resets whenever the open menu changes.
+  const skills = useSyncExternalStore(subscribeSkills, getSkillsSnapshot);
+  const chatTitles = useRecentChatTitles();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [dismissed, setDismissed] = useState<"slash" | "mention" | null>(null);
+
+  const slashValue = /^\/\w*$/.test(input) ? input : "";
+  const slashMatches = useMemo(
+    () => getSlashMatches(slashValue, skills),
+    [slashValue, skills],
+  );
+  const slashOpen = dismissed !== "slash" && slashMatches.length > 0;
+
+  const mentionPeople = useMemo(
+    () => chatTitles.map((t) => ({ name: t, role: "agent" as const })),
+    [chatTitles],
+  );
+  const mentionMatches = useMentionMatches(input, mentionPeople);
+  const mentionOpen = dismissed !== "mention" && mentionMatches.length > 0;
+
+  useEffect(() => setActiveIndex(0), [slashOpen, mentionOpen]);
+
+  // Re-arm the popover once the user types again after an Esc dismiss.
+  useEffect(() => {
+    setDismissed(null);
+  }, [input]);
 
   // Φ7 (Edit-back-to-composer): the action buttons on a user message
   // (message.tsx) dispatch this custom event to populate the composer + focus
@@ -122,7 +162,59 @@ export function MultimodalInput() {
     void sendMessage({ parts } as never);
   };
 
+  // Insert the chosen slash command ("/<slug> ") or mention ("@<title> "),
+  // refocus the textarea, and place the caret at the end.
+  const insertAndRefocus = (next: string) => {
+    setInput(next);
+    queueMicrotask(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.setSelectionRange(next.length, next.length);
+      } catch {
+        /* ignored — number input has no range */
+      }
+      const ev = new Event("change", { bubbles: true });
+      el.dispatchEvent(ev);
+    });
+  };
+
+  const selectSlash = (match: SlashMatch) => {
+    insertAndRefocus(`/${match.slug} `);
+  };
+  const selectMention = (title: string) => {
+    insertAndRefocus(applyMention(input, title));
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    const menuOpen = slashOpen || mentionOpen;
+    const count = slashOpen ? slashMatches.length : mentionMatches.length;
+
+    if (menuOpen && count > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((i) => (i + 1) % count);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((i) => (i - 1 + count) % count);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDismissed(slashOpen ? "slash" : "mention");
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing)) {
+        e.preventDefault();
+        if (slashOpen) selectSlash(slashMatches[activeIndex % count]);
+        else selectMention(mentionMatches[activeIndex % count].name);
+        return;
+      }
+    }
+
     // sendWithEnter=true (default): Enter sends, Shift+Enter newline.
     // sendWithEnter=false: Enter newline, Shift+Enter sends.
     const sendKey = sendWithEnter ? !e.shiftKey : e.shiftKey;
@@ -175,6 +267,20 @@ export function MultimodalInput() {
           onSubmit={handleSubmit}
           className="group relative rounded-[1.75rem] ring-1 ring-white/5 dark:ring-white/5 light:ring-black/5 p-1.5 transition-shadow focus-within:ring-[#ffb400]/40"
         >
+          {slashOpen && (
+            <SlashMenu
+              matches={slashMatches}
+              activeIndex={activeIndex % slashMatches.length}
+              onSelect={selectSlash}
+            />
+          )}
+          {mentionOpen && (
+            <MentionMenu
+              titles={mentionMatches.map((m) => m.name)}
+              activeIndex={activeIndex % mentionMatches.length}
+              onSelect={selectMention}
+            />
+          )}
           {/* Solid field surface (was GlassSurface) — user directive
               2026-08-26: the composer is an opaque aui-style field; liquid
               glass survives only on the reasoning-effort slider. */}

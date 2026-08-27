@@ -6,7 +6,12 @@ import { ConvexClientProvider } from "./ConvexClientProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToaster } from "@/components/theme-toaster";
 import { DynamicClerkProvider } from "@/components/dynamic-clerk-provider";
-import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  Geist,
+  Geist_Mono,
+  Instrument_Sans,
+} from "next/font/google";
 import "./globals.css";
 
 const fontHeading = Bricolage_Grotesque({
@@ -20,6 +25,24 @@ const fontSans = Instrument_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-instrument",
+  display: "swap",
+});
+
+/* DESIGN.md law: geometric sans (Geist) for all sans text, weight ceiling
+   600; Geist Mono for code/technical labels only, weight 400. Geist is the
+   structural sans; Instrument Sans / Bricolage remain in the stacks as
+   fallbacks (see globals.css font vars). */
+const fontGeist = Geist({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-geist",
+  display: "swap",
+});
+
+const fontGeistMono = Geist_Mono({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -49,7 +72,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`h-full antialiased ${fontSans.variable} ${fontHeading.variable}`}
+      className={`h-full antialiased ${fontGeist.variable} ${fontGeistMono.variable} ${fontSans.variable} ${fontHeading.variable}`}
       data-scroll-behavior="smooth"
     >
       <head>
