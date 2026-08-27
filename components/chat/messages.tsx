@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
-import { Glass, type GlassDynamics } from "@/components/ui/glass";
 import { MouseGlow } from "@/components/ui/mouse-glow";
 import type { ChatMessage } from "@/lib/types";
 
@@ -112,45 +111,15 @@ export function Messages() {
  * is typically sub-second. `prefersReducedMotion` freezes the drift.
  */
 function Greeting() {
-  // Static lens — the breath is now a pure CSS keyframe on the amber bloom
-  // (GPU-composited, honors prefers-reduced-motion). Kills a perpetual 60fps
-  // JS rAF that ran forever on an idle empty chat.
-  const dynamicsRef = useRef<GlassDynamics | null>({ zoom: 1, depthMul: 1 });
-
+  // Glass retired (DESIGN.md 2026-08-26): the refracting lens is gone; the
+  // amber identity reads through a pure-CSS breathing bloom behind the text.
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
-      {/* Φ9 mouse-following specular lambert — overlay ambient on the Glass
-       * surface. Layered above the refracting backdrop, mixBlendMode: screen
-       * keeps it non-destructive against the warm-paper tint. */}
+      {/* Φ9 mouse-following ambient amber glow. */}
       <MouseGlow tone="amber" size={260} intensity={0.55} className="z-[1]" />
-      {/* Ambient refracting glass layer — sits behind the text, breathes. */}
+      {/* Ambient amber bloom behind the text — CSS only, no lens. */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <Glass
-          scaleX={0.1}
-          scaleY={0.1}
-          chroma={0.1}
-          depth={6}
-          domeDepth={2}
-          splay={1}
-          blur={0}
-          glow={0.12}
-          glowSpread={0.5}
-          glowExponent={1.5}
-          edgeHighlight={0.3}
-          edgeWidth={3}
-          edgeExponent={1.5}
-          specularStrength={1}
-          specularAngle={45}
-          tint={0.05}
-          tintBlur={12}
-          tintColor="255,180,0"
-          dynamicsRef={dynamicsRef}
-          className="w-[min(440px,82vw)] h-[200px] rounded-[2.5rem]"
-          lens={<div data-glass-lens className="absolute inset-0 rounded-[2.5rem]" />}
-        >
-          {/* The bitmap the lens refracts — a soft amber radial bloom. */}
-          <div className="glass-breath absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
-        </Glass>
+        <div className="glass-breath w-[min(440px,82vw)] h-[200px] rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
       </div>
       {/* Amber identity text — crisp, above the lens (never enters Glass). */}
       <motion.div
