@@ -1,7 +1,6 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { GlassSurface } from "@/components/ui/glass-surface";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -44,14 +43,12 @@ function GlassPopoverContent({
           )}
           {...props}
         >
-          <GlassSurface
-            blur={30}
-            radius={26}
-            tint={tint}
-            tintColor={tintColor}
-          >
+          {/* Solid panel (was GlassSurface) — user directive 2026-08-26:
+              liquid glass survives ONLY on the effort slider; popovers are
+              opaque field surfaces with a hairline border + deep shadow. */}
+          <div className="rounded-[26px] border dark:border-white/10 light:border-black/10 dark:bg-[#141414] light:bg-white shadow-[0_16px_50px_rgba(0,0,0,0.5)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.6)] light:shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
             <div className="min-w-[230px] py-2.5">{children}</div>
-          </GlassSurface>
+          </div>
         </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>
