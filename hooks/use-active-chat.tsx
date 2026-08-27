@@ -196,17 +196,25 @@ export function ActiveChatProvider({
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
 
-  // ── Selected reasoning level (per-model, persisted client-side) ────────────
-  // localStorage-scoped per model id so switching models recalls each model's
-  // last pick. Initialized from the model's defaultEffort (curated in
-  // MODEL_REGISTRY) the first time a model is seen. undefined for models with
-  // no reasoning knob (locked-on Cosmos reasoners / reasoning-disabled) — the
-  // route then omits the param and sendReasoning handles surfacing parts.
-  const reasoningKey = (mid: string) => `leopard:reasoning:${mid}`;
-  const resolveReasoningFor = (mid: string): ReasoningLevel | undefined => {
+  // ── Selected reasoning level (per-chat, persisted client-side) ────────────
+  // Per-chat scoping (user bug 2026-08-26: setting LOW in chat B flipped the
+  // badge in chat A that was set HIGH — the per-model key leaked across
+  // chats). Real chats read/write `leopard:reasoning:<chatId>:<modelId>`;
+  // the DRAFT (/chat pre-first-send) reads/writes the per-model default key,
+  // which is also the fallback the first time a real chat is seen. undefined
+  // for models with no reasoning knob (route then omits the param).
+  const reasoningKey = (mid: string, cid?: string) =>
+    cid && cid !== "draft"
+      ? `leopard:reasoning:${cid}:${mid}`
+      : `leopard:reasoning:${mid}`;
+  const resolveReasoningFor = (mid: string, cid?: string): ReasoningLevel | undefined => {
     const cfg = getModelById(mid)?.reasoningConfig;
     if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
     try {
+      if (cid && cid !== "draft") {
+        const chatSaved = window.localStorage.getItem(reasoningKey(mid, cid));
+        if (chatSaved) return chatSaved as ReasoningLevel;
+      }
       const saved = window.localStorage.getItem(reasoningKey(mid));
       if (saved) return saved as ReasoningLevel;
     } catch {
@@ -216,17 +224,18 @@ export function ActiveChatProvider({
   };
   const [currentReasoning, setCurrentReasoning] = useState<
     ReasoningLevel | undefined
-  >(() => (typeof window === "undefined" ? undefined : resolveReasoningFor(currentModelId)));
+  >(() => (typeof window === "undefined" ? undefined : resolveReasoningFor(currentModelId, chatId)));
   const currentReasoningRef = useRef(currentReasoning);
   useEffect(() => {
     currentReasoningRef.current = currentReasoning;
   }, [currentReasoning]);
-  // Re-resolve reasoning when the model switches (recall saved pick or default).
+  // Re-resolve reasoning when the model switches (recall this CHAT's saved
+  // pick first, then the model-level default for unseen chats).
   /* eslint-disable react-hooks/exhaustive-deps -- intentionally runs only on
      model switch; resolveReasoningFor is a pure localStorage reader and must
      not trigger a re-run on every render. */
   useEffect(() => {
-    setCurrentReasoning(resolveReasoningFor(currentModelId));
+    setCurrentReasoning(resolveReasoningFor(currentModelId, chatId));
   }, [currentModelId]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -683,7 +692,9 @@ export function ActiveChatProvider({
   const setReasoning = (level: ReasoningLevel) => {
     setCurrentReasoning(level);
     try {
-      window.localStorage.setItem(reasoningKey(currentModelId), level);
+      // Per-chat key for real chats; the model-level key only moves from the
+      // draft screen (it's the default for not-yet-seen chats).
+      window.localStorage.setItem(reasoningKey(currentModelId, chatId), level);
     } catch {
       /* ignore quota / private mode */
     }
