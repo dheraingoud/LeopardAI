@@ -198,10 +198,9 @@ export default function SettingsPage() {
             {/* Kit panel covers the default-model picker + interaction toggles;
                 the registry list below stays for browsing capabilities. */}
             <PreferencesPanel className="mb-4 max-w-none" />
-            {/* Kit effort slider: default reasoning level for the active model. */}
-            <div className="mb-4">
-              <ReasoningEffort />
-            </div>
+            {/* Kit effort slider: default reasoning level per model
+                (leopard:reasoning:<modelId> — same key the chat uses). */}
+            <ReasoningDefaults models={liveModels} />
             <div className="glass-card rounded-2xl p-6">
               <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">
@@ -335,6 +334,45 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveModels> }) {
+  const reasoningModels = models.filter((m) => m.reasoningConfig?.enabled && m.reasoningConfig.toggleable);
+  const [mid, setMid] = useState(reasoningModels[0]?.id ?? "");
+  const [level, setLevel] = useState<string>(() =>
+    typeof window === "undefined" ? "" : window.localStorage.getItem(`leopard:reasoning:${mid}`) ?? "",
+  );
+  if (reasoningModels.length === 0) return null;
+  return (
+    <div className="glass-card rounded-2xl p-6 mb-4">
+      <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">
+        Default reasoning effort
+      </h4>
+      <div className="mb-2 flex items-center gap-2">
+        <select
+          value={mid}
+          onChange={(e) => {
+            const next = e.target.value;
+            setMid(next);
+            setLevel(window.localStorage.getItem(`leopard:reasoning:${next}`) ?? "");
+          }}
+          className="h-8 rounded-md bg-transparent px-2 text-xs font-mono dark:text-[#d4d4d4] light:text-[#404040] border dark:border-white/10 light:border-black/10 outline-none"
+        >
+          {reasoningModels.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+      </div>
+      <ReasoningEffort
+        modelId={mid}
+        value={(level || undefined) as never}
+        onChange={(l) => {
+          setLevel(l);
+          try { window.localStorage.setItem(`leopard:reasoning:${mid}`, l); } catch { /* private mode */ }
+        }}
+      />
     </div>
   );
 }

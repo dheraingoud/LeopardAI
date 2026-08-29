@@ -2,15 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { useActiveChat } from "@/hooks/use-active-chat";
 import { getModelById } from "@/lib/ai/models";
 import type { ReasoningLevel } from "@/lib/nim";
 import { mono } from "./surfaces";
 
-// Forked effort element, wired to leopard persistence: useActiveChat holds the
-// pick per model; ReasoningConfig on the registry decides tiered vs binary.
-// Locked-on / non-toggleable reasoners render nothing — the route sends no
-// param for those and reasoning still streams.
+// Forked effort element, props-driven (works outside the chat provider —
+// settings page passes its own state). Locked-on / non-toggleable reasoners
+// render nothing.
 
 export function levelLabel(l: ReasoningLevel): string {
   switch (l) {
@@ -29,17 +27,24 @@ export function levelLabel(l: ReasoningLevel): string {
   }
 }
 
-export function ReasoningEffort() {
-  const { currentModelId, currentReasoning, setReasoning } = useActiveChat();
-  const cfg = getModelById(currentModelId)?.reasoningConfig;
+export function ReasoningEffort({
+  modelId,
+  value,
+  onChange,
+}: {
+  modelId: string;
+  value: ReasoningLevel | undefined;
+  onChange: (level: ReasoningLevel) => void;
+}) {
+  const cfg = getModelById(modelId)?.reasoningConfig;
 
   if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return null;
 
-  const active = currentReasoning !== undefined && currentReasoning !== "off";
+  const active = value !== undefined && value !== "off";
   const stops = cfg.effortLevels as ReasoningLevel[] | undefined;
 
   if (stops && stops.length > 0) {
-    const idx = active && stops.includes(currentReasoning) ? stops.indexOf(currentReasoning) : -1;
+    const idx = active && stops.includes(value) ? stops.indexOf(value) : -1;
     return (
       <div data-slot="reasoning-effort" className="px-4 pb-3 pt-3">
         <div className="mb-2.5 flex items-center justify-between">
@@ -57,7 +62,7 @@ export function ReasoningEffort() {
           step={1}
           value={idx}
           accent="#ffb400"
-          onValueChange={(v) => setReasoning(v < 0 ? "off" : stops[v])}
+          onValueChange={(v) => onChange(v < 0 ? "off" : stops[v])}
         />
         <div className="mt-2.5 flex justify-between text-[9px] font-mono dark:text-[#4a4a4a] light:text-[#9a9a9a]">
           <span className={cn(idx < 0 && "text-[#ffb400]")}>Off</span>
@@ -79,7 +84,7 @@ export function ReasoningEffort() {
           <button
             key={opt}
             type="button"
-            onClick={() => setReasoning(opt)}
+            onClick={() => onChange(opt)}
             className={cn(
               "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left font-mono text-[12px] transition-colors",
               sel

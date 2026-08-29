@@ -31,6 +31,7 @@ import { CitationLink } from "./inline-citation";
 import { BarChart, parseChartSpec } from "./chart";
 import { DataTable, parseCsvTable } from "./data-table";
 import { SpecSheet, parseSpecSheet } from "./spec-sheet";
+import { CodeDiff, parseDiff } from "./code-diff";
 import { useShikiHtml } from "./primitives/shiki-highlighter";
 
 function sanitizeSvg(code: string): string {
@@ -244,6 +245,21 @@ function PreBlock({
     } else {
       const spec = parseSpecSheet(text);
       if (spec) return <SpecSheet title={spec.title} fields={spec.fields} />;
+    }
+  }
+
+  // Diff fences: plain code while streaming; settled render becomes CodeDiff
+  // and falls back to the code shell when nothing diff-like parsed.
+  if (lang === "diff" || lang === "patch") {
+    if (!streaming) {
+      const diff = parseDiff(text);
+      if (diff) return <CodeDiff filename={diff.filename} lines={diff.lines} />;
+    } else {
+      return (
+        <PreShell lang={lang} copyText={text} longBlock={longBlock}>
+          <CodeBody lang={lang} text={text} streaming />
+        </PreShell>
+      );
     }
   }
 
