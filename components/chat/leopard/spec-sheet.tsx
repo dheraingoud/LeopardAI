@@ -1,68 +1,75 @@
 "use client";
 
-import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "./surfaces";
-import { take } from "./range";
 
-export interface SpecRow {
+// Leopard fork of the kit SpecSheet — settled ```spec fences carry JSON
+// { title?, fields: {label, value}[] } and render as a label/value sheet.
+// StreamingText routes here only after the block settles; bad JSON falls
+// back to a plain code block.
+
+export interface SpecField {
   label: string;
   value: string;
-  emphasis?: boolean;
+}
+
+export interface SpecSheetData {
+  title?: string;
+  fields: SpecField[];
+}
+
+export function parseSpecSheet(code: string): SpecSheetData | null {
+  try {
+    const raw = JSON.parse(code) as Partial<SpecSheetData>;
+    if (!raw || !Array.isArray(raw.fields) || raw.fields.length === 0) {
+      return null;
+    }
+    const fields = raw.fields.filter(
+      (f): f is SpecField =>
+        !!f &&
+        typeof (f as SpecField).label === "string" &&
+        typeof (f as SpecField).value === "string",
+    );
+    if (fields.length === 0) return null;
+    return {
+      title: typeof raw.title === "string" ? raw.title : undefined,
+      fields,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function SpecSheet({
   title,
-  subtitle,
-  rows,
-  visibleCount,
+  fields,
   className,
-  ...props
-}: Omit<
-  ComponentProps<"div">,
-  "children" | "title" | "subtitle" | "rows" | "visibleCount"
-> & {
-  title: string;
-  subtitle?: string;
-  rows: readonly SpecRow[];
-  visibleCount: number;
+}: {
+  title?: string;
+  fields: readonly SpecField[];
+  className?: string;
 }) {
   return (
     <div
       data-slot="spec-sheet"
       className={cn(
         paper,
-        "flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4",
+        "my-3 flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4",
         className,
       )}
-
-      {...props}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[13.5px] font-medium">{title}</span>
-        {subtitle && (
-          <span className="text-foreground/45 text-xs">{subtitle}</span>
-        )}
-      </div>
-
+      {title && <span className="text-[13.5px] font-medium">{title}</span>}
       <div className="flex flex-col">
-        {take(rows, visibleCount).map((row) => (
+        {fields.map((f, i) => (
           <div
-            key={row.label}
-            className="border-foreground/[0.06] fade-in animate-in fill-mode-both flex items-baseline gap-3 border-t py-1.5 duration-300 first:border-t-0 first:pt-0"
+            key={`${f.label}-${i}`}
+            className="border-foreground/[0.06] flex items-baseline gap-3 border-t py-1.5 first:border-t-0 first:pt-0"
           >
-            <span className={cn(mono, "text-foreground/35 w-24 shrink-0")}>
-              {row.label}
+            <span className={cn(mono, "w-24 shrink-0 text-foreground/35")}>
+              {f.label}
             </span>
-            <span
-              className={cn(
-                "min-w-0 flex-1 text-end text-[13px] tabular-nums",
-                row.emphasis
-                  ? "text-foreground/95 font-medium"
-                  : "text-foreground/70",
-              )}
-            >
-              {row.value}
+            <span className="min-w-0 flex-1 text-end text-[13px] tabular-nums text-foreground/75">
+              {f.value}
             </span>
           </div>
         ))}

@@ -3,7 +3,11 @@
 import type { ComponentProps } from "react";
 import { CheckIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mono, paper } from "./surfaces";
+import { live, mono, paper } from "./surfaces";
+
+// ResearchReport fork. Extends upstream with optional `children` rendered
+// under the section ledger — the research panel slots the finished markdown
+// body there.
 
 export type SectionState = "pending" | "writing" | "done";
 
@@ -20,10 +24,11 @@ export function ResearchReport({
   sections,
   sourcesRead,
   className,
+  children,
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "title" | "sections" | "sourcesRead"
+  "title" | "sections" | "sourcesRead"
 > & {
   title: string;
   sections: readonly ReportSection[];
@@ -60,7 +65,7 @@ export function ResearchReport({
                 {section.state === "done" ? (
                   <CheckIcon className="text-foreground/35 size-3" />
                 ) : section.state === "writing" ? (
-                  <Loader2Icon className="size-3 animate-spin dark:text-[#ffb400] light:text-[#d49600] motion-reduce:animate-none dark:dark:text-[#ffb400] light:text-[#d49600]" />
+                  <Loader2Icon className={cn(live, "size-3 animate-spin motion-reduce:animate-none")} />
                 ) : (
                   <span
                     aria-hidden
@@ -92,6 +97,10 @@ export function ResearchReport({
           </div>
         ))}
       </div>
+
+      {children && (
+        <div className="border-foreground/[0.06] border-t pt-3">{children}</div>
+      )}
     </div>
   );
 }

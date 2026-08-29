@@ -724,6 +724,7 @@ export async function POST(request: Request) {
         instructions: systemPrompt({
           requestHints: {},
           supportsTools,
+          availableTools: Object.keys(tools),
           context: promptContext,
           memories,
           // Client-selected skill bodies (permanent library + local "+" skills).
