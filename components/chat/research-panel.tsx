@@ -23,6 +23,8 @@ import { JobProgress } from "./leopard/job-progress";
 import { ResearchReport } from "./leopard/research-report";
 import { RetrievalChunks } from "./leopard/retrieval-chunks";
 import { Timeline } from "./leopard/timeline";
+import { AgentStatus } from "./leopard/agent-status";
+import { AgentPlan } from "./leopard/agent-plan";
 
 interface Job {
   id: string;
@@ -276,6 +278,12 @@ export function ResearchPanel() {
                   />
                   {selectedJob && isActive(selectedJob.status) && (
                     <>
+                      <AgentStatus
+                        className="mx-2 mb-2 w-fit"
+                        state="working"
+                        label={selectedJob.query}
+                        elapsed={`${selectedJob.step}/${selectedJob.totalSteps}`}
+                      />
                       <Timeline
                         className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
                         events={jobTimeline(selectedJob)}
@@ -302,6 +310,11 @@ export function ResearchPanel() {
                       sections={jobSections(selectedJob)}
                       sourcesRead={selectedJob.steps.length}
                     >
+                      <AgentPlan
+                        className="mb-2 max-w-none"
+                        steps={selectedJob.steps}
+                        activeIndex={selectedJob.totalSteps}
+                      />
                       <div className="max-h-64 overflow-y-auto [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {selectedJob.report}

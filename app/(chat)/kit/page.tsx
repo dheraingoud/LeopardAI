@@ -9,6 +9,11 @@ import { ElicitationForm } from "@/components/chat/leopard/elicitation-form";
 import { CheckpointHistory } from "@/components/chat/leopard/checkpoint-history";
 import { MessageTiming } from "@/components/chat/leopard/message-timing";
 import { MessageBranches } from "@/components/chat/leopard/message-branches";
+import { AgentCard } from "@/components/chat/leopard/agent-card";
+import { AgentHandoff } from "@/components/chat/leopard/agent-handoff";
+import { SubagentList } from "@/components/chat/leopard/subagent-list";
+import { FlowGraph } from "@/components/chat/leopard/flow-graph";
+import { CanvasSplit, CanvasSplitThread, CanvasSplitDocument } from "@/components/chat/leopard/canvas-split";
 import { TraceWaterfall } from "@/components/chat/leopard/trace-waterfall";
 import { ActivityGraph } from "@/components/chat/leopard/activity-graph";
 import { TodoList } from "@/components/chat/leopard/todo-list";
@@ -214,6 +219,55 @@ export default function KitGalleryPage() {
             sandboxed frame mounts here
           </div>
         </WebPreview>
+      </Group>
+
+      <Group label="Agents & flow">
+        <AgentCard
+          name="research-worker"
+          description="Detached multi-source research agent"
+          provider="leopard"
+          version="1.0"
+          model="nemotron-lightning"
+          endpoint="/api/research"
+          skills={[{ name: "search", description: "Web search via Tavily" }]}
+          connected
+          onConnect={() => {}}
+        />
+        <AgentHandoff
+          from="chat"
+          to="research-worker"
+          reason="User asked for a deep dive"
+          carried={["query", "depth"]}
+          settled
+        />
+        <SubagentList
+          agents={[
+            { name: "planner", model: "nemotron" },
+            { name: "fetcher", model: "nemotron" },
+          ]}
+          completedCount={1}
+          progress={[1, 0.5]}
+          showSummary
+          summaryAgent={{ name: "writer", model: "nemotron" }}
+        />
+        <FlowGraph
+          visibleCount={4}
+          nodes={[
+            { id: "plan", label: "plan", column: 0, row: 0, state: "done" },
+            { id: "search", label: "search", column: 1, row: 0, state: "done" },
+            { id: "read", label: "read", column: 2, row: 0, state: "active" },
+            { id: "write", label: "write", column: 3, row: 0, state: "pending" },
+          ]}
+          edges={[
+            { from: "plan", to: "search" },
+            { from: "search", to: "read" },
+            { from: "read", to: "write" },
+          ]}
+        />
+        <CanvasSplit>
+          <CanvasSplitThread>thread column</CanvasSplitThread>
+          <CanvasSplitDocument>document canvas</CanvasSplitDocument>
+        </CanvasSplit>
       </Group>
     </div>
   );
