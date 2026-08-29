@@ -44,6 +44,8 @@ import { RegenerateMenu, type RegenerateOption } from "./leopard/regenerate-menu
 import { ReadAloudButton } from "./leopard/read-aloud";
 import { QuoteReply } from "./leopard/quote-reply";
 import { FeedbackDialog } from "./leopard/feedback-dialog";
+import { MessageBranches } from "./leopard/message-branches";
+import { MessageTiming } from "./leopard/message-timing";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -574,6 +576,10 @@ export const PreviewMessage = memo(function PreviewMessage({
   const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
     feedbackStore(message?.id ?? ""),
   );
+  // Regen history (session-scoped, from use-active-chat) + stream duration.
+  const siblings = isUser ? [] : chat.getSiblings(message.id);
+  const [branchIdx, setBranchIdx] = useState<number | null>(null); // null = latest
+  const timingMs = isUser ? undefined : chat.getTiming(message.id);
   // Reasoning panel open overrides — keyed by segment index. Default is
   // derived (`live`): completed cards default collapsed, live ones open; an
   // explicit click wins. (Keeps the stale-card fix: no mount-time open state.)
@@ -1215,7 +1221,32 @@ export const PreviewMessage = memo(function PreviewMessage({
                   }
                 />
                 <ReadAloudButton text={renderText} />
+                {/* Total stream time for this reply (recorded by use-active-chat). */}
+                {timingMs !== undefined && (
+                  <MessageTiming
+                    className="ml-2"
+                    stats={[
+                      {
+                        label: "total",
+                        value:
+                          timingMs >= 1000
+                            ? `${(timingMs / 1000).toFixed(1)}s`
+                            : `${timingMs}ms`,
+                      },
+                    ]}
+                  />
+                )}
               </div>
+              {/* Regen history: prior replies to the same prompt, browsable.
+                  Latest (visible above) is the last variant. */}
+              {siblings.length > 0 && (
+                <MessageBranches
+                  className="mt-2"
+                  variants={[...siblings, renderText]}
+                  index={branchIdx ?? siblings.length}
+                  onIndexChange={setBranchIdx}
+                />
+              )}
               {feedbackOpen && (
                 <FeedbackDialog
                   className="mt-2"

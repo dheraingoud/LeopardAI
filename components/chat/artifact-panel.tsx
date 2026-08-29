@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -10,26 +10,14 @@ import { api } from "@/convex/_generated/api";
 import { useActiveChat, type UIArtifact } from "@/hooks/use-active-chat";
 import { Surface, useReducedFx } from "@/components/ui/surface";
 import { DocumentReference } from "@/components/chat/leopard/document-reference";
+import { FileTree, type FileTreeNode } from "@/components/chat/leopard/file-tree";
+import { WebPreview } from "@/components/chat/leopard/web-preview";
 import type { ArtifactKind } from "@/lib/types";
 
-/**
- * ArtifactPanel — Φ6 minimal text-only side panel. Slides in from the right
- * when a `createDocument` tool call streams `data-*` parts (see
- * use-active-chat.onData). Renders the streamed markdown body live; persists on
- * `data-finish` via api.documents.save (handled in the hook).
- *
- * Scope (this increment): text kind only. Code/sheet/image kinds show a
- * "soon" placeholder — their handlers + editors (CodeMirror / react-data-grid /
- * image) and the edit/update/suggestions tools ship in the next increment.
- * Version-nav, toolbar, diff view, and suggestions are also deferred (they
- * depend on the deferred tools). This panel proves the stream → assemble →
- * persist → render loop end-to-end for the text case.
- *
- * Theme: amber/solid, leopard's existing dark:/light: variants (the
- * Zustand theme store + next-themes swap is Phase 7 — these classes already
- * resolve in Phase 5's setup).
- */
-
+// ArtifactPanel — side panel for createDocument artifacts. Text renders as
+// live markdown; code docs whose content is HTML/SVG render in a sandboxed
+// WebPreview iframe. When the chat holds ≥2 documents (or the open title is
+// path-like), a FileTree of the chat's documents sits under the header.
 const KIND_LABEL: Record<ArtifactKind, string> = {
   text: "Document",
   code: "Code",
@@ -38,17 +26,49 @@ const KIND_LABEL: Record<ArtifactKind, string> = {
   file: "File",
 };
 
-export function ArtifactPanel() {
-  const { artifact, setArtifact } = useActiveChat();
+type DocPart = {
+  type: string;
+  state?: string;
+  output?: { id: string; title: string; kind: ArtifactKind };
+};
 
-  // Rehydrate reopened artifacts from Convex. A past doc is reopened from a
-  // DocumentCard click in the transcript (see message.tsx DocumentCard),
-  // which seeds metadata + content:"" + status:"idle". This query fetches
-  // the persisted content; the effect merges it into the panel state. It is
-  // skipped during live streams (status "streaming") — those populate content
-  // via the data-*Delta deltas in use-active-chat.onData — and skipped once
-  // content is present, so it never clobbers an in-flight or already-loaded
-  // doc.
+function isPathLike(title: string): boolean {
+  return title.includes("/") || title.includes("\\");
+}
+
+function isHtmlOrSvg(title: string, content: string): boolean {
+  if (/\.(html?|svg)$/i.test(title)) return true;
+  const head = content.trimStart().slice(0, 200).toLowerCase();
+  return head.startsWith("<!doctype html") || head.startsWith("<html") || head.startsWith("<svg");
+}
+
+// Build tree nodes from document titles, splitting path-like titles into
+// folder segments. Folders sort before files; input order kept otherwise.
+function buildTreeNodes(docs: { id: string; title: string }[]): FileTreeNode[] {
+  const nodes: FileTreeNode[] = [];
+  const folders = new Set<string>();
+  for (const doc of docs) {
+    const segs = doc.title.split(/[\\/]/).filter(Boolean);
+    segs.forEach((seg, i) => {
+      const path = segs.slice(0, i + 1).join("/");
+      const isFile = i === segs.length - 1;
+      if (isFile) {
+        nodes.push({ path: `${path}#${doc.id}`, name: seg, depth: i, kind: "file" });
+      } else if (!folders.has(path)) {
+        folders.add(path);
+        nodes.push({ path, name: seg, depth: i, kind: "folder" });
+      }
+    });
+  }
+  return nodes;
+}
+
+export function ArtifactPanel() {
+  const { artifact, setArtifact, messages } = useActiveChat();
+
+  // Rehydrate reopened artifacts from Convex (seeded content:"" + status:"idle"
+  // by the DocumentCard click in message.tsx). Skipped during live streams and
+  // once content is present.
   const reopenId =
     artifact?.status === "idle" && !artifact.content
       ? artifact.documentId
@@ -67,15 +87,34 @@ export function ArtifactPanel() {
     }
   }, [fetched, artifact, setArtifact]);
 
+  // Documents created in this chat, from tool-createDocument parts.
+  const chatDocs = useMemo(() => {
+    const seen = new Set<string>();
+    const docs: { id: string; title: string; kind: ArtifactKind }[] = [];
+    for (const m of messages) {
+      for (const p of m.parts as DocPart[]) {
+        if (p.type === "tool-createDocument" && p.output && !seen.has(p.output.id)) {
+          seen.add(p.output.id);
+          docs.push(p.output);
+        }
+      }
+    }
+    return docs;
+  }, [messages]);
+
   const open = artifact?.isVisible === true;
 
   const handleClose = () => {
-    // Drop state entirely on close — the doc was persisted on data-finish;
-    // re-opening rides a new tool call. Keeps the panel stateless across closes.
     setArtifact(null);
   };
 
-  // Reduced fx (Safari / prefers-reduced-motion): plain opaque sheet, no fx.
+  const showTree =
+    !!artifact && (chatDocs.length >= 2 || isPathLike(artifact.title));
+  const treeNodes = useMemo(
+    () => (showTree ? buildTreeNodes(chatDocs) : []),
+    [showTree, chatDocs],
+  );
+
   const reduced = useReducedFx();
 
   return (
@@ -102,6 +141,31 @@ export function ArtifactPanel() {
             }`}
           >
             <PanelHeader artifact={artifact} onClose={handleClose} />
+            {showTree && (
+              <div className="shrink-0 border-b px-3 py-2 dark:border-white/[0.08] light:border-black/[0.08]">
+                <FileTree
+                  className="max-w-none rounded-xl p-2"
+                  nodes={treeNodes}
+                  visibleCount={8}
+                  label="documents"
+                  activePath={`${artifact.title.split(/[\\/]/).filter(Boolean).join("/")}#${artifact.documentId}`}
+                  onFileClick={(node) => {
+                    const id = node.path.split("#").pop()!;
+                    const doc = chatDocs.find((d) => d.id === id);
+                    if (doc && doc.id !== artifact.documentId) {
+                      setArtifact({
+                        documentId: doc.id,
+                        title: doc.title,
+                        kind: doc.kind,
+                        content: "",
+                        status: "idle",
+                        isVisible: true,
+                      });
+                    }
+                  }}
+                />
+              </div>
+            )}
             <PanelBody artifact={artifact} />
           </motion.aside>
         </Surface>
@@ -143,10 +207,37 @@ function PanelHeader({
 
 function PanelBody({ artifact }: { artifact: UIArtifact }) {
   const isStreaming = artifact.status === "streaming";
+  const [previewTick, setPreviewTick] = useState(0);
 
-  // Code/sheet/image handlers ship in the next increment; surface a clear
-  // placeholder so the panel isn't a blank screen if the model emits one of
-  // those kinds before the matching handler+editor land.
+  // HTML/SVG code docs render in a sandboxed iframe (no scripts) under
+  // WebPreview chrome; other non-text kinds keep the next-phase placeholder.
+  if (artifact.kind === "code" && isHtmlOrSvg(artifact.title, artifact.content)) {
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        <WebPreview
+          className="max-w-none h-full"
+          origin={artifact.title || "preview"}
+          loading={isStreaming && !artifact.content}
+          onReload={() => setPreviewTick((t) => t + 1)}
+          onOpenExternal={() => {
+            const blob = new Blob([artifact.content], {
+              type: artifact.title.endsWith(".svg") ? "image/svg+xml" : "text/html",
+            });
+            window.open(URL.createObjectURL(blob), "_blank", "noopener");
+          }}
+        >
+          <iframe
+            key={previewTick}
+            title={artifact.title || "preview"}
+            sandbox=""
+            srcDoc={artifact.content}
+            className="h-[420px] w-full bg-white"
+          />
+        </WebPreview>
+      </div>
+    );
+  }
+
   if (artifact.kind !== "text") {
     return (
       <div className="flex-1 flex items-center justify-center px-8 text-center">
@@ -163,8 +254,6 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
     );
   }
 
-  // Text artifact: stream the markdown body live. Empty state while the model
-  // is still warming up (content not yet flowing).
   if (!artifact.content && isStreaming) {
     return (
       <div className="flex-1 flex items-center justify-center px-8">

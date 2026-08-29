@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { createHighlighter, type Highlighter } from "shiki";
 
 // Shared shiki singleton (dual-theme, light-dark driven by global CSS) plus the
-// settled-only highlight hook. streaming-text.tsx re-bases on this; the gallery
-// primitives (syntax-highlighter, markdown-text) consume it directly.
+// settled-only highlight hook. streaming-text.tsx re-bases on this.
 const SHIKI_LANGS = [
   "plaintext", "javascript", "typescript", "tsx", "jsx", "json", "jsonc",
   "css", "html", "markdown", "mdx", "yaml", "python", "bash", "shell",

@@ -13,9 +13,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getActiveModels } from "@/lib/ai/models";
 import { toast } from "sonner";
 import { useConvex } from "convex/react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
 import { ReasoningEffort } from "@/components/chat/leopard/reasoning-effort";
+import { ComparisonCard } from "@/components/chat/leopard/comparison-card";
+import { RecommendationCard } from "@/components/chat/leopard/recommendation-card";
+import { CheckpointHistory } from "@/components/chat/leopard/checkpoint-history";
+import { ScheduleCard } from "@/components/chat/leopard/schedule-card";
+
+/** Next daily 04:21 UTC run of the retention cron (convex/crons.ts). */
+function nextRetentionRun(): string {
+  const d = new Date();
+  d.setUTCHours(4, 21, 0, 0);
+  if (d.getTime() <= Date.now()) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
 
 function SettingRow({ label, description, children }: {
   label: string; description?: string; children: React.ReactNode;
@@ -44,6 +57,35 @@ export default function SettingsPage() {
   // Live NIM registry (kinds: text/vlm), not the stale hardcoded @/types list.
   const liveModels = getActiveModels().filter((m) => m.kind !== "image" && m.kind !== "video");
   const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const updateSettings = useMutation(api.users.updateSettings);
+  const retention = useQuery(api.retention.status);
+  // Models-tab Compare: two registry picks → trait table + faster-tier pick.
+  const [cmpA, setCmpA] = useState<string | null>(null);
+  const [cmpB, setCmpB] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const modelA = liveModels.find((m) => m.id === (cmpA ?? liveModels[0]?.id));
+  const modelB = liveModels.find((m) => m.id === (cmpB ?? liveModels[1]?.id));
+  const recommended = useMemo(() => {
+    if (!modelA || !modelB) return undefined;
+    if (modelA.speedTier !== modelB.speedTier)
+      return modelA.speedTier === "fast" ? modelA : modelB;
+    return modelA.supportsTools && !modelB.supportsTools ? modelA : modelB;
+  }, [modelA, modelB]);
+  // Chats as restorable checkpoints (Data tab): open = "restore" that session.
+  const checkpoints = useMemo(
+    () =>
+      (chats ?? []).map((c) => ({
+        id: String(c._id),
+        label: c.title ?? "Untitled",
+        at: new Date(c.updatedAt).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+        meta: c.shared ? "shared" : undefined,
+      })),
+    [chats],
+  );
 
   const handleDeleteAll = async () => {
     if (!chats || chats.length === 0 || !userId) return;
@@ -180,6 +222,58 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+            {modelA && modelB && recommended && (
+              <div className="glass-card rounded-2xl p-6 mt-4">
+                <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Compare</h4>
+                <div className="flex gap-2 mb-3">
+                  {([["a", modelA.id, setCmpA], ["b", modelB.id, setCmpB]] as const).map(([slot, value, setter]) => (
+                    <select
+                      key={slot}
+                      value={value}
+                      onChange={(e) => { setter(e.target.value); setAccepted(false); }}
+                      className="flex-1 min-w-0 rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] px-2 py-1.5 text-xs font-mono dark:text-[#d4d4d4] light:text-[#404040]"
+                      aria-label={`Compare model ${slot.toUpperCase()}`}
+                    >
+                      {liveModels.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
+                <ComparisonCard
+                  className="max-w-none mb-3"
+                  traitLabels={["Fast", "Vision", "Tools"]}
+                  options={[modelA, modelB].map((m) => ({
+                    id: m.id,
+                    name: m.name,
+                    headline: m.description,
+                    traits: [
+                      m.speedTier === "fast" ? "fast" : false,
+                      m.supportsVision ? "vision" : false,
+                      m.supportsTools ? "tools" : false,
+                    ],
+                  }))}
+                  recommendedId={recommended.id}
+                  reason={`${recommended.name} is the ${recommended.speedTier} tier here — lower latency for interactive chat.`}
+                />
+                <RecommendationCard
+                  className="max-w-none"
+                  state={accepted ? "accepted" : "idle"}
+                  question={`Use ${recommended.name} for chat?`}
+                  confidenceLabel={recommended.speedTier}
+                  acceptedLabel="Default model updated"
+                  onAccept={() => {
+                    if (!user) return;
+                    void updateSettings({ clerkId: user.id, defaultModel: recommended.id })
+                      .then(() => { setAccepted(true); toast.success("Default model updated"); })
+                      .catch(() => toast.error("Failed to update model"));
+                  }}
+                  onAlternatives={() => { setCmpA(modelB.id); setCmpB(modelA.id); setAccepted(false); }}
+                >
+                  {recommended.name} is the {recommended.speedTier} tier of this pair{recommended.supportsVision ? " with vision" : ""}{recommended.supportsTools ? " and tool use" : ""}.
+                </RecommendationCard>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="data">
@@ -196,6 +290,30 @@ export default function SettingsPage() {
                 </Button>
               </SettingRow>
             </div>
+            {/* Chats as restorable checkpoints — "Restore" opens that chat. */}
+            {checkpoints.length > 0 && (
+              <CheckpointHistory
+                className="mt-4 max-w-none"
+                checkpoints={checkpoints}
+                currentId={checkpoints[0]?.id ?? ""}
+                onRestore={(id) => router.push(`/chat/${id}`)}
+              />
+            )}
+            {/* The one real scheduled job: convex/crons.ts daily retention sweep
+                (fail-closed — armed only via LEOPARD_RETENTION_DAYS). */}
+            <ScheduleCard
+              className="mt-4 max-w-none"
+              name="Retention sweep"
+              cadence="daily · 04:21 UTC"
+              nextRun={nextRetentionRun()}
+              enabled={(retention?.days ?? 0) > 0}
+              history={[]}
+            />
+            <p className="mt-2 text-[10px] font-mono dark:text-[#404040] light:text-[#a3a3a3]">
+              {(retention?.days ?? 0) > 0
+                ? `Deletes chats older than ${retention!.days} days.`
+                : "Dry run — no retention window is set, nothing is deleted."}
+            </p>
           </TabsContent>
 
           <TabsContent value="danger">

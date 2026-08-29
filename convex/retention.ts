@@ -13,7 +13,7 @@
 // cron registered in `crons.ts` calls `sweep`, so arming the env var is the
 // single switch that turns the sweep on; until then the cron is harmless.
 
-import { mutation, type MutationCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { type Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
@@ -98,4 +98,12 @@ export const sweep = mutation({
     }
     return { dryRun: false, days, deleted, scanned };
   },
+});
+
+/** Public read of the retention-cron armed state, for the settings ScheduleCard.
+ *  0 days = fail-closed dry run (the cron runs daily but deletes nothing). */
+export const status = query({
+  args: {},
+  returns: v.object({ days: v.number() }),
+  handler: async () => ({ days: retentionDays() }),
 });

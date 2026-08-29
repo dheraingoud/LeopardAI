@@ -19,6 +19,7 @@ import { getSlashMatches, SlashMenu, type SlashMatch } from "../slash-menu";
 import { MentionMenu, useRecentChatTitles } from "../mention-menu";
 import { MessageAttachmentChip, type PendingAttachment } from "./message-attachment";
 import { useMessageQueue } from "./message-queue";
+import { useDraftRestore } from "./draft-restore";
 import {
   Popover,
   PopoverContent,
@@ -223,8 +224,13 @@ function ComposerAttachMenu({
 }
 
 export function Composer() {
-  const { sendMessage, status, stopGeneration, currentModelId } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId, chatMeta } = useActiveChat();
   const [input, setInput] = useState("");
+  // Kit draft-restore: unsent text survives reloads, keyed per chat.
+  const { draft, setDraft } = useDraftRestore(chatMeta?._id ?? "draft");
+  useEffect(() => {
+    if (draft) setInput((cur) => cur || draft);
+  }, [draft]);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -325,6 +331,7 @@ export function Composer() {
       if (text) {
         enqueue(text);
         setInput("");
+        setDraft("");
       }
       return;
     }
@@ -338,6 +345,7 @@ export function Composer() {
     const parts = [...fileParts, ...(text ? [{ type: "text" as const, text }] : [])];
     setInput("");
     setAttachments([]);
+    setDraft("");
     void sendMessage({ parts } as never);
   };
 
@@ -437,7 +445,7 @@ export function Composer() {
               <TextareaAutosize
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { setInput(e.target.value); setDraft(e.target.value); }}
                 onKeyDown={handleKeyDown}
                 placeholder="Message Leopard…"
                 aria-label="Message"
