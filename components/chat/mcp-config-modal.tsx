@@ -21,7 +21,7 @@ type Props = {
 };
 
 /**
- * McpConfigModal — the "+ → mcp servers" overlay. A centered liquid-glass
+ * McpConfigModal — the "+ → mcp servers" overlay. A centered solid
  * card covering the upper screen at 70% width: lists configured servers, lets
  * you add a stdio/http server and toggle it. Wired to localStorage now;
  * transport handshake arrives with the SDK integration. Esc / backdrop / X

@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 // Leopard fork of assistant-ui's elements/surfaces.tsx — the ONE theme seam for
-// the whole copied kit. aui recipes mapped to leopard's amber/liquid-glass
+// the whole copied kit. aui recipes mapped to leopard's amber/solid
 // tokens; ShimmerLabel/SwapLabel logic is verbatim from upstream.
 
 // Glass card — diagonal wash + hairline + inset top highlight + blur.

@@ -281,9 +281,7 @@ export function MultimodalInput() {
               onSelect={selectMention}
             />
           )}
-          {/* Solid field surface (was GlassSurface) — user directive
-              2026-08-26: the composer is an opaque aui-style field; liquid
-              glass survives only on the reasoning-effort slider. */}
+          {/* Solid field surface (DESIGN.md): opaque aui-style composer. */}
           <div className="rounded-[1.375rem] dark:bg-[#141414] light:bg-white border dark:border-white/10 light:border-black/10 shadow-[0_8px_30px_rgba(0,0,0,0.35)] light:shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
             <div className="relative flex items-end gap-1.5 px-2 py-2 h-full w-full">
               <PlusMenu
