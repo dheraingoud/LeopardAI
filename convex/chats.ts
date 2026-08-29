@@ -77,6 +77,27 @@ export const create = mutation({
   },
 });
 
+/**
+ * Server-side title write for the detached-generation path. The route emits a
+ * `data-chat-title` hint AND calls this directly (draft handoff navigates
+ * mid-stream, so the client hint can die with the abandoned response). Only
+ * stamps when the chat still has its placeholder title — a user rename must
+ * never be clobbered by a late-arriving generated title.
+ */
+export const setTitleIfUntitled = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), title: v.string() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    const chat = await ctx.db.get(args.chatId);
+    const current = (chat?.title ?? "").trim();
+    if (current && current !== "New Chat") return;
+    await ctx.db.patch(args.chatId, {
+      title: args.title,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const updateTitle = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), title: v.string() },
   handler: async (ctx, args) => {
