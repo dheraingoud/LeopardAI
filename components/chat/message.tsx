@@ -29,7 +29,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamingText } from "./leopard/streaming-text";
 import type { ReasoningLevel } from "@/lib/nim";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
-import { ThinkingIndicator } from "./leopard/thinking-indicator";
+import { ThinkingBubble, ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
 import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
 import { ToolError } from "./leopard/tool-error";
@@ -38,7 +38,7 @@ import { ArtifactCard } from "./leopard/artifact-card";
 import { Sources, type SourceItem } from "./leopard/sources";
 import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
 import { EditMessage } from "./leopard/edit-message";
-import { RegenerateMenu } from "./leopard/regenerate-menu";
+import { RegenerateMenu, type RegenerateOption } from "./leopard/regenerate-menu";
 import { ReadAloudButton } from "./leopard/read-aloud";
 import { QuoteReply } from "./leopard/quote-reply";
 import { FeedbackDialog } from "./leopard/feedback-dialog";
@@ -456,7 +456,7 @@ type ToolSegShape = {
 
 /**
  * ToolGroupSeg — a burst of consecutive tool calls as ONE collapsible group
- * (aui ToolGroup). Auto-opens while any call is running, auto-collapses when
+ * (see leopard/tool-group). Auto-opens while any call is running, auto-collapses when
  * the burst settles; a manual toggle sticks. Expanded shows the full
  * per-tool ToolCards, so request/result content stays accessible.
  */
@@ -824,7 +824,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         out.push(cur);
       }
     }
-    // aui ToolGroup (TODO Task 5): consecutive non-ask tool segments merge
+    // ToolGroup (TODO Task 5): consecutive non-ask tool segments merge
     // into ONE collapsible group (search→fetch bursts render as a single
     // "2 tool calls" row, expanding to the full per-tool cards). A lone tool
     // stays a single card; ask (approval) segments never group — the
@@ -918,7 +918,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   };
 
   // Registry text models for the RegenerateMenu "Retry with…" list.
-  const regenOptions = useMemo(
+  const regenOptions = useMemo<RegenerateOption[]>(
     () =>
       getActiveModels()
         .filter((m) => m.kind === "text" && !m.unavailable)
@@ -1264,7 +1264,7 @@ export function ThinkingMessage() {
       className="max-w-3xl mx-auto"
     >
       <div className="flex items-start gap-3 py-5">
-        <ThinkingIndicator className="max-w-none" label="Working on it…" />
+        <ThinkingBubble className="max-w-none" label="Working on it…" />
      </div>
    </motion.div>
   );
