@@ -12,11 +12,13 @@ import { floating, iconSwap, iconSwapIn, iconSwapOut, inkButton, mono } from "..
 export type AssistantModalProps = Omit<ComponentProps<"div">, "children"> & {
   children: ReactNode;
   title?: string;
+  unread?: number;
 };
 
 export function AssistantModal({
   children,
   title = "Help",
+  unread = 0,
   className,
   ...props
 }: AssistantModalProps) {
@@ -61,13 +63,23 @@ export function AssistantModal({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           inkButton,
-          "size-11 rounded-full transition-transform duration-150 ease-out hover:scale-105 active:scale-96 motion-reduce:transition-none",
+          "relative size-11 rounded-full transition-transform duration-150 ease-out hover:scale-105 active:scale-96 motion-reduce:transition-none",
         )}
       >
         <span className="grid">
           <CircleHelpIcon className={cn("size-5", iconSwap, open ? iconSwapOut : iconSwapIn)} />
           <ChevronDownIcon className={cn("size-5", iconSwap, open ? iconSwapIn : iconSwapOut)} />
         </span>
+        {unread > 0 && !open && (
+          <span
+            className={cn(
+              mono,
+              "bg-background text-foreground absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full tabular-nums",
+            )}
+          >
+            {unread}
+          </span>
+        )}
       </button>
     </div>
   );

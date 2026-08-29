@@ -114,6 +114,11 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
    * live-mirror resurrects them and the edited resend duplicates the old
    * bubble), then truncates local state so the resend starts clean. */
   editMessage: (messageId: string) => void;
+  /** Prior response texts for the turn this assistant message answers
+   * (session-scoped regen history; the server rows are deleted on regen). */
+  getSiblings: (messageId: string) => string[];
+  /** Submit→ready stream duration (ms) for an assistant message, if recorded. */
+  getTiming: (messageId: string) => number | undefined;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -253,6 +258,14 @@ export function ActiveChatProvider({
   // Ref keeps the stable onData/persist closures reading the latest value; the
   // adoption itself runs in the live-mirror effect below (review M3).
   const serverAssistantIdRef = useRef<string | null>(null);
+
+  // Regen history: prior assistant texts keyed by the PRECEDING USER message id
+  // (regen mints a new assistant id, so keying by assistant id would orphan the
+  // history). Session-scoped — Convex keeps only the latest reply by design.
+  const [siblings, setSiblings] = useState<Record<string, string[]>>({});
+  // Submit→ready duration per assistant message id (keyed by the server id when
+  // known — the mirror adopts that id, so the lookup survives the rename).
+  const [timings, setTimings] = useState<Record<string, number>>({});
 
   // ── Φ6: Artifact side-panel state ──────────────────────────────────────────
   // `artifact` is the panel-visible state; the refs below accumulate the
@@ -579,6 +592,30 @@ export function ActiveChatProvider({
     });
   }, [convexMessages, chat.status, chat.setMessages, serverAssistantIdRef.current]);
 
+  // ── Stream timing: submit → ready per assistant reply (MessageTiming). ────
+  const streamStartRef = useRef<number | null>(null);
+  const prevStatusRef = useRef(chat.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = chat.status;
+    if (
+      (chat.status === "submitted" || chat.status === "streaming") &&
+      prev === "ready"
+    ) {
+      streamStartRef.current = performance.now();
+      return;
+    }
+    if (chat.status === "ready" && prev !== "ready" && streamStartRef.current !== null) {
+      const ms = Math.round(performance.now() - streamStartRef.current);
+      streamStartRef.current = null;
+      const last = chat.messages[chat.messages.length - 1];
+      if (last?.role === "assistant") {
+        const key = serverAssistantIdRef.current ?? last.id;
+        setTimings((t) => ({ ...t, [key]: ms }));
+      }
+    }
+  }, [chat.status, chat.messages]);
+
   // ── Persist effect: dedup-by-id; user msgs immediate; assistant on ready ─
   useEffect(() => {
     if (isDraft) return;
@@ -748,6 +785,25 @@ export function ActiveChatProvider({
   // persisted message at-or-after the target's createdAt first, then regen.
   const regenerateMessage = useCallback(
     (messageId: string) => {
+      // Record the outgoing reply as a sibling of its replacement BEFORE the
+      // SDK drops it — keyed by the preceding user message id (see above).
+      const idx = chat.messages.findIndex((m) => m.id === messageId);
+      const outgoing = idx >= 0 ? chat.messages[idx] : undefined;
+      if (outgoing?.role === "assistant") {
+        const text = outgoing.parts
+          .filter((p) => p.type === "text")
+          .map((p) => (p as { text: string }).text)
+          .join("");
+        for (let i = idx - 1; i >= 0; i--) {
+          if (chat.messages[i].role === "user") {
+            const uid2 = chat.messages[i].id;
+            if (text.trim()) {
+              setSiblings((s) => ({ ...s, [uid2]: [...(s[uid2] ?? []), text] }));
+            }
+            break;
+          }
+        }
+      }
       const u = uidRef.current;
       if (!isDraft && u && convexMessages) {
         const target = convexMessages.find((m) => m.id === messageId);
@@ -804,6 +860,26 @@ export function ActiveChatProvider({
     [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
   );
 
+  // Prior reply variants for the turn an assistant message answers (empty when
+  // the message was never regenerated this session).
+  const getSiblings = useCallback(
+    (messageId: string): string[] => {
+      const idx = chat.messages.findIndex((m) => m.id === messageId);
+      if (idx < 0) return [];
+      for (let i = idx - 1; i >= 0; i--) {
+        if (chat.messages[i].role === "user") {
+          return siblings[chat.messages[i].id] ?? [];
+        }
+      }
+      return [];
+    },
+    [chat.messages, siblings],
+  );
+  const getTiming = useCallback(
+    (messageId: string): number | undefined => timings[messageId],
+    [timings],
+  );
+
   const isLoading = isDraft
     ? false
     : chatMeta === undefined || convexMessages === undefined;
@@ -822,6 +898,8 @@ export function ActiveChatProvider({
     isDraft,
     regenerateMessage,
     editMessage,
+    getSiblings,
+    getTiming,
   };
 
   return (

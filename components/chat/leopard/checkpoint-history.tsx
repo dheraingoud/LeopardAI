@@ -9,7 +9,8 @@ export interface Checkpoint {
   id: string;
   label: string;
   at: string;
-  files: number;
+  /** Optional trailing detail (e.g. "shared"). */
+  meta?: string;
 }
 
 export function CheckpointHistory({
@@ -71,7 +72,8 @@ export function CheckpointHistory({
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-[13px]">{checkpoint.label}</span>
               <span className={cn(mono, "text-foreground/30")}>
-                {checkpoint.at} · {checkpoint.files} files
+                {checkpoint.at}
+                {checkpoint.meta ? ` · ${checkpoint.meta}` : ""}
               </span>
             </span>
 
