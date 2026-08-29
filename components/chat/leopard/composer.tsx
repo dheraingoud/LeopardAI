@@ -5,11 +5,11 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ArrowUpIcon, FileIcon, ImageIcon, PlusIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
-import { ModelSelectorCompact } from "../model-selector-compact";
-import { ContextDescriptor } from "../context-descriptor";
-import { MemoryBadge } from "../memory-badge";
+import { ModelPicker } from "./model-picker";
+import { ContextBreakdown } from "./context-breakdown";
+import { MemoryChips } from "./memory-chips";
 import { ResearchPanel } from "../research-panel";
-import { McpConfigModal } from "@/components/chat/mcp-config-modal";
+import { McpServerPanel } from "./mcp-server-panel";
 import { SkillConfigModal } from "@/components/chat/skill-config-modal";
 import { uploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
@@ -196,7 +196,7 @@ function ComposerAttachMenu({
           </div>
         </PopoverContent>
       </Popover>
-      <McpConfigModal open={mcpOpen} onClose={() => setMcpOpen(false)} />
+      <McpServerPanel open={mcpOpen} onClose={() => setMcpOpen(false)} />
       <SkillConfigModal open={skillsOpen} onClose={() => setSkillsOpen(false)} />
       <input
         ref={mediaRef}
@@ -447,14 +447,14 @@ export function Composer() {
                 className="min-h-[36px] max-h-[240px] flex-1 resize-none bg-transparent px-1 py-2 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
               />
               <ComposerActions>
-                <ModelSelectorCompact />
-                <ContextDescriptor
+                <ModelPicker />
+                <ContextBreakdown
                   contextWindow={ctxWin}
                   text={input}
                   attachmentCount={attachments.length}
                   attachments={attachments}
                 />
-                <MemoryBadge />
+                <MemoryChips />
                 <ResearchPanel />
                 {isStreaming ? (
                   <ComposerSend

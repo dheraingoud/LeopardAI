@@ -28,12 +28,13 @@ import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamingText } from "./leopard/streaming-text";
 import type { ReasoningLevel } from "@/lib/nim";
-import { PulseLoader } from "./pulse-loader";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
 import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
 import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
+import { ToolError } from "./leopard/tool-error";
 import { MessageActions } from "./leopard/message-actions";
+import { ArtifactCard } from "./leopard/artifact-card";
 import { Sources, type SourceItem } from "./leopard/sources";
 import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
 
@@ -200,15 +201,16 @@ function DocumentCard({ part }: { part: DocToolPart }) {
   const fetched = useQuery(api.documents.getLatest, docId ? { id: docId } : "skip");
   const content = fetched?.content ?? "";
 
-  // Streaming / not-yet-complete → muted "creating…" state.
+  // Streaming / not-yet-complete → kit ArtifactCard in its generating state.
   if (part.state !== "output-available" || !part.output) {
-    const kind = part.input?.kind ?? "text";
-    const Icon = KIND_ICON[kind] ?? FileText;
     return (
-      <div className="mt-3 inline-flex items-center gap-2 rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] px-3 py-2 text-[12px] font-mono dark:text-[#707070] light:text-[#8a8a8a]">
-        <Icon className="h-3.5 w-3.5 text-[#ffb400]/60" />
-        creating {part.input?.title ?? "document"}…
-      </div>
+      <ArtifactCard
+        className="mt-3"
+        title={part.input?.title ?? "document"}
+        meta=""
+        generating
+        words={0}
+      />
     );
   }
 
@@ -231,24 +233,12 @@ function DocumentCard({ part }: { part: DocToolPart }) {
   return (
     <>
       <div className="group/card mt-3 w-full sm:max-w-sm overflow-hidden rounded-lg border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.02] light:bg-black/[0.015] transition-colors">
-        <button
-          type="button"
+        <ArtifactCard
+          title={title || "Untitled"}
+          meta={`${extLabel} · ${content ? `${(content.length / 1024).toFixed(1)} KB` : "created"}`}
           onClick={handleOpen}
-          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:dark:bg-white/[0.04] hover:light:bg-black/[0.02] transition-colors"
-        >
-          <span className="flex items-center justify-center h-7 w-7 rounded-md dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15 shrink-0">
-            <Icon className="h-3.5 w-3.5 text-[#ffb400]" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[13px] font-body dark:text-[#e5e5e5] light:text-[#262626] truncate">
-              {title || "Untitled"}
-            </span>
-            <span className="block text-[10px] font-mono dark:text-[#606060] light:text-[#8a8a8a] uppercase tracking-tighter">
-              {extLabel} · {content ? `${(content.length / 1024).toFixed(1)} KB` : "created"}
-            </span>
-          </span>
-          <ArrowUpRight className="h-3.5 w-3.5 dark:text-[#505050] light:text-[#8a8a8a] group-hover/card:text-[#ffb400] transition-colors shrink-0" />
-        </button>
+          className="max-w-none rounded-none border-0"
+        />
 
         <div className="flex items-center gap-1 border-t px-2.5 py-1.5 dark:border-white/[0.05] light:border-black/[0.06]">
           <button
@@ -1064,6 +1054,23 @@ export const PreviewMessage = memo(function PreviewMessage({
               // nothing until the decision morphs this segment into the
               // running/result card.
               if (seg.state === "ask") return null;
+              if (seg.state === "error") {
+                const errMsg =
+                  typeof seg.output === "object" && seg.output !== null
+                    ? ((seg.output as { error?: string }).error ?? "Tool call failed")
+                    : "Tool call failed";
+                return (
+                  <ToolError
+                    key={`te-${i}`}
+                    name={seg.toolName}
+                    target={toolTarget(seg.toolName, seg.input)}
+                    message={errMsg}
+                    attempt={1}
+                    maxAttempts={1}
+                    retrying={false}
+                  />
+                );
+              }
               const live =
                 isStreaming &&
                 isLast &&

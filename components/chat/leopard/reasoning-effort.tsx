@@ -1,80 +1,97 @@
 "use client";
 
-import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
-import { field, mono } from "./surfaces";
-import { pct } from "./range";
+import { Slider } from "@/components/ui/slider";
+import { useActiveChat } from "@/hooks/use-active-chat";
+import { getModelById } from "@/lib/ai/models";
+import type { ReasoningLevel } from "@/lib/nim";
+import { mono } from "./surfaces";
 
-const fmt = (n: number) => n.toLocaleString("en-US");
+// Forked effort element, wired to leopard persistence: useActiveChat holds the
+// pick per model; ReasoningConfig on the registry decides tiered vs binary.
+// Locked-on / non-toggleable reasoners render nothing — the route sends no
+// param for those and reasoning still streams.
 
-export interface EffortLevel {
-  key: string;
-  label: string;
-  budget: number;
+export function levelLabel(l: ReasoningLevel): string {
+  switch (l) {
+    case "off":
+      return "Off";
+    case "on":
+      return "On";
+    case "low":
+      return "Low";
+    case "medium":
+      return "Medium";
+    case "high":
+      return "High";
+    case "max":
+      return "Max";
+  }
 }
 
-export function ReasoningEffort({
-  levels,
-  selectedKey,
-  spent,
-  onSelect,
-  className,
-  ...props
-}: Omit<
-  ComponentProps<"div">,
-  "children" | "levels" | "selectedKey" | "spent" | "onSelect"
-> & {
-  levels: readonly EffortLevel[];
-  selectedKey: string;
-  spent: number;
-  onSelect?: (key: string) => void;
-}) {
-  const selected = levels.find((level) => level.key === selectedKey);
-  const budget = selected?.budget ?? 0;
-  const used = pct(spent, budget);
+export function ReasoningEffort() {
+  const { currentModelId, currentReasoning, setReasoning } = useActiveChat();
+  const cfg = getModelById(currentModelId)?.reasoningConfig;
+
+  if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return null;
+
+  const active = currentReasoning !== undefined && currentReasoning !== "off";
+  const stops = cfg.effortLevels as ReasoningLevel[] | undefined;
+
+  if (stops && stops.length > 0) {
+    const idx = active && stops.includes(currentReasoning) ? stops.indexOf(currentReasoning) : -1;
+    return (
+      <div data-slot="reasoning-effort" className="px-4 pb-3 pt-3">
+        <div className="mb-2.5 flex items-center justify-between">
+          <span className={cn(mono, "dark:text-[#a3a3a3] light:text-[#525252]")}>
+            Reasoning effort
+          </span>
+          <span className={cn(mono, "text-[#ffb400]")}>
+            {idx >= 0 ? levelLabel(stops[idx]) : "Off"}
+          </span>
+        </div>
+        <Slider
+          ariaLabel="Reasoning effort"
+          min={-1}
+          max={stops.length - 1}
+          step={1}
+          value={idx}
+          accent="#ffb400"
+          onValueChange={(v) => setReasoning(v < 0 ? "off" : stops[v])}
+        />
+        <div className="mt-2.5 flex justify-between text-[9px] font-mono dark:text-[#4a4a4a] light:text-[#9a9a9a]">
+          <span className={cn(idx < 0 && "text-[#ffb400]")}>Off</span>
+          {stops.map((s, i) => (
+            <span key={s} className={cn(i === idx && "text-[#ffb400]")}>
+              {levelLabel(s)}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      data-slot="reasoning-effort"
-      className={cn("flex w-full max-w-sm flex-col gap-2.5", className)}
-
-      {...props}
-    >
-      <div className="flex items-baseline justify-between">
-        <span className="text-[13.5px] font-medium">Thinking</span>
-        <span className={cn(mono, "text-foreground/35 tabular-nums")}>
-          {fmt(spent)} / {fmt(budget)}
-        </span>
-      </div>
-
-      <div className={cn(field, "flex gap-0.5 rounded-full p-0.5")}>
-        {levels.map((level) => {
-          const active = level.key === selectedKey;
-          return (
-            <button
-              key={level.key}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onSelect?.(level.key)}
-              className={cn(
-                "flex-1 rounded-full py-1 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.97]",
-                active
-                  ? "bg-background text-foreground/90"
-                  : "text-foreground/45 hover:text-foreground/70",
-              )}
-            >
-              {level.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <span className="bg-foreground/[0.06] h-[3px] w-full overflow-hidden rounded-full">
-        <span
-          className="block h-full rounded-full dark:bg-[#ffb400] light:bg-[#d49600] transition-[width] duration-500 motion-reduce:transition-none dark:dark:bg-[#ffb400] light:bg-[#d49600]"
-          style={{ width: `${used}%` }}
-        />
-      </span>
+    <div data-slot="reasoning-effort" className="min-w-[176px] px-2.5 py-1">
+      {(["off", "on"] as ReasoningLevel[]).map((opt) => {
+        const sel = (opt === "on" && active) || (opt === "off" && !active);
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => setReasoning(opt)}
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left font-mono text-[12px] transition-colors",
+              sel
+                ? "text-[#ffb400] dark:bg-[#ffb400]/12 light:bg-[#ffb400]/16"
+                : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.05]",
+            )}
+          >
+            {opt === "on" ? "On" : "Off"}
+            {sel && <span className="h-1.5 w-1.5 rounded-full bg-[#ffb400]" />}
+          </button>
+        );
+      })}
     </div>
   );
 }
