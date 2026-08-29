@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GlassButton } from "@/components/ui/glass-button";
 import {
-  GlassPopover,
-  GlassPopoverContent,
-  GlassPopoverTrigger,
-} from "@/components/ui/glass-popover";
-import { GlassSlider } from "@/components/ui/glass-slider";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import type { ReasoningConfig } from "@/lib/nim";
 import type { ReasoningLevel } from "@/lib/nim";
 
@@ -48,14 +47,14 @@ export function levelLabel(l: ReasoningLevel): string {
 
 /**
  * ReasoningControl — THE THINKING BUTTON. The input-bar effort indicator +
- * liquid-glass adjust popover, built on the @liquid-glass primitives:
+ * solid adjust popover (DESIGN.md):
  *
- *   - Trigger is a GlassButton capsule (amber-tinted when reasoning is active,
- *     neutral frost when off) — press-gel + refracting glass. `GlassPopover`
+ *   - Trigger is a solid capsule button (amber-tinted when reasoning is active,
+ *     neutral frost when off) — press-gel + refracting glass. `Popover`
  *     (@base-ui/react Menu) owns open/close, Esc, and click-away, so no
  *     custom document listeners are needed.
  *   - Effort tiers (effortLevels present, e.g. GLM low→max / DeepSeek
- *     high,max) → popover opens a refracting `GlassSlider` (amber accent, lens
+ *     high,max) → popover opens a refracting `Slider` (amber accent, lens
  *     lifts clear on drag, rubber-bands off the ends). Leftmost detent = Off.
  *   - Binary on/off (param set + no effortLevels, e.g. Gemma / DiffusionGemma /
  *     binary-effort MiniMax-M3 / Step) → popover opens an amber-toned On/Off
@@ -91,20 +90,17 @@ export function ReasoningControl({ modelId, caps, current, onChange }: Props) {
 
   return (
     <div className="relative shrink-0 self-center">
-      <GlassPopover open={open} onOpenChange={setOpen}>
-        <GlassPopoverTrigger
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
           render={
-            <GlassButton
-              variant="capsule"
-              size={32}
-              tint={active ? 0.4 : 0.12}
-              tintColor={active ? "255,180,0" : undefined}
+            <button
+              type="button"
               title={`Reasoning effort: ${label}`}
               className={cn(
-                "transition-colors duration-200",
+                "relative inline-flex h-8 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-full border px-3 transition-[transform,background-color,border-color] duration-150 active:scale-[0.92] outline-none focus-visible:outline-2 focus-visible:outline-[#ffb400] focus-visible:outline-offset-2",
                 active
-                  ? "dark:text-[#f5f5f7] light:text-[#1d1d1f]"
-                  : "dark:text-[#8a8a8a] light:text-[#5a5a5a]"
+                  ? "dark:border-[#ffb400]/40 light:border-[#d49600]/40 dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#f5f5f7] light:text-[#1d1d1f]"
+                  : "dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] dark:text-[#8a8a8a] light:text-[#5a5a5a] hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08]"
               )}
             />
           }
@@ -116,8 +112,8 @@ export function ReasoningControl({ modelId, caps, current, onChange }: Props) {
               open && "rotate-180"
             )}
           />
-        </GlassPopoverTrigger>
-        <GlassPopoverContent side="top" align="end" sideOffset={6} tint={0.6}>
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" sideOffset={6} tint={0.6}>
           {tiered ? (
             <TieredPicker
               stops={cfg.effortLevels as ReasoningLevel[]}
@@ -127,8 +123,8 @@ export function ReasoningControl({ modelId, caps, current, onChange }: Props) {
           ) : (
             <BinaryPicker active={active} onChange={onChange} />
           )}
-        </GlassPopoverContent>
-      </GlassPopover>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -155,7 +151,7 @@ export function TieredPicker({
         </span>
         <span className="text-[11px] font-mono text-[#ffb400]">{live}</span>
       </div>
-      <GlassSlider
+      <Slider
         ariaLabel="Reasoning effort"
         min={-1}
         max={stops.length - 1}

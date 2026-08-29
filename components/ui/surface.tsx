@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import type { ComponentProps, RefObject } from "react";
 
 /**
- * GlassSurface → SOLID SURFACE (2026-08-26): the liquid-glass system was
+ * Surface → SOLID SURFACE (2026-08-26): the liquid-glass system was
  * retired app-wide (user directive — "remove glass entirely, adopt the aui
  * fork end to end"). The component name/props stay so existing call sites
  * (artifact panel, modals, badges) keep compiling; it now renders an opaque
@@ -12,19 +12,19 @@ import type { ComponentProps, RefObject } from "react";
  */
 
 /** Kept for import compatibility (artifact-panel) — always false now. */
-function useReducedGlass(): boolean {
+function useReducedFx(): boolean {
   return true;
 }
 
-interface GlassSurfaceHandle {
+interface SurfaceHandle {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setTintLift(delta: number): void;
 }
 
-interface GlassSurfaceProps extends ComponentProps<"div"> {
+interface SurfaceProps extends ComponentProps<"div"> {
   blur?: number;
   chroma?: number;
-  handleRef?: RefObject<GlassSurfaceHandle | null>;
+  handleRef?: RefObject<SurfaceHandle | null>;
   radius?: number;
   saturation?: number;
   specular?: boolean;
@@ -33,13 +33,13 @@ interface GlassSurfaceProps extends ComponentProps<"div"> {
   darkTintColor?: string;
 }
 
-function GlassSurface({
+function Surface({
   radius = 16,
   className,
   style,
   children,
   ...props
-}: GlassSurfaceProps) {
+}: SurfaceProps) {
   return (
     <div
       className={cn(
@@ -54,5 +54,5 @@ function GlassSurface({
   );
 }
 
-export { GlassSurface, useReducedGlass };
-export type { GlassSurfaceHandle, GlassSurfaceProps };
+export { Surface, useReducedFx };
+export type { SurfaceHandle, SurfaceProps };

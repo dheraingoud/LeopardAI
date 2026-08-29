@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveChat, type UIArtifact } from "@/hooks/use-active-chat";
-import { GlassSurface, useReducedGlass } from "@/components/ui/glass-surface";
+import { Surface, useReducedFx } from "@/components/ui/surface";
 import type { ArtifactKind } from "@/lib/types";
 
 /**
@@ -24,7 +24,7 @@ import type { ArtifactKind } from "@/lib/types";
  * depend on the deferred tools). This panel proves the stream → assemble →
  * persist → render loop end-to-end for the text case.
  *
- * Theme: amber/glassmorphism, leopard's existing dark:/light: variants (the
+ * Theme: amber/solid, leopard's existing dark:/light: variants (the
  * Zustand theme store + next-themes swap is Phase 7 — these classes already
  * resolve in Phase 5's setup).
  */
@@ -82,15 +82,13 @@ export function ArtifactPanel() {
     setArtifact(null);
   };
 
-  // Reduced glass (Safari / prefers-reduced-motion): the sheet still pops from
-  // the glass engine's helium layer but refracts through a plain translucent +
-  // backdrop-blur fallback instead of the feDisplacementMap displacement map.
-  const reduced = useReducedGlass();
+  // Reduced fx (Safari / prefers-reduced-motion): plain opaque sheet, no fx.
+  const reduced = useReducedFx();
 
   return (
     <AnimatePresence>
       {open && artifact ? (
-        <GlassSurface
+        <Surface
           key="artifact-panel"
           blur={20}
           radius={20}
@@ -113,7 +111,7 @@ export function ArtifactPanel() {
             <PanelHeader artifact={artifact} onClose={handleClose} />
             <PanelBody artifact={artifact} />
           </motion.aside>
-        </GlassSurface>
+        </Surface>
       ) : null}
     </AnimatePresence>
   );
