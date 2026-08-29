@@ -39,6 +39,7 @@ import {
   createGenerationController,
   isOverDailyTokenCap,
   listUserMemories,
+  persistChatTitle,
   semanticRankMemories,
   recordAudit,
   type UserMemory,
@@ -870,10 +871,22 @@ export async function POST(request: Request) {
       if (titlePromise) {
         try {
           const title = await titlePromise;
+          console.log("[title] generated:", title, "for chat", realChatId);
+          // Durable write: draft handoff navigates mid-stream, so the client
+          // hint below can die with the abandoned response. The server owns
+          // the real chat id — persist directly (sidebar "New Chat" bug).
+          void persistChatTitle({
+            chatId: realChatId,
+            userId: userId ?? DEV_USER_ID,
+            title,
+          });
+          // Cosmetic fast-path for a client that's still listening.
           dataStream.write({ type: "data-chat-title", data: title });
-        } catch {
-          /* non-fatal — title is cosmetic */
+        } catch (e) {
+          console.warn("[title] generation failed:", String(e).slice(0, 300));
         }
+      } else {
+        console.log("[title] skipped — not first exchange");
       }
 
       // Broadcast a compaction notice when the route folded older history.

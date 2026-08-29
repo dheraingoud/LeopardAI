@@ -127,7 +127,7 @@ export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 
 // Utility = step-3.7-flash (per goal: "step 3.7 flash (not 3.5)"). Fast, used
 // for server-side title generation (low stakes — no reasoning sent for titles).
-export const UTILITY_MODEL = "stepfun-ai/step-3.7-flash";
+export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-gen pinned to nemotron-3.5-lightning (2026-08-28): step-3.7-flash 410s on THIS key for non-streaming calls though it serves chat fine; entry stays in the picker
 
 // Default chat model. History of the default:
 //   z-ai/glm-5.2 (stalled upstream, then pulled from the NIM catalogue 2026-08-24)
@@ -235,6 +235,24 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       // "HIGH", this card's only non-extreme stop. "max" held the first token
       // behind long deliberation on a speed-1 flash model. Users who want deep
       // thinking still get it via the picker (max is one tick away).
+      defaultEffort: "high",
+    },
+  },
+  // Operator request 2026-08-28: full V4 Pro alongside the (currently hanging)
+  // Flash card. Probed live same day (title-gen call returned cleanly).
+  "deepseek-ai/deepseek-v4-pro-0813": {
+    id: "deepseek-ai/deepseek-v4-pro-0813",
+    displayName: "DeepSeek V4 Pro 0813",
+    speedTier: 3,
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["high", "max"],
       defaultEffort: "high",
     },
   },

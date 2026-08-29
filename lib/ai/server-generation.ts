@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { ConvexHttpClient } from "convex/browser";
-import { internal } from "@/convex/_generated/api";
+import { api, internal } from "@/convex/_generated/api";
 import { estimateCostUsd } from "@/lib/ai/telemetry";
 import {
   EMBED_MODEL_DEFAULT,
@@ -149,6 +149,38 @@ export async function persistAssistantRow(input: {
   // internalMutation (review m6) — keep the server-only write primitive off the
   // public client surface. Admin clients can invoke internal functions too.
   await c.mutation(internal.messages.upsertAssistant as never, args);
+}
+
+/**
+ * Persist the generated chat title SERVER-side. Previously the title reached
+ * Convex only via the client: the route emitted a `data-chat-title` chunk and
+ * the hook called api.chats.updateTitle — but on the draft flow the client
+ * navigates (/chat → /chat/<id>) mid-stream, so the chunk died with the
+ * abandoned response (or arrived while convexChatId was still "draft" and the
+ * owner check threw). Sidebar rows stayed "New Chat" forever. Now the route
+ * calls this after titlePromise resolves; the client hint stays as a cosmetic
+ * fast-path only.
+ */
+export async function persistChatTitle(input: {
+  chatId: string;
+  userId: string;
+  title: string;
+}): Promise<void> {
+  const c = convexClient();
+  if (!c) {
+    console.warn("[title] no convex admin client (NEXT_PUBLIC_CONVEX_URL / CONVEX_DEPLOY_KEY missing?)");
+    return;
+  }
+  try {
+    await c.mutation(api.chats.setTitleIfUntitled as never, {
+      chatId: input.chatId,
+      userId: input.userId,
+      title: input.title,
+    } as never);
+    console.log("[title] persisted:", input.title);
+  } catch (e) {
+    console.warn("[title] persist failed:", String(e).slice(0, 300));
+  }
 }
 
 // ── Enterprise cost observability (Φ-docs / admin-setup) ────────────────────
