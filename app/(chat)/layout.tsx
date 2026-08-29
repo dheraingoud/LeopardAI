@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import Sidebar from "@/components/sidebar";
 import { CommandPaletteHost } from "@/components/chat/leopard/command-palette-host";
+import { AssistantModal } from "@/components/chat/leopard/primitives/assistant-modal";
 import { SidebarProvider } from "@/hooks/sidebar-context";
 import { Menu } from "lucide-react";
 
@@ -89,6 +90,23 @@ export default function ChatLayout({
           <div className="relative z-10 flex-1 flex flex-col min-h-0">
             {children}
           </div>
+
+          <AssistantModal title="About Leopard">
+            <div className="flex flex-col gap-3 text-[13px] leading-relaxed text-foreground/80">
+              <p>
+                Leopard is a fast chat surface over routed models. Type a
+                message, or press <kbd>/</kbd> for commands and <kbd>@</kbd> to
+                mention context.
+              </p>
+              <p>
+                Press <kbd>Ctrl</kbd>+<kbd>K</kbd> to open the command palette
+                for search, model switching, and settings.
+              </p>
+              <p className="text-foreground/40">
+                Amber marks live activity; everything else stays quiet.
+              </p>
+            </div>
+          </AssistantModal>
         </main>
       </div>
     </SidebarProvider>

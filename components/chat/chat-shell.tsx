@@ -22,6 +22,7 @@ import { ConversationSearch, type SearchHit } from "./leopard/conversation-searc
 import { Search } from "lucide-react";
 import { SessionExpiryToast } from "./session-expiry-toast";
 import { UsageReadout } from "./usage-readout";
+import { TooltipIconButton } from "./leopard/primitives/tooltip-icon-button";
 import { ConnectionDot } from "./leopard/connection-state";
 import { HeaderQuotaBanner } from "./leopard/quota-banner";
 
@@ -229,20 +230,20 @@ export function ChatShell() {
               <Search className="h-3.5 w-3.5" />
             </button>
             <UsageReadout chatId={chatMeta._id ?? undefined} />
-            <button
+            <TooltipIconButton
+              tooltip="Export as Markdown"
               onClick={handleExport}
-              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
-              title="Export as Markdown"
+              className="h-10 w-10"
             >
               <Download className="h-3.5 w-3.5" />
-            </button>
-            <button
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip={shared ? "Share link copied" : "Share chat"}
               onClick={handleShare}
-              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
-              title={shared ? "Share link copied" : "Share chat"}
+              className="h-10 w-10"
             >
               <Share2 className="h-3.5 w-3.5" />
-            </button>
+            </TooltipIconButton>
           </div>
         </div>
 
