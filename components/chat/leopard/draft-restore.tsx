@@ -1,10 +1,36 @@
-// Leopard fork of assistant-ui draft-restore — originals in addons/ are reference-only.
+// Leopard fork of the elements kit draft-restore: unsent-draft persistence +
+// restore banner. localStorage-backed, keyed per chat.
 "use client";
 
 import type { ComponentProps } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PencilLineIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ghostButton, mono, paper } from "./surfaces";
+
+const keyFor = (chatId: string) => `leopard-draft-${chatId}`;
+
+// Persist the in-progress composer text: hydrate on mount/chat switch, write
+// on every change, drop the key when the draft empties (i.e. on send).
+export function useDraftRestore(chatId: string) {
+  const key = keyFor(chatId);
+  const [draft, setDraftState] = useState("");
+
+  useEffect(() => {
+    setDraftState(window.localStorage.getItem(key) ?? "");
+  }, [key]);
+
+  const setDraft = useCallback(
+    (value: string) => {
+      setDraftState(value);
+      if (value === "") window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    },
+    [key],
+  );
+
+  return { draft, setDraft };
+}
 
 export function DraftRestore({
   draft,
@@ -30,7 +56,6 @@ export function DraftRestore({
         "fade-in slide-in-from-bottom-1 animate-in flex w-full max-w-sm items-center gap-2.5 rounded-2xl py-2 pr-2 pl-3.5 duration-300",
         className,
       )}
-
       {...props}
     >
       <PencilLineIcon className="text-foreground/30 size-3.5 shrink-0" />

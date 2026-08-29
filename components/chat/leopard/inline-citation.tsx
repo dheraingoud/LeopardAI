@@ -1,25 +1,30 @@
-// Leopard fork of assistant-ui inline-citation — originals in addons/ are reference-only.
 "use client";
 
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import { cn } from "@/lib/utils";
 import { floating, mono } from "./surfaces";
 
-export interface Source {
+export interface CitationSource {
   domain: string;
   title: string;
   snippet: string;
 }
 
-interface CitationProps {
+// Leopard fork of the kit InlineCitation: numbered chip + hover preview card.
+// The streaming renderer wraps every markdown link in a CitationLink so any
+// cited URL gets the domain popover.
+export function Citation({
+  index,
+  source,
+  open,
+  onOpenChange,
+}: {
   index: number;
-  source: Source;
+  source: CitationSource;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-function Citation({ index, source, open, onOpenChange }: CitationProps) {
+}) {
   return (
     <PreviewCard.Root open={open} onOpenChange={onOpenChange}>
       <PreviewCard.Trigger
@@ -66,52 +71,54 @@ function Citation({ index, source, open, onOpenChange }: CitationProps) {
   );
 }
 
-export interface InlineCitationProps extends Omit<
-  ComponentProps<"p">,
-  "children"
-> {
-  sources: Source[];
-  openIndex: number | null;
-  onOpenIndexChange: (index: number | null) => void;
-}
-
-export function InlineCitation({
-  sources,
-  openIndex,
-  onOpenIndexChange,
-  className,
+// Link + hover preview of its target. Used as the markdown `a` renderer.
+export function CitationLink({
+  href,
+  children,
   ...props
-}: InlineCitationProps) {
+}: ComponentProps<"a">) {
+  const [open, setOpen] = useState(false);
+  let domain = "";
+  try {
+    domain = href ? new URL(href).hostname.replace(/^www\./, "") : "";
+  } catch {
+    domain = "";
+  }
+  if (!domain) {
+    return (
+      <a href={href} target="_blank" rel="nofollow noopener noreferrer" {...props}>
+        {children}
+      </a>
+    );
+  }
   return (
-    <p
-      data-slot="inline-citation"
-      className={cn(
-        "text-foreground/90 max-w-sm text-sm leading-relaxed",
-        className,
-      )}
-
-      {...props}
-    >
-      Optimistic updates keep the thread responsive while the server confirms
-      the write
-      {sources[0] && (
-        <Citation
-          index={0}
-          source={sources[0]}
-          open={openIndex === 0}
-          onOpenChange={(open) => onOpenIndexChange(open ? 0 : null)}
-        />
-      )}
-      . The store already exposes a consistent snapshot for every subscriber
-      {sources[1] && (
-        <Citation
-          index={1}
-          source={sources[1]}
-          open={openIndex === 1}
-          onOpenChange={(open) => onOpenIndexChange(open ? 1 : null)}
-        />
-      )}
-      , so no extra reconciliation pass is needed.
-    </p>
+    <PreviewCard.Root open={open} onOpenChange={setOpen}>
+      <PreviewCard.Trigger
+        delay={0}
+        render={
+          <a href={href} target="_blank" rel="nofollow noopener noreferrer" />
+        }
+        {...props}
+      >
+        {children}
+      </PreviewCard.Trigger>
+      <PreviewCard.Portal>
+        <PreviewCard.Positioner side="top" sideOffset={6}>
+          <PreviewCard.Popup
+            className={cn(
+              floating,
+              "z-50 max-w-xs origin-(--transform-origin) rounded-xl px-3 py-2 outline-none",
+              "transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+              "data-[starting-style]:scale-[0.98] data-[starting-style]:opacity-0",
+              "data-[ending-style]:scale-[0.98] data-[ending-style]:opacity-0",
+            )}
+          >
+            <span className={cn(mono, "text-foreground/50 break-all")}>
+              {domain}
+            </span>
+          </PreviewCard.Popup>
+        </PreviewCard.Positioner>
+      </PreviewCard.Portal>
+    </PreviewCard.Root>
   );
 }

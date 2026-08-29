@@ -484,6 +484,47 @@ export function McpConfigModal({ open, onClose }: Props) {
   }
 }
 
+/**
+ * Per-server connection-state dot. Fail-closed: no live connection probe is
+ * wired today, so by default every server shows a neutral "not probed" dot —
+ * we never claim a server is reachable without a handshake to back it up.
+ * When NEXT_PUBLIC_ENABLE_MCP_PROBE is set, state is derived from config
+ * validity as a best-effort stand-in for last-known state (a real handshake
+ * would feed "online" here later). Disabled servers are never probed.
+ */
+type McpProbeState = "online" | "awaiting" | "failed" | "unprobed";
+
+function mcpProbeState(server: McpServerConfig): McpProbeState {
+  if (process.env.NEXT_PUBLIC_ENABLE_MCP_PROBE !== "1") return "unprobed";
+  if (!server.enabled) return "unprobed";
+  const wellFormed =
+    server.type === "http"
+      ? /^https?:\/\//i.test(server.url ?? "")
+      : (server.command ?? "").trim().length > 0;
+  return wellFormed ? "awaiting" : "failed";
+}
+
+function McpStatusDot({ server }: { server: McpServerConfig }) {
+  const state = mcpProbeState(server);
+  const meta: Record<McpProbeState, { dot: string; title: string }> = {
+    online: { dot: "bg-emerald-500", title: "Connected" },
+    awaiting: { dot: "bg-[#ffb400]", title: "Awaiting connection probe" },
+    failed: { dot: "bg-red-500", title: "Connection failed — fix the endpoint" },
+    unprobed: {
+      dot: "dark:bg-[#404040] light:bg-[#c0c0c0]",
+      title: "Not probed — no live connection check",
+    },
+  };
+  const m = meta[state];
+  return (
+    <span
+      role="status"
+      title={m.title}
+      className={cn("h-1.5 w-1.5 rounded-full shrink-0", m.dot)}
+    />
+  );
+}
+
 function McpRow({
   server,
   onToggle,
@@ -505,12 +546,7 @@ function McpRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full shrink-0",
-              server.enabled ? "dark:bg-[#ffb400] light:bg-[#b8860b]" : "dark:bg-[#404040] light:bg-[#c0c0c0]",
-            )}
-          />
+          <McpStatusDot server={server} />
           <p
             className={cn(
               "text-[12.5px] truncate",

@@ -1,9 +1,12 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { FileTextIcon, ImageIcon, PaperclipIcon } from "lucide-react";
+import { FileTextIcon, ImageIcon, PaperclipIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { field, mono, paper } from "./surfaces";
+import { field, ghostButton, mono, paper } from "./surfaces";
+
+// Leopard fork of the elements-kit message-attachment plus the composer's
+// pending-attachment chip (folded in from attachment-chip).
 
 export interface MessageAttachmentItem {
   id: string;
@@ -12,6 +15,12 @@ export interface MessageAttachmentItem {
   kind: "image" | "document" | "file";
   pages?: number;
   swatch?: string;
+}
+
+export interface PendingAttachment {
+  url: string;
+  name: string;
+  mediaType: string;
 }
 
 export function MessageAttachments({
@@ -27,7 +36,6 @@ export function MessageAttachments({
     <div
       data-slot="message-attachments"
       className={cn("flex w-full max-w-sm flex-col gap-1.5", className)}
-
       {...props}
     >
       {attachments.map((item) =>
@@ -88,6 +96,71 @@ export function MessageAttachments({
           </button>
         ),
       )}
+    </div>
+  );
+}
+
+/** Pending composer attachment: image thumbnail or type icon, name, meta, remove. */
+export function MessageAttachmentChip({
+  attachment,
+  onRemove,
+  className,
+}: {
+  attachment: PendingAttachment;
+  onRemove: () => void;
+  className?: string;
+}) {
+  const { name, mediaType, url } = attachment;
+  const isImage = mediaType.startsWith("image/");
+  const meta = isImage ? "image" : mediaType.split("/").pop() || "file";
+
+  return (
+    <div
+      data-slot="attachment-chip"
+      className={cn(
+        "flex items-center gap-2 rounded-lg border py-1 pl-1 pr-1.5",
+        "dark:border-white/[0.08] light:border-black/[0.08]",
+        field,
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-[6px]",
+          "dark:bg-white/[0.06] light:bg-black/[0.04]",
+        )}
+      >
+        {isImage ? (
+          <img src={url} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <FileTextIcon className="h-3.5 w-3.5 dark:text-[#a3a3a3] light:text-[#525252]" />
+        )}
+      </span>
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="max-w-[9rem] truncate text-[11px] font-medium dark:text-[#d9d9d9] light:text-[#262626]">
+          {name}
+        </span>
+        <span
+          className={cn(
+            mono,
+            "text-[9px] uppercase tracking-tight dark:text-[#606060] light:text-[#8a8a8a]",
+          )}
+        >
+          {meta}
+        </span>
+      </span>
+      <button
+        type="button"
+        aria-label={`Remove ${name}`}
+        onClick={onRemove}
+        className={cn(
+          ghostButton,
+          "size-5 shrink-0 [&_svg]:size-3",
+          "hover:dark:text-[#ffb400] hover:light:text-[#d49600]",
+        )}
+      >
+        <XIcon />
+      </button>
     </div>
   );
 }

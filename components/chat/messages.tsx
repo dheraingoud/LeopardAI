@@ -5,6 +5,12 @@ import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { MouseGlow } from "@/components/ui/mouse-glow";
+import { EMPTY_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
+import {
+  EmptyState,
+  EmptyStateGreeting,
+  EmptyStateSuggestions,
+} from "./leopard/empty-state";
 import type { ChatMessage } from "@/lib/types";
 
 /**
@@ -38,6 +44,7 @@ export function Messages() {
   useEffect(() => {
     if (status === "ready" || status === "error") setGhost(null);
   }, [status, messages]);
+
   const showGhost =
     ghost !== null && !messages.some((m) => m.id === ghost.id);
 
@@ -117,6 +124,7 @@ export function Messages() {
 function Greeting() {
   // Glass retired (DESIGN.md 2026-08-26): the refracting lens is gone; the
   // amber identity reads through a pure-CSS breathing bloom behind the text.
+  const { sendMessage } = useActiveChat();
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
       {/* Φ9 mouse-following ambient amber glow. */}
@@ -131,12 +139,23 @@ function Greeting() {
         animate={{ opacity: 1, y: 0 }}
         className="relative text-center"
       >
-        <h1 className="font-signature text-5xl sm:text-6xl text-[#ffb400] text-glow-amber mb-3">
-          How can I help?
-        </h1>
-        <p className="text-sm dark:text-[#505050] light:text-[#737373] font-mono">
-          Ask anything — Leopard streams answers from your selected model.
-        </p>
+        <EmptyState>
+          <EmptyStateGreeting className="font-signature text-5xl sm:text-6xl text-[#ffb400] text-glow-amber mb-3">
+            How can I help?
+          </EmptyStateGreeting>
+          <p className="text-sm dark:text-[#505050] light:text-[#737373] font-mono">
+            Ask anything — Leopard streams answers from your selected model.
+          </p>
+          <EmptyStateSuggestions className="mt-6">
+            <Suggestions
+              suggestions={EMPTY_SUGGESTIONS}
+              label="Suggested first prompts"
+              onSuggestion={(text) => {
+                void sendMessage({ parts: [{ type: "text", text }] } as never);
+              }}
+            />
+          </EmptyStateSuggestions>
+        </EmptyState>
       </motion.div>
     </div>
   );

@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui confidence-marker — originals in addons/ are reference-only.
 "use client";
 
 import { useId } from "react";
