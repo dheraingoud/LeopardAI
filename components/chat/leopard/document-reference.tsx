@@ -5,6 +5,9 @@ import { FileTextIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, mono, paper } from "./surfaces";
 
+// DocumentReference fork. Adds an optional `kind` chip (artifact panel shows
+// the artifact kind there) and hides the anchor list when none are cited.
+
 export interface DocumentAnchor {
   page: number;
   quote: string;
@@ -15,6 +18,7 @@ export function DocumentReference({
   pages,
   anchors,
   activePage,
+  kind,
   onJump,
   className,
   ...props
@@ -26,6 +30,7 @@ export function DocumentReference({
   pages: number;
   anchors: readonly DocumentAnchor[];
   activePage: number;
+  kind?: string;
   onJump?: (page: number) => void;
 }) {
   // several anchors can cite one page, and only one of them is the current item
@@ -54,8 +59,19 @@ export function DocumentReference({
             {pages} pages · {anchors.length} cited
           </span>
         </div>
+        {kind && (
+          <span
+            className={cn(
+              mono,
+              "shrink-0 rounded-full px-2 py-0.5 uppercase dark:bg-[#ffb400]/10 dark:text-[#ffb400] light:bg-[#d49600]/10 light:text-[#d49600]",
+            )}
+          >
+            {kind}
+          </span>
+        )}
       </div>
 
+      {anchors.length > 0 && (
       <div className="flex flex-col gap-1.5">
         {anchors.map((anchor, i) => (
           <button

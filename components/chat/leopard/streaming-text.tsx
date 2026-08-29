@@ -29,6 +29,9 @@ import DOMPurify from "dompurify";
 import { MathBlock } from "./math-block";
 import { TerminalBlock } from "./terminal-block";
 import { CitationLink } from "./inline-citation";
+import { BarChart, parseChartSpec } from "./chart";
+import { DataTable, parseCsvTable } from "./data-table";
+import { SpecSheet, parseSpecSheet } from "./spec-sheet";
 
 function sanitizeSvg(code: string): string {
   if (typeof window === "undefined") return "";
@@ -233,7 +236,7 @@ function PreBlock({
   const lineCount = (text.match(/\n/g)?.length ?? 0) + 1;
   const longBlock = lineCount > 16;
 
-  if (lang === "mermaid") {
+  if (lang === "mermaid" || lang === "diagram") {
     return <MermaidBlock code={text} streaming={streaming} />;
   }
 
@@ -257,6 +260,28 @@ function PreBlock({
         done={!streaming}
       />
     );
+  }
+
+  // Structured-data fences: plain code while streaming; the settled render
+  // parses and falls back to the code shell on a bad payload.
+  if (lang === "chart" || lang === "table" || lang === "spec") {
+    if (streaming) {
+      return (
+        <PreShell lang={lang} copyText={text} longBlock={longBlock}>
+          <CodeBody lang={lang} text={text} streaming />
+        </PreShell>
+      );
+    }
+    if (lang === "chart") {
+      const spec = parseChartSpec(text);
+      if (spec) return <BarChart title={spec.title} series={spec.series} />;
+    } else if (lang === "table") {
+      const table = parseCsvTable(text);
+      if (table) return <DataTable header={table.header} rows={table.rows} />;
+    } else {
+      const spec = parseSpecSheet(text);
+      if (spec) return <SpecSheet title={spec.title} fields={spec.fields} />;
+    }
   }
 
   if (lang === "svg") {
