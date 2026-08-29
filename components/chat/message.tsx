@@ -37,6 +37,12 @@ import { MessageActions } from "./leopard/message-actions";
 import { ArtifactCard } from "./leopard/artifact-card";
 import { Sources, type SourceItem } from "./leopard/sources";
 import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
+import { EditMessage } from "./leopard/edit-message";
+import { RegenerateMenu } from "./leopard/regenerate-menu";
+import { ReadAloudButton } from "./leopard/read-aloud";
+import { QuoteReply } from "./leopard/quote-reply";
+import { FeedbackDialog } from "./leopard/feedback-dialog";
+import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -544,6 +550,15 @@ export const PreviewMessage = memo(function PreviewMessage({
   // assistant stream finishes). Tap → populates the composer.
     const [copiedUser, setCopiedUser] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Φ11 forks: inline user edit / regen model menu / thumbs-down dialog.
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState("");
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackReasons, setFeedbackReasons] = useState<string[]>([]);
+  const [feedbackNote, setFeedbackNote] = useState("");
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const quoteRootRef = useRef<HTMLDivElement>(null);
   const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
     feedbackStore(message?.id ?? ""),
   );
@@ -879,20 +894,47 @@ export const PreviewMessage = memo(function PreviewMessage({
     setTimeout(() => setCopiedUser(false), 1600);
   };
 
-  // Edit (user): delete the server rows at-or-after this message FIRST (else
-  // the live-mirror heal resurrects them and the edited resend shows the old
-  // bubble twice), then truncate local state and fire `composer:set-text` —
-  // the composer listens (leopard/composer effect) and repopulates + focuses.
-  const handleEditUser = () => {
+  // Edit (user): inline EditMessage textarea replaces the bubble. Save =
+  // delete server rows at-or-after this message (else the live-mirror heal
+  // resurrects them), truncate local state, then fire `composer:set-text` so
+  // the composer repopulates with the edited text for resend.
+  const startEdit = () => {
+    setEditDraft(text);
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const trimmed = editDraft.trim();
+    setEditing(false);
+    if (!trimmed || trimmed === text) return;
     try {
       chat.editMessage?.(message.id);
     } catch {
       /* non-fatal — composer still populates */
     }
     window.dispatchEvent(
-      new CustomEvent("composer:set-text", { detail: { text } }),
+      new CustomEvent("composer:set-text", { detail: { text: trimmed } }),
     );
     toast.success("Editing — press Enter to resend");
+  };
+
+  // Registry text models for the RegenerateMenu "Retry with…" list.
+  const regenOptions = useMemo(
+    () =>
+      getActiveModels()
+        .filter((m) => m.kind === "text" && !m.unavailable)
+        .map((m) => ({ id: m.id, label: m.name, detail: m.speedTier })),
+    [],
+  );
+  const pickRegenModel = (id: string) => {
+    setRegenOpen(false);
+    if (id === chat.currentModelId) {
+      handleRegenerate();
+      return;
+    }
+    chat.setCurrentModel(id);
+    // currentModelIdRef syncs in an effect after this commit — defer the regen
+    // one tick so the new request actually carries the picked model.
+    setTimeout(() => handleRegenerate(), 50);
   };
 
   const handleRegenerate = () => {
@@ -914,33 +956,6 @@ export const PreviewMessage = memo(function PreviewMessage({
     }
   };
 
-  const handleLike = () => {
-    const current = feedbackStore(message.id);
-    if (current === "up") {
-      try {
-        window.localStorage.removeItem(`lf:fb:${message.id}`);
-      } catch {}
-      setFeedbackVote(null);
-    } else {
-      setFeedback(message.id, "up");
-      setFeedbackVote("up");
-      toast.success("Marked as helpful");
-    }
-  };
-
-  const handleDislike = () => {
-    const current = feedbackStore(message.id);
-    if (current === "down") {
-      try {
-        window.localStorage.removeItem(`lf:fb:${message.id}`);
-      } catch {}
-      setFeedbackVote(null);
-    } else {
-      setFeedback(message.id, "down");
-      setFeedbackVote("down");
-      toast.success("Marked — we'll improve the next reply");
-    }
-  };
   // ──────────────────────────────────────────────────────────────────────
 
   if (isUser) {
@@ -952,10 +967,25 @@ export const PreviewMessage = memo(function PreviewMessage({
         className="group flex justify-end py-3"
       >
         <div className="max-w-[68ch] ml-auto flex flex-col items-end">
-          {/* Flat message pair (aui variant="flat" style): the user's turn is
-           * plain right-aligned text — no bubble chrome. Reads as one flat
-           * column with the assistant reply; hover reveals copy/edit. */}
-          <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-right dark:text-[#e8e8e8] light:text-[#262626]">{text}</p>
+          {/* Flat message pair: the user's turn is plain right-aligned text;
+              in edit mode the forked EditMessage card replaces the bubble. */}
+          {editing ? (
+            <EditMessage
+              className="w-full"
+              value={editDraft}
+              discardedReplies={Math.max(
+                0,
+                chat.messages.length -
+                  chat.messages.findIndex((m) => m.id === message.id) -
+                  1,
+              )}
+              onValueChange={setEditDraft}
+              onSave={saveEdit}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-right dark:text-[#e8e8e8] light:text-[#262626]">{text}</p>
+          )}
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
             <button
               type="button"
@@ -975,7 +1005,7 @@ export const PreviewMessage = memo(function PreviewMessage({
            </button>
             <button
               type="button"
-              onClick={handleEditUser}
+              onClick={startEdit}
               aria-label="Edit and resend"
               className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] transition-colors"
             >
@@ -994,7 +1024,7 @@ export const PreviewMessage = memo(function PreviewMessage({
       transition={{ duration: 0.25 }}
       className="group py-4"
     >
-      <div>
+      <div ref={quoteRootRef}>
           {/* No header timer row — elapsed time belongs on the thinking
               panel's collapsible header only (user directive 2026-08-26). */}
 
@@ -1120,31 +1150,73 @@ export const PreviewMessage = memo(function PreviewMessage({
           {!isStreaming && renderText && (
             <div className="mt-3 action-reveal">
               {/* Leopard MessageActions (forked kit element) — icon-swap copy,
-                  amber active reaction, spinning regen while streaming. */}
-              <MessageActions
-                copied={copied}
-                reaction={feedbackVote}
-                regenerating={chat.status === "submitted" || chat.status === "streaming"}
-                onCopy={handleCopy}
-                onReactionChange={(r) => {
-                  if (r === feedbackVote) return;
-                  if (r === null) {
-                    try {
-                      window.localStorage.removeItem(`lf:fb:${message.id}`);
-                    } catch {}
-                    setFeedbackVote(null);
-                  } else {
-                    setFeedback(message.id, r);
-                    setFeedbackVote(r);
-                    toast.success(
-                      r === "up"
-                        ? "Marked as helpful"
-                        : "Marked — we'll improve the next reply",
-                    );
+                  amber active reaction, forked RegenerateMenu with model
+                  picker, read-aloud button. Thumbs-down opens FeedbackDialog. */}
+              <div className="flex items-center gap-1">
+                <MessageActions
+                  copied={copied}
+                  reaction={feedbackVote}
+                  regenerating={chat.status === "submitted" || chat.status === "streaming"}
+                  onCopy={handleCopy}
+                  onReactionChange={(r) => {
+                    if (r === feedbackVote) return;
+                    if (r === null) {
+                      try {
+                        window.localStorage.removeItem(`lf:fb:${message.id}`);
+                      } catch {}
+                      setFeedbackVote(null);
+                      setFeedbackOpen(false);
+                    } else if (r === "up") {
+                      setFeedback(message.id, "up");
+                      setFeedbackVote("up");
+                      setFeedbackOpen(false);
+                      toast.success("Marked as helpful");
+                    } else {
+                      // Thumbs-down → forked reason dialog; the vote persists
+                      // on its submit, not on the initial click.
+                      setFeedbackSent(false);
+                      setFeedbackOpen(true);
+                    }
+                  }}
+                  onRegenerate={handleRegenerate}
+                  regenerateMenu={
+                    <RegenerateMenu
+                      options={regenOptions}
+                      open={regenOpen}
+                      currentId={chat.currentModelId}
+                      onOpenChange={setRegenOpen}
+                      onRetry={handleRegenerate}
+                      onPick={pickRegenModel}
+                    />
                   }
-                }}
-                onRegenerate={handleRegenerate}
-              />
+                />
+                <ReadAloudButton text={renderText} />
+              </div>
+              {feedbackOpen && (
+                <FeedbackDialog
+                  className="mt-2"
+                  reasons={["Inaccurate", "Unhelpful", "Too long", "Wrong tone"]}
+                  selected={feedbackReasons}
+                  note={feedbackNote}
+                  sent={feedbackSent}
+                  onToggleReason={(r) =>
+                    setFeedbackReasons((cur) =>
+                      cur.includes(r)
+                        ? cur.filter((x) => x !== r)
+                        : [...cur, r],
+                    )
+                  }
+                  onNoteChange={setFeedbackNote}
+                  onCancel={() => setFeedbackOpen(false)}
+                  onSubmit={() => {
+                    setFeedback(message.id, "down");
+                    setFeedbackVote("down");
+                    setFeedbackSent(true);
+                    toast.success("Marked — we'll improve the next reply");
+                    setTimeout(() => setFeedbackOpen(false), 1400);
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -1167,6 +1239,19 @@ export const PreviewMessage = memo(function PreviewMessage({
           )}
 
           </div>
+
+      {/* Quote-reply: selecting text in this message floats a "Quote" pill;
+          clicking fills the composer with a > blockquote of the selection. */}
+      <QuoteReply
+        containerRef={quoteRootRef}
+        onQuote={(q) =>
+          window.dispatchEvent(
+            new CustomEvent("composer:set-text", {
+              detail: { text: `> ${q.replace(/\n+/g, "\n> ")}\n\n` },
+            }),
+          )
+        }
+      />
     </motion.div>
   );
 });
