@@ -22,7 +22,6 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { createHighlighter, type Highlighter } from "shiki";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
 import DOMPurify from "dompurify";
@@ -32,6 +31,7 @@ import { CitationLink } from "./inline-citation";
 import { BarChart, parseChartSpec } from "./chart";
 import { DataTable, parseCsvTable } from "./data-table";
 import { SpecSheet, parseSpecSheet } from "./spec-sheet";
+import { useShikiHtml } from "./primitives/shiki-highlighter";
 
 function sanitizeSvg(code: string): string {
   if (typeof window === "undefined") return "";
@@ -39,43 +39,6 @@ function sanitizeSvg(code: string): string {
     USE_PROFILES: { svg: true, svgFilters: true },
     FORBID_TAGS: ["foreignObject", "script", "style"],
   }).trim();
-}
-
-const SHIKI_LANGS = [
-  "plaintext", "javascript", "typescript", "tsx", "jsx", "json", "jsonc",
-  "css", "html", "markdown", "mdx", "yaml", "python", "bash", "shell",
-  "sh", "go", "rust", "cpp", "c", "csharp", "java", "kotlin", "ruby",
-  "php", "sql", "diff", "graphql", "vue", "svelte", "xml", "toml", "ini",
-  "dockerfile", "docker", "bat", "powershell", "makefile", "nginx", "regex",
-];
-const SHIKI_THEMES = ["github-dark-default", "github-light-default"] as const;
-
-let hlPromise: Promise<Highlighter> | null = null;
-function getHighlighter(): Promise<Highlighter> {
-  if (!hlPromise) {
-    hlPromise = createHighlighter({
-      themes: [...SHIKI_THEMES],
-      langs: SHIKI_LANGS,
-    });
-  }
-  return hlPromise;
-}
-
-function highlight(hl: Highlighter, lang: string, code: string): string | null {
-  const opts = {
-    lang: lang || "plaintext",
-    themes: { dark: "github-dark-default", light: "github-light-default" },
-    defaultColor: false,
-  } as const;
-  try {
-    return hl.codeToHtml(code, opts);
-  } catch {
-    try {
-      return hl.codeToHtml(code, { ...opts, lang: "plaintext" });
-    } catch {
-      return null;
-    }
-  }
 }
 
 function extractText(node: ReactNode): string {
@@ -389,7 +352,7 @@ function CodeBody({
   text: string;
   streaming: boolean;
 }) {
-  const html = useHighlightedHtml(lang, text, streaming);
+  const html = useShikiHtml(lang, text, streaming);
   if (!html) {
     return (
       <pre className="cb-plain">
@@ -398,30 +361,6 @@ function CodeBody({
     );
   }
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function useHighlightedHtml(
-  lang: string,
-  text: string,
-  streaming: boolean,
-): string | null {
-  const [html, setHtml] = useState<string | null>(null);
-  useEffect(() => {
-    if (streaming) {
-      setHtml(null);
-      return;
-    }
-    let active = true;
-    void getHighlighter().then((hl) => {
-      if (!active) return;
-      const out = highlight(hl, lang, text);
-      if (active && out !== null) setHtml(out);
-    });
-    return () => {
-      active = false;
-    };
-  }, [lang, text, streaming]);
-  return html;
 }
 
 function SvgBlock({ code }: { code: string }) {

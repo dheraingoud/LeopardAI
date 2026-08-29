@@ -25,6 +25,28 @@ import { FileTree } from "@/components/chat/leopard/file-tree";
 import { WebPreview } from "@/components/chat/leopard/web-preview";
 import { CodeDiff } from "@/components/chat/leopard/code-diff";
 import { ReviewableDiff, type DiffHunk } from "@/components/chat/leopard/reviewable-diff";
+import { ThreadLayout, ThreadWelcome, ThreadSuggestions } from "@/components/chat/leopard/primitives/thread";
+import { ThreadList } from "@/components/chat/leopard/primitives/thread-list";
+import { AssistantSidebar } from "@/components/chat/leopard/primitives/assistant-sidebar";
+import { Flow } from "@/components/chat/leopard/primitives/flow";
+import { GenerativeUI } from "@/components/chat/leopard/primitives/generative-ui";
+import { MarkdownText } from "@/components/chat/leopard/primitives/markdown-text";
+import { SyntaxHighlighter } from "@/components/chat/leopard/primitives/syntax-highlighter";
+import { MermaidDiagram } from "@/components/chat/leopard/primitives/mermaid-diagram";
+import { ImageBlock } from "@/components/chat/leopard/primitives/image";
+import { FileCard } from "@/components/chat/leopard/primitives/file";
+import { QuoteBlock } from "@/components/chat/leopard/primitives/quote";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/chat/leopard/primitives/accordion";
+import { Badge } from "@/components/chat/leopard/primitives/badge";
+import { Select } from "@/components/chat/leopard/primitives/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/chat/leopard/primitives/tabs";
+import { DotMatrix } from "@/components/chat/leopard/primitives/dot-matrix";
+import { NumberRoll } from "@/components/chat/leopard/primitives/number-roll";
+import { DirectiveText } from "@/components/chat/leopard/primitives/directive-text";
+import { ContextDisplayRing, ContextDisplayBar, ContextDisplayText } from "@/components/chat/leopard/primitives/context-display";
+import { HeatGraph } from "@/components/chat/leopard/primitives/heat-graph";
+import { ComposerTriggerPopover } from "@/components/chat/leopard/primitives/composer-trigger-popover";
+import { DiffViewer } from "@/components/chat/leopard/primitives/diff-viewer";
 
 // Kit gallery (dev only): live mount for the presentational forks that have no
 // data source in the chat surface yet. Route 404s outside development.
@@ -35,6 +57,8 @@ export default function KitGalleryPage() {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [branch, setBranch] = useState(0);
   const [hunks, setHunks] = useState<readonly DiffHunk[]>(SAMPLE_HUNKS);
+  const [selectValue, setSelectValue] = useState("fast");
+  const [tab, setTab] = useState("preview");
 
   const setHunk = (id: string, decision: DiffHunk["decision"]) =>
     setHunks((hs) => hs.map((h) => (h.id === id ? { ...h, decision } : h)));
@@ -208,6 +232,33 @@ export default function KitGalleryPage() {
         />
       </Group>
 
+      <Group label="Rendering primitives">
+        <div className="max-w-xl">
+          <MarkdownText content={SAMPLE_MARKDOWN} />
+        </div>
+        <div className="w-full max-w-xl">
+          <SyntaxHighlighter
+            language="ts"
+            code={`export function greet(name: string) {\n  return \`hello \${name}\`;\n}`}
+          />
+        </div>
+        <div className="w-full max-w-xl">
+          <MermaidDiagram
+            code={"graph LR\n  A[plan] --> B[search]\n  B --> C[write]"}
+          />
+        </div>
+        <ImageBlock
+          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%23ffb400'/%3E%3Ccircle cx='160' cy='90' r='52' fill='%23000'/%3E%3C/svg%3E"
+          filename="leopard-dot.svg"
+        />
+        <FileCard
+          filename="report.md"
+          mimeType="text/markdown"
+          data="data:text/markdown;base64,IyBSZXBvcnQKCkJvZHk="
+        />
+        <QuoteBlock text="the fast tier answers these at a fifth of the latency with no visible quality drop" />
+      </Group>
+
       <Group label="Web">
         <WebPreview
           origin="localhost:3000"
@@ -269,9 +320,233 @@ export default function KitGalleryPage() {
           <CanvasSplitDocument>document canvas</CanvasSplitDocument>
         </CanvasSplit>
       </Group>
+
+      <Group label="Layout primitives">
+        <div className="h-105 w-full max-w-xl overflow-hidden rounded-2xl border dark:border-white/[0.08] light:border-black/[0.08]">
+          <ThreadLayout
+            empty
+            welcome={
+              <ThreadWelcome>
+                <h1 className="text-2xl font-medium tracking-tight">How can I help?</h1>
+              </ThreadWelcome>
+            }
+            composer={
+              <div className="rounded-3xl border p-3 text-sm text-foreground/40 dark:border-white/[0.08] light:border-black/[0.08]">
+                composer slot
+              </div>
+            }
+            suggestions={
+              <ThreadSuggestions>
+                {["Summarize", "Brainstorm", "Draft email"].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="rounded-full border px-3.5 py-1.5 text-sm dark:border-white/[0.08] light:border-black/[0.08] hover:bg-foreground/[0.05]"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </ThreadSuggestions>
+            }
+          />
+        </div>
+
+        <div className="w-64 rounded-2xl border p-2 dark:border-white/[0.08] light:border-black/[0.08]">
+          <ThreadList
+            threads={[
+              { id: "1", title: "Sprint plan", at: new Date(), active: true, running: true },
+              { id: "2", title: "Model comparison", at: new Date(Date.now() - 3_600_000) },
+              { id: "3", title: "Old research", at: new Date(Date.now() - 3 * 86_400_000) },
+            ]}
+            onNew={() => {}}
+            onSelect={() => {}}
+            onRename={() => {}}
+          />
+        </div>
+
+        <div className="h-64 w-full max-w-2xl overflow-hidden rounded-2xl border dark:border-white/[0.08] light:border-black/[0.08]">
+          <AssistantSidebar
+            thread={
+              <div className="flex h-full items-center justify-center text-sm text-foreground/40">
+                thread pane
+              </div>
+            }
+          >
+            <div className="flex h-full items-center justify-center text-sm text-foreground/40">
+              main content (drag the divider)
+            </div>
+          </AssistantSidebar>
+        </div>
+
+        <div className="w-full max-w-xl rounded-2xl border p-4 dark:border-white/[0.08] light:border-black/[0.08]">
+          <Flow.Root className="my-0">
+            <Flow.Canvas
+              edges={[
+                { from: "plan", to: "search" },
+                { from: "search", to: "write" },
+                { from: "write", to: "search", route: "loop-bottom", label: "refine" },
+              ]}
+            >
+              <Flow.Column>
+                <Flow.Node flowId="plan" tone="amber">plan</Flow.Node>
+                <Flow.Arrow direction="down" length={28} />
+                <Flow.Node flowId="search">search</Flow.Node>
+                <Flow.Arrow direction="down" length={28} />
+                <Flow.Node flowId="write" variant="decision">write</Flow.Node>
+              </Flow.Column>
+            </Flow.Canvas>
+          </Flow.Root>
+        </div>
+
+        <GenerativeUI
+          className="w-full max-w-xl"
+          node={{
+            type: "card",
+            title: "generated panel",
+            children: [
+              { type: "markdown", text: "A model-described UI tree, rendered with leopard surfaces." },
+              {
+                type: "row",
+                children: [
+                  { type: "metric", label: "latency", value: "0.4s", hint: "first token" },
+                  { type: "metric", label: "tokens", value: "1,204" },
+                ],
+              },
+            ],
+          }}
+        />
+      </Group>
+
+      <Group label="Chrome primitives">
+        <div className="w-72">
+          <Accordion>
+            <AccordionItem value="a">
+              <AccordionTrigger>Sources</AccordionTrigger>
+              <AccordionContent>Three citations collapsed behind the header.</AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="b">
+              <AccordionTrigger>Reasoning</AccordionTrigger>
+              <AccordionContent>Chain summary renders here.</AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="warning">amber</Badge>
+          <Badge variant="secondary">secondary</Badge>
+          <Badge variant="success">success</Badge>
+          <Badge variant="destructive">error</Badge>
+          <Badge variant="muted" size="sm">muted sm</Badge>
+        </div>
+
+        <Select
+          value={selectValue}
+          onValueChange={setSelectValue}
+          options={[
+            { value: "fast", label: "nemotron-lightning" },
+            { value: "deep", label: "deepseek-v4-pro" },
+          ]}
+        />
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
+          <TabsList>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+            <TabsTrigger value="code">Code</TabsTrigger>
+          </TabsList>
+          <TabsContent value="preview" className="text-sm text-foreground/60">rendered output pane</TabsContent>
+          <TabsContent value="code" className="text-sm text-foreground/60">source pane</TabsContent>
+        </Tabs>
+
+        <div className="flex items-center gap-4">
+          <DotMatrix state="thinking" label="thinking" />
+          <DotMatrix state="success" label="done" />
+          <DotMatrix state="error" label="failed" />
+          <DotMatrix state="warning" label="warning" />
+        </div>
+
+        <div className="flex items-baseline gap-3 font-mono text-sm">
+          <NumberRoll value={1204} suffix=" tok" />
+          <NumberRoll value={0.42} format={{ minimumFractionDigits: 2 }} suffix="s" />
+          <NumberRoll value={0.031} prefix="$" format={{ minimumFractionDigits: 3 }} />
+        </div>
+
+        <p className="max-w-md text-sm text-foreground/70">
+          <DirectiveText text="Reading {file:lib/ai/prompts.ts|prompts.ts} then running {tool:search|web search} before I answer." />
+        </p>
+
+        <div className="flex items-center gap-2">
+          <ContextDisplayRing
+            modelContextWindow={200_000}
+            usage={{ totalTokens: 58_400, inputTokens: 41_200, outputTokens: 17_200 }}
+          />
+          <ContextDisplayBar
+            modelContextWindow={200_000}
+            usage={{ totalTokens: 142_000, inputTokens: 98_000, outputTokens: 44_000 }}
+          />
+          <ContextDisplayText
+            modelContextWindow={200_000}
+            usage={{ totalTokens: 186_500, inputTokens: 120_000, outputTokens: 66_500 }}
+          />
+        </div>
+
+        <div className="w-full max-w-xl overflow-x-auto">
+          <HeatGraph
+            data={Array.from({ length: 120 }, (_, i) => ({
+              date: new Date(Date.now() - 1000 * 60 * 60 * 24 * (119 - i)),
+              count: (i * 13) % 11,
+            }))}
+          />
+        </div>
+
+        <div className="relative h-64 w-72 rounded-2xl border dark:border-white/[0.08] light:border-black/[0.08]">
+          <ComposerTriggerPopover
+            categories={[
+              { id: "files", label: "Files" },
+              { id: "tools", label: "Tools" },
+            ]}
+            onSelectCategory={() => {}}
+            className="absolute bottom-2 left-2"
+          />
+        </div>
+
+        <div className="w-full max-w-xl">
+          <DiffViewer patch={SAMPLE_PATCH} />
+        </div>
+      </Group>
     </div>
   );
 }
+
+const SAMPLE_MARKDOWN = [
+  "## Leopard digest",
+  "",
+  "Static render via `MarkdownText` — **bold**, *italic*, `inline code`, and a [link](https://example.com).",
+  "",
+  "> Quoted context stays muted with an amber rail.",
+  "",
+  "- item one",
+  "- item two",
+  "",
+  "| model | latency |",
+  "| --- | --- |",
+  "| nemotron-lightning | 0.4s |",
+  "| deepseek-v4-pro | 2.8s |",
+  "",
+  "```ts",
+  "const answer = await leopard.ask(question);",
+  "```",
+].join("\n");
+
+const SAMPLE_PATCH = [
+  "--- a/lib/ai/prompts.ts",
+  "+++ b/lib/ai/prompts.ts",
+  "@@ -1,3 +1,4 @@",
+  " export const SYSTEM = [",
+  "-  'Be helpful.',",
+  "+  'Answer like a leopard: precise, fast.',",
+  "+  'Cite sources when browsing.',",
+  " ].join(' ')",
+].join("\n");
 
 const SAMPLE_HUNKS: readonly DiffHunk[] = [
   {

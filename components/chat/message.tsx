@@ -1066,9 +1066,9 @@ export const PreviewMessage = memo(function PreviewMessage({
           {segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
             if (seg.kind === "reasoning") {
-              // A reasoning segment is "live" (open, shimmer) only while the
-              // whole stream is active AND it's still the tail of the message.
-              // Once later text supersedes it, it collapses to "Thought for Ns".
+              // Skip empty persisted reasoning (a stalled turn can persist an
+              // empty thought part) — a bare "Thought process" row is noise.
+              if (!seg.content.trim() && !isStreaming) return null;
               const live = isStreaming && isLast;
               return (
                 <ReasoningPanel

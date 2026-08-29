@@ -330,6 +330,9 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsTools: true,
     contextWindow: 262_144,
     reasoning: { enabled: true, toggleable: true, param: "effort", defaultEffort: "on" },
+    // NIM 2026-08-29: 404 on /chat/completions — pulled from the catalogue.
+    unavailable: true,
+    unavailableReason: "removed from NIM catalogue",
   },
   "google/diffusiongemma-26b-a4b-it": {
     id: "google/diffusiongemma-26b-a4b-it",
