@@ -1,100 +1,72 @@
 "use client";
 
-import type { ComponentProps } from "react";
-import { PencilLineIcon, QuoteIcon, SparklesIcon } from "lucide-react";
+import { useEffect, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { QuoteIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { floating, mono } from "./surfaces";
 
-export interface QuoteAction {
-  key: string;
-  label: string;
-  icon: "quote" | "explain" | "rewrite";
-}
-
-const ICON = {
-  quote: QuoteIcon,
-  explain: SparklesIcon,
-  rewrite: PencilLineIcon,
-} as const;
-
+// Selection popover for one assistant message: selecting text inside
+// `containerRef` floats a small "Quote" pill above the selection; clicking it
+// hands the quoted text to onQuote and clears the selection.
 export function QuoteReply({
-  before,
-  selection,
-  after,
-  actions,
-  toolbarVisible,
-  quoted,
-  onAction,
-  className,
-  ...props
-}: Omit<
-  ComponentProps<"div">,
-  | "children"
-  | "before"
-  | "selection"
-  | "after"
-  | "actions"
-  | "toolbarVisible"
-  | "quoted"
-  | "onAction"
-> & {
-  before: string;
-  selection: string;
-  after: string;
-  actions: readonly QuoteAction[];
-  toolbarVisible: boolean;
-  quoted?: string;
-  onAction?: (key: string) => void;
+  containerRef,
+  onQuote,
+}: {
+  containerRef: RefObject<HTMLElement | null>;
+  onQuote: (text: string) => void;
 }) {
-  return (
-    <div
-      data-slot="quote-reply"
-      className={cn("flex w-full max-w-sm flex-col gap-2.5", className)}
+  const [pos, setPos] = useState<{ x: number; y: number; text: string } | null>(
+    null,
+  );
 
-      {...props}
-    >
-      <p className="relative text-[13.5px] leading-relaxed">
-        <span className="text-foreground/70">{before}</span>
-        <span className="text-foreground/95 rounded bg-[#ffb400]/18 px-0.5 dark:bg-[#ffb400]/25">
-          {selection}
-        </span>
-        <span className="text-foreground/70">{after}</span>
-      </p>
+  useEffect(() => {
+    const onSelection = () => {
+      const sel = window.getSelection();
+      const root = containerRef.current;
+      if (!sel || sel.isCollapsed || !root || sel.rangeCount === 0) {
+        setPos(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!root.contains(range.commonAncestorContainer)) {
+        setPos(null);
+        return;
+      }
+      const text = sel.toString().trim();
+      if (!text) {
+        setPos(null);
+        return;
+      }
+      const r = range.getBoundingClientRect();
+      setPos({ x: r.left + r.width / 2, y: r.top, text });
+    };
+    document.addEventListener("selectionchange", onSelection);
+    return () => document.removeEventListener("selectionchange", onSelection);
+  }, [containerRef]);
 
-      <div className="flex h-9 items-start">
-        {toolbarVisible && (
-          <div
-            className={cn(
-              floating,
-              "fade-in zoom-in-95 slide-in-from-top-1 animate-in flex items-center gap-0.5 rounded-full p-1 duration-200",
-            )}
-          >
-            {actions.map((action) => {
-              const Icon = ICON[action.icon];
-              return (
-                <button
-                  key={action.key}
-                  type="button"
-                  onClick={() => onAction?.(action.key)}
-                  className="text-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground/90 flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.96]"
-                >
-                  <Icon className="size-3.5" />
-                  {action.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+  if (!pos) return null;
 
-      {quoted && (
-        <div className="fade-in slide-in-from-bottom-1 animate-in flex flex-col gap-1 duration-300">
-          <span className={cn(mono, "text-foreground/30")}>replying to</span>
-          <div className="border-foreground/15 text-foreground/55 border-s-2 ps-2.5 text-xs leading-relaxed">
-            {quoted}
-          </div>
-        </div>
+  return createPortal(
+    <button
+      type="button"
+      style={{ left: pos.x, top: pos.y }}
+      className={cn(
+        floating,
+        "fade-in zoom-in-95 animate-in fixed z-50 flex -translate-x-1/2 -translate-y-[calc(100%+8px)] items-center gap-1.5 rounded-full py-1.5 pl-2.5 pr-3 duration-150",
       )}
-    </div>
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        onQuote(pos.text);
+        window.getSelection()?.removeAllRanges();
+        setPos(null);
+      }}
+    >
+      <QuoteIcon className="size-3 dark:text-[#ffb400] light:text-[#d49600]" />
+      <span className={cn(mono, "dark:text-[#cfcfcf] light:text-[#404040]")}>
+        Quote
+      </span>
+    </button>,
+    document.body,
   );
 }

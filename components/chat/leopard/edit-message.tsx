@@ -1,87 +1,61 @@
 "use client";
 
-import type { ComponentProps } from "react";
 import { AlertTriangleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, inkButton, mono, paper } from "./surfaces";
 
+// Inline editor that REPLACES a user bubble while editing (message.tsx mounts
+// it only in edit mode). Textarea + Cancel/Save; `discardedReplies` warns how
+// many later replies the resend discards. Cmd/Ctrl+Enter saves, Esc cancels.
 export function EditMessage({
   value,
   discardedReplies,
-  editing,
   onValueChange,
   onSave,
   onCancel,
-  onStartEdit,
   className,
-  ...props
-}: Omit<
-  ComponentProps<"div">,
-  | "children"
-  | "value"
-  | "discardedReplies"
-  | "editing"
-  | "onValueChange"
-  | "onSave"
-  | "onCancel"
-  | "onStartEdit"
-> & {
+}: {
   value: string;
   discardedReplies: number;
-  editing: boolean;
   onValueChange?: (value: string) => void;
   onSave?: () => void;
   onCancel?: () => void;
-  onStartEdit?: () => void;
+  className?: string;
 }) {
-  if (!editing) {
-    return (
-      <div
-        data-slot="edit-message"
-        className={cn("flex w-full max-w-sm justify-end", className)}
-        {...props}
-      >
-        <button
-          type="button"
-          onClick={onStartEdit}
-          className={cn(
-            field,
-            "hover:bg-foreground/[0.07] max-w-[85%] rounded-2xl px-3.5 py-2.5 text-start text-[13.5px] transition-colors",
-          )}
-        >
-          {value}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div
       data-slot="edit-message"
       className={cn(
         paper,
-        "flex w-full max-w-sm flex-col gap-3 rounded-[20px] p-3.5",
+        "flex w-full flex-col gap-3 rounded-[20px] p-3.5",
         className,
       )}
-
-      {...props}
     >
       <textarea
+        autoFocus
         value={value}
         onChange={(event) => onValueChange?.(event.target.value)}
-        rows={2}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            event.preventDefault();
+            onSave?.();
+          } else if (event.key === "Escape") {
+            onCancel?.();
+          }
+        }}
+        rows={Math.min(10, Math.max(2, value.split("\n").length))}
         aria-label="Edit your message"
         className={cn(
           field,
-          "text-foreground/90 focus-visible:ring-foreground/20 resize-none rounded-xl px-3 py-2.5 text-[13.5px] leading-relaxed outline-none focus-visible:ring-1",
+          "resize-none rounded-xl px-3 py-2.5 text-[13.5px] leading-relaxed outline-none dark:text-[#e5e5e5] light:text-[#262626] focus-visible:ring-1 focus-visible:ring-[#ffb400]/40",
         )}
       />
 
       {discardedReplies > 0 && (
-        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+        <div className="flex items-center gap-2 dark:text-[#ffb400] light:text-[#d49600]">
           <AlertTriangleIcon className="size-3.5 shrink-0" />
           <span className={cn(mono, "tabular-nums")}>
-            sending discards {discardedReplies}{" "}
+            resending discards {discardedReplies}{" "}
             {discardedReplies === 1 ? "reply" : "replies"}
           </span>
         </div>
@@ -91,7 +65,7 @@ export function EditMessage({
         <button
           type="button"
           onClick={onCancel}
-          className="text-foreground/55 hover:bg-foreground/[0.06] hover:text-foreground/90 h-8 rounded-full px-3.5 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.96]"
+          className="h-8 rounded-full px-3.5 text-xs font-medium dark:text-[#a3a3a3] light:text-[#525252] transition-[background-color,color,scale] duration-150 hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black active:scale-[0.96]"
         >
           Cancel
         </button>
@@ -103,7 +77,7 @@ export function EditMessage({
             "flex h-8 items-center rounded-full px-3.5 text-xs font-medium",
           )}
         >
-          Send
+          Save &amp; resend
         </button>
       </div>
     </div>
