@@ -7,8 +7,9 @@
 //     honor stated preferences, identity, and standing facts.
 //   - A `memory_*` model tool (routes through the same internal mutations)
 //     lets the model remember a new fact or forget one mid-conversation.
-//   - The UI affordance (components/chat/memory-badge.tsx) shows the count and
-//     lists facts with one-click delete via the public query/mutation below.
+//   - The UI affordance (components/chat/leopard/memory-chips.tsx) shows the
+//     count and lists facts with one-click delete via the public query/mutation
+//     below.
 //
 // Ownership: userId is the trust boundary the ROUTE passes (its verified Clerk
 // subject / dev bypass), consistent with messages/audit. The public

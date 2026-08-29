@@ -7,16 +7,14 @@ import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { motion } from "framer-motion";
 import { User, Palette, Cpu, HardDrive, AlertTriangle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getActiveModels, getDefaultChatModel } from "@/lib/ai/models";
+import { getActiveModels } from "@/lib/ai/models";
 import { toast } from "sonner";
 import { useConvex } from "convex/react";
 import { useState } from "react";
-import { useSettingsStore } from "@/hooks/use-settings-store";
+import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
 
 function SettingRow({ label, description, children }: {
   label: string; description?: string; children: React.ReactNode;
@@ -35,8 +33,6 @@ function SettingRow({ label, description, children }: {
 export default function SettingsPage() {
   const { user } = useUser();
   const { signOut } = useClerk();
-  const dbUser = useQuery(api.users.getByClerkId, user ? { clerkId: user.id } : "skip");
-  const updateSettings = useMutation(api.users.updateSettings);
   const deleteChat = useMutation(api.chats.remove);
   // Effective user id — Clerk id, or DEV_USER_ID under BYPASS_CLERK so the bypass
   // session's own chats (stored under DEV_USER_ID) are listed/counted, matching
@@ -44,18 +40,9 @@ export default function SettingsPage() {
   const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
   const chats = useQuery(api.chats.list, userId ? { userId } : "skip");
   const convex = useConvex();
-  const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
-  const setSendWithEnter = useSettingsStore((s) => s.setSendWithEnter);
   // Live NIM registry (kinds: text/vlm), not the stale hardcoded @/types list.
   const liveModels = getActiveModels().filter((m) => m.kind !== "image" && m.kind !== "video");
-  const defaultModel = dbUser?.defaultModel || getDefaultChatModel().id;
   const [deleting, setDeleting] = useState(false);
-
-  const handleModelChange = async (modelId: string | null) => {
-    if (!user || !modelId) return;
-    await updateSettings({ clerkId: user.id, defaultModel: modelId });
-    toast.success("Default model updated");
-  };
 
   const handleDeleteAll = async () => {
     if (!chats || chats.length === 0 || !userId) return;
@@ -161,33 +148,14 @@ export default function SettingsPage() {
               <SettingRow label="Theme" description="Leopard is dark by design">
                 <span className="text-xs font-mono text-[#ffb400] px-2 py-1 rounded-md dark:bg-[#ffb40010] light:bg-[#d4960010]">Dark</span>
               </SettingRow>
-              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
-              <SettingRow label="Send with Enter" description="Enter sends, Shift+Enter for a new line">
-                <Switch checked={sendWithEnter} onCheckedChange={setSendWithEnter} className="data-[state=checked]:bg-[#ffb400]" />
-              </SettingRow>
             </div>
           </TabsContent>
 
           <TabsContent value="models">
+            {/* Kit panel covers the default-model picker + interaction toggles;
+                the registry list below stays for browsing capabilities. */}
+            <PreferencesPanel className="mb-4 max-w-none" />
             <div className="glass-card rounded-2xl p-6">
-              <h3 className="text-sm font-semibold font-mono dark:text-white light:text-[#171717] mb-1">Model Defaults</h3>
-              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
-              <SettingRow label="Default Model" description="Used for new chats">
-                <Select value={defaultModel} onValueChange={handleModelChange}>
-                  <SelectTrigger className="w-48 h-8 text-xs font-mono dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.06] light:border-black/[0.06]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="glass-elevated dark:bg-[#111] light:bg-[#f0f0f0] dark:border-white/[0.08] light:border-black/[0.08]">
-                    {liveModels.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="font-mono text-xs dark:text-[#d4d4d4] light:text-[#404040] focus:dark:bg-white/5 light:bg-black/5 focus:dark:text-white light:text-[#171717]">
-                        {m.name} — {m.provider}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03]" />
-              <Separator className="dark:bg-white/[0.04] light:bg-black/[0.03] my-3" />
               <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">
                 {liveModels.map((m) => (

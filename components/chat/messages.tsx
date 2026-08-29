@@ -11,6 +11,9 @@ import {
   EmptyStateGreeting,
   EmptyStateSuggestions,
 } from "./leopard/empty-state";
+import { ErrorState } from "./leopard/error-state";
+import { FirstRunOnboarding } from "./leopard/onboarding";
+import { ScrollAnchorPill } from "./leopard/scroll-anchor";
 import type { ChatMessage } from "@/lib/types";
 
 /**
@@ -24,7 +27,8 @@ import type { ChatMessage } from "@/lib/types";
  * an instant `scrollTop` jump gated by a stickToBottom flag.
  */
 export function Messages() {
-  const { messages, status } = useActiveChat();
+  const chat = useActiveChat();
+  const { messages, status } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
 
@@ -48,11 +52,24 @@ export function Messages() {
   const showGhost =
     ghost !== null && !messages.some((m) => m.id === ghost.id);
 
+  // Kit scroll-anchor: count messages that arrived while unpinned; the pill
+  // jumps to bottom + repins.
+  const [unseen, setUnseen] = useState(0);
+  const prevCountRef = useRef(messages.length);
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    prevCountRef.current = messages.length;
+    if (!stickToBottomRef.current && messages.length > prev) {
+      setUnseen((u) => u + (messages.length - prev));
+    }
+  }, [messages]);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stickToBottomRef.current = atBottom;
+    if (atBottom) setUnseen(0);
   };
 
   useEffect(() => {
@@ -88,12 +105,13 @@ export function Messages() {
   const isThinking = status === "submitted";
 
   return (
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
-    >
-      <div className="max-w-3xl mx-auto py-6">
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
+      >
+        <div className="max-w-3xl mx-auto py-6">
         {messages.map((message, index) => (
           <PreviewMessage
             key={message.id}
@@ -108,8 +126,37 @@ export function Messages() {
           </div>
         )}
         {isThinking && <ThinkingMessage />}
+        {status === "error" && (
+          <ErrorState
+            title="Response failed"
+            detail="The stream errored or stalled — retry the last turn."
+            retrying={false}
+            onRetry={() => {
+              const last =
+                [...messages].reverse().find((m) => m.role === "assistant") ??
+                messages[messages.length - 1];
+              if (last) chat.regenerateMessage(last.id);
+            }}
+            className="mt-3"
+          />
+        )}
         <div className="h-32" /> {/* spacer for the floating input bar */}
+        </div>
       </div>
+      {unseen > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center">
+          <ScrollAnchorPill
+            count={unseen}
+            onJump={() => {
+              const el = scrollRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+              stickToBottomRef.current = true;
+              setUnseen(0);
+            }}
+            className="pointer-events-auto"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -139,6 +186,9 @@ function Greeting() {
         animate={{ opacity: 1, y: 0 }}
         className="relative text-center"
       >
+        {/* First-run tour (localStorage leopard-onboarded); self-hides after
+            skip/finish, leaving the EmptyState greeting as the fallback. */}
+        <FirstRunOnboarding className="mx-auto mb-6 text-left" />
         <EmptyState>
           <EmptyStateGreeting className="font-signature text-5xl sm:text-6xl text-[#ffb400] text-glow-amber mb-3">
             How can I help?

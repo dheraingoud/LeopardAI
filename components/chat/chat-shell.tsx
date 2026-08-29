@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { getModelById } from "@/lib/ai/models";
@@ -17,9 +17,11 @@ import { Messages } from "./messages";
 import { Composer } from "./leopard/composer";
 import { ApprovalDock } from "./approval-dock";
 import { ArtifactPanel } from "./artifact-panel";
-import { PulseLoader } from "./pulse-loader";
+import { GenerationLoader } from "./leopard/loading-state";
 import { SessionExpiryToast } from "./session-expiry-toast";
 import { UsageReadout } from "./usage-readout";
+import { ConnectionDot } from "./leopard/connection-state";
+import { HeaderQuotaBanner } from "./leopard/quota-banner";
 
 /**
  * ChatShell — the per-chat surface injected into the (chat) layout's main
@@ -103,7 +105,7 @@ export function ChatShell() {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <PulseLoader size="lg" />
+        <ChatBootLoader />
       </div>
     );
   }
@@ -121,7 +123,9 @@ export function ChatShell() {
               </h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <ConnectionDot />
               <ModelLabel modelId={currentModelId} />
+              <HeaderQuotaBanner />
             </div>
           </div>
           <Messages />
@@ -173,7 +177,9 @@ export function ChatShell() {
             </h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <ConnectionDot />
             <ModelLabel modelId={currentModelId} />
+            <HeaderQuotaBanner />
             <UsageReadout chatId={chatMeta._id ?? undefined} />
             <button
               onClick={handleExport}
@@ -222,4 +228,13 @@ function ModelLabel({ modelId }: { modelId: string }) {
       {m?.name ?? modelId}
    </span>
   );
+}
+
+function ChatBootLoader() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 180);
+    return () => clearInterval(id);
+  }, []);
+  return <GenerationLoader label="Loading chat" tick={tick} />;
 }
