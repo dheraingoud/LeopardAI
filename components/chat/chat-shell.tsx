@@ -14,7 +14,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { getMessageText } from "./message";
 import { Messages } from "./messages";
-import { MultimodalInput } from "./multimodal-input";
+import { Composer } from "./leopard/composer";
 import { ApprovalDock } from "./approval-dock";
 import { ArtifactPanel } from "./artifact-panel";
 import { PulseLoader } from "./pulse-loader";
@@ -24,7 +24,7 @@ import { UsageReadout } from "./usage-readout";
 /**
  * ChatShell — the per-chat surface injected into the (chat) layout's main
  * pane. Header (title + model badge + export/share) + Messages transcript +
- * floating MultimodalInput. Reads everything from useActiveChat. Φ6 mounts
+ * floating Composer. Reads everything from useActiveChat. Φ6 mounts
  * the ArtifactPanel beside the transcript (renders null until a
  * createDocument tool call streams in — see use-active-chat.onData).
  */
@@ -132,7 +132,7 @@ export function ChatShell() {
               input={pendingApproval.input}
             />
           ) : (
-            <MultimodalInput />
+            <Composer />
           )}
         </div>
         <ArtifactPanel />
@@ -200,7 +200,7 @@ export function ChatShell() {
             input={pendingApproval.input}
           />
         ) : (
-          <MultimodalInput />
+          <Composer />
         )}
       </div>
       {/* Φ6: artifact side panel. Renders null until a createDocument tool

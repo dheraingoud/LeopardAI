@@ -1,7 +1,9 @@
-// Leopard fork of assistant-ui message-queue — originals in addons/ are reference-only.
+// Leopard fork of the elements kit message-queue: hold messages typed while a
+// run is streaming, flush them when it finishes.
 "use client";
 
 import type { ComponentProps } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ArrowUpIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, ghostButton, mono, paper } from "./surfaces";
@@ -9,6 +11,30 @@ import { field, ghostButton, mono, paper } from "./surfaces";
 export interface QueuedMessage {
   id: string;
   text: string;
+}
+
+// enqueue appends (returns the id); drain empties and returns what was held,
+// in FIFO order, ready to send.
+export function useMessageQueue() {
+  const nextId = useRef(0);
+  const listRef = useRef<QueuedMessage[]>([]);
+  const [queued, setQueued] = useState<readonly QueuedMessage[]>([]);
+
+  const enqueue = useCallback((text: string) => {
+    const message: QueuedMessage = { id: `mq-${++nextId.current}`, text };
+    listRef.current = [...listRef.current, message];
+    setQueued(listRef.current);
+    return message.id;
+  }, []);
+
+  const drain = useCallback(() => {
+    const drained = listRef.current;
+    listRef.current = [];
+    setQueued([]);
+    return drained;
+  }, []);
+
+  return { queued, enqueue, drain };
 }
 
 export function MessageQueue({
@@ -29,7 +55,6 @@ export function MessageQueue({
     <div
       data-slot="message-queue"
       className={cn("flex w-full max-w-sm flex-col gap-2", className)}
-
       {...props}
     >
       <div className={cn(paper, "flex items-center gap-2.5 rounded-2xl p-3")}>
@@ -64,10 +89,7 @@ export function MessageQueue({
             )}
           >
             <span
-              className={cn(
-                mono,
-                "text-foreground/30 w-3 shrink-0 tabular-nums",
-              )}
+              className={cn(mono, "text-foreground/30 w-3 shrink-0 tabular-nums")}
             >
               {index + 1}
             </span>

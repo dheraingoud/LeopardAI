@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui quota-banner — originals in addons/ are reference-only.
 "use client";
 
 import type { ComponentProps } from "react";

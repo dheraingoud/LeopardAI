@@ -1,63 +1,68 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { paper } from "./surfaces";
 
-export interface SuggestionsProps extends Omit<
-  ComponentProps<"div">,
-  "children"
-> {
+/**
+ * Curated prompts shown on the empty thread (no LLM call — static list). These
+ * replace the plain greeting subline with actionable starting points; a click
+ * fills + sends the prompt through the composer (chat.sendMessage).
+ */
+export const EMPTY_SUGGESTIONS = [
+  "Explain a concept",
+  "Write code",
+  "Research a topic",
+  "Draft an email",
+] as const;
+
+/**
+ * Follow-up prompts shown after a finished assistant turn (status "ready",
+ * last message assistant). Cheaply derived — static curated list, no LLM.
+ */
+export const FOLLOW_UP_SUGGESTIONS = [
+  "Explain more",
+  "Give an example",
+  "Summarize the key points",
+] as const;
+
+export interface SuggestionsProps {
   suggestions: readonly string[];
-  selectedSuggestion: string | null;
-  cycle: number;
   onSuggestion: (suggestion: string) => void;
-  variant?: "pills" | "list";
+  className?: string;
+  /** ARIA label for the chip group (also read by assistive tech). */
+  label?: string;
 }
 
+/**
+ * Suggestions — leopard suggestions: a row of
+ * clickable prompt pills with a staggered fade-in. Leopard-restyled
+ * (DESIGN.md): solid opaque pills with a hairline border, amber accent on
+ * hover, no glass. Presentational — the caller owns what a click does.
+ */
 export function Suggestions({
   suggestions,
-  selectedSuggestion,
-  cycle,
   onSuggestion,
-  variant = "pills",
   className,
-  ...props
+  label = "Suggested prompts",
 }: SuggestionsProps) {
-  const list = variant === "list";
-
   return (
     <div
-      data-slot="suggestions"
-      key={cycle}
-      className={cn(
-        list
-          ? "flex w-full max-w-sm flex-col gap-2"
-          : "flex max-w-md flex-wrap justify-center gap-2",
-        className,
-      )}
-
-      {...props}
+      role="group"
+      aria-label={label}
+      className={cn("flex max-w-md flex-wrap justify-center gap-2", className)}
     >
       {suggestions.map((suggestion, index) => (
-        <button
+        <motion.button
           key={suggestion}
           type="button"
-          aria-pressed={selectedSuggestion === suggestion}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: index * 0.05 }}
           onClick={() => onSuggestion(suggestion)}
-          className={cn(
-            paper,
-            "fade-in slide-in-from-bottom-2 animate-in fill-mode-both flex cursor-pointer items-center text-[13px] transition-transform duration-300 hover:-translate-y-px active:scale-[0.96] motion-reduce:animate-none",
-            list
-              ? "w-full rounded-2xl px-4 py-2.5 text-start"
-              : "rounded-full px-4 py-2",
-            selectedSuggestion === suggestion &&
-              "bg-foreground text-background",
-          )}
-          style={{ animationDelay: `${index * 70}ms` }}
+          className="cursor-pointer rounded-full border px-4 py-2 text-[13px] transition-colors dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#141414] light:bg-white dark:text-[#e5e5e5] light:text-[#262626] hover:dark:border-[#ffb400]/40 hover:light:border-[#d49600]/40 hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] active:scale-[0.97]"
         >
           {suggestion}
-        </button>
+        </motion.button>
       ))}
     </div>
   );

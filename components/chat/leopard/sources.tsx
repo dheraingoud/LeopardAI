@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import {
   Collapsible,
@@ -9,29 +10,28 @@ import {
 import { cn } from "@/lib/utils";
 import { collapsePanel, fieldInteractive, mono, paper } from "./surfaces";
 
-export interface Source {
+export interface SourceItem {
   domain: string;
   title: string;
+  url?: string;
 }
 
-export interface SourcesProps {
-  sources: readonly Source[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  className?: string;
-}
-
+// Leopard fork of the kit Sources row: collapsible pill + domain cards.
+// Mounted under assistant messages that used webSearch/webFetch.
 export function Sources({
   sources,
-  open,
-  onOpenChange,
   className,
-}: SourcesProps) {
+}: {
+  sources: readonly SourceItem[];
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (sources.length === 0) return null;
   return (
     <Collapsible
       data-slot="sources"
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={setOpen}
       className={cn("w-full max-w-sm", className)}
     >
       <CollapsibleTrigger
@@ -49,8 +49,11 @@ export function Sources({
       <CollapsibleContent className={cn(collapsePanel, "outline-none")}>
         <div className="grid grid-cols-2 gap-2 pt-2.5">
           {sources.map((source) => (
-            <div
-              key={source.domain}
+            <a
+              key={source.url ?? source.domain}
+              href={source.url}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
               className={cn(
                 paper,
                 "flex flex-col gap-1.5 rounded-2xl p-3 transition-transform hover:-translate-y-px",
@@ -67,7 +70,7 @@ export function Sources({
               <span className="text-foreground/90 line-clamp-2 text-[13px] leading-snug font-medium">
                 {source.title}
               </span>
-            </div>
+            </a>
           ))}
         </div>
       </CollapsibleContent>

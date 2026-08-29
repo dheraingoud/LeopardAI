@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui empty-state — originals in addons/ are reference-only.
 "use client";
 
 import type { ComponentProps } from "react";

@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Brain, ChevronDown, Pin, User } from "lucide-react";
+import { Bot, Brain, ChevronDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "./context-indicator";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { estimateTokens, getContextBudget } from "@/lib/token-estimator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ContextDescriptor — hover popover that explains WHAT is filling the context
-// window (the composer's token ring is just a %; this is the "why"):
+// ContextDescriptor — click the composer's context ring to open a popover that
+// explains WHAT is filling the context window (the ring is just a %; this is
+// the "why"):
 //
 //   system  · the system prompt + guardrail reserve      (zinc)
 //   history · prior messages, one row per message         (violet)
@@ -22,7 +24,7 @@ import { estimateTokens, getContextBudget } from "@/lib/token-estimator";
 // see at a glance where the budget goes; each history row is one message with a
 // role-coloured dot + token count + collapsed preview. Expands to a per-message
 // list on demand (docs/context-window.md → the `/context` colored-grid pattern,
-// re-implemented for a web composer). Hover to peek, click the ring to pin;
+// re-implemented for a web composer). Solid Popover surface per DESIGN.md;
 // Esc / clicking outside dismisses.
 //
 // The value is honest + computable — tools/CLAUDE.md-style costs are opaque
@@ -69,10 +71,7 @@ export function ContextDescriptor({ contextWindow, text, attachmentCount, attach
     parts: Array<{ type?: string; text?: string; mediaType?: string }>;
   }>;
 
-  const [pinned, setPinned] = useState(false);
-  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const closeTimer = useRef<number | null>(null);
 
   const known = typeof contextWindow === "number" && contextWindow > 0;
 
@@ -130,35 +129,10 @@ export function ContextDescriptor({ contextWindow, text, attachmentCount, attach
   // a fill above the window clips the bar (overflow-hidden) + flags overshoot.
   const overshoot = known && fill > contextWindow;
 
-  const beginClose = useCallback(() => {
-    if (pinned) return;
-    closeTimer.current = window.setTimeout(() => setOpen(false), 220);
-  }, [pinned]);
-  const cancelClose = useCallback(() => {
-    if (closeTimer.current !== null) {
-      window.clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }, []);
-
   return (
-    <div
-      className="relative hidden sm:block"
-      onMouseEnter={() => {
-        cancelClose();
-        setOpen(true);
-      }}
-      onMouseLeave={beginClose}
-    >
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          cancelClose();
-          setPinned((p) => !p);
-          setOpen((o) => !pinned || !o);
-        }}
+    <Popover>
+      <PopoverTrigger
+        aria-label="Context usage"
         className="shrink-0 block"
       >
         <ContextIndicator
@@ -166,21 +140,16 @@ export function ContextDescriptor({ contextWindow, text, attachmentCount, attach
           text={text}
           attachmentCount={attachmentCount}
         />
-      </button>
+      </PopoverTrigger>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            onMouseEnter={cancelClose}
-            onMouseLeave={beginClose}
-            className="absolute bottom-full right-0 mb-2 z-40 w-[300px] origin-bottom-right"
-          >
-            <div className="overflow-hidden rounded-2xl border dark:border-white/[0.09] light:border-black/[0.09] dark:bg-[#0a0a0a]/95 light:bg-white/95 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_18px_44px_-18px_rgba(0,0,0,0.6)]">
-              {/* Header — used / total + status */}
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="w-[300px]"
+      >
+        <div className="px-4">
+          {/* Header — used / total + status */}
               <div className="flex items-center justify-between px-4 pt-3 pb-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] dark:text-[#c9c9c9] light:text-[#2a2a2a]">
                   context window
@@ -267,16 +236,13 @@ export function ContextDescriptor({ contextWindow, text, attachmentCount, attach
                 <span className="text-[9px] font-mono dark:text-[#505050] light:text-[#9a9a9a]">
                   {pct > 0 ? `${Math.round(pct * 100)}% of window used` : "estimates — chars/≈4"}
                 </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono dark:text-[#505050] light:text-[#9a9a9a]">
-                  <Pin className={cn("h-2.5 w-2.5", pinned && "text-[#ffb400]")} />
-                  {pinned ? "pinned" : "hover"}
+                <span className="text-[9px] font-mono dark:text-[#505050] light:text-[#9a9a9a]">
+                  click ring · Esc to close
                 </span>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        </PopoverContent>
+    </Popover>
   );
 }
 

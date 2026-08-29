@@ -13,7 +13,7 @@ import { memo, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Brain, ChevronDown } from "lucide-react";
 import { cn, compactWhitespace } from "@/lib/utils";
-import { StreamItDown } from "@/components/chat/streamitdown";
+import { StreamingText } from "./leopard/streaming-text";
 
 type Part = { type: string; text?: string };
 type SharedMessage = {
@@ -132,7 +132,7 @@ export const SharedThread = memo(function SharedThread({
               seg.kind === "reasoning" ? (
                 <ThoughtPill key={`r-${i}`} content={seg.content} />
               ) : (
-                <StreamItDown key={`t-${i}`} content={seg.content} />
+                <StreamingText key={`t-${i}`} content={seg.content} />
               ),
             )}
           </div>

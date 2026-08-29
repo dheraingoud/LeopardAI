@@ -1,92 +1,43 @@
-// Leopard fork of assistant-ui composer — originals in addons/ are reference-only.
 "use client";
 
-import { type ComponentProps, useMemo } from "react";
-import {
-  ArrowUpIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  FileArchiveIcon,
-  FileImageIcon,
-  FileTextIcon,
-  Loader2Icon,
-  MicIcon,
-  PlusIcon,
-  SquareIcon,
-  XIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type KeyboardEvent } from "react";
+import TextareaAutosize from "react-textarea-autosize";
+import { ArrowUpIcon, FileIcon, ImageIcon, PlusIcon, SquareIcon } from "lucide-react";
+import { useActiveChat } from "@/hooks/use-active-chat";
+import { useSettingsStore } from "@/hooks/use-settings-store";
+import { ModelSelectorCompact } from "../model-selector-compact";
+import { ContextDescriptor } from "../context-descriptor";
+import { MemoryBadge } from "../memory-badge";
+import { ResearchPanel } from "../research-panel";
+import { McpConfigModal } from "@/components/chat/mcp-config-modal";
+import { SkillConfigModal } from "@/components/chat/skill-config-modal";
+import { uploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { getModelById } from "@/lib/ai/models";
+import { getSkillsSnapshot, subscribeSkills } from "@/lib/skill-store";
+import { getSlashMatches, SlashMenu, type SlashMatch } from "../slash-menu";
+import { MentionMenu, useRecentChatTitles } from "../mention-menu";
+import { MessageAttachmentChip, type PendingAttachment } from "./message-attachment";
+import { useMessageQueue } from "./message-queue";
 import {
-  field,
-  floating,
-  ghostButton,
-  iconSwap,
-  iconSwapIn,
-  iconSwapOut,
-  inkButton,
-  mono,
-  paper,
-  ShimmerLabel,
-} from "./surfaces";
-import { clamp, pct } from "./range";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { field, ghostButton, inkButton, paper } from "./surfaces";
 
-export interface ComposerAttachment {
-  name: string;
-  meta: string;
-  state: "uploading" | "done" | "error";
-  progress?: number;
-  kind?: "image" | "text" | "archive";
-}
+// Leopard fork of the elements-kit composer: ComposerBar/paper shell, floating
+// popovers, icon-swap send, with Leopard wiring (useActiveChat, uploads,
+// slash/mention, model/context/memory/research slots, PlusMenu folded in).
 
 export interface ComposerCommand {
   name: string;
   description: string;
-  icon: LucideIcon;
 }
 
 export interface ComposerPerson {
   name: string;
   role: "agent" | "human";
-}
-
-export interface ComposerModel {
-  name: string;
-  meta: string;
-}
-
-export interface ComposerUsage {
-  system: number;
-  tools: number;
-  messages: number;
-  total: number;
-}
-
-const ATTACHMENT_ICONS: Record<
-  NonNullable<ComposerAttachment["kind"]>,
-  LucideIcon
-> = {
-  image: FileImageIcon,
-  text: FileTextIcon,
-  archive: FileArchiveIcon,
-};
-
-const BARS = Array.from({ length: 14 }, (_, i) => i);
-
-function barHeight(bar: number, tick: number): number {
-  return 5 + Math.abs(Math.sin(bar * 1.35 + tick * 0.55)) * 13;
-}
-
-/** Commands whose name starts with the slash query, or none when not typing one. */
-export function useSlashMatches(
-  value: string,
-  commands: readonly ComposerCommand[] | undefined,
-): ComposerCommand[] {
-  return useMemo(() => {
-    if (!commands || !value.startsWith("/")) return [];
-    const query = value.slice(1).toLowerCase();
-    return commands.filter((command) => command.name.startsWith(query));
-  }, [commands, value]);
 }
 
 /** People matching a trailing @mention, or none when the caret is not in one. */
@@ -110,29 +61,14 @@ export function applyMention(value: string, name: string): string {
   return value.replace(/@[\w]*$/, `@${name} `);
 }
 
-export function Composer({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="composer"
-      className={cn("relative w-full max-w-lg", className)}
-      {...props}
-    />
-  );
-}
-
-export function ComposerBar({
-  dragActive = false,
-  className,
-  ...props
-}: ComponentProps<"div"> & { dragActive?: boolean }) {
+function ComposerBar({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="composer-bar"
-      data-drag-active={dragActive || undefined}
       className={cn(
         paper,
-        "flex w-full flex-col gap-2 rounded-[24px] p-2.5 transition-colors",
-        dragActive && "bg-[#ffb400]/[0.04] dark:bg-[#ffb400]/10",
+        "flex w-full flex-col gap-2 rounded-[24px] p-2 transition-shadow",
+        "focus-within:ring-1 focus-within:ring-[#ffb400]/40",
         className,
       )}
       {...props}
@@ -140,263 +76,7 @@ export function ComposerBar({
   );
 }
 
-export function ComposerMenu({
-  open,
-  align = "start",
-  className,
-  ...props
-}: ComponentProps<"div"> & { open: boolean; align?: "start" | "end" }) {
-  return (
-    <div
-      data-slot="composer-menu"
-      data-open={open || undefined}
-      className={cn(
-        floating,
-        "absolute bottom-full z-10 mb-2 flex w-72 flex-col gap-0.5 rounded-2xl p-1.5",
-        align === "start"
-          ? "start-0 origin-bottom-left"
-          : "end-0 origin-bottom-right",
-        "transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-        open
-          ? "scale-100 opacity-100"
-          : "pointer-events-none scale-[0.97] opacity-0",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export function ComposerMenuItem({
-  active = false,
-  className,
-  ...props
-}: ComponentProps<"button"> & { active?: boolean }) {
-  return (
-    <button
-      type="button"
-      data-slot="composer-menu-item"
-      data-active={active || undefined}
-      className={cn(
-        "flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[13.5px] transition-colors",
-        active ? field : "hover:bg-foreground/[0.04]",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export function ComposerCommandItem({
-  command,
-  active,
-  ...props
-}: Omit<ComponentProps<"button">, "children"> & {
-  command: ComposerCommand;
-  active: boolean;
-}) {
-  return (
-    <ComposerMenuItem active={active} {...props}>
-      <command.icon className="text-foreground/35 size-3.5 shrink-0" />
-      <span className="font-medium">/{command.name}</span>
-      <span className="text-foreground/45 flex-1 truncate text-start text-xs">
-        {command.description}
-      </span>
-      {active && (
-        <kbd className="bg-foreground/[0.06] text-foreground/45 rounded px-1 font-mono text-[10px]">
-          ↵
-        </kbd>
-      )}
-    </ComposerMenuItem>
-  );
-}
-
-export function ComposerPersonItem({
-  person,
-  active,
-  ...props
-}: Omit<ComponentProps<"button">, "children"> & {
-  person: ComposerPerson;
-  active: boolean;
-}) {
-  return (
-    <ComposerMenuItem active={active} {...props}>
-      <span className="bg-foreground/[0.06] text-foreground/45 flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-medium">
-        {person.name[0]}
-      </span>
-      <span className="flex-1 truncate text-start">{person.name}</span>
-      <span className={cn(mono, "text-foreground/35")}>{person.role}</span>
-    </ComposerMenuItem>
-  );
-}
-
-export function ComposerAttachments({
-  className,
-  ...props
-}: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="composer-attachments"
-      className={cn("flex flex-wrap gap-2", className)}
-      {...props}
-    />
-  );
-}
-
-export function ComposerAttachmentChip({
-  attachment,
-  onRemove,
-  className,
-  ...props
-}: Omit<ComponentProps<"div">, "children"> & {
-  attachment: ComposerAttachment;
-  onRemove?: (name: string) => void;
-}) {
-  const Icon = ATTACHMENT_ICONS[attachment.kind ?? "text"];
-  return (
-    <div
-      data-slot="composer-attachment"
-      data-state={attachment.state}
-      className={cn(
-        field,
-        "relative flex items-center gap-2.5 overflow-hidden rounded-[14px] py-1.5 ps-1.5 pe-2.5",
-        className,
-      )}
-      {...props}
-    >
-      <span className="bg-background text-foreground/45 flex size-8 shrink-0 items-center justify-center rounded-[10px] dark:bg-white/10">
-        <Icon className="size-4" />
-      </span>
-      <span className="flex flex-col">
-        <span className="max-w-36 truncate text-xs font-medium">
-          {attachment.name}
-        </span>
-        <span
-          className={cn(
-            "text-[11px]",
-            attachment.state === "error"
-              ? "text-red-600/80 dark:text-red-400/80"
-              : "text-foreground/40",
-          )}
-        >
-          {attachment.meta}
-        </span>
-      </span>
-      <span className="ms-1 flex w-5 items-center justify-end">
-        {attachment.state === "uploading" ? (
-          <Loader2Icon className="text-foreground/35 size-3.5 animate-spin motion-reduce:animate-none" />
-        ) : attachment.state === "done" && onRemove ? (
-          <button
-            type="button"
-            aria-label={`Remove ${attachment.name}`}
-            onClick={() => onRemove(attachment.name)}
-            className={cn(ghostButton, "size-5 [&_svg]:size-3")}
-          >
-            <XIcon />
-          </button>
-        ) : attachment.state === "done" ? (
-          <CheckIcon className="size-3.5 text-emerald-500" />
-        ) : null}
-      </span>
-      {attachment.state === "uploading" && (
-        <span
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-0.5 bg-[#ffb400]/70 transition-[width] duration-300 dark:bg-[#ffb400]/70"
-          style={{ width: `${pct(attachment.progress ?? 0, 100)}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
-export function ComposerInput({
-  onSubmit,
-  onKeyDown,
-  className,
-  ...props
-}: Omit<ComponentProps<"input">, "onSubmit"> & { onSubmit?: () => void }) {
-  return (
-    <input
-      data-slot="composer-input"
-      onKeyDown={(event) => {
-        onKeyDown?.(event);
-        if (event.defaultPrevented) return;
-        if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-        onSubmit?.();
-      }}
-      className={cn(
-        "placeholder:text-foreground/35 min-h-11 w-full bg-transparent px-3 text-[15px] caret-blue-500 outline-none dark:caret-blue-400",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export function ComposerVoice({
-  recording,
-  seconds,
-  className,
-  ...props
-}: Omit<ComponentProps<"div">, "children"> & {
-  recording: boolean;
-  seconds: number;
-}) {
-  return (
-    <div
-      data-slot="composer-voice"
-      data-recording={recording || undefined}
-      className={cn("flex min-h-11 items-center gap-3 ps-3", className)}
-      {...props}
-    >
-      {recording && (
-        <span
-          aria-hidden
-          className="size-1.5 animate-pulse rounded-full dark:bg-[#ffb400] light:bg-[#d49600]"
-        />
-      )}
-      <div className="flex h-6 items-center gap-[3px]" aria-hidden>
-        {BARS.map((bar) => (
-          <span
-            key={bar}
-            className={cn(
-              "w-0.5 rounded-full transition-[height,background-color] duration-150 motion-reduce:transition-none",
-              recording ? "bg-foreground/50" : "bg-foreground/25",
-            )}
-            style={{ height: recording ? barHeight(bar, seconds * 10) : 3 }}
-          />
-        ))}
-      </div>
-      {recording ? (
-        <span className={cn(mono, "text-foreground/40 tabular-nums")}>
-          0:{String(seconds).padStart(2, "0")}
-        </span>
-      ) : (
-        <ShimmerLabel className="text-foreground/55 relative text-[13px]">
-          Transcribing
-        </ShimmerLabel>
-      )}
-    </div>
-  );
-}
-
-export function ComposerToolbar({
-  className,
-  ...props
-}: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="composer-toolbar"
-      className={cn("flex items-center justify-between", className)}
-      {...props}
-    />
-  );
-}
-
-export function ComposerActions({
-  className,
-  ...props
-}: ComponentProps<"div">) {
+function ComposerActions({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="composer-actions"
@@ -406,223 +86,7 @@ export function ComposerActions({
   );
 }
 
-export function ComposerAttachButton({
-  className,
-  ...props
-}: Omit<ComponentProps<"button">, "children">) {
-  return (
-    <button
-      type="button"
-      aria-label="Add attachment"
-      data-slot="composer-attach"
-      disabled={!props.onClick}
-      className={cn(
-        ghostButton,
-        "size-8 disabled:pointer-events-none disabled:opacity-30",
-        className,
-      )}
-      {...props}
-    >
-      <PlusIcon className="size-4" />
-    </button>
-  );
-}
-
-export function ComposerModelTrigger({
-  model,
-  open,
-  className,
-  ...props
-}: Omit<ComponentProps<"button">, "children"> & {
-  model: string;
-  open: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-expanded={open}
-      data-slot="composer-model-trigger"
-      className={cn(
-        "text-foreground/55 hover:bg-foreground/[0.06] hover:text-foreground/90 dark:hover:bg-foreground/[0.09] flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] transition-colors",
-        className,
-      )}
-      {...props}
-    >
-      {model}
-      <ChevronDownIcon className="size-3 opacity-60" />
-    </button>
-  );
-}
-
-export function ComposerModelItem({
-  entry,
-  selected,
-  ...props
-}: Omit<ComponentProps<"button">, "children"> & {
-  entry: ComposerModel;
-  selected: boolean;
-}) {
-  return (
-    <ComposerMenuItem active={selected} {...props}>
-      <span className="flex-1 text-start">{entry.name}</span>
-      <span className={cn(mono, "text-foreground/35 tabular-nums")}>
-        {entry.meta}
-      </span>
-      <span className="flex w-4 justify-end">
-        {selected && (
-          <CheckIcon className="fade-in zoom-in-90 animate-in size-3.5 duration-200" />
-        )}
-      </span>
-    </ComposerMenuItem>
-  );
-}
-
-export function ComposerContext({
-  usage,
-  className,
-  ...props
-}: Omit<ComponentProps<"div">, "children"> & { usage: ComposerUsage }) {
-  const used = usage.system + usage.tools + usage.messages;
-  const fraction = usage.total === 0 ? 0 : used / usage.total;
-  const warn = fraction > 0.85;
-  const circumference = 2 * Math.PI * 6;
-  const segments = [
-    { label: "System", value: usage.system, className: "bg-foreground/25" },
-    { label: "Tools", value: usage.tools, className: "bg-foreground/45" },
-    { label: "Messages", value: usage.messages, className: "bg-foreground/80" },
-  ];
-
-  return (
-    <div
-      data-slot="composer-context"
-      className={cn("group/ctx relative", className)}
-      {...props}
-    >
-      <div
-        className={cn(
-          floating,
-          "absolute end-0 bottom-full z-10 mb-2 flex w-60 origin-bottom-right flex-col gap-3.5 rounded-2xl p-4",
-          "transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-          "pointer-events-none scale-[0.97] opacity-0",
-          "group-hover/ctx:pointer-events-auto group-hover/ctx:scale-100 group-hover/ctx:opacity-100",
-          "group-focus-within/ctx:pointer-events-auto group-focus-within/ctx:scale-100 group-focus-within/ctx:opacity-100",
-        )}
-      >
-        <div className="flex items-baseline justify-between">
-          <p className="text-[13.5px] font-medium">Context</p>
-          <p
-            className={cn(
-              mono,
-              "tabular-nums",
-              warn ? "text-red-500 dark:text-red-400" : "text-foreground/35",
-            )}
-          >
-            {Math.round(fraction * 100)}%
-          </p>
-        </div>
-        <div className="bg-foreground/[0.06] flex h-[5px] w-full gap-px overflow-hidden rounded-full">
-          {segments.map((segment) => (
-            <span
-              key={segment.label}
-              className={cn(
-                "h-full transition-[width] duration-700 motion-reduce:transition-none",
-                segment.className,
-              )}
-              style={{ width: `${pct(segment.value, usage.total)}%` }}
-            />
-          ))}
-        </div>
-        <div className="flex flex-col gap-2">
-          {segments.map((segment) => (
-            <div
-              key={segment.label}
-              className="text-foreground/55 flex items-center gap-2.5 text-[13px]"
-            >
-              <span
-                aria-hidden
-                className={cn("size-1.5 rounded-full", segment.className)}
-              />
-              <span className="flex-1">{segment.label}</span>
-              <span className={cn(mono, "text-foreground/40 tabular-nums")}>
-                {segment.value}k
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="bg-foreground/[0.06] h-px" />
-        <div className="text-foreground/55 flex items-center justify-between text-[13px]">
-          <span>Total</span>
-          <span className={cn(mono, "text-foreground/40 tabular-nums")}>
-            {used}k / {usage.total}k
-          </span>
-        </div>
-      </div>
-      <button
-        type="button"
-        aria-label="Context usage"
-        className={cn(
-          ghostButton,
-          "size-8",
-          warn && "text-red-500 dark:text-red-400",
-        )}
-      >
-        <svg viewBox="0 0 16 16" className="size-4 -rotate-90" aria-hidden>
-          <circle
-            cx="8"
-            cy="8"
-            r="6"
-            fill="none"
-            strokeWidth="2.5"
-            className="stroke-foreground/10"
-          />
-          <circle
-            cx="8"
-            cy="8"
-            r="6"
-            fill="none"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            className="stroke-current transition-[stroke-dashoffset] duration-700 motion-reduce:transition-none"
-            strokeDasharray={circumference}
-            strokeDashoffset={circumference * (1 - clamp(fraction, 0, 1))}
-          />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-export function ComposerVoiceButton({
-  active,
-  className,
-  ...props
-}: Omit<ComponentProps<"button">, "children"> & { active: boolean }) {
-  return (
-    <button
-      type="button"
-      aria-label={active ? "Stop recording" : "Start voice input"}
-      data-slot="composer-voice-button"
-      className={cn(
-        active
-          ? cn(
-              inkButton,
-              "flex size-8 items-center justify-center rounded-full",
-            )
-          : cn(ghostButton, "size-8"),
-        className,
-      )}
-      {...props}
-    >
-      {active ? (
-        <SquareIcon className="size-3 fill-current" />
-      ) : (
-        <MicIcon className="size-4" />
-      )}
-    </button>
-  );
-}
-
-export function ComposerSend({
+function ComposerSend({
   streaming,
   idle,
   className,
@@ -633,28 +97,383 @@ export function ComposerSend({
 }) {
   return (
     <button
-      type="button"
+      type={streaming ? "button" : "submit"}
+      disabled={!streaming && idle}
       aria-label={streaming ? "Stop generating" : "Send message"}
       data-slot="composer-send"
       className={cn(
-        "grid size-8 place-items-center rounded-full",
+        "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11",
         streaming || !idle
           ? inkButton
-          : "bg-foreground/[0.06] text-foreground/30 dark:bg-foreground/[0.09] transition-colors",
+          : "dark:bg-white/[0.06] light:bg-black/[0.05] dark:text-[#505050] light:text-[#9a9a9a] transition-colors",
         className,
       )}
       {...props}
     >
-      <ArrowUpIcon
-        className={cn(iconSwap, "size-4", streaming ? iconSwapOut : iconSwapIn)}
-      />
-      <SquareIcon
-        className={cn(
-          iconSwap,
-          "size-3 fill-current",
-          streaming ? iconSwapIn : iconSwapOut,
-        )}
-      />
+      {streaming ? (
+        <SquareIcon className="size-3 fill-current dark:text-[#ffb400] light:text-white" />
+      ) : (
+        <ArrowUpIcon className="size-4" />
+      )}
     </button>
+  );
+}
+
+/** Attach menu folded in from the former plus-menu: vision-gated media, file,
+ *  skill config, mcp config. Hidden inputs reset so a file can be re-picked. */
+function ComposerAttachMenu({
+  modelVision,
+  modelImageEdit,
+  onPickMedia,
+  onPickFile,
+}: {
+  modelVision: boolean;
+  modelImageEdit: boolean;
+  onPickMedia: (files: FileList) => void;
+  onPickFile: (files: FileList) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const mediaRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const canAttachMedia = modelVision || modelImageEdit;
+  const mediaAccept = modelImageEdit && !modelVision ? "image/*" : "image/*,video/*";
+  const mediaHint = modelVision ? undefined : modelImageEdit ? "image only" : "needs VLM";
+
+  const item = (
+    label: string,
+    onClick: () => void,
+    disabled = false,
+    hint?: string,
+  ) => (
+    <button
+      key={label}
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        setOpen(false);
+        onClick();
+      }}
+      className={cn(
+        "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left lowercase transition-colors",
+        disabled
+          ? "cursor-not-allowed dark:text-[#404040] light:text-[#b8b8b8]"
+          : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black",
+      )}
+    >
+      <span>{label}</span>
+      {hint && (
+        <span className="text-[9px] uppercase tracking-tighter dark:text-[#505050] light:text-[#b8b8b8]">
+          {hint}
+        </span>
+      )}
+    </button>
+  );
+
+  return (
+    <div className="relative shrink-0">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              title="Add attachment"
+              aria-label="Add attachment"
+              className={cn(ghostButton, "size-9 max-sm:size-11 dark:border dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08]")}
+            >
+              <PlusIcon className="size-4" />
+            </button>
+          }
+        />
+        <PopoverContent side="top" align="start" sideOffset={8} tint={0.62}>
+          <div className="w-[224px] p-1 text-[12px] font-mono">
+            {item("attach image / video", () => mediaRef.current?.click(), !canAttachMedia, mediaHint)}
+            {item("attach file", () => fileRef.current?.click())}
+            {item("add skill", () => setSkillsOpen(true))}
+            {item("mcp servers", () => setMcpOpen(true))}
+          </div>
+        </PopoverContent>
+      </Popover>
+      <McpConfigModal open={mcpOpen} onClose={() => setMcpOpen(false)} />
+      <SkillConfigModal open={skillsOpen} onClose={() => setSkillsOpen(false)} />
+      <input
+        ref={mediaRef}
+        type="file"
+        accept={mediaAccept}
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files) onPickMedia(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={fileRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          if (e.target.files) onPickFile(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+export function Composer() {
+  const { sendMessage, status, stopGeneration, currentModelId } = useActiveChat();
+  const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Slash/@ popovers: open is derived from input; Esc suppresses until the next keystroke.
+  const skills = useSyncExternalStore(subscribeSkills, getSkillsSnapshot);
+  const chatTitles = useRecentChatTitles();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [dismissed, setDismissed] = useState<"slash" | "mention" | null>(null);
+
+  const slashValue = /^\/\w*$/.test(input) ? input : "";
+  const slashMatches = useMemo(
+    () => getSlashMatches(slashValue, skills),
+    [slashValue, skills],
+  );
+  const slashOpen = dismissed !== "slash" && slashMatches.length > 0;
+
+  const mentionPeople = useMemo(
+    () => chatTitles.map((t) => ({ name: t, role: "agent" as const })),
+    [chatTitles],
+  );
+  const mentionMatches = useMentionMatches(input, mentionPeople);
+  const mentionOpen = dismissed !== "mention" && mentionMatches.length > 0;
+
+  useEffect(() => setActiveIndex(0), [slashOpen, mentionOpen]);
+  useEffect(() => setDismissed(null), [input]);
+
+  // Edit-back-to-composer: message action buttons dispatch composer:set-text.
+  useEffect(() => {
+    function onSet(e: Event) {
+      const text = (e as CustomEvent<{ text: string }>).detail?.text ?? "";
+      setInput(text);
+      setAttachments([]);
+      queueMicrotask(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        try {
+          el.setSelectionRange(text.length, text.length);
+        } catch {
+          /* number inputs have no selection range */
+        }
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
+    window.addEventListener("composer:set-text", onSet);
+    return () => window.removeEventListener("composer:set-text", onSet);
+  }, []);
+
+  const modelConfig = getModelById(currentModelId);
+  const modelVision = modelConfig?.supportsVision ?? false;
+  const modelImageEdit = modelConfig?.supportsImageEdit ?? false;
+  const ctxWin = modelConfig?.contextWindow;
+
+  const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
+  const isStreaming = status === "submitted" || status === "streaming";
+  const hasContent = input.trim().length > 0 || attachments.length > 0;
+  const canSend = hasContent && !isStreaming && !uploading;
+  const { enqueue, drain } = useMessageQueue();
+
+  // Flush queued text once the active run returns to ready.
+  const prevStreaming = useRef(false);
+  useEffect(() => {
+    if (prevStreaming.current && !isStreaming) {
+      const drained = drain();
+      for (const m of drained) {
+        void sendMessage({ parts: [{ type: "text", text: m.text }] } as never);
+      }
+    }
+    prevStreaming.current = isStreaming;
+  }, [isStreaming, drain, sendMessage]);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  const addFiles = async (files: FileList, kind: "media" | "file") => {
+    if (kind === "media" && !modelVision && !modelImageEdit) return;
+    setUploading(true);
+    try {
+      for (const f of Array.from(files)) {
+        if (kind === "media" && modelImageEdit && !modelVision && !f.type.startsWith("image/")) continue;
+        const up = await uploadFile(f);
+        setAttachments((a) => [...a, { url: up.url, name: up.name, mediaType: up.mediaType }]);
+      }
+    } catch (e) {
+      console.error("upload failed", e);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = (e?: FormEvent) => {
+    e?.preventDefault();
+    const text = input.trim();
+    // Mid-run send: hold the text and auto-send when the run finishes.
+    if (isStreaming) {
+      if (text) {
+        enqueue(text);
+        setInput("");
+      }
+      return;
+    }
+    if (!canSend) return;
+    const fileParts = attachments.map((a) => ({
+      type: "file" as const,
+      url: a.url,
+      filename: a.name,
+      mediaType: a.mediaType,
+    }));
+    const parts = [...fileParts, ...(text ? [{ type: "text" as const, text }] : [])];
+    setInput("");
+    setAttachments([]);
+    void sendMessage({ parts } as never);
+  };
+
+  const insertAndRefocus = (next: string) => {
+    setInput(next);
+    queueMicrotask(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.setSelectionRange(next.length, next.length);
+      } catch {
+        /* number inputs have no selection range */
+      }
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  };
+
+  const selectSlash = (match: SlashMatch) => insertAndRefocus(`/${match.slug} `);
+  const selectMention = (title: string) => insertAndRefocus(applyMention(input, title));
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    const menuOpen = slashOpen || mentionOpen;
+    const count = slashOpen ? slashMatches.length : mentionMatches.length;
+    if (menuOpen && count > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((i) => (i + 1) % count);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((i) => (i - 1 + count) % count);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDismissed(slashOpen ? "slash" : "mention");
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing)) {
+        e.preventDefault();
+        if (slashOpen) selectSlash(slashMatches[activeIndex % count]);
+        else selectMention(mentionMatches[activeIndex % count].name);
+        return;
+      }
+    }
+    const sendKey = sendWithEnter ? !e.shiftKey : e.shiftKey;
+    if (e.key === "Enter" && sendKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6">
+      <div className="pointer-events-auto mx-auto max-w-3xl">
+        {(attachments.length > 0 || uploading) && (
+          <div data-slot="composer-attachments" className="mb-2 flex flex-wrap items-center gap-2">
+            {attachments.map((a, i) => (
+              <MessageAttachmentChip
+                key={`${a.url}-${i}`}
+                attachment={a}
+                onRemove={() => setAttachments((arr) => arr.filter((_, idx) => idx !== i))}
+              />
+            ))}
+            {uploading && (
+              <span className="self-center font-mono text-[10px] dark:text-[#ffb400]/70 light:text-[#d49600]/80">
+                uploading…
+              </span>
+            )}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} className="relative">
+          {slashOpen && (
+            <SlashMenu
+              matches={slashMatches}
+              activeIndex={activeIndex % slashMatches.length}
+              onSelect={selectSlash}
+            />
+          )}
+          {mentionOpen && (
+            <MentionMenu
+              titles={mentionMatches.map((m) => m.name)}
+              activeIndex={activeIndex % mentionMatches.length}
+              onSelect={selectMention}
+            />
+          )}
+          <ComposerBar>
+            <div className={cn(field, "relative flex items-end gap-1.5 rounded-[18px] px-2 py-2")}>
+              <ComposerAttachMenu
+                modelVision={modelVision}
+                modelImageEdit={modelImageEdit}
+                onPickMedia={(f) => addFiles(f, "media")}
+                onPickFile={(f) => addFiles(f, "file")}
+              />
+              <TextareaAutosize
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Message Leopard…"
+                aria-label="Message"
+                rows={1}
+                minRows={1}
+                maxRows={8}
+                className="min-h-[36px] max-h-[240px] flex-1 resize-none bg-transparent px-1 py-2 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
+              />
+              <ComposerActions>
+                <ModelSelectorCompact />
+                <ContextDescriptor
+                  contextWindow={ctxWin}
+                  text={input}
+                  attachmentCount={attachments.length}
+                  attachments={attachments}
+                />
+                <MemoryBadge />
+                <ResearchPanel />
+                {isStreaming ? (
+                  <ComposerSend
+                    streaming
+                    idle={false}
+                    onClick={stopGeneration}
+                    title="Stop"
+                  />
+                ) : (
+                  <ComposerSend streaming={false} idle={!canSend} title="Send" />
+                )}
+              </ComposerActions>
+            </div>
+          </ComposerBar>
+        </form>
+        <p className="mt-2 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#b8b8b8]">
+          Leopard can make mistakes. Verify important info.
+        </p>
+      </div>
+    </div>
   );
 }

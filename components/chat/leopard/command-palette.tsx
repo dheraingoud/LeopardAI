@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui command-palette — originals in addons/ are reference-only.
 "use client";
 
 import { useEffect, useId, type ComponentProps } from "react";

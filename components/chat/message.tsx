@@ -26,13 +26,16 @@ import { cn, compactWhitespace } from "@/lib/utils";
 import { hydrateMessageImages } from "@/lib/image-cache";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { StreamItDown } from "@/components/chat/streamitdown";
+import { StreamingText } from "./leopard/streaming-text";
 import type { ReasoningLevel } from "@/lib/nim";
 import { PulseLoader } from "./pulse-loader";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
 import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
+import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
 import { MessageActions } from "./leopard/message-actions";
+import { Sources, type SourceItem } from "./leopard/sources";
+import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -434,6 +437,91 @@ function ToolCard({
   );
 }
 
+// Short target label for a grouped tool row (query / bare URL) — mirrors the
+// summary ToolCard computes for its trigger.
+function toolTarget(toolName: string, input: unknown): string {
+  if (input && typeof input === "object") {
+    if (toolName === "webSearch") {
+      return (input as { query?: string }).query ?? "";
+    }
+    const u = (input as { url?: string }).url;
+    if (typeof u === "string") return u.replace(/^https?:\/\//, "");
+  }
+  return "";
+}
+
+type ToolSegShape = {
+  toolName: string;
+  state: string;
+  input?: unknown;
+  output?: unknown;
+  toolCallId?: string;
+};
+
+/**
+ * ToolGroupSeg — a burst of consecutive tool calls as ONE collapsible group
+ * (aui ToolGroup). Auto-opens while any call is running, auto-collapses when
+ * the burst settles; a manual toggle sticks. Expanded shows the full
+ * per-tool ToolCards, so request/result content stays accessible.
+ */
+function ToolGroupSeg({
+  tools,
+  isStreaming,
+  isTail,
+}: {
+  tools: ToolSegShape[];
+  isStreaming: boolean;
+  isTail: boolean;
+}) {
+  const anyRunning = tools.some(
+    (t) => t.state === "streaming" || t.state === "pending",
+  );
+  const [manual, setManual] = useState<boolean | null>(null);
+  const open = manual ?? anyRunning;
+  const names = new Set(tools.map((t) => t.toolName));
+  const label =
+    names.size === 1
+      ? `${tools.length}× ${tools[0].toolName}`
+      : `${tools.length} tool calls`;
+  const grouped: GroupedTool[] = tools.map((t, i) => ({
+    id: t.toolCallId ?? `tool-${i}`,
+    name: t.toolName,
+    target: toolTarget(t.toolName, t.input),
+    state:
+      t.state === "error"
+        ? "failed"
+        : t.state === "streaming" || t.state === "pending"
+          ? "running"
+          : "done",
+  }));
+  return (
+    <ToolGroup
+      label={label}
+      tools={grouped}
+      open={open}
+      onOpenChange={setManual}
+      className="max-w-none"
+    >
+      {tools.map((t, i) => {
+        const live =
+          isStreaming &&
+          isTail &&
+          t.state !== "complete" &&
+          t.state !== "ask";
+        return (
+          <ToolCard
+            key={t.toolCallId ?? i}
+            toolName={t.toolName}
+            state={live ? "streaming" : t.state}
+            input={t.input}
+            output={t.output}
+          />
+        );
+      })}
+    </ToolGroup>
+  );
+}
+
 export const PreviewMessage = memo(function PreviewMessage({
   message,
   isLast,
@@ -731,10 +819,60 @@ export const PreviewMessage = memo(function PreviewMessage({
         out.push(cur);
       }
     }
-    return out;
+    // aui ToolGroup (TODO Task 5): consecutive non-ask tool segments merge
+    // into ONE collapsible group (search→fetch bursts render as a single
+    // "2 tool calls" row, expanding to the full per-tool cards). A lone tool
+    // stays a single card; ask (approval) segments never group — the
+    // composer-zone ApprovalDock owns those.
+    type ToolSeg = Extract<Seg, { kind: "tool" }>;
+    type GroupSeg = { kind: "toolgroup"; tools: ToolSeg[] };
+    const grouped: Array<Seg | GroupSeg> = [];
+    for (const s of out) {
+      if (s.kind === "tool" && s.state !== "ask") {
+        const prev = grouped[grouped.length - 1];
+        if (prev && prev.kind === "toolgroup") {
+          prev.tools.push(s);
+        } else {
+          grouped.push({ kind: "toolgroup", tools: [s] });
+        }
+        continue;
+      }
+      grouped.push(s);
+    }
+    return grouped.map((g) =>
+      g.kind === "toolgroup" && g.tools.length === 1 ? g.tools[0] : g,
+    );
   }, [message.parts, isUser]);
 
   const textSegCount = segments.filter((s) => s.kind === "text").length;
+
+  // Kit Sources row: domains+titles from any webSearch/webFetch tool segment.
+  const toolSources = useMemo(() => {
+    const out: SourceItem[] = [];
+    const seen = new Set<string>();
+    for (const s of segments) {
+      const tools = s.kind === "tool" ? [s] : s.kind === "toolgroup" ? s.tools : [];
+      for (const t of tools) {
+        const o = t.output as
+          | { results?: Array<{ url?: string; title?: string }>; url?: string }
+          | undefined;
+        const items = o?.results ?? (o?.url ? [{ url: o.url }] : []);
+        for (const r of items) {
+          if (!r.url) continue;
+          let domain = "";
+          try {
+            domain = new URL(r.url).hostname.replace(/^www\./, "");
+          } catch {
+            continue;
+          }
+          if (seen.has(domain)) continue;
+          seen.add(domain);
+          out.push({ domain, title: r.title ?? domain, url: r.url });
+        }
+      }
+    }
+    return out;
+  }, [segments]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(renderText);
@@ -754,7 +892,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Edit (user): delete the server rows at-or-after this message FIRST (else
   // the live-mirror heal resurrects them and the edited resend shows the old
   // bubble twice), then truncate local state and fire `composer:set-text` —
-  // the composer listens (multimodal-input effect) and repopulates + focuses.
+  // the composer listens (leopard/composer effect) and repopulates + focuses.
   const handleEditUser = () => {
     try {
       chat.editMessage?.(message.id);
@@ -909,6 +1047,16 @@ export const PreviewMessage = memo(function PreviewMessage({
                 />
               );
             }
+            if (seg.kind === "toolgroup") {
+              return (
+                <ToolGroupSeg
+                  key={`tg-${i}`}
+                  tools={seg.tools}
+                  isStreaming={isStreaming}
+                  isTail={isLast}
+                />
+              );
+            }
             if (seg.kind === "tool") {
               // A pending approval renders ONLY as the composer-zone
               // ApprovalDock (user directive 2026-08-26: one permission card,
@@ -936,7 +1084,7 @@ export const PreviewMessage = memo(function PreviewMessage({
             const segText =
               textSegCount === 1 && renderText ? renderText : seg.content;
             return (
-              <StreamItDown
+              <StreamingText
                 key={`t-${i}`}
                 content={segText}
                 // Only the TAIL segment streams (caret + amber tail + throttle).
@@ -956,6 +1104,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                 <DocumentCard key={`doc-${i}`} part={p} />
               ))}
             </div>
+          )}
+
+          {toolSources.length > 0 && !isStreaming && (
+            <Sources sources={toolSources} className="mt-2" />
           )}
 
           {!isStreaming && renderText && (
@@ -985,6 +1137,24 @@ export const PreviewMessage = memo(function PreviewMessage({
                   }
                 }}
                 onRegenerate={handleRegenerate}
+              />
+            </div>
+          )}
+
+          {/* Follow-up suggestions (TODO Task 8): subtle chip row under the
+              LAST finished assistant turn (status ready). Clicks fill + send
+              through the composer via chat.sendMessage. */}
+          {isLast && status === "ready" && renderText && (
+            <div className="mt-2">
+              <Suggestions
+                suggestions={FOLLOW_UP_SUGGESTIONS}
+                label="Follow-up prompts"
+                className="justify-start"
+                onSuggestion={(text) => {
+                  void chat.sendMessage({
+                    parts: [{ type: "text", text }],
+                  } as never);
+                }}
               />
             </div>
           )}
