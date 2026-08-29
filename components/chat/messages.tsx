@@ -139,6 +139,21 @@ export function Messages() {
     if (status === "ready" || status === "error") setGhost(null);
   }, [status, messages]);
 
+  // Reasoning-panel expand/collapse dispatches per-frame height deltas; hold
+  // the reading anchor when NOT pinned to the bottom.
+  useEffect(() => {
+    const onResize = (e: Event) => {
+      const d = (e as CustomEvent).detail as { delta?: number };
+      const delta = d?.delta;
+      const el = scrollRef.current;
+      if (!delta || !el || stickToBottomRef.current) return;
+      el.scrollTop += delta;
+    };
+    window.addEventListener("leopard:reasoning-resize", onResize);
+    return () =>
+      window.removeEventListener("leopard:reasoning-resize", onResize);
+  }, []);
+
   const showGhost =
     ghost !== null && !messages.some((m) => m.id === ghost.id);
 
