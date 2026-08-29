@@ -3,7 +3,7 @@
 import type { ComponentProps } from "react";
 import { CheckIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mono } from "./surfaces";
+import { live, mono } from "./surfaces";
 
 export type TodoStatus = "pending" | "active" | "done";
 
@@ -51,7 +51,7 @@ export function TodoList({
                   <CheckIcon className="text-foreground/45 size-2.5" />
                 </span>
               ) : item.status === "active" ? (
-                <Loader2Icon className="size-3.5 animate-spin dark:text-[#ffb400] light:text-[#d49600] motion-reduce:animate-none dark:dark:text-[#ffb400] light:text-[#d49600]" />
+                <Loader2Icon className={cn(live, "size-3.5 animate-spin motion-reduce:animate-none")} />
               ) : (
                 <span
                   aria-hidden

@@ -45,7 +45,7 @@ export function BackgroundInbox({
             mono,
             "tabular-nums",
             ready > 0
-              ? "dark:text-[#ffb400] light:text-[#d49600] dark:dark:text-[#ffb400] light:text-[#d49600]"
+              ? "dark:text-[#ffb400] light:text-[#d49600]"
               : "text-foreground/35",
           )}
         >

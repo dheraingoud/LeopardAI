@@ -85,7 +85,7 @@ export function ScoreBreakdown({
             </div>
             <span className="bg-foreground/[0.06] h-[3px] w-full overflow-hidden rounded-full">
               <span
-                className="block h-full rounded-full dark:bg-[#ffb400] light:bg-[#d49600] transition-[width] duration-500 motion-reduce:transition-none dark:dark:bg-[#ffb400] light:bg-[#d49600]"
+                className="block h-full rounded-full dark:bg-[#ffb400] light:bg-[#d49600] transition-[width] duration-500 motion-reduce:transition-none"
                 style={{
                   width: `${pct(criterion.score, outOf)}%`,
                 }}
