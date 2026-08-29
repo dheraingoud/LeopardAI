@@ -13,11 +13,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@clerk/nextjs";
-import { Search, X, Loader2, FileText } from "lucide-react";
+import { Search, X, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { retryingFetch } from "@/lib/client/retrying-fetch";
+import { BackgroundInbox } from "./leopard/background-inbox";
 
 interface Job {
   id: string;
@@ -39,13 +40,6 @@ const UI_ENABLED =
   (typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("research") === "1");
 
-const STATUS_LABEL: Record<Job["status"], string> = {
-  queued: "Queued",
-  running: "Researching…",
-  done: "Done",
-  error: "Failed",
-};
-
 export function ResearchPanel() {
   const { session } = useSession();
   // Φ-docs · token-refresh-once: getToken() is the current bearer; refresh
@@ -58,6 +52,7 @@ export function ResearchPanel() {
     [session],
   );
   const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [spawning, setSpawning] = useState(false);
@@ -142,6 +137,7 @@ export function ResearchPanel() {
   if (!UI_ENABLED) return null;
 
   const active = jobs.filter((j) => isActive(j.status)).length;
+  const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
 
   return (
     <div className="relative">
@@ -201,56 +197,48 @@ export function ResearchPanel() {
               </button>
             </div>
 
-            <ul className="max-h-[24rem] divide-y divide-white/5 overflow-y-auto">
-              {jobs.length === 0 && (
-                <li className="px-3 py-4 text-[12px] text-[#8a8a8a]">
+            <div className="max-h-[24rem] overflow-y-auto p-2">
+              {jobs.length === 0 ? (
+                <p className="px-3 py-4 text-[12px] text-[#8a8a8a]">
                   No research runs yet. Type a question and press Run — or ask
                   Leopard to research something and it starts here.
-                </li>
+                </p>
+              ) : (
+                <>
+                  <BackgroundInbox
+                    className="max-w-none border-0 bg-transparent p-0 shadow-none"
+                    runs={jobs.map((job) => ({
+                      id: job.id,
+                      title: job.query,
+                      state:
+                        job.status === "done"
+                          ? ("ready" as const)
+                          : job.status === "error"
+                            ? ("failed" as const)
+                            : ("running" as const),
+                      elapsed: isActive(job.status)
+                        ? `${job.step}/${job.totalSteps} · ${job.steps[job.step - 1] ?? "planning"}`
+                        : "",
+                    }))}
+                    onCollect={(id) =>
+                      setSelectedId((cur) => (cur === id ? null : id))
+                    }
+                  />
+                  {selectedJob?.status === "error" && (
+                    <p className="px-3 py-2 text-[11px] text-red-300/90">
+                      {selectedJob.error ?? "Unknown error."}
+                    </p>
+                  )}
+                  {selectedJob?.status === "done" && selectedJob.report && (
+                    <div className="mx-2 mb-2 max-h-64 overflow-y-auto rounded-lg border border-white/5 bg-white/[0.02] p-2.5 [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {selectedJob.report}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </>
               )}
-              {jobs.map((job) => (
-                <li key={job.id} className="px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-3 w-3 shrink-0 text-cyan-200/50" strokeWidth={1.5} />
-                    <p className="min-w-0 flex-1 truncate text-[12px] text-[#eaeaea]">{job.query}</p>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 font-mono text-[9px]",
-                        job.status === "done" && "bg-emerald-400/10 text-emerald-300",
-                        job.status === "error" && "bg-red-400/10 text-red-300",
-                        isActive(job.status) && "bg-cyan-400/10 text-cyan-200",
-                      )}
-                    >
-                      {STATUS_LABEL[job.status]}
-                    </span>
-                  </div>
-
-                  {isActive(job.status) && job.totalSteps > 0 && (
-                    <div className="mt-1.5">
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
-                        <div
-                          className="h-full rounded-full bg-cyan-400/70 transition-all"
-                          style={{ width: `${Math.min(100, (job.step / job.totalSteps) * 100)}%` }}
-                        />
-                      </div>
-                      <p className="mt-1 font-mono text-[9px] text-[#7f7f7f]">
-                        {job.step}/{job.totalSteps} · {job.steps[job.step - 1] ?? "planning"}
-                      </p>
-                    </div>
-                  )}
-
-                  {job.status === "error" && (
-                    <p className="mt-1 text-[11px] text-red-300/90">{job.error ?? "Unknown error."}</p>
-                  )}
-
-                  {job.status === "done" && job.report && (
-                    <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-white/5 bg-white/[0.02] p-2.5 [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{job.report}</ReactMarkdown>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            </div>
           </div>
         </div>
       )}

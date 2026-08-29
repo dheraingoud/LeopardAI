@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -8,9 +8,11 @@ import { motion } from "framer-motion";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SharedThread } from "@/components/chat/shared-thread";
+import { SharedConversation } from "@/components/chat/leopard/shared-conversation";
 
 export default function SharedChatPage() {
   const params = useParams();
+  const router = useRouter();
   const shareId = params.shareId as string;
 
   const chat = useQuery(api.chats.getByShareId, { shareId });
@@ -37,8 +39,14 @@ export default function SharedChatPage() {
       </motion.div>
 
       <div className="px-4 py-3 border-b dark:border-white/[0.03] light:border-black/[0.04] shrink-0">
-        <h2 className="text-sm font-mono dark:text-[#a3a3a3] light:text-[#525252]">{chat?.title || "Shared Conversation"}</h2>
-        <p className="text-[10px] font-mono text-[#2a2a2a] mt-0.5">Shared publicly · Read-only</p>
+        <SharedConversation
+          title={chat?.title || "Shared Conversation"}
+          sharedBy="Leopard user"
+          sharedAt={chat?._creationTime ? new Date(chat._creationTime).toLocaleDateString() : ""}
+          turns={[]}
+          onContinue={() => router.push("/sign-up")}
+          className="max-w-none border-0 bg-transparent p-0 shadow-none"
+        />
       </div>
 
       {messages ? (
