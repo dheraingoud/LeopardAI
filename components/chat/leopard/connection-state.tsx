@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import { useEffect, useState } from "react";
 import { CheckIcon, CloudOffIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "./surfaces";
@@ -33,19 +34,18 @@ export function ConnectionState({
         "fade-in slide-in-from-top-1 animate-in flex w-full max-w-sm items-center gap-2.5 rounded-2xl px-3.5 py-2.5 duration-300",
         className,
       )}
-
       {...props}
     >
       {phase === "dropped" && (
         <>
-          <CloudOffIcon className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <span className="min-w-0 flex-1 text-[13px]">
+          <CloudOffIcon className="size-3.5 shrink-0 dark:text-[#ffb400] light:text-[#d49600]" />
+          <span className="min-w-0 flex-1 text-[13px] dark:text-[#d4d4d4] light:text-[#404040]">
             Connection lost. The run kept going on the server.
           </span>
           <button
             type="button"
             onClick={onRetry}
-            className="text-foreground/70 hover:bg-foreground/[0.06] hover:text-foreground/95 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.96]"
+            className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.96] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.06] light:hover:bg-black/[0.05] dark:hover:text-white light:hover:text-black"
           >
             Reconnect
           </button>
@@ -54,11 +54,16 @@ export function ConnectionState({
 
       {phase === "reconnecting" && (
         <>
-          <Loader2Icon className="text-foreground/40 size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
-          <span className="min-w-0 flex-1 text-[13px]">Reconnecting</span>
+          <Loader2Icon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none dark:text-[#737373] light:text-[#8c8c8c]" />
+          <span className="min-w-0 flex-1 text-[13px] dark:text-[#d4d4d4] light:text-[#404040]">
+            Reconnecting
+          </span>
           {attempt !== undefined && (
             <span
-              className={cn(mono, "text-foreground/30 shrink-0 tabular-nums")}
+              className={cn(
+                mono,
+                "shrink-0 tabular-nums dark:text-[#525252] light:text-[#a3a3a3]",
+              )}
             >
               attempt {attempt}
             </span>
@@ -69,12 +74,15 @@ export function ConnectionState({
       {phase === "resumed" && (
         <>
           <CheckIcon className="size-3.5 shrink-0 text-emerald-500" />
-          <span className="min-w-0 flex-1 text-[13px]">
+          <span className="min-w-0 flex-1 text-[13px] dark:text-[#d4d4d4] light:text-[#404040]">
             Picked the stream back up.
           </span>
           {resumedTokens !== undefined && (
             <span
-              className={cn(mono, "text-foreground/30 shrink-0 tabular-nums")}
+              className={cn(
+                mono,
+                "shrink-0 tabular-nums dark:text-[#525252] light:text-[#a3a3a3]",
+              )}
             >
               +{resumedTokens} tokens
             </span>
@@ -82,5 +90,37 @@ export function ConnectionState({
         </>
       )}
     </div>
+  );
+}
+
+// Header status dot: amber pulse while offline, hidden while online. Driven
+// purely by the browser's online/offline events.
+export function ConnectionDot({ className }: { className?: string }) {
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  if (online) return null;
+
+  return (
+    <span
+      role="status"
+      aria-label="Offline"
+      title="Offline — reconnecting when the network returns"
+      className={cn(
+        "size-1.5 shrink-0 rounded-full bg-[#ffb400] light:bg-[#d49600] animate-pulse motion-reduce:animate-none",
+        className,
+      )}
+    />
   );
 }
