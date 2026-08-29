@@ -170,9 +170,9 @@ export function Messages() {
     el.scrollTop = el.scrollHeight;
   }, [messages, status]);
 
-  // aui parity (kit-fidelity audit 2026-08-28): scroll to bottom on RUN START
-  // even when the user had scrolled up (useThreadViewportAutoScroll's
-  // thread.runStart → scheduleScrollToBottom). Without this, sending a message
+  // Kit-fidelity fix (audit 2026-08-28): scroll to bottom on RUN START
+  // even when the user had scrolled up (runStart → scheduleScrollToBottom).
+  // Without this, sending a message
   // while reading history left the viewport stuck mid-transcript — your own
   // message + the incoming stream rendered off-screen.
   const prevStatusRef = useRef(status);
