@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
@@ -14,6 +14,9 @@ import {
 import { ErrorState } from "./leopard/error-state";
 import { FirstRunOnboarding } from "./leopard/onboarding";
 import { ScrollAnchorPill } from "./leopard/scroll-anchor";
+import { DaySeparator } from "./leopard/day-separator";
+import { MessagePair } from "./leopard/message-pair";
+import { StoppedRun } from "./leopard/stopped-run";
 import type { ChatMessage } from "@/lib/types";
 
 /**
@@ -26,11 +29,98 @@ import type { ChatMessage } from "@/lib/types";
  * pile up half-finished smooth-scroll animations on every token — so we use
  * an instant `scrollTop` jump gated by a stickToBottom flag.
  */
+// ChatMessage carries no timestamp — record a first-seen client time per id.
+// A reloaded chat therefore collapses to one day (no separators rendered).
+function dayLabel(ts: number): string {
+  const d = new Date(ts);
+  const startOf = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = startOf(new Date()) - startOf(d);
+  if (diff === 0) return "Today";
+  if (diff === 86_400_000) return "Yesterday";
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+  });
+}
+
+const hasVisibleText = (m: ChatMessage) =>
+  m.parts.some((p) => p.type === "text" && p.text.trim().length > 0);
+
+// Day separators between day groups; each user→assistant turn is wrapped in
+// one MessagePair (layout only — a turn reads as a single block).
+function renderTranscript(
+  messages: ChatMessage[],
+  status: string,
+  firstSeen: Map<string, number>,
+): ReactNode[] {
+  const rows: ReactNode[] = [];
+  let pairNodes: ReactNode[] = [];
+  let pairKey = "";
+  let lastDay = "";
+  const flush = () => {
+    if (pairNodes.length === 0) return;
+    rows.push(<MessagePair key={pairKey}>{pairNodes}</MessagePair>);
+    pairNodes = [];
+  };
+  messages.forEach((message, index) => {
+    const day = dayLabel(firstSeen.get(message.id) ?? 0);
+    if (day !== lastDay) {
+      flush();
+      rows.push(
+        <DaySeparator
+          key={`day-${day}`}
+          label={day}
+          className="mt-2 mb-4 first:mt-0"
+        />,
+      );
+      lastDay = day;
+    }
+    if (message.role === "user") flush();
+    if (pairNodes.length === 0) pairKey = message.id;
+    pairNodes.push(
+      <PreviewMessage
+        key={message.id}
+        message={message}
+        isLast={index === messages.length - 1}
+        status={status}
+      />,
+    );
+  });
+  flush();
+  return rows;
+}
+
 export function Messages() {
   const chat = useActiveChat();
   const { messages, status } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const firstSeenRef = useRef(new Map<string, number>());
+  for (const m of messages) {
+    if (!firstSeenRef.current.has(m.id))
+      firstSeenRef.current.set(m.id, Date.now());
+  }
+
+  // Stopped-run note: streaming→ready with an EMPTY trailing assistant bubble
+  // means the run was cut before any token landed.
+  const [stoppedId, setStoppedId] = useState<string | null>(null);
+  const prevRunStatusRef = useRef(status);
+  useEffect(() => {
+    const prev = prevRunStatusRef.current;
+    prevRunStatusRef.current = status;
+    if (status === "streaming" || status === "submitted") {
+      setStoppedId(null);
+      return;
+    }
+    if (prev === "streaming" && status === "ready") {
+      const last = messages[messages.length - 1];
+      setStoppedId(
+        last?.role === "assistant" && !hasVisibleText(last) ? last.id : null,
+      );
+    }
+  }, [status, messages]);
 
   // Φ-regen-ghost: while a regenerate runs, the SDK has dropped the old
   // assistant row from state — show the snapshot (dimmed) in its place so the
@@ -112,18 +202,22 @@ export function Messages() {
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
       >
         <div className="max-w-3xl mx-auto py-6">
-        {messages.map((message, index) => (
-          <PreviewMessage
-            key={message.id}
-            message={message}
-            isLast={index === messages.length - 1}
-            status={status}
-          />
-        ))}
+        {renderTranscript(messages, status, firstSeenRef.current)}
         {showGhost && (
           <div className="opacity-50 pointer-events-none select-none">
             <PreviewMessage message={ghost} isLast={false} status="ready" />
           </div>
+        )}
+        {stoppedId && (
+          <StoppedRun
+            reason="Stopped"
+            onContinue={() => {
+              chat.regenerateMessage(stoppedId);
+              setStoppedId(null);
+            }}
+            onDiscard={() => setStoppedId(null)}
+            className="mt-1"
+          />
         )}
         {isThinking && <ThinkingMessage />}
         {status === "error" && (

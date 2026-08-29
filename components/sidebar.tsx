@@ -3,7 +3,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -12,28 +11,19 @@ import {
   Plus,
   Search,
   Settings,
-  Trash2,
   PanelLeftClose,
   PanelLeft,
-  MessageSquare,
   Sun,
   Moon,
-  MoreHorizontal,
-  Pencil,
   LogOut,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThreadList } from "./chat/leopard/thread-list";
+import { ThreadSearch } from "./chat/leopard/thread-search";
 import { useLeopardTheme } from "@/components/theme-provider";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getDefaultChatModel } from "@/lib/ai/models";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
@@ -103,7 +93,6 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const editRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     if (!chats) return [];
@@ -114,9 +103,6 @@ export default function Sidebar({
 
   const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number }[]), [filtered]);
 
-  useEffect(() => {
-    if (editingId && editRef.current) editRef.current.focus();
-  }, [editingId]);
 
   // Deferred-create: just open the draft surface; the row is minted on the
   // first actual send (see use-active-chat's draft branch).
@@ -249,7 +235,7 @@ export default function Sidebar({
 
       <Separator className="dark:bg-white/[0.08] light:bg-black/[0.05]" />
 
-      {/* Chat List - Native Scroll for reliability */}
+      {/* Chat List - kit ThreadList rows; ThreadSearch panel while searching */}
       <div className="flex-1 overflow-y-auto px-2 scroll-container scrollbar-thin">
         <div className="py-3">
           {chats === undefined ? (
@@ -261,123 +247,49 @@ export default function Sidebar({
                 />
               ))}
             </div>
+          ) : searchQuery.trim() ? (
+            <ThreadSearch
+              threads={filtered.map((c) => ({
+                id: c._id,
+                title: c.title,
+                group: "results",
+                preview: "",
+              }))}
+              query={searchQuery}
+              activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : ""}
+              onQueryChange={setSearchQuery}
+              onSelect={(id) => handleChatClick(id)}
+              className="mx-1 max-w-none border-0 bg-transparent p-1 shadow-none"
+            />
           ) : (
-            Object.entries(grouped).map(([bucket, items]) => (
-              <div key={bucket} className="mb-5">
-                <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-widest dark:text-[#505050] light:text-[#737373] light:text-[#737373]">
-                  {bucket}
-                </p>
-                <AnimatePresence>
-                  {items.map((chat: any) => {
-                    // Check if current route matches this chat
-                    const isActive = pathname === `/chat/${chat._id}`;
-
-                    // Chat-only now (workspaces cut); always message icon.
-                    const ChatIcon = MessageSquare;
-
-                    return (
-                      <motion.div
-                        key={chat._id}
-                        layout
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="relative group mb-1"
-                      >
-                        {editingId === chat._id ? (
-                          <div className="px-2 py-2">
-                            <Input
-                              ref={editRef}
-                              value={editTitle}
-                              onChange={(e) => setEditTitle(e.target.value)}
-                              onBlur={() => handleRename(chat._id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleRename(chat._id);
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              className="h-9 text-sm dark:bg-white/5 light:bg-black/5 dark:border-[#ffb40030] light:border-[#d4960030]"
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => handleChatClick(chat._id)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                handleChatClick(chat._id);
-                              }
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-150 relative cursor-pointer",
-                              isActive
-                                ? "dark:bg-white/[0.08] light:bg-black/[0.05] dark:text-white light:text-[#171717]"
-                                : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.04] light:bg-black/[0.03] hover:dark:text-white light:text-[#171717]"
-                            )}
-                          >
-                            {/* Active indicator bar */}
-                            {isActive && (
-                              <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-[#ffb400] rounded-full" />
-                            )}
-                            <ChatIcon
-                              className={cn(
-                                "h-4 w-4 shrink-0",
-                                isActive ? "text-[#ffb400]" : "text-[#606060]"
-                              )}
-                            />
-                            <span className="truncate text-sm font-body flex-1">
-                              {chat.title}
-                            </span>
-                            <div className="action-reveal flex items-center">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  render={
-                                    <button
-                                      type="button"
-                                      className="h-7 w-7 flex items-center justify-center rounded hover:dark:bg-white/10 light:bg-black/10"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <MoreHorizontal className="h-4 w-4 dark:text-[#737373] light:text-[#737373]" />
-                                    </button>
-                                  }
-                                />
-                                <DropdownMenuContent
-                                  align="end"
-                                  side="bottom"
-                                  className="glass-elevated dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#111] light:bg-[#f0f0f0] min-w-[140px]"
-                                >
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setEditTitle(chat.title);
-                                      setEditingId(chat._id);
-                                    }}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                    Rename
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator className="dark:bg-white/[0.06] light:bg-black/[0.06]" />
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDelete(e as unknown as React.MouseEvent, chat._id);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-              </div>
-            ))
+            <>
+              {Object.entries(grouped).map(([bucket, items]) => (
+                <ThreadList
+                  key={bucket}
+                  label={bucket}
+                  className="mb-5"
+                  threads={items.map((c) => ({ id: c._id, title: c.title }))}
+                  activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : undefined}
+                  onSelect={(id) => handleChatClick(id)}
+                  onRename={(id) => {
+                    const chat = items.find((c) => c._id === id);
+                    setEditTitle(chat?.title ?? "");
+                    setEditingId(id);
+                  }}
+                  onDelete={(id) =>
+                    handleDelete(
+                      { stopPropagation: () => {} } as unknown as React.MouseEvent,
+                      id,
+                    )
+                  }
+                  editingId={editingId}
+                  editValue={editTitle}
+                  onEditChange={setEditTitle}
+                  onEditSubmit={() => editingId && handleRename(editingId)}
+                  onEditCancel={() => setEditingId(null)}
+                />
+              ))}
+            </>
           )}
         </div>
       </div>

@@ -13,6 +13,7 @@ export function FeedbackDialog({
   onToggleReason,
   onNoteChange,
   onSubmit,
+  onCancel,
   className,
   ...props
 }: Omit<
@@ -25,6 +26,7 @@ export function FeedbackDialog({
   | "onToggleReason"
   | "onNoteChange"
   | "onSubmit"
+  | "onCancel"
 > & {
   reasons: readonly string[];
   selected: readonly string[];
@@ -33,6 +35,7 @@ export function FeedbackDialog({
   onToggleReason?: (reason: string) => void;
   onNoteChange?: (note: string) => void;
   onSubmit?: () => void;
+  onCancel?: () => void;
 }) {
   return (
     <div
@@ -116,16 +119,27 @@ export function FeedbackDialog({
             )}
           />
 
-          <button
-            type="button"
-            onClick={onSubmit}
-            className={cn(
-              inkButton,
-              "flex h-8 items-center justify-center self-end rounded-full px-3.5 text-xs font-medium",
+          <div className="flex items-center justify-end gap-2">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="text-foreground/55 hover:bg-foreground/[0.06] hover:text-foreground/90 h-8 rounded-full px-3.5 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.96]"
+              >
+                Cancel
+              </button>
             )}
-          >
-            Send feedback
-          </button>
+            <button
+              type="button"
+              onClick={onSubmit}
+              className={cn(
+                inkButton,
+                "flex h-8 items-center justify-center rounded-full px-3.5 text-xs font-medium",
+              )}
+            >
+              Send feedback
+            </button>
+          </div>
         </>
       )}
     </div>

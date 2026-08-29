@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import {
   CheckIcon,
   CopyIcon,
@@ -24,6 +24,8 @@ export interface MessageActionsProps extends Omit<
   onCopy: () => void;
   onReactionChange: (reaction: Reaction) => void;
   onRegenerate: () => void;
+  /** When provided, replaces the default regen button (e.g. RegenerateMenu). */
+  regenerateMenu?: ReactNode;
   /** Optional — the ellipsis button renders only when provided. */
   onMore?: () => void;
 }
@@ -35,6 +37,7 @@ export function MessageActions({
   onCopy,
   onReactionChange,
   onRegenerate,
+  regenerateMenu,
   onMore,
   className,
   ...props
@@ -99,19 +102,21 @@ export function MessageActions({
       >
         <ThumbsDownIcon className="size-3.5" />
       </button>
-      <button
-        type="button"
-        aria-label="Regenerate response"
-        onClick={onRegenerate}
-        className={buttonClassName}
-      >
-        <RefreshCwIcon
-          className={cn(
-            "size-3.5",
-            regenerating && "animate-spin motion-reduce:animate-none",
-          )}
-        />
-      </button>
+      {regenerateMenu ?? (
+        <button
+          type="button"
+          aria-label="Regenerate response"
+          onClick={onRegenerate}
+          className={buttonClassName}
+        >
+          <RefreshCwIcon
+            className={cn(
+              "size-3.5",
+              regenerating && "animate-spin motion-reduce:animate-none",
+            )}
+          />
+        </button>
+      )}
       {onMore && (
         <button
           type="button"
