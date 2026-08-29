@@ -18,6 +18,8 @@ import { Composer } from "./leopard/composer";
 import { ApprovalDock } from "./approval-dock";
 import { ArtifactPanel } from "./artifact-panel";
 import { GenerationLoader } from "./leopard/loading-state";
+import { ConversationSearch, type SearchHit } from "./leopard/conversation-search";
+import { Search } from "lucide-react";
 import { SessionExpiryToast } from "./session-expiry-toast";
 import { UsageReadout } from "./usage-readout";
 import { ConnectionDot } from "./leopard/connection-state";
@@ -38,6 +40,43 @@ export function ChatShell() {
   const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
   const shareChat = useMutation(api.chats.share);
   const [shared, setShared] = useState(false);
+  // Find-in-conversation (kit ConversationSearch): header magnifier toggles
+  // the bar; hits come from message text; stepping scrolls the pair into view.
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findIndex, setFindIndex] = useState(0);
+  const findHits = useMemo<SearchHit[]>(() => {
+    const q = findQuery.trim().toLowerCase();
+    if (!q) return [];
+    const hits: SearchHit[] = [];
+    messages.forEach((m, mi) => {
+      const text = getMessageText(m);
+      const at = text.toLowerCase().indexOf(q);
+      if (at === -1) return;
+      hits.push({
+        id: m.id,
+        before: text.slice(Math.max(0, at - 40), at),
+        match: text.slice(at, at + q.length),
+        after: text.slice(at + q.length, at + q.length + 40),
+        position: mi,
+      });
+    });
+    return hits;
+  }, [messages, findQuery]);
+  const scrollToHit = (idx: number) => {
+    setFindIndex(idx);
+    const hit = findHits[idx];
+    if (!hit) return;
+    // Pairs start at each user message — map the message index to its pair.
+    const pairIndex = Math.max(
+      0,
+      messages.slice(0, hit.position + 1).filter((m) => m.role === "user")
+        .length - 1,
+    );
+    document
+      .querySelectorAll('[data-slot="message-pair"]')
+      [pairIndex]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
 
   // Pending tool-approval → the composer zone swaps the input for the
   // ApprovalDock (user directive: the permission card replaces the input
@@ -180,6 +219,15 @@ export function ChatShell() {
             <ConnectionDot />
             <ModelLabel modelId={currentModelId} />
             <HeaderQuotaBanner />
+            <button
+              type="button"
+              onClick={() => setFindOpen((o) => !o)}
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+              title="Find in conversation"
+              aria-expanded={findOpen}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
             <UsageReadout chatId={chatMeta._id ?? undefined} />
             <button
               onClick={handleExport}
@@ -197,6 +245,26 @@ export function ChatShell() {
             </button>
           </div>
         </div>
+
+        {findOpen && (
+          <div className="absolute right-4 top-16 z-30">
+            <ConversationSearch
+              query={findQuery}
+              hits={findHits}
+              activeIndex={findIndex}
+              onQueryChange={(q) => {
+                setFindQuery(q);
+                setFindIndex(0);
+              }}
+              onStep={(d) =>
+                scrollToHit(
+                  (findIndex + d + Math.max(findHits.length, 1)) %
+                    Math.max(findHits.length, 1),
+                )
+              }
+            />
+          </div>
+        )}
 
         <Messages />
         {pendingApproval ? (

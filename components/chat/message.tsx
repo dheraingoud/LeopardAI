@@ -32,6 +32,8 @@ import { ReasoningPanel } from "./leopard/reasoning-panel";
 import { ThinkingBubble, ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
 import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
+import { ToolTimeline } from "./leopard/tool-timeline";
+import { GuardrailNotice } from "./leopard/guardrail-notice";
 import { ToolError } from "./leopard/tool-error";
 import { MessageActions } from "./leopard/message-actions";
 import { ArtifactCard } from "./leopard/artifact-card";
@@ -446,6 +448,11 @@ function toolTarget(toolName: string, input: unknown): string {
   return "";
 }
 
+// Refusal heuristic — matches an answer that opens with a decline phrase.
+const REFUSAL_RE =
+  /^\s*(?:i\s+(?:can'?t|cannot|can\s+not|won'?t|must\s+decline)|i'?m\s+sorry|sorry,?\s+i\s+(?:can'?t|cannot))/i;
+const isRefusal = (text: string) => REFUSAL_RE.test(text);
+
 type ToolSegShape = {
   toolName: string;
   state: string;
@@ -498,6 +505,11 @@ function ToolGroupSeg({
       onOpenChange={setManual}
       className="max-w-none"
     >
+      {/* Timeline ledger above the full cards; durations unknown → omitted. */}
+      <ToolTimeline
+        tools={grouped}
+        className="border-foreground/[0.06] border-b pb-1.5"
+      />
       {tools.map((t, i) => {
         const live =
           isStreaming &&
@@ -1037,6 +1049,18 @@ export const PreviewMessage = memo(function PreviewMessage({
            * the moment the first text/reasoning/doc lands, the gate closes. */}
                     {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
             <ThinkingIndicator className="max-w-none" label="Working on it…" />
+          )}
+
+          {/* Refusal heuristic: a settled assistant answer opening with a
+              decline pattern gets a subtle guardrail note above the text. */}
+          {!isStreaming && isRefusal(text) && (
+            <GuardrailNotice
+              className="mb-2 max-w-none"
+              title="The assistant declined this request"
+              explanation="The response below is a refusal. Rephrase the request or narrow its scope and try again."
+              policy="guardrail"
+              alternatives={[]}
+            />
           )}
 
           {segments.map((seg, i) => {

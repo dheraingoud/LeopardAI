@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useConvex } from "convex/react";
 import { useState } from "react";
 import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
+import { ReasoningEffort } from "@/components/chat/leopard/reasoning-effort";
 
 function SettingRow({ label, description, children }: {
   label: string; description?: string; children: React.ReactNode;
@@ -155,6 +156,10 @@ export default function SettingsPage() {
             {/* Kit panel covers the default-model picker + interaction toggles;
                 the registry list below stays for browsing capabilities. */}
             <PreferencesPanel className="mb-4 max-w-none" />
+            {/* Kit effort slider: default reasoning level for the active model. */}
+            <div className="mb-4">
+              <ReasoningEffort />
+            </div>
             <div className="glass-card rounded-2xl p-6">
               <h4 className="text-xs font-semibold font-mono dark:text-[#737373] light:text-[#737373] mb-3">Available Models</h4>
               <div className="space-y-2">

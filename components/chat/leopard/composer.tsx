@@ -5,7 +5,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ArrowUpIcon, FileIcon, ImageIcon, PlusIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
-import { ModelPicker } from "./model-picker";
+import { ModelSelector } from "./model-selector";
 import { ContextBreakdown } from "./context-breakdown";
 import { MemoryChips } from "./memory-chips";
 import { ResearchPanel } from "../research-panel";
@@ -447,7 +447,7 @@ export function Composer() {
                 className="min-h-[36px] max-h-[240px] flex-1 resize-none bg-transparent px-1 py-2 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
               />
               <ComposerActions>
-                <ModelPicker />
+                <ModelSelector />
                 <ContextBreakdown
                   contextWindow={ctxWin}
                   text={input}
