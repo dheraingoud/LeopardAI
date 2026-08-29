@@ -340,15 +340,11 @@ function ToolCard({
   state,
   input,
   output,
-  approvalId,
-  onDecision,
 }: {
   toolName: string;
   state: string;
   input?: unknown;
   output?: unknown;
-  approvalId?: string;
-  onDecision?: (approved: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -401,62 +397,6 @@ function ToolCard({
 
   const urlLabel = isSearch ? "search" : "url";
 
-  // ── Sprint 2: permission-gating AskCard ───────────────────────────────────
-  // A tool call awaiting user approval (state "ask"). Themed decision card —
-  // allow (amber) / deny (neutral). `onDecision` fires addToolApprovalResponse;
-  // the server then runs (or skips) the tool and the builder morphs this card
-  // into the running/result card — never two cards for one round.
-  if (state === "ask") {
-    return (
-      <div className={cn("cb-tool cb-ask my-3 overflow-hidden rounded-2xl", "border dark:border-[#ffb400]/20 light:border-[#d49600]/25", "dark:bg-white/[0.03] light:bg-black/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]")}>
-        <div className="flex flex-col gap-2.5 px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <span className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-              <MeshGlobe className="h-[18px] w-[18px] text-[#ffb400] animate-[cb-meshspin_6s_linear_infinite]" />
-            </span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#ffb400]">
-              {toolName === "webSearch" ? "search access" : "web access request"}
-            </span>
-          </div>
-          <div className="pl-[28px] text-[12px] leading-[1.7] dark:text-[#a3a3a3] light:text-[#464646]">
-            Leopard wants to run{" "}
-            <code className="rounded bg-[#ffb400]/10 px-1 py-px font-mono text-[11px] text-[#ffb400]">
-              {toolName}
-            </code>
-            {summary && (
-              <>
-                {" on "}
-                <span className="font-mono text-[11px] break-all dark:text-[#cfcfcf] light:text-[#1d1d1f]">
-                  {summary}
-                </span>
-              </>
-            )}
-            . Allow?
-          </div>
-          <div className="flex items-center gap-2 pl-[28px] pt-0.5">
-            <button
-              type="button"
-              onClick={() => onDecision?.(true)}
-              className="rounded-full bg-[#ffb400] px-4 py-1.5 text-[11px] font-semibold text-black transition-transform duration-150 active:scale-[0.97] hover:brightness-110"
-            >
-              Allow
-            </button>
-            <button
-              type="button"
-              onClick={() => onDecision?.(false)}
-              className="rounded-full px-4 py-1.5 text-[11px] font-semibold dark:text-[#a3a3a3] light:text-[#525252] dark:bg-white/[0.06] light:bg-black/[0.05] transition-colors hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08]"
-            >
-              Deny
-            </button>
-            {(!approvalId || !onDecision) && (
-              <span className="text-[10px] font-mono text-[#606060]">waiting for server…</span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Leopard ToolCall (forked kit element) — quiet trigger row with a live
   // shimmer label while running, resting past-tense label + elapsed mono chip
   // when done, and a field-surface Request/Result disclosure. Failed rounds
@@ -491,33 +431,6 @@ function ToolCard({
       open={open}
       onOpenChange={setOpen}
     />
-  );
-}
-
-// MeshGlobe — a minimal wireframe sphere (meridian + latitude ellipses), so
-// the tool card carries the "browser sphere" mark the thinking card implies.
-// While `animate` it slowly rotates + pulses its leading arc (shimmer).
-function MeshGlobe({ className, animate }: { className?: string; animate?: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      className={className}
-      style={animate ? { animation: "cb-meshspin 3.2s linear infinite" } : undefined}
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="5"
-      strokeLinecap="round"
-    >
-      {/* longitudes near view edge + center meridian */}
-      <ellipse cx="50" cy="50" rx="30" ry="49" />
-      <ellipse cx="50" cy="50" rx="49" ry="49" />
-      {/* latitudes */}
-      <ellipse cx="50" cy="50" rx="49" ry="14" />
-      <ellipse cx="50" cy="50" rx="49" ry="30" />
-      {/* equator */}
-      <line x1="1" y1="50" x2="99" y2="50" />
-    </svg>
   );
 }
 
@@ -1003,9 +916,6 @@ export const PreviewMessage = memo(function PreviewMessage({
               // nothing until the decision morphs this segment into the
               // running/result card.
               if (seg.state === "ask") return null;
-              // Never mask "ask" as "streaming" — the AskCard must stay
-              // clickable the moment approval is requested, even if the stream
-              // hasn't fully settled yet.
               const live =
                 isStreaming &&
                 isLast &&
@@ -1018,23 +928,6 @@ export const PreviewMessage = memo(function PreviewMessage({
                   state={live ? "streaming" : seg.state}
                   input={seg.input}
                   output={seg.output}
-                  approvalId={seg.approvalId}
-                  onDecision={
-                    seg.state === "ask" && seg.approvalId
-                      ? (approved: boolean) => {
-                          // Φ-approval-resume: record the decision, then RESEND —
-                          // the SDK only auto-submits with sendAutomaticallyWhen
-                          // configured (we don't), so without this the Allow/Deny
-                          // click updated local state but the server never heard
-                          // it and the turn hung until the settle timeout.
-                          void chat.addToolApprovalResponse?.({
-                            id: seg.approvalId as string,
-                            approved,
-                          });
-                          void chat.sendMessage();
-                        }
-                      : undefined
-                  }
                 />
               );
             }

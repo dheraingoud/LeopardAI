@@ -56,6 +56,24 @@ export function Messages() {
     el.scrollTop = el.scrollHeight;
   }, [messages, status]);
 
+  // aui parity (kit-fidelity audit 2026-08-28): scroll to bottom on RUN START
+  // even when the user had scrolled up (useThreadViewportAutoScroll's
+  // thread.runStart → scheduleScrollToBottom). Without this, sending a message
+  // while reading history left the viewport stuck mid-transcript — your own
+  // message + the incoming stream rendered off-screen.
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = status;
+    const runStarted =
+      (prev === "ready" || prev === "error") &&
+      (status === "submitted" || status === "streaming");
+    if (!runStarted) return;
+    stickToBottomRef.current = true;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [status]);
+
   if (messages.length === 0) {
     return <Greeting />;
   }
