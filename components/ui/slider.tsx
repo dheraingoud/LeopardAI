@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useCallback, useRef, useState } from "react";
 
 /**
- * GlassSlider → SOLID SLIDER (2026-08-26, glass retirement per DESIGN.md).
+ * Slider → SOLID SLIDER (2026-08-26, glass retirement per DESIGN.md).
  * Same props contract as before (controlled/uncontrolled, step, accent) but
  * renders the DESIGN.md chrome: flat track, ink/amber fill, solid circular
  * thumb with hairline ring. Pointer drag + hidden native range for
@@ -15,7 +15,7 @@ const TRACK_W = 240;
 const TRACK_H = 6;
 const THUMB = 18;
 
-interface GlassSliderProps {
+interface SliderProps {
   accent?: string;
   ariaLabel?: string;
   className?: string;
@@ -28,7 +28,7 @@ interface GlassSliderProps {
   value?: number;
 }
 
-function GlassSlider({
+function Slider({
   value,
   defaultValue = 50,
   min = 0,
@@ -39,7 +39,7 @@ function GlassSlider({
   ariaLabel = "Value",
   className,
   accent,
-}: GlassSliderProps) {
+}: SliderProps) {
   const fill = accent ?? "#ffb400";
   const [internal, setInternal] = useState(defaultValue);
   const current = value ?? internal;
@@ -141,5 +141,5 @@ function GlassSlider({
   );
 }
 
-export { GlassSlider };
-export type { GlassSliderProps };
+export { Slider };
+export type { SliderProps };

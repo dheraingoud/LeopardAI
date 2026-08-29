@@ -4,10 +4,10 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
-const GlassPopover = MenuPrimitive.Root;
-const GlassPopoverTrigger = MenuPrimitive.Trigger;
+const Popover = MenuPrimitive.Root;
+const PopoverTrigger = MenuPrimitive.Trigger;
 
-interface GlassPopoverContentProps extends MenuPrimitive.Popup.Props {
+interface PopoverContentProps extends MenuPrimitive.Popup.Props {
   align?: MenuPrimitive.Positioner.Props["align"];
   side?: MenuPrimitive.Positioner.Props["side"];
   sideOffset?: number;
@@ -15,7 +15,7 @@ interface GlassPopoverContentProps extends MenuPrimitive.Popup.Props {
   tintColor?: string;
 }
 
-function GlassPopoverContent({
+function PopoverContent({
   align = "start",
   side = "bottom",
   sideOffset = 10,
@@ -24,7 +24,7 @@ function GlassPopoverContent({
   className,
   children,
   ...props
-}: GlassPopoverContentProps) {
+}: PopoverContentProps) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
@@ -55,21 +55,21 @@ function GlassPopoverContent({
   );
 }
 
-interface GlassPopoverItemProps extends MenuPrimitive.Item.Props {
+interface PopoverItemProps extends MenuPrimitive.Item.Props {
   destructive?: boolean;
   icon?: ReactNode;
   label: string;
   sublabel?: string;
 }
 
-function GlassPopoverItem({
+function PopoverItem({
   destructive = false,
   icon,
   label,
   sublabel,
   className,
   ...props
-}: GlassPopoverItemProps) {
+}: PopoverItemProps) {
   return (
     <MenuPrimitive.Item
       className={cn(
@@ -97,7 +97,7 @@ function GlassPopoverItem({
   );
 }
 
-function GlassPopoverSeparator({
+function PopoverSeparator({
   className,
   ...props
 }: MenuPrimitive.Separator.Props) {
@@ -110,10 +110,10 @@ function GlassPopoverSeparator({
 }
 
 export {
-  GlassPopover,
-  GlassPopoverContent,
-  GlassPopoverItem,
-  GlassPopoverSeparator,
-  GlassPopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverSeparator,
+  PopoverTrigger,
 };
-export type { GlassPopoverContentProps, GlassPopoverItemProps };
+export type { PopoverContentProps, PopoverItemProps };

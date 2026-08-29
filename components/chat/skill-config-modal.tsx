@@ -21,7 +21,7 @@ type Props = {
 };
 
 /**
- * SkillConfigModal — the "+ → add skill" overlay. Same liquid-glass shell as
+ * SkillConfigModal — the "+ → add skill" overlay. Same solid shell as
  * the MCP modal: list owned skills, add one by typing a body or picking a
  * .md/.json/.txt/.yaml/.yml file (content slurped into the body), toggle /
  * remove. Persisted to localStorage; the injection path lands with the SDK

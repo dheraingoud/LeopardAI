@@ -3,12 +3,11 @@
 import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GlassButton } from "@/components/ui/glass-button";
 import {
-  GlassPopover,
-  GlassPopoverContent,
-  GlassPopoverTrigger,
-} from "@/components/ui/glass-popover";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { McpConfigModal } from "@/components/chat/mcp-config-modal";
 import { SkillConfigModal } from "@/components/chat/skill-config-modal";
 
@@ -28,8 +27,8 @@ type Props = {
  * attach to the active model (capability read by the parent via /api/models);
  * file + skill attaches are always available; "mcp servers" is an honest stub.
  *
- * Liquid-glass: trigger is a GlassButton icon (neutral frost), menu is a
- * GlassPopover (base-ui Menu owns open/close + Esc + click-out + portal, so no
+ * Solid (DESIGN.md): trigger is a plain circular icon button; menu is a
+ * Popover (base-ui Menu owns open/close + Esc + click-out + portal, so no
  * custom document listeners). Amber is reserved for active-reasoning / send /
  * user-bubble / greeting — this chrome menu stays clear frost (selective tint).
  * Hidden file inputs reset after each pick so the same file can be re-added.
@@ -60,21 +59,19 @@ export function PlusMenu({
       : "needs VLM";
 return (
     <div className="relative shrink-0">
-      <GlassPopover open={open} onOpenChange={setOpen}>
-        <GlassPopoverTrigger
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
           render={
-            <GlassButton
-              variant="icon"
-              size={36}
-              tint={0.12}
+            <button
+              type="button"
               title="Add attachment"
-              className="max-sm:h-11! max-sm:w-11! dark:text-[#a3a3a3] light:text-[#525252]"
+              className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer select-none items-center justify-center rounded-full border dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08] transition-[transform,background-color] duration-150 active:scale-[0.92] outline-none focus-visible:outline-2 focus-visible:outline-[#ffb400] focus-visible:outline-offset-2 max-sm:h-11 max-sm:w-11 dark:text-[#a3a3a3] light:text-[#525252]"
             >
               <Plus className="h-4 w-4" />
-            </GlassButton>
+            </button>
           }
         />
-        <GlassPopoverContent side="top" align="start" sideOffset={8} tint={0.62}>
+        <PopoverContent side="top" align="start" sideOffset={8} tint={0.62}>
           <div className="w-[224px] p-1 text-[12px] font-mono">
             <Item
               label="attach image / video"
@@ -107,8 +104,8 @@ return (
               }}
             />
           </div>
-        </GlassPopoverContent>
-      </GlassPopover>
+        </PopoverContent>
+      </Popover>
       <McpConfigModal open={mcpOpen} onClose={() => setMcpOpen(false)} />
       <SkillConfigModal open={skillsOpen} onClose={() => setSkillsOpen(false)} />
       <input

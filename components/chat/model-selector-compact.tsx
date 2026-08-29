@@ -12,10 +12,10 @@ import {
 } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import {
-  GlassPopover,
-  GlassPopoverContent,
-  GlassPopoverTrigger,
-} from "@/components/ui/glass-popover";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { TieredPicker, BinaryPicker, levelLabel } from "./reasoning-control";
 import type { ReasoningLevel } from "@/lib/nim";
 
@@ -32,7 +32,7 @@ import type { ReasoningLevel } from "@/lib/nim";
  * nothing — flip the env in Phase 9 (live-model binding) and the group appears.
  *
  * Liquid-glass: trigger stays a native mono pill (density + model-name
- * readability beat a glass capsule here); the list floats a GlassPopover
+ * readability beat a glass capsule here); the list floats a Popover
  * (base-ui Menu owns open/close + Esc + click-out + portal — custom document
  * listeners gone). Menu stays clear frost — amber reserved for active-reasoning
  * / send / user-bubble / greeting (selective tint); only the active row + the
@@ -78,8 +78,8 @@ export function ModelSelectorCompact() {
 
   return (
     <div className="relative shrink-0">
-      <GlassPopover open={open} onOpenChange={setOpen}>
-        <GlassPopoverTrigger
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
           render={
             <button
               type="button"
@@ -127,7 +127,7 @@ export function ModelSelectorCompact() {
             </button>
           }
         />
-        <GlassPopoverContent side="top" align="start" sideOffset={8} tint={0.6}>
+        <PopoverContent side="top" align="start" sideOffset={8} tint={0.6}>
           <div className="w-[280px] flex flex-col">
             <div className="max-h-[55vh] overflow-y-auto py-1">
             {providerKeys.map((p) => {
@@ -283,8 +283,8 @@ export function ModelSelectorCompact() {
               );
             })()}
           </div>
-        </GlassPopoverContent>
-      </GlassPopover>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

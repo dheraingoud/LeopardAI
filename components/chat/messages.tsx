@@ -90,25 +90,11 @@ export function Messages() {
 }
 
 /**
- * Greeting — the one heavy-refraction centerpiece. An ambient refracting
- * `Glass` lens floats behind the amber identity text ("How can I help?"),
- * breathing via a self-authored rAF loop that mutates `dynamicsRef.zoom`
- * (1 → 1.18 over ~5s). No pointer tracking — the lens breathes on its own.
- *
- * Architecture: the interactive `Glass` is NOT the text container. It is a
- * separate ambient layer behind the text whose child is a faint amber radial
- * gradient — that gradient is what the lens refracts, so the visible sign of
- * "drift" is a soft amber shimmer breathing in/out around the title rather
- * than the glyphs themselves warping. Amber `#ffb400` signature text renders
- * on top, crisp — it lives outside `Glass`, so the SVG feDisplacementMap never
- * touches it. This keeps "amber text in front of the lens; refraction as the
- * ambient backdrop" literally true.
- *
- * Low scaleX/scaleY/chroma/depth (subtle paper refraction, not loud); a faint
- * amber paper-identity tint on the frosted veil. WebGL fallback on Safari is
- * handled by `Glass` itself. Auto-unmounts: `Messages` swaps `<Greeting/>`
- * for the transcript the instant `messages.length > 0`, so the rAF lifetime
- * is typically sub-second. `prefersReducedMotion` freezes the drift.
+ * Greeting — the empty-state centerpiece (DESIGN.md: no glass). Amber
+ * signature text ("How can I help?") sits over a pure-CSS breathing amber
+ * bloom (glass-breath keyframes, GPU-cheap, honors prefers-reduced-motion).
+ * Auto-unmounts: `Messages` swaps `<Greeting/>` for the transcript the
+ * instant `messages.length > 0`.
  */
 function Greeting() {
   // Glass retired (DESIGN.md 2026-08-26): the refracting lens is gone; the
