@@ -21,15 +21,21 @@ export function ToolGroup({
   open,
   onOpenChange,
   className,
+  children,
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "label" | "tools" | "open" | "onOpenChange"
+  "label" | "tools" | "open" | "onOpenChange"
 > & {
   label: string;
   tools: readonly GroupedTool[];
   open: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** When set, the expanded area renders this instead of the slim summary
+      rows — used by message.tsx to mount the full per-tool cards so result
+      content stays accessible inside the group (kit: expanded group shows
+      each tool's full UI). */
+  children?: React.ReactNode;
 }) {
   const running = tools.filter((tool) => tool.state === "running").length;
   const failed = tools.filter((tool) => tool.state === "failed").length;
@@ -74,7 +80,11 @@ export function ToolGroup({
         )}
       </button>
 
-      {open && (
+      {open && children ? (
+        <div className="border-foreground/[0.06] fade-in slide-in-from-top-1 animate-in flex flex-col gap-1.5 border-t p-2 duration-200">
+          {children}
+        </div>
+      ) : open ? (
         <div className="border-foreground/[0.06] fade-in slide-in-from-top-1 animate-in flex flex-col border-t duration-200">
           {tools.map((tool) => (
             <div
@@ -109,7 +119,7 @@ export function ToolGroup({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

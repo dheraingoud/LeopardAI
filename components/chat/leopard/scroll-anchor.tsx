@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui scroll-anchor — originals in addons/ are reference-only.
 "use client";
 
 import {

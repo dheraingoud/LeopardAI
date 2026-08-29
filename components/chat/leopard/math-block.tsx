@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui math-block — originals in addons/ are reference-only.
 "use client";
 
 import type { ComponentProps } from "react";
@@ -11,6 +10,8 @@ export interface MathStep {
   note?: string;
 }
 
+// Leopard fork of the kit MathBlock: labeled step list for worked math. The
+// streaming renderer routes ```math fenced blocks here (single-step).
 export function MathBlock({
   label,
   steps,
@@ -33,11 +34,9 @@ export function MathBlock({
         "flex w-full max-w-sm flex-col gap-2.5 rounded-2xl p-4",
         className,
       )}
-
       {...props}
     >
       {label && <span className={cn(mono, "text-foreground/30")}>{label}</span>}
-
       {take(steps, visibleSteps).map((step, i) => (
         <div
           key={i}

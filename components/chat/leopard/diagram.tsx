@@ -1,4 +1,3 @@
-// Leopard fork of assistant-ui diagram — originals in addons/ are reference-only.
 "use client";
 
 import type { ComponentProps } from "react";
