@@ -95,6 +95,7 @@ export function DocumentReference({
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

@@ -59,7 +59,7 @@ export function ComparisonCard({
                     <span
                       className={cn(
                         mono,
-                        "shrink-0 dark:text-[#ffb400] light:text-[#d49600] dark:dark:text-[#ffb400] light:text-[#d49600]",
+                        "shrink-0 dark:text-[#ffb400] light:text-[#d49600]",
                       )}
                     >
                       pick

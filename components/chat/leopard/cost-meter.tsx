@@ -57,7 +57,7 @@ export function CostMeter({
               i === 0
                 ? "dark:bg-[#ffb400] light:bg-[#d49600]"
                 : i === 1
-                  ? "bg-[#ffb400]/55 dark:bg-[#ffb400]/55"
+                  ? "dark:bg-[#ffb400]/55 light:bg-[#d49600]/55"
                   : "bg-foreground/25",
             )}
             style={{ width: `${pct(line.share, 1)}%` }}

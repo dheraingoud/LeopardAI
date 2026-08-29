@@ -19,6 +19,10 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { retryingFetch } from "@/lib/client/retrying-fetch";
 import { BackgroundInbox } from "./leopard/background-inbox";
+import { JobProgress } from "./leopard/job-progress";
+import { ResearchReport } from "./leopard/research-report";
+import { RetrievalChunks } from "./leopard/retrieval-chunks";
+import { Timeline } from "./leopard/timeline";
 
 interface Job {
   id: string;
@@ -138,6 +142,42 @@ export function ResearchPanel() {
 
   const active = jobs.filter((j) => isActive(j.status)).length;
   const selectedJob = jobs.find((j) => j.id === selectedId) ?? null;
+  const leadJob = jobs.find((j) => isActive(j.status)) ?? null;
+
+  // Job steps, mapped onto the kit's three progress surfaces.
+  const jobStages = (job: Job) =>
+    (job.steps.length > 0
+      ? job.steps
+      : Array.from({ length: Math.max(job.totalSteps, 1) }, (_, i) => `step ${i + 1}`)
+    ).map((name) => ({ name, weight: 1 }));
+
+  const jobTimeline = (job: Job) =>
+    job.steps.map((label, i) => ({
+      id: `${job.id}-${i}`,
+      when: (i < job.step - 1 ? "past" : i === job.step - 1 ? "now" : "future") as
+        | "past"
+        | "now"
+        | "future",
+      time: `s${i + 1}`,
+      title: label,
+    }));
+
+  const jobChunks = (job: Job) =>
+    job.steps.map((label, i) => ({
+      id: `${job.id}-c${i}`,
+      source: label,
+      locator: `step ${i + 1}/${job.steps.length}`,
+      score: i < job.step ? 1 : i === job.step - 1 ? 0.5 : 0.15,
+      text: label,
+    }));
+
+  const jobSections = (job: Job) =>
+    job.steps.map((label, i) => ({
+      id: `${job.id}-s${i}`,
+      heading: label,
+      state: "done" as const,
+      sources: 0,
+    }));
 
   return (
     <div className="relative">
@@ -205,6 +245,16 @@ export function ResearchPanel() {
                 </p>
               ) : (
                 <>
+                  {leadJob && (
+                    <JobProgress
+                      className="mx-2 mb-2 max-w-none"
+                      title={leadJob.query}
+                      stages={jobStages(leadJob)}
+                      stageIndex={Math.max(leadJob.step - 1, 0)}
+                      stageProgress={1}
+                      eta={`${leadJob.step}/${leadJob.totalSteps}`}
+                    />
+                  )}
                   <BackgroundInbox
                     className="max-w-none border-0 bg-transparent p-0 shadow-none"
                     runs={jobs.map((job) => ({
@@ -217,24 +267,47 @@ export function ResearchPanel() {
                             ? ("failed" as const)
                             : ("running" as const),
                       elapsed: isActive(job.status)
-                        ? `${job.step}/${job.totalSteps} · ${job.steps[job.step - 1] ?? "planning"}`
+                        ? `${job.step}/${job.totalSteps}`
                         : "",
                     }))}
                     onCollect={(id) =>
                       setSelectedId((cur) => (cur === id ? null : id))
                     }
                   />
+                  {selectedJob && isActive(selectedJob.status) && (
+                    <>
+                      <Timeline
+                        className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
+                        events={jobTimeline(selectedJob)}
+                        visibleCount={selectedJob.steps.length}
+                      />
+                      <RetrievalChunks
+                        className="mx-2 mb-2 max-w-none"
+                        query={selectedJob.query}
+                        chunks={jobChunks(selectedJob)}
+                        visibleCount={selectedJob.steps.length}
+                        searching={selectedJob.status === "running"}
+                      />
+                    </>
+                  )}
                   {selectedJob?.status === "error" && (
                     <p className="px-3 py-2 text-[11px] text-red-300/90">
                       {selectedJob.error ?? "Unknown error."}
                     </p>
                   )}
                   {selectedJob?.status === "done" && selectedJob.report && (
-                    <div className="mx-2 mb-2 max-h-64 overflow-y-auto rounded-lg border border-white/5 bg-white/[0.02] p-2.5 [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {selectedJob.report}
-                      </ReactMarkdown>
-                    </div>
+                    <ResearchReport
+                      className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
+                      title={selectedJob.query}
+                      sections={jobSections(selectedJob)}
+                      sourcesRead={selectedJob.steps.length}
+                    >
+                      <div className="max-h-64 overflow-y-auto [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {selectedJob.report}
+                        </ReactMarkdown>
+                      </div>
+                    </ResearchReport>
                   )}
                 </>
               )}

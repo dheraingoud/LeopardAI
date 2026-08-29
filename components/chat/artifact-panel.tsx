@@ -2,13 +2,14 @@
 
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Loader2, FileText, Code, Table, Image as ImageIcon } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveChat, type UIArtifact } from "@/hooks/use-active-chat";
 import { Surface, useReducedFx } from "@/components/ui/surface";
+import { DocumentReference } from "@/components/chat/leopard/document-reference";
 import type { ArtifactKind } from "@/lib/types";
 
 /**
@@ -28,14 +29,6 @@ import type { ArtifactKind } from "@/lib/types";
  * Zustand theme store + next-themes swap is Phase 7 — these classes already
  * resolve in Phase 5's setup).
  */
-
-const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
-  text: FileText,
-  code: Code,
-  sheet: Table,
-  image: ImageIcon,
-  file: FileText,
-};
 
 const KIND_LABEL: Record<ArtifactKind, string> = {
   text: "Document",
@@ -124,24 +117,19 @@ function PanelHeader({
   artifact: UIArtifact;
   onClose: () => void;
 }) {
-  const Icon = KIND_ICON[artifact.kind] ?? FileText;
   const isStreaming = artifact.status === "streaming";
   return (
-    <div className="flex items-center justify-between px-4 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        <span className="flex items-center justify-center h-7 w-7 rounded-md dark:bg-[#ffb400]/10 light:bg-[#ffb400]/15 shrink-0">
-          <Icon className="h-3.5 w-3.5 text-[#ffb400]" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate leading-tight">
-            {artifact.title || "Generating…"}
-          </h3>
-          <span className="text-[10px] font-mono dark:text-[#606060] light:text-[#8a8a8a] uppercase tracking-tighter">
-            {KIND_LABEL[artifact.kind]}
-            {isStreaming && " · streaming"}
-          </span>
-        </div>
-      </div>
+    <div className="flex items-center gap-2 pl-2 pr-2 py-2 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
+      <DocumentReference
+        className="max-w-none flex-1 border-0 bg-none p-1.5 shadow-none backdrop-blur-none dark:bg-none light:bg-none"
+        title={artifact.title || "Generating…"}
+        kind={
+          KIND_LABEL[artifact.kind] + (isStreaming ? " · streaming" : "")
+        }
+        pages={Math.max(1, Math.ceil(artifact.content.length / 3000))}
+        anchors={[]}
+        activePage={-1}
+      />
       <button
         onClick={onClose}
         className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors shrink-0"

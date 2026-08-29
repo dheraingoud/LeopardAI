@@ -7,9 +7,9 @@ import { mono, paper } from "./surfaces";
 
 const LEVEL_TINT = [
   "bg-foreground/[0.06]",
-  "bg-[#ffb400]/25 dark:bg-[#ffb400]/25",
-  "bg-[#ffb400]/45 dark:bg-[#ffb400]/45",
-  "bg-[#ffb400]/70 dark:bg-[#ffb400]/70",
+  "dark:bg-[#ffb400]/25 light:bg-[#d49600]/25",
+  "dark:bg-[#ffb400]/45 light:bg-[#d49600]/45",
+  "dark:bg-[#ffb400]/70 light:bg-[#d49600]/70",
   "dark:bg-[#ffb400] light:bg-[#d49600]",
 ] as const;
 
