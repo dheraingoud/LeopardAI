@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CostMeter, type CostLine } from "./leopard/cost-meter";
-import { NumberTicker } from "./leopard/number-ticker";
+import { NumberRoll } from "./leopard/primitives/number-roll";
 import { ActivityGraph } from "./leopard/activity-graph";
 
 type UsageRow = {
@@ -118,11 +118,15 @@ export function UsageReadout({ chatId }: { chatId?: string }) {
 
       <PopoverContent side="bottom" align="end" sideOffset={8} className="w-[320px]">
         <div className="flex w-full flex-col gap-3 p-3">
-          <NumberTicker
-            value={u.totalTokens}
-            label={`tokens · ${u.count} turn${u.count === 1 ? "" : "s"}`}
-            className="py-1 [&>span:first-child]:text-2xl"
-          />
+          <div className="flex flex-col items-center gap-2.5 py-1">
+            <NumberRoll
+              value={u.totalTokens}
+              className="text-2xl font-medium tracking-tight"
+            />
+            <span className="font-mono text-[11px] tracking-tight text-foreground/35">
+              {`tokens · ${u.count} turn${u.count === 1 ? "" : "s"}`}
+            </span>
+          </div>
           <CostMeter
             className="max-w-none"
             runCost={usd(u.rows[0]?.estimatedCostUsd ?? 0)}
