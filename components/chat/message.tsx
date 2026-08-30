@@ -1020,7 +1020,10 @@ export const PreviewMessage = memo(function PreviewMessage({
               onCancel={() => setEditing(false)}
             />
           ) : (
-            <p className="text-[15px] leading-[1.65] whitespace-pre-wrap text-right dark:text-[#e8e8e8] light:text-[#262626]">{text}</p>
+            // Clone-style user bubble (filled, rounded) in leopard tokens.
+            <div className="max-w-[70%] rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
+              <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]">{text}</p>
+            </div>
           )}
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
             <button

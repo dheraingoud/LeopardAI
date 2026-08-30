@@ -223,7 +223,7 @@ function ComposerAttachMenu({
   );
 }
 
-export function Composer() {
+export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
   const { sendMessage, status, stopGeneration, currentModelId, chatMeta } = useActiveChat();
   const [input, setInput] = useState("");
   // Kit draft-restore: unsent text survives reloads, keyed per chat.
@@ -401,7 +401,7 @@ export function Composer() {
   };
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6">
+    <div className={placement === "center" ? "pointer-events-none w-full px-4 sm:px-6" : "pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6"}>
       <div className="pointer-events-auto mx-auto max-w-3xl">
         {(attachments.length > 0 || uploading) && (
           <div data-slot="composer-attachments" className="mb-2 flex flex-wrap items-center gap-2">
