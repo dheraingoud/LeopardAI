@@ -879,7 +879,15 @@ export const PreviewMessage = memo(function PreviewMessage({
         const o = t.output as
           | { results?: Array<{ url?: string; title?: string }>; url?: string }
           | undefined;
-        const items = o?.results ?? (o?.url ? [{ url: o.url }] : []);
+        // webFetch output has no url — take it from the input.
+        const inUrl = (t.input as { url?: string } | undefined)?.url;
+        const items =
+          o?.results ??
+          (o?.url
+            ? [{ url: o.url }]
+            : inUrl
+              ? [{ url: inUrl, title: undefined }]
+              : []);
         for (const r of items) {
           if (!r.url) continue;
           let domain = "";
