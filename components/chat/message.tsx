@@ -530,7 +530,7 @@ function ToolGroupSeg({
           t.state !== "ask";
         return (
           <ToolCard
-            key={t.toolCallId ?? i}
+            key={`${t.toolCallId ?? "t"}-${i}`}
             toolName={t.toolName}
             state={live ? "streaming" : t.state}
             input={t.input}

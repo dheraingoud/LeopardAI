@@ -571,12 +571,18 @@ export async function POST(request: Request) {
       // resumed generation to the actual persisted row holding the pending
       // approval — otherwise the old row stays stuck at "approval-requested"
       // (live Allow/Deny card on every reload) and the turn forks into two rows.
-      const pendingRow = isApprovalResume
-        ? await resolvePendingApprovalRowId({
-            chatId: realChatId,
-            userId: userId ?? DEV_USER_ID,
-          })
-        : null;
+      // Race: the client clicks Allow from the LIVE-STREAM card, so the resume
+      // POST can land before the server's throttled approval-requested patch
+      // commits. Poll briefly before giving up on the anchor.
+      let pendingRow: Awaited<ReturnType<typeof resolvePendingApprovalRowId>> = null;
+      for (let attempt = 0; isApprovalResume && attempt < 6; attempt++) {
+        pendingRow = await resolvePendingApprovalRowId({
+          chatId: realChatId,
+          userId: userId ?? DEV_USER_ID,
+        });
+        if (pendingRow) break;
+        await new Promise((r) => setTimeout(r, 400));
+      }
       console.log(
         `[approval-resume] detected: ${isApprovalResume} rowId: ${pendingRow?.id ?? "null"} seedParts: ${pendingRow?.parts?.length ?? 0}`,
       );

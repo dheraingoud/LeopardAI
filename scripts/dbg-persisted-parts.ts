@@ -11,7 +11,7 @@ async function main() {
   const chat = sorted[0];
   const rows = (await c.query(api.messages.list as never, { chatId: chat._id } as never)) as any[];
   const last = rows[rows.length - 1];
-  for (const r of rows) console.log(r.role, r.id, r.status, (r.parts ?? []).map((p) => `${p.type}:${p.state ?? "-"}`).join(", "));
+  for (const r of rows) console.log(r.role, r.id, r.status, (r.parts ?? []).map((p: any) => `${p.type}:${p.state ?? "-"}`).join(", "));
   console.log(JSON.stringify({
     chatTitle: chat.title,
     rows: rows.length,
