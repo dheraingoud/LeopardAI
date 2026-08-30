@@ -128,6 +128,10 @@ function ModelSelectorContent({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // The "popover" is Base UI's Menu — it typeahead-swallows every keystroke
+    // before the input sees it. Stop propagation so typing reaches the field;
+    // our own arrows/Enter handling below keeps list navigation working.
+    e.stopPropagation();
     if (e.nativeEvent.isComposing) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();

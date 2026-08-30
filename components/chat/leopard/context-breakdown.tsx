@@ -8,19 +8,21 @@ import { ContextIndicator } from "../context-indicator";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { estimateTokens, getContextBudget } from "@/lib/token-estimator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { mono, paper } from "./surfaces";
+import { mono } from "./surfaces";
 
 // Click the composer's context ring → popover card breaking down WHAT fills the
 // window: system / history / attachments / composer / output reserve. History
 // expands to per-message rows. Honest math only — tool/schema costs are opaque
 // client-side, so they're not fabricated.
 
+// Segment tints from DESIGN.md: mute gray / violet / highlight-pink / cyan /
+// hairline-strong — the brand's full accent scale, not ad-hoc tailwind picks.
 const TINT = {
-  system: "bg-[#71717a]",
-  history: "bg-[#a78bfa]",
-  attach: "bg-[#fb7185]",
-  composer: "bg-[#22d3ee]",
-  output: "bg-[#d4d4d4]",
+  system: "bg-[#888888]",
+  history: "bg-[#7928ca]",
+  attach: "bg-[#ff0080]",
+  composer: "bg-[#50e3c2]",
+  output: "bg-[#a1a1a1]",
 };
 
 const SYSTEM_RESERVE = 1000;
@@ -120,7 +122,9 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
       </PopoverTrigger>
 
       <PopoverContent side="top" align="end" sideOffset={8} className="w-[300px]">
-        <div data-slot="context-breakdown" className={cn(paper, "flex w-full flex-col gap-3 rounded-2xl p-4")}>
+        {/* Popover chrome (surfaces) owns the card shell — inner content is
+            surface-less so the two don't double up (aui-true, 2026-08-31). */}
+        <div data-slot="context-breakdown" className="flex w-full flex-col gap-3 px-2 py-1.5">
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] font-medium dark:text-[#e5e5e5] light:text-[#262626]">Context</span>
             <span

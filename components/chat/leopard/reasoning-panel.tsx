@@ -24,7 +24,7 @@ export interface LeopardReasoningPanelProps {
 }
 
 export function ReasoningPanel({
-  content: _content,
+  content,
   streaming,
   open,
   onOpenChange,
@@ -107,14 +107,16 @@ export function ReasoningPanel({
         </SwapLabel>
         <ChevronDownIcon className="size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] group-data-open/trigger:rotate-180 group-data-panel-open/trigger:rotate-180 motion-reduce:transition-none" />
       </CollapsibleTrigger>
-      {/* CoT is never shown (product rule) — the panel expands to a muted
-          note instead of the model's raw reasoning. */}
+      {/* Operator 2026-08-31: show the reasoning — prior "CoT hidden" product
+          rule retired. Plain text, pre-wrap, scroll-capped. */}
       <CollapsibleContent
         ref={contentRef}
         className={cn(collapsePanel, "outline-none")}
       >
-        <div className={cn(mono, "pt-2 pb-1 text-[11px] text-foreground/35")}>
-          Reasoning is hidden — only the final answer is shown.
+        <div className="max-h-64 overflow-y-auto pt-2 pb-1">
+          <p className={cn(mono, "whitespace-pre-wrap text-[11.5px] leading-[1.65] text-foreground/55")}>
+            {content || (streaming ? "Thinking…" : "No reasoning captured.")}
+          </p>
         </div>
       </CollapsibleContent>
     </Collapsible>

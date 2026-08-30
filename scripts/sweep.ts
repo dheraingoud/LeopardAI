@@ -39,7 +39,7 @@ async function main() {
 
   // 2. Send a message, wait for a response, capture transcript
   await page.click('[data-slot="model-selector-trigger"]');
-  await page.fill('[data-slot="model-selector-search"]', "diffusion");
+  await page.fill('[data-slot="model-selector-search"]', "kimi");
   await page.waitForTimeout(600);
   await page.click('[data-slot="model-selector-item"]');
   await page.fill('[data-slot="composer-bar"] textarea', "Explain what a hash map is in two sentences.");

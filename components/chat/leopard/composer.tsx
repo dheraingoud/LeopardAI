@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, FileIcon, ImageIcon, PlusIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, FileIcon, ImageIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelector } from "./model-selector";
@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ghostButton, inkButton, paper } from "./surfaces";
+import { ghostButton, inkButton, mono, paper } from "./surfaces";
 
 // Leopard fork of the elements-kit composer: ComposerBar/paper shell, floating
 // popovers, icon-swap send, with Leopard wiring (useActiveChat, uploads,
@@ -62,12 +62,15 @@ export function applyMention(value: string, name: string): string {
   return value.replace(/@[\w]*$/, `@${name} `);
 }
 
-function ComposerBar({ className, ...props }: ComponentProps<"div">) {
+function ComposerBar({ beam = false, className, ...props }: ComponentProps<"div"> & { beam?: boolean }) {
   return (
     <div
       data-slot="composer-bar"
       className={cn(
         paper,
+        // Beam (orbiting amber ring) only in the centered empty state — the
+        // bottom-bar composer stays quiet per operator 2026-08-31.
+        beam && "composer-beam",
         "flex w-full flex-col gap-1 rounded-[28px] p-1.5 transition-shadow",
         "focus-within:ring-1 focus-within:ring-[#ffb400]/40",
         className,
@@ -143,8 +146,10 @@ function ComposerAttachMenu({
   const mediaAccept = modelImageEdit && !modelVision ? "image/*" : "image/*,video/*";
   const mediaHint = modelVision ? undefined : modelImageEdit ? "image only" : "needs VLM";
 
+  // aui-style menu rows: left icon + sentence-case label + right hint chip.
   const item = (
     label: string,
+    icon: ReactNode,
     onClick: () => void,
     disabled = false,
     hint?: string,
@@ -158,15 +163,16 @@ function ComposerAttachMenu({
         onClick();
       }}
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left lowercase transition-colors",
+        "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[13px] transition-colors",
         disabled
           ? "cursor-not-allowed dark:text-[#404040] light:text-[#b8b8b8]"
-          : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black",
+          : "dark:text-[#c9c9c9] light:text-[#404040] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black",
       )}
     >
-      <span>{label}</span>
+      <span className="flex size-4 shrink-0 items-center justify-center opacity-70 [&_svg]:size-4">{icon}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint && (
-        <span className="text-[9px] uppercase tracking-tighter dark:text-[#505050] light:text-[#b8b8b8]">
+        <span className={cn(mono, "shrink-0 rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-[9px] uppercase dark:text-[#606060] light:text-[#8a8a8a]")}>
           {hint}
         </span>
       )}
@@ -189,11 +195,12 @@ function ComposerAttachMenu({
           }
         />
         <PopoverContent side="top" align="start" sideOffset={8} tint={0.62}>
-          <div className="w-[224px] p-1 text-[12px] font-mono">
-            {item("attach image / video", () => mediaRef.current?.click(), !canAttachMedia, mediaHint)}
-            {item("attach file", () => fileRef.current?.click())}
-            {item("add skill", () => setSkillsOpen(true))}
-            {item("mcp servers", () => setMcpOpen(true))}
+          <div className="w-[232px] p-1">
+            {item("Photos & videos", <ImageIcon />, () => mediaRef.current?.click(), !canAttachMedia, mediaHint)}
+            {item("Attach file", <FileIcon />, () => fileRef.current?.click())}
+            <div className="mx-2 my-1 h-px dark:bg-white/[0.06] light:bg-black/[0.06]" />
+            {item("Skills", <SparklesIcon />, () => setSkillsOpen(true))}
+            {item("MCP servers", <PlugIcon />, () => setMcpOpen(true))}
           </div>
         </PopoverContent>
       </Popover>
@@ -224,7 +231,7 @@ function ComposerAttachMenu({
 }
 
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
-  const { sendMessage, status, stopGeneration, currentModelId, chatMeta } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming } = useActiveChat();
   const [input, setInput] = useState("");
   // Kit draft-restore: unsent text survives reloads, keyed per chat.
   const { draft, setDraft } = useDraftRestore(chatMeta?._id ?? "draft");
@@ -286,7 +293,10 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const ctxWin = modelConfig?.contextWindow;
 
   const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
-  const isStreaming = status === "submitted" || status === "streaming";
+  // serverStreaming: reopened mid-generation — the detached route task owns
+  // the run; stop still works (server abort registry is keyed by assistant id).
+  const isStreaming =
+    status === "submitted" || status === "streaming" || serverStreaming;
   const hasContent = input.trim().length > 0 || attachments.length > 0;
   const canSend = hasContent && !isStreaming && !uploading;
   const { enqueue, drain } = useMessageQueue();
@@ -434,7 +444,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               onSelect={selectMention}
             />
           )}
-          <ComposerBar>
+          <ComposerBar beam={placement === "center"}>
             {/* ChatGPT-style: text row on top, control row below. */}
             <TextareaAutosize
               ref={textareaRef}

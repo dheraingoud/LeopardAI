@@ -3,10 +3,11 @@
  *
  * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   moonshotai/kimi-k3 (DEFAULT), minimax-m3, gemma-4-31b-it, step-3.7-flash,
- *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, thinkingmachines-inkling,
- *   poolside-laguna-xs-2.1, nemotron-3.5-lightning-30b-a3b,
- *   deepseek-v4-flash-0731 (kept, flagged unavailable — upstream hang).
+ *   moonshotai/kimi-k3 (DEFAULT), minimax-m3, gemma-4-31b-it,
+ *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, poolside-laguna-xs-2.1,
+ *   nemotron-3.5-lightning-30b-a3b, deepseek-v4-flash-0731 (unfrozen
+ *   2026-08-31), deepseek-v4-pro-0813.
+ * inkling + step-3.7-flash removed 2026-08-31 (broken routing / NIM 404).
  * glm-5.2 removed 2026-08-24 (deprecated — no longer in /v1/models).
  * All ids verified present in /v1/models (2026-08-24 probe: 102 models).
  * deepseek-v4-pro is NOT
@@ -98,8 +99,8 @@ export interface ModelCapability {
   supportsVision: boolean;
   /**
    * Which vision modalities the model accepts — gates the PlusMenu media
-   * picker's accept list + the "needs VLM" / "no video" hints. step-3.7-flash
-   * takes image ONLY (no video) per its card; the rest take image+video.
+   * picker's accept list + the "needs VLM" / "no video" hints. Current VLMs
+   * (gemma-4, diffusiongemma) take image+video.
    */
   visionModalities?: ("image" | "video")[];
   // NIM tool-calling: the M-series / GLM / DeepSeek / Gemma / Step families all
@@ -125,19 +126,19 @@ export interface ModelCapability {
 
 export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 
-// Utility = step-3.7-flash (per goal: "step 3.7 flash (not 3.5)"). Fast, used
+// Utility = title-gen/small-job model. Fast, used
 // for server-side title generation (low stakes — no reasoning sent for titles).
-export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-gen pinned to nemotron-3.5-lightning (2026-08-28): step-3.7-flash 410s on THIS key for non-streaming calls though it serves chat fine; entry stays in the picker
+export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-gen pinned to nemotron-3.5-lightning (2026-08-28)
 
 // Default chat model. History of the default:
 //   z-ai/glm-5.2 (stalled upstream, then pulled from the NIM catalogue 2026-08-24)
-//   → step-3.7-flash (interim) → deepseek-v4-flash-0731 (defaulted 2026-08-20,
+//   → step-3.7-flash (interim, since removed) → deepseek-v4-flash-0731 (defaulted 2026-08-20,
 //     then HUNG both thinking + non-thinking 2026-08-24 — empty body in 45s).
-// Defaulted moonshotai/kimi-k3 2026-08-24, but kimi stalls mid-stream (90s
-// chunk gaps) in practice → operator switch 2026-08-30 to
-// google/diffusiongemma-26b-a4b-it (stable, fast; enable_thinking reasoning
-// verified 2026-07-11). kimi stays in the picker.
-export const DEFAULT_MODEL = "google/diffusiongemma-26b-a4b-it";
+// Defaulted moonshotai/kimi-k3 2026-08-24; briefly switched to
+// google/diffusiongemma-26b-a4b-it 2026-08-30 over kimi's mid-stream gaps,
+// operator reverted to kimi 2026-08-31 — post-chunk stall budget now 180s
+// with reasoning on, which covers the gaps. diffusiongemma stays in picker.
+export const DEFAULT_MODEL = "moonshotai/kimi-k3";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
@@ -219,11 +220,8 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
-    // 2026-08-24: hangs on NIM — empty body after 45s in BOTH thinking and
-    // non-thinking modes. Kept in the picker (operator request) but flagged
-    // unavailable so the UI greys it out until NIM restores the upstream.
-    unavailable: true,
-    unavailableReason: "Upstream hang (empty response) — NIM",
+    // 2026-08-24: hung on NIM (empty body after 45s, both modes) — unfrozen
+    // 2026-08-31 per operator; upstream serving again.
     // Probe 2026-07-09: reasoning_effort "high"+"max" both → 200 + reasoning_content emitted.
     reasoning: {
       enabled: true,
@@ -274,21 +272,7 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       defaultEffort: "on",
     },
   },
-  "thinkingmachines/inkling": {
-    id: "thinkingmachines/inkling",
-    displayName: "Inkling",
-    speedTier: 1.5,
-    type: "llm",
-    supportsVision: false,
-    supportsTools: true,
-    contextWindow: 262_144,
-    reasoning: {
-      enabled: true,
-      toggleable: true,
-      param: "effort",
-      defaultEffort: "on",
-    },
-  },
+  // thinkingmachines/inkling REMOVED 2026-08-31 (operator: broken routing).
   "poolside/laguna-xs-2.1": {
     id: "poolside/laguna-xs-2.1",
     displayName: "Laguna XS 2.1",
@@ -319,20 +303,7 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       defaultEffort: "on",
     },
   },
-  "stepfun-ai/step-3.7-flash": {
-    id: "stepfun-ai/step-3.7-flash",
-    displayName: "Step 3.7 Flash",
-    speedTier: 1,
-    type: "vlm",
-    supportsVision: true,
-    visionModalities: ["image"], // card: text+image only, NO video input
-    supportsTools: true,
-    contextWindow: 262_144,
-    reasoning: { enabled: true, toggleable: true, param: "effort", defaultEffort: "on" },
-    // NIM 2026-08-29: 404 on /chat/completions — pulled from the catalogue.
-    unavailable: true,
-    unavailableReason: "removed from NIM catalogue",
-  },
+  // stepfun-ai/step-3.7-flash REMOVED 2026-08-31 (operator: broken — NIM 404).
   "google/diffusiongemma-26b-a4b-it": {
     id: "google/diffusiongemma-26b-a4b-it",
     displayName: "DiffusionGemma 26B",
