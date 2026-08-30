@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { MouseGlow } from "@/components/ui/mouse-glow";
-import { EMPTY_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
+import { SuggestionRows } from "./leopard/suggestions";
 import {
   EmptyState,
   EmptyStateGreeting,
@@ -309,9 +309,7 @@ function Greeting() {
             <Composer placement="center" />
           </div>
           <EmptyStateSuggestions className="mt-5">
-            <Suggestions
-              suggestions={EMPTY_SUGGESTIONS}
-              label="Suggested first prompts"
+            <SuggestionRows
               onSuggestion={(text) => {
                 void sendMessage({ parts: [{ type: "text", text }] } as never);
               }}
