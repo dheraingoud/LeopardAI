@@ -83,7 +83,7 @@ function renderTranscript(
     if (pairNodes.length === 0) pairKey = message.id;
     pairNodes.push(
       <PreviewMessage
-        key={message.id}
+        key={`${message.id}-${index}`}
         message={message}
         isLast={index === messages.length - 1}
         status={status}
