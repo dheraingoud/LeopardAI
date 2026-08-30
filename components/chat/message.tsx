@@ -1204,6 +1204,7 @@ export const PreviewMessage = memo(function PreviewMessage({
                     } else {
                       // Thumbs-down → forked reason dialog; the vote persists
                       // on its submit, not on the initial click.
+                      setRegenOpen(false);
                       setFeedbackSent(false);
                       setFeedbackOpen(true);
                     }
@@ -1214,7 +1215,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                       options={regenOptions}
                       open={regenOpen}
                       currentId={chat.currentModelId}
-                      onOpenChange={setRegenOpen}
+                      onOpenChange={(o) => {
+                        setRegenOpen(o);
+                        if (o) setFeedbackOpen(false);
+                      }}
                       onRetry={handleRegenerate}
                       onPick={pickRegenModel}
                     />
@@ -1248,8 +1252,12 @@ export const PreviewMessage = memo(function PreviewMessage({
                 />
               )}
               {feedbackOpen && (
-                <FeedbackDialog
-                  className="mt-2"
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                  onClick={() => setFeedbackOpen(false)}
+                >
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <FeedbackDialog
                   reasons={["Inaccurate", "Unhelpful", "Too long", "Wrong tone"]}
                   selected={feedbackReasons}
                   note={feedbackNote}
@@ -1270,7 +1278,9 @@ export const PreviewMessage = memo(function PreviewMessage({
                     toast.success("Marked — we'll improve the next reply");
                     setTimeout(() => setFeedbackOpen(false), 1400);
                   }}
-                />
+                    />
+                  </div>
+                </div>
               )}
             </div>
           )}
