@@ -9,6 +9,15 @@ import { useLeopardTheme } from "@/components/theme-provider";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { CommandPalette, type PaletteCommand } from "./command-palette";
 
+// Curated starter prompts surfaced as palette commands; selecting one loads it
+// into the composer via the composer:set-text event.
+const SAVED_PROMPTS = [
+  { id: "explain", label: "Explain a concept", text: "Explain a concept: " },
+  { id: "code", label: "Write code", text: "Write code that " },
+  { id: "research", label: "Research a topic", text: "Research " },
+  { id: "email", label: "Draft an email", text: "Draft an email " },
+];
+
 // Cmd/Ctrl+K global palette. Commands: navigation + theme + recent chats.
 export function CommandPaletteHost() {
   const [open, setOpen] = useState(false);
@@ -46,7 +55,13 @@ export function CommandPaletteHost() {
       group: "chats",
       keys: [] as string[],
     }));
-    return [...base, ...recent];
+    const prompts = SAVED_PROMPTS.map((p) => ({
+      id: `prompt:${p.id}`,
+      label: p.label,
+      group: "prompts",
+      keys: [] as string[],
+    }));
+    return [...base, ...prompts, ...recent];
   }, [chats]);
 
   const run = (id: string) => {
@@ -55,6 +70,16 @@ export function CommandPaletteHost() {
     else if (id === "theme") toggleTheme();
     else if (id === "settings") router.push("/settings");
     else if (id.startsWith("chat:")) router.push(`/chat/${id.slice(5)}`);
+    else if (id.startsWith("prompt:")) {
+      const prompt = SAVED_PROMPTS.find((p) => `prompt:${p.id}` === id);
+      if (!prompt) return;
+      router.push("/chat");
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent("composer:set-text", { detail: { text: prompt.text } }),
+        );
+      });
+    }
   };
 
   if (!open) return null;
