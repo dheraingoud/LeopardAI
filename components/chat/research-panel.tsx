@@ -66,9 +66,16 @@ export function ResearchPanel() {
 
   const isActive = (s: Job["status"]) => s === "queued" || s === "running";
 
+  const [disabled, setDisabled] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     try {
       const res = await retryingFetch("/api/research", { cache: "no-store" }, auth);
+      if (res.status === 403) {
+        // Feature off server-side — stop polling instead of spamming 403s.
+        setDisabled("Deep research is disabled on this deployment.");
+        return;
+      }
       if (res.ok) {
         const data = (await res.json()) as { jobs: Job[] };
         setJobs(data.jobs ?? []);
@@ -81,7 +88,7 @@ export function ResearchPanel() {
 
   // Fetch on open + refresh every 2s while any job is active.
   useEffect(() => {
-    if (!open) {
+    if (!open || disabled) {
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -114,6 +121,11 @@ export function ResearchPanel() {
         },
         auth,
       );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setDisabled(data?.error ?? "Research failed to start.");
+        return;
+      }
       if (res.ok) {
         const { id } = (await res.json()) as { id: string };
         setQuery("");
@@ -240,7 +252,9 @@ export function ResearchPanel() {
             </div>
 
             <div className="max-h-[24rem] overflow-y-auto p-2">
-              {jobs.length === 0 ? (
+              {disabled ? (
+                <p className="px-3 py-4 text-[12px] text-[#8a8a8a]">{disabled}</p>
+              ) : jobs.length === 0 ? (
                 <p className="px-3 py-4 text-[12px] text-[#8a8a8a]">
                   No research runs yet. Type a question and press Run — or ask
                   Leopard to research something and it starts here.
