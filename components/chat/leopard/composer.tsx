@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { field, ghostButton, inkButton, paper } from "./surfaces";
+import { ghostButton, inkButton, paper } from "./surfaces";
 
 // Leopard fork of the elements-kit composer: ComposerBar/paper shell, floating
 // popovers, icon-swap send, with Leopard wiring (useActiveChat, uploads,
@@ -68,7 +68,7 @@ function ComposerBar({ className, ...props }: ComponentProps<"div">) {
       data-slot="composer-bar"
       className={cn(
         paper,
-        "flex w-full flex-col gap-2 rounded-[24px] p-2 transition-shadow",
+        "flex w-full flex-col gap-1 rounded-[28px] p-1.5 transition-shadow",
         "focus-within:ring-1 focus-within:ring-[#ffb400]/40",
         className,
       )}
@@ -435,24 +435,25 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             />
           )}
           <ComposerBar>
-            <div className={cn(field, "relative flex items-end gap-1.5 rounded-[18px] px-2 py-2")}>
+            {/* ChatGPT-style: text row on top, control row below. */}
+            <TextareaAutosize
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => { setInput(e.target.value); setDraft(e.target.value); }}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything"
+              aria-label="Message"
+              rows={1}
+              minRows={1}
+              maxRows={8}
+              className="min-h-[44px] max-h-[240px] w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
+            />
+            <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
               <ComposerAttachMenu
                 modelVision={modelVision}
                 modelImageEdit={modelImageEdit}
                 onPickMedia={(f) => addFiles(f, "media")}
                 onPickFile={(f) => addFiles(f, "file")}
-              />
-              <TextareaAutosize
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => { setInput(e.target.value); setDraft(e.target.value); }}
-                onKeyDown={handleKeyDown}
-                placeholder="Message Leopard…"
-                aria-label="Message"
-                rows={1}
-                minRows={1}
-                maxRows={8}
-                className="min-h-[36px] max-h-[240px] flex-1 resize-none bg-transparent px-1 py-2 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
               />
               <ComposerActions>
                 <ModelSelector />

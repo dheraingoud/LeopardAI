@@ -748,29 +748,35 @@ export function backgroundServe(args: {
       // chunk-gap over LEOPARD_STALL_MS (default 18s) ends the attempt as a
       // stall error → the retry loop escalates to the next fallback model when
       // nothing committed yet, or keeps the partial when it has.
-      // Reasoning models think silently before the first chunk — 18s killed
-      // them mid-thought. 90s with reasoning on, 45s otherwise.
+      // Two-phase stall budget: a healthy model starts chunking within ~10s,
+      // so a silent OPEN is almost certainly a hung upstream — kill at 45s.
+      // Once chunks flow, gaps between them (long reasoning, tool waits) get
+      // the wider 90s window.
+      const STALL_OPEN_MS = Math.max(4_000, Number(process.env.LEOPARD_STALL_OPEN_MS ?? 45_000) || 45_000);
       const STALL_MS = Math.max(
         4_000,
         Number(process.env.LEOPARD_STALL_MS ?? (sendReasoning ? 90_000 : 45_000)) ||
           (sendReasoning ? 90_000 : 45_000),
       );
+      let sawChunk = false;
       const it = merged[Symbol.asyncIterator]();
       try {
         for (;;) {
           let stall: ReturnType<typeof setTimeout> | undefined;
+          const budget = sawChunk ? STALL_MS : STALL_OPEN_MS;
           const next = await Promise.race([
             it.next(),
             new Promise<never>((_, rej) => {
               stall = setTimeout(
-                () => rej(new Error(`stall: no chunk for ${STALL_MS}ms`)),
-                STALL_MS,
+                () => rej(new Error(`stall: no chunk for ${budget}ms`)),
+                budget,
               );
             }),
           ]).finally(() => {
             if (stall) clearTimeout(stall);
           });
           if (next.done) break;
+          sawChunk = true;
           const chunk = next.value;
           acc.push(chunk);
           emit(chunk);

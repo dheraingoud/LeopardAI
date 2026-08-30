@@ -1,19 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { CodeIcon, GlobeIcon, PenLineIcon, SparklesIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-/**
- * Curated prompts shown on the empty thread (no LLM call — static list). These
- * replace the plain greeting subline with actionable starting points; a click
- * fills + sends the prompt through the composer (chat.sendMessage).
- */
-export const EMPTY_SUGGESTIONS = [
-  "Explain a concept",
-  "Write code",
-  "Research a topic",
-  "Draft an email",
-] as const;
 
 /**
  * Follow-up prompts shown after a finished assistant turn (status "ready",
@@ -24,6 +13,41 @@ export const FOLLOW_UP_SUGGESTIONS = [
   "Give an example",
   "Summarize the key points",
 ] as const;
+
+/** ChatGPT-style empty-state rows: icon + action label, one per line. */
+const SUGGESTION_ROWS = [
+  { icon: SparklesIcon, label: "Explain a concept", prompt: "Explain a concept: " },
+  { icon: CodeIcon, label: "Write code", prompt: "Write code that " },
+  { icon: GlobeIcon, label: "Research a topic", prompt: "Research " },
+  { icon: PenLineIcon, label: "Draft an email", prompt: "Draft an email " },
+] as const;
+
+export function SuggestionRows({
+  onSuggestion,
+  className,
+}: {
+  onSuggestion: (prompt: string) => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex w-full max-w-xs flex-col items-stretch gap-0.5", className)}>
+      {SUGGESTION_ROWS.map(({ icon: Icon, label, prompt }, index) => (
+        <motion.button
+          key={label}
+          type="button"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, delay: index * 0.05 }}
+          onClick={() => onSuggestion(prompt)}
+          className="group flex items-center gap-3 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black active:scale-[0.99]"
+        >
+          <Icon className="size-4 shrink-0 dark:text-[#737373] light:text-[#8a8a8a] transition-colors group-hover:dark:text-[#ffb400] group-hover:light:text-[#d49600]" />
+          {label}
+        </motion.button>
+      ))}
+    </div>
+  );
+}
 
 export interface SuggestionsProps {
   suggestions: readonly string[];
