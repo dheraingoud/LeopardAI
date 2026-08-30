@@ -133,12 +133,11 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 //   z-ai/glm-5.2 (stalled upstream, then pulled from the NIM catalogue 2026-08-24)
 //   → step-3.7-flash (interim) → deepseek-v4-flash-0731 (defaulted 2026-08-20,
 //     then HUNG both thinking + non-thinking 2026-08-24 — empty body in 45s).
-// Default is now moonshotai/kimi-k3 (probed live 2026-08-24: responds, honors
-// reasoning_effort low/medium/high/max, emits reasoning_content, and
-// chat_template_kwargs:{enable_thinking:false} cleanly disables reasoning).
-// deepseek-v4-flash stays in the picker (kept per operator) but is flagged
-// unavailable in the UI until NIM restores it.
-export const DEFAULT_MODEL = "moonshotai/kimi-k3";
+// Defaulted moonshotai/kimi-k3 2026-08-24, but kimi stalls mid-stream (90s
+// chunk gaps) in practice → operator switch 2026-08-30 to
+// google/diffusiongemma-26b-a4b-it (stable, fast; enable_thinking reasoning
+// verified 2026-07-11). kimi stays in the picker.
+export const DEFAULT_MODEL = "google/diffusiongemma-26b-a4b-it";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the

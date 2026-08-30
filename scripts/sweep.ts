@@ -20,9 +20,14 @@ async function main() {
   });
   const page = await ctx.newPage();
   await page.addInitScript(() => {
-    try { localStorage.setItem("theme", "dark"); } catch {}
-    document.documentElement.classList.add("dark");
-    document.documentElement.classList.remove("light");
+    try {
+      localStorage.setItem("theme", "dark");
+      const el = document.documentElement;
+      if (el) {
+        el.classList.add("dark");
+        el.classList.remove("light");
+      }
+    } catch {}
   });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
@@ -34,7 +39,7 @@ async function main() {
 
   // 2. Send a message, wait for a response, capture transcript
   await page.click('[data-slot="model-selector-trigger"]');
-  await page.fill('[data-slot="model-selector-search"]', "nemotron");
+  await page.fill('[data-slot="model-selector-search"]', "diffusion");
   await page.waitForTimeout(600);
   await page.click('[data-slot="model-selector-item"]');
   await page.fill('[data-slot="composer-bar"] textarea', "Explain what a hash map is in two sentences.");
