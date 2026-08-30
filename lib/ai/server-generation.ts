@@ -164,18 +164,26 @@ export async function persistAssistantRow(input: {
 export async function resolvePendingApprovalRowId(input: {
   chatId: string;
   userId: string;
-}): Promise<string | null> {
+}): Promise<{ id: string; parts: Array<Record<string, unknown>> } | null> {
   const c = convexClient();
   if (!c) return null;
   try {
     const rows = (await c.query(api.messages.list as never, {
       chatId: input.chatId,
-    } as never)) as Array<{ id: string; role: string; parts?: Array<{ state?: string }> }>;
+    } as never)) as Array<{
+      id: string;
+      role: string;
+      parts?: Array<Record<string, unknown>>;
+    }>;
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i];
       if (r.role !== "assistant") continue;
-      if ((r.parts ?? []).some((p) => p?.state === "approval-requested")) {
-        return r.id;
+      if (
+        (r.parts ?? []).some(
+          (p) => (p as { state?: string })?.state === "approval-requested",
+        )
+      ) {
+        return { id: r.id, parts: r.parts ?? [] };
       }
     }
   } catch (e) {
@@ -512,6 +520,14 @@ class PartAccumulator {
   private reasoning = "";
   private tools: Array<Record<string, unknown>> = [];
 
+  /** Approval-resume seed: the resumed run re-persists the row from scratch
+   * (placeholder write), so the previously persisted tool parts must be
+   * carried over or they vanish on reload. The resumed stream re-emits the
+   * same toolCallIds and merges into these entries. */
+  constructor(seedTools?: Array<Record<string, unknown>>) {
+    this.tools = (seedTools ?? []).map((t) => ({ ...t }));
+  }
+
   push(chunk: { type?: string; [k: string]: unknown }): void {
     switch (chunk.type) {
       case "text-delta":
@@ -655,6 +671,9 @@ export function backgroundServe(args: {
    * attempt/model). Lets a caller skip fallback on auth/rate-limit/config errors
    * that would recur identically on every candidate. Defaults to retry-always. */
   retryPredicate?: (errorMessage: string) => boolean;
+  /** Tool parts carried over from the persisted row on an approval-resume —
+   * the placeholder write would otherwise wipe them (card gone on reload). */
+  seedToolParts?: Array<Record<string, unknown>>;
   /** The controller driving this generation (see createGenerationController). */
   abortController: AbortController;
   /** Hard ceiling before a stuck generation is force-persisted + aborted. */
@@ -683,7 +702,7 @@ export function backgroundServe(args: {
 
   const bus = new EventEmitter();
   const replay: UIMessageStreamChunk[] = [];
-  const acc = new PartAccumulator();
+  const acc = new PartAccumulator(args.seedToolParts);
 
   let settled = false;
   let generationAborted = false;
@@ -704,7 +723,8 @@ export function backgroundServe(args: {
         userId,
         id: assistantId,
         model,
-        parts: [],
+        // acc.parts() (not []) so approval-resume seeds survive the placeholder.
+        parts: acc.parts(),
         status: "streaming",
       }),
     );

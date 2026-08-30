@@ -571,13 +571,27 @@ export async function POST(request: Request) {
       // resumed generation to the actual persisted row holding the pending
       // approval — otherwise the old row stays stuck at "approval-requested"
       // (live Allow/Deny card on every reload) and the turn forks into two rows.
-      const pendingRowId = isApprovalResume
+      const pendingRow = isApprovalResume
         ? await resolvePendingApprovalRowId({
             chatId: realChatId,
             userId: userId ?? DEV_USER_ID,
           })
         : null;
-      const assistantId = pendingRowId ?? generateId();
+      console.log(
+        `[approval-resume] detected: ${isApprovalResume} rowId: ${pendingRow?.id ?? "null"} seedParts: ${pendingRow?.parts?.length ?? 0}`,
+      );
+      const assistantId = pendingRow?.id ?? generateId();
+      // Carry the persisted tool parts into the resumed generation: the row is
+      // re-persisted from a fresh accumulator, so without the seed the tool card
+      // vanishes on reload. Mark them approval-responded so the gate card does
+      // not reappear in progressive patches before the output lands.
+      const seedToolParts = (pendingRow?.parts ?? [])
+        .filter(
+          (p) =>
+            typeof p?.type === "string" &&
+            (p.type.startsWith("tool-") || p.type === "dynamic-tool"),
+        )
+        .map((p) => ({ ...p, state: "approval-responded" }));
       const genCtrl = createGenerationController(assistantId);
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
@@ -882,6 +896,7 @@ export async function POST(request: Request) {
         chatId: realChatId,
         userId: userId ?? DEV_USER_ID,
         model: modelId,
+        seedToolParts,
         abortController: genCtrl,
         settleTimeoutMs: maxDuration * 1000,
       });

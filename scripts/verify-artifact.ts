@@ -51,10 +51,20 @@ async function main() {
     panelLive = await page.evaluate(() => /leopard/i.test(document.body.innerText));
     await page.screenshot({ path: "shots/artifact-panel.png" });
   }
+  // Stopped chip must NOT fire on a turn that ended with a tool artifact.
+  await page.waitForTimeout(2000);
+  const stoppedChip = await page.evaluate(() =>
+    /Stopped/i.test(document.body.innerText),
+  );
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(3000);
   const cardAfterReload = await waitCard(page, 15_000);
-  console.log(JSON.stringify({ cardShown, panelLive, cardAfterReload }));
+  const stoppedAfterReload = await page.evaluate(() =>
+    /Stopped/i.test(document.body.innerText),
+  );
+  console.log(
+    JSON.stringify({ cardShown, panelLive, cardAfterReload, stoppedChip, stoppedAfterReload }),
+  );
   await browser.close();
 }
 void main();
