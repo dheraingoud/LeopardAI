@@ -12,6 +12,7 @@ import {
   EmptyStateSuggestions,
 } from "./leopard/empty-state";
 import { ErrorState } from "./leopard/error-state";
+import { Composer } from "./leopard/composer";
 import { FirstRunOnboarding } from "./leopard/onboarding";
 import { ScrollAnchorPill } from "./leopard/scroll-anchor";
 import { DaySeparator } from "./leopard/day-separator";
@@ -297,15 +298,17 @@ function Greeting() {
       >
         {/* First-run tour (localStorage leopard-onboarded); self-hides after
             skip/finish, leaving the EmptyState greeting as the fallback. */}
-        <FirstRunOnboarding className="mx-auto mb-6 text-left" />
+        <FirstRunOnboarding className="mx-auto mb-4 text-left" />
         <EmptyState>
-          <EmptyStateGreeting className="font-signature text-5xl sm:text-6xl text-[#ffb400] text-glow-amber mb-3">
+          <EmptyStateGreeting className="font-signature text-4xl sm:text-5xl text-[#ffb400] text-glow-amber mb-2">
             How can I help?
           </EmptyStateGreeting>
-          <p className="text-sm dark:text-[#505050] light:text-[#737373] font-mono">
-            Ask anything — Leopard streams answers from your selected model.
-          </p>
-          <EmptyStateSuggestions className="mt-6">
+          {/* Clone-style: composer centered in the empty state, chips below;
+              the bottom bar only exists once the thread has messages. */}
+          <div className="mt-6 w-full max-w-2xl">
+            <Composer placement="center" />
+          </div>
+          <EmptyStateSuggestions className="mt-5">
             <Suggestions
               suggestions={EMPTY_SUGGESTIONS}
               label="Suggested first prompts"

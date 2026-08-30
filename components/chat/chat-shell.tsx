@@ -175,9 +175,9 @@ export function ChatShell() {
               toolName={pendingApproval.toolName}
               input={pendingApproval.input}
             />
-          ) : (
+          ) : messages.length > 0 ? (
             <Composer />
-          )}
+          ) : null}
         </div>
         <ArtifactPanel />
       </div>
@@ -274,9 +274,9 @@ export function ChatShell() {
             toolName={pendingApproval.toolName}
             input={pendingApproval.input}
           />
-        ) : (
+        ) : messages.length > 0 ? (
           <Composer />
-        )}
+        ) : null}
       </div>
       {/* Φ6: artifact side panel. Renders null until a createDocument tool
           streams data-* parts (see use-active-chat.onData). Slides in beside

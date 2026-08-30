@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { collapsePanel, mono, ShimmerLabel, SwapLabel } from "./surfaces";
-import { StreamingText } from "./streaming-text";
 
 // Leopard reasoning panel: clickable trigger (kit behavior); expands to the
 // model's thinking rendered as markdown. Auto-open while streaming, resting
@@ -25,7 +24,7 @@ export interface LeopardReasoningPanelProps {
 }
 
 export function ReasoningPanel({
-  content,
+  content: _content,
   streaming,
   open,
   onOpenChange,
@@ -108,12 +107,14 @@ export function ReasoningPanel({
         </SwapLabel>
         <ChevronDownIcon className="size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] group-data-open/trigger:rotate-180 group-data-panel-open/trigger:rotate-180 motion-reduce:transition-none" />
       </CollapsibleTrigger>
+      {/* CoT is never shown (product rule) — the panel expands to a muted
+          note instead of the model's raw reasoning. */}
       <CollapsibleContent
         ref={contentRef}
         className={cn(collapsePanel, "outline-none")}
       >
-        <div className="max-h-[420px] overflow-y-auto pt-2 pb-1 text-[13.5px] leading-[1.7] text-foreground/70 [&_.markdown-body]:text-[13.5px]">
-          <StreamingText content={content} streaming={streaming} />
+        <div className={cn(mono, "pt-2 pb-1 text-[11px] text-foreground/35")}>
+          Reasoning is hidden — only the final answer is shown.
         </div>
       </CollapsibleContent>
     </Collapsible>
