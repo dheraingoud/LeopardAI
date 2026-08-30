@@ -751,12 +751,14 @@ export function backgroundServe(args: {
       // Two-phase stall budget: a healthy model starts chunking within ~10s,
       // so a silent OPEN is almost certainly a hung upstream — kill at 45s.
       // Once chunks flow, gaps between them (long reasoning, tool waits) get
-      // the wider 90s window.
+      // the wider window: 180s with reasoning on (thinking models emit
+      // reasoning in bursts with >90s silences — 2026-08-31 diffusiongemma
+      // turn was killed mid-stream at 90s with content already flowing).
       const STALL_OPEN_MS = Math.max(4_000, Number(process.env.LEOPARD_STALL_OPEN_MS ?? 45_000) || 45_000);
       const STALL_MS = Math.max(
         4_000,
-        Number(process.env.LEOPARD_STALL_MS ?? (sendReasoning ? 90_000 : 45_000)) ||
-          (sendReasoning ? 90_000 : 45_000),
+        Number(process.env.LEOPARD_STALL_MS ?? (sendReasoning ? 180_000 : 45_000)) ||
+          (sendReasoning ? 180_000 : 45_000),
       );
       let sawChunk = false;
       const it = merged[Symbol.asyncIterator]();
