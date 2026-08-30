@@ -353,7 +353,12 @@ function ToolCard({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const isSearch = toolName === "webSearch";
   const pending = state === "streaming" || state === "pending" || state === "loading";
-  const verb = isSearch ? "searching web" : toolName;
+  const TOOL_VERB: Record<string, string> = {
+    webFetch: "Fetching",
+    webSearch: "Searching the web",
+    createDocument: "Creating document",
+  };
+  const verb = isSearch ? "searching web" : (TOOL_VERB[toolName] ?? toolName);
 
   // No elapsed clock on tool cards — time chips live on the reasoning panel
   // header only (user directive 2026-08-26).
@@ -422,7 +427,12 @@ function ToolCard({
           : resultOk
             ? isSearch
               ? "Searched the web"
-              : "Fetched"
+              : (
+                  {
+                    webFetch: "Fetched",
+                    createDocument: "Created",
+                  } as Record<string, string>
+                )[toolName] ?? toolName
             : `${verb} failed`
       }
       activeLabel={`${verb}…`}
@@ -725,7 +735,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         // AskCard never mounted and the gate hung silently. Map it to the same
         // `state:"ask"` segment the raw-type branch produces (which carries
         // approvalId for the Allow/Deny → addToolApprovalResponse call).
-        const toolName = p.toolName ?? "tool";
+        const toolName = p.toolName ?? (p.type?.startsWith("tool-") ? p.type.slice(5) : undefined) ?? "tool";
         const isApproval = p.state === "approval-requested";
         const approvalId = isApproval
           ? (p as unknown as { approval?: { id?: string } }).approval?.id
@@ -798,7 +808,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         };
         out.push(cur);
       } else if (p.type === "tool-call" || p.type === "tool-result") {
-        const toolName = p.toolName ?? "tool";
+        const toolName = p.toolName ?? (p.type?.startsWith("tool-") ? p.type.slice(5) : undefined) ?? "tool";
         const last = out[out.length - 1] as Seg | undefined;
         // An APPROVED tool-call arrives after its approval-request. Morph the
         // AskCard (same toolCallId) into the running card so it's ONE card,
