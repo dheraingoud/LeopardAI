@@ -212,16 +212,28 @@ function trimModelMessagesToBudget<
 
 /** Generate a 3-5 word chat title from the first user message. */
 async function generateTitleFromUserMessage(message: UIMessage): Promise<string> {
+  // Fenced blocks / code dump into the title model make it parrot the input —
+  // strip fences and clamp before AND after.
+  const input = getTextFromUIMessage(message)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 400);
   const { text } = await generateText({
     model: getTitleModel(),
     // AI SDK v7: `system` → `instructions`.
     instructions: titlePrompt,
-    prompt: getTextFromUIMessage(message),
+    prompt: input,
   });
-  return text
+  const cleaned = text
     .replace(/^[#*"\s]+/, "")
     .replace(/["]+$/, "")
     .trim();
+  // Model parroted the prompt or ran long → fall back to the first line.
+  if (cleaned.length > 80 || cleaned.includes("```")) {
+    return input.split(/[.!?\n]/)[0].slice(0, 60) || "New Chat";
+  }
+  return cleaned;
 }
 
 /**
