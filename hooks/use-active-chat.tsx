@@ -822,7 +822,22 @@ export function ActiveChatProvider({
           regenerate?: (opts?: { messageId?: string }) => void;
         }
       ).regenerate;
-      if (typeof r === "function") void r({ messageId });
+      if (typeof r !== "function") return;
+      // The id can be stale (server-id adoption after a settle) — regenerating
+      // with an unknown id throws "message not found" and the SDK falls back to
+      // re-sending the last user message, DUPLICATING the turn. Fall back to a
+      // bare regenerate (last assistant reply) when the id isn't live.
+      const known = chat.messages.some((m) => m.id === messageId);
+      try {
+        if (known) void r({ messageId });
+        else void r();
+      } catch {
+        try {
+          void r();
+        } catch {
+          toast.error("Couldn't regenerate");
+        }
+      }
     },
     [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat],
   );
