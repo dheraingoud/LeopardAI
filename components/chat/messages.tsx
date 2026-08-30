@@ -197,6 +197,27 @@ export function Messages() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [status]);
 
+  // Auto-retry once on a failed run before surfacing the error card: the card
+  // shows "retrying…" during the pause and the manual button only if the
+  // second attempt also fails. Keyed per trailing message id so a new turn
+  // gets its own free retry.
+  const [autoRetrying, setAutoRetrying] = useState(false);
+  const autoRetriedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (status !== "error") return;
+    const last = messages[messages.length - 1];
+    const key = last?.id ?? "empty";
+    if (autoRetriedRef.current === key) return;
+    autoRetriedRef.current = key;
+    setAutoRetrying(true);
+    const t = setTimeout(() => {
+      setAutoRetrying(false);
+      if (last) chat.regenerateMessage(last.id);
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, messages]);
+
   if (messages.length === 0) {
     return <Greeting />;
   }
@@ -236,7 +257,7 @@ export function Messages() {
           <ErrorState
             title="Response failed"
             detail="The stream errored or stalled — retry the last turn."
-            retrying={false}
+            retrying={autoRetrying}
             onRetry={() => {
               const last =
                 [...messages].reverse().find((m) => m.role === "assistant") ??
