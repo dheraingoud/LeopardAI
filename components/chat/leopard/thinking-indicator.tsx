@@ -3,26 +3,6 @@
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { mono, ShimmerLabel } from "./surfaces";
-import { TypingIndicator } from "./typing-indicator";
-
-// Composite for ThinkingMessage (message.tsx mounts this): the dots bubble
-// beside the shimmer label.
-export function ThinkingBubble({
-  label,
-  className,
-  ...props
-}: Omit<ComponentProps<"div">, "children"> & { label: string }) {
-  return (
-    <div
-      data-slot="thinking-bubble"
-      className={cn("flex items-center gap-3", className)}
-      {...props}
-    >
-      <TypingIndicator variant="bubble" />
-      <ThinkingIndicator label={label} />
-    </div>
-  );
-}
 
 export function ThinkingIndicator({
   label,

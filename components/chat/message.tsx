@@ -29,7 +29,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamingText } from "./leopard/streaming-text";
 import type { ReasoningLevel } from "@/lib/nim";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
-import { ThinkingBubble, ThinkingIndicator } from "./leopard/thinking-indicator";
+import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
 import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
 import { ToolTimeline } from "./leopard/tool-timeline";
@@ -1329,7 +1329,7 @@ export function ThinkingMessage() {
       className="max-w-3xl mx-auto"
     >
       <div className="flex items-start gap-3 py-5">
-        <ThinkingBubble className="max-w-none" label="Working on it…" />
+        <ThinkingIndicator className="max-w-none" label="Working on it…" />
      </div>
    </motion.div>
   );
