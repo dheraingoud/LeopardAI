@@ -522,15 +522,31 @@ class PartAccumulator {
         break;
       case "tool-call-end": // legacy alias
       case "tool-input-start":
-      case "tool-input-available":
+      case "tool-input-available": {
+        // One entry per call: the stream can emit input-start AND
+        // input-available for the same toolCallId — merge, never push twice
+        // (observed: two "Creating document…" cards for one createDocument).
+        const existing = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        if (existing) {
+          existing.input =
+            (chunk as { args?: unknown }).args ??
+            (chunk as { input?: unknown }).input ??
+            existing.input;
+          break;
+        }
         this.tools.push({
-          type: "tool",
+          // tool-<name>, not the generic "tool": DocumentCard/ArtifactPanel
+          // match `tool-createDocument` exactly, and convertToModelMessages
+          // only recognizes the prefixed form on the wire. The generic form
+          // silently dropped artifact panels on reload.
+          type: `tool-${String(chunk.toolName ?? "")}`,
           toolCallId: chunk.toolCallId,
           toolName: chunk.toolName,
           state: "pending",
           input: (chunk as { args?: unknown }).args ?? (chunk as { input?: unknown }).input,
         });
         break;
+      }
       case "tool-approval-request": {
         const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
         if (t) t.state = "approval-requested";
