@@ -39,8 +39,16 @@ function dayLabel(ts: number): string {
   });
 }
 
+// A turn "has content" with visible text OR a completed tool call (artifact
+// turns legitimately end on the tool card with no closing text — counting
+// only text false-fired the Stopped note on every createDocument turn).
 const hasVisibleText = (m: ChatMessage) =>
-  m.parts.some((p) => p.type === "text" && p.text.trim().length > 0);
+  m.parts.some(
+    (p) =>
+      (p.type === "text" && p.text.trim().length > 0) ||
+      ((p.type === "dynamic-tool" || p.type.startsWith("tool-")) &&
+        (p as { state?: string }).state === "output-available"),
+  );
 
 // Day separators between day groups; each user→assistant turn is wrapped in
 // one MessagePair (layout only — a turn reads as a single block).
