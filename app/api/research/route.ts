@@ -35,9 +35,7 @@ export async function POST(request: Request) {
   if (!query) {
     return Response.json({ error: "`query` (non-empty string) is required." }, { status: 400 });
   }
-  if (!process.env.TAVILY_API_KEY && process.env.NODE_ENV !== "test") {
-    return Response.json({ error: "TAVILY_API_KEY is not configured." }, { status: 503 });
-  }
+  // Search backend is keyless (DuckDuckGo) since 2026-08-31 — no key check.
 
   let modelId: string;
   if (typeof body?.modelId === "string" && body.modelId) {

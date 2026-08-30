@@ -94,6 +94,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Iosevka+Charon:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
           rel="stylesheet"
         />
+        {/* Space Grotesk — DESIGN.md's sanctioned third editorial face; used
+            only for the empty-state greeting line (2026-08-31). */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap"
+          rel="stylesheet"
+        />
         {/* No-flash theme init. Runs before hydration (beforeInteractive is
             hoisted into the document header by Next) so the correct
             dark/light class is on <html> on first paint. Replaces the raw

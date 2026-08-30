@@ -34,7 +34,8 @@ import { HeaderQuotaBanner } from "./leopard/quota-banner";
  * createDocument tool call streams in — see use-active-chat.onData).
  */
 export function ChatShell() {
-  const { chatMeta, isLoading, isDraft, messages, currentModelId } = useActiveChat();
+  const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming } = useActiveChat();
+  const generating = status === "submitted" || status === "streaming" || serverStreaming;
   const { user } = useUser();
   const router = useRouter();
   // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
@@ -163,8 +164,8 @@ export function ChatShell() {
               </h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {generating && <GeneratingChip />}
               <ConnectionDot />
-              <ModelLabel modelId={currentModelId} />
               <HeaderQuotaBanner />
             </div>
           </div>
@@ -217,8 +218,8 @@ export function ChatShell() {
             </h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {generating && <GeneratingChip />}
             <ConnectionDot />
-            <ModelLabel modelId={currentModelId} />
             <HeaderQuotaBanner />
             <button
               type="button"
@@ -287,15 +288,14 @@ export function ChatShell() {
 }
 
 
-function ModelLabel({ modelId }: { modelId: string }) {
-  const m = getModelById(modelId);
+/** Header generation-state chip — visible whenever a run is live, including
+ *  reopened-mid-generation (serverStreaming) where no local stream exists. */
+function GeneratingChip() {
   return (
-    <span
-      className="font-mono text-[12px] tracking-tight dark:text-[#909090] light:text-[#606060] tabular-nums"
-      title={modelId}
-    >
-      {m?.name ?? modelId}
-   </span>
+    <span className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] dark:border-[#ffb400]/25 dark:bg-[#ffb400]/[0.06] dark:text-[#ffb400] light:border-[#d49600]/25 light:bg-[#d49600]/[0.06] light:text-[#a57600]">
+      <span className="size-1.5 rounded-full bg-current animate-pulse" />
+      generating
+    </span>
   );
 }
 

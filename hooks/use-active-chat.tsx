@@ -114,6 +114,10 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
    * live-mirror resurrects them and the edited resend duplicates the old
    * bubble), then truncates local state so the resend starts clean. */
   editMessage: (messageId: string) => void;
+  /** True when the latest assistant row is still being written by the
+   * detached server task and no local stream owns it — i.e. the user reopened
+   * the chat mid-generation and is watching the live mirror fill in. */
+  serverStreaming: boolean;
   /** Prior response texts for the turn this assistant message answers
    * (session-scoped regen history; the server rows are deleted on regen). */
   getSiblings: (messageId: string) => string[];
@@ -128,6 +132,12 @@ function toChatMessage(m: Doc<"messages">): ChatMessage {
   return {
     id: m.id ?? String(m._id),
     role: m.role,
+    // Server lifecycle rides metadata so the UI can mark a row still being
+    // written by the detached route (reload/reopen mid-generation).
+    metadata:
+      m.status === "streaming"
+        ? { serverStreaming: true }
+        : undefined,
     // Normalize persisted parts (legacy `tool-*` / `step-start` are invalid in
     // the v7 UIMessage schema and would otherwise throw on reload→send —
     // lib/ai/message-parts).
@@ -898,9 +908,19 @@ export function ActiveChatProvider({
   const isLoading = isDraft
     ? false
     : chatMeta === undefined || convexMessages === undefined;
+  // No local stream, but the newest assistant row is still server-written →
+  // the user reopened mid-generation and Convex is live-patching the bubble.
+  const lastMsg = chat.messages[chat.messages.length - 1];
+  const serverStreaming =
+    chat.status !== "streaming" &&
+    chat.status !== "submitted" &&
+    lastMsg?.role === "assistant" &&
+    (lastMsg.metadata as { serverStreaming?: boolean } | undefined)
+      ?.serverStreaming === true;
   const value: ActiveChatContextValue = {
     ...chat,
     sendMessage,
+    serverStreaming,
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,

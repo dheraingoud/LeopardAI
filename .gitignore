@@ -70,3 +70,6 @@ Thumbs.db
 
 # Φ9: dev-server debug log (env-controlled in route.ts)
 /playwright-debug.log
+
+# playwright sweep output
+shots/
