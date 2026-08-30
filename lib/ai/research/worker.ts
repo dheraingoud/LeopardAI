@@ -22,7 +22,7 @@
 import { generateText, Output, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
 import { getLanguageModel } from "@/lib/ai/providers";
-import { tavilySearch } from "@/lib/ai/tools/web-search";
+import { searchWeb } from "@/lib/ai/tools/web-search";
 
 export type ResearchStatus = "queued" | "running" | "done" | "error";
 
@@ -81,7 +81,7 @@ const RESULTS_PER_QUERY = 4;
 const MAX_SUB_QUERIES = 6;
 
 function defaultSearch(query: string): Promise<Awaited<ReturnType<SearchCall>>> {
-  return tavilySearch({ query, withContent: true, maxResults: RESULTS_PER_QUERY }).then((out) =>
+  return searchWeb({ query, withContent: true, maxResults: RESULTS_PER_QUERY }).then((out) =>
     "error" in out
       ? []
       : out.results.map(({ title, url, content }) => ({

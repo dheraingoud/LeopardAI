@@ -4,16 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
-import { MouseGlow } from "@/components/ui/mouse-glow";
-import { SuggestionRows } from "./leopard/suggestions";
-import {
-  EmptyState,
-  EmptyStateGreeting,
-  EmptyStateSuggestions,
-} from "./leopard/empty-state";
+import { EmptyState, EmptyStateGreeting } from "./leopard/empty-state";
 import { ErrorState } from "./leopard/error-state";
 import { Composer } from "./leopard/composer";
-import { FirstRunOnboarding } from "./leopard/onboarding";
 import { ScrollAnchorPill } from "./leopard/scroll-anchor";
 import { DaySeparator } from "./leopard/day-separator";
 import { MessagePair } from "./leopard/message-pair";
@@ -218,7 +211,10 @@ export function Messages() {
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
       >
         <div className="max-w-3xl mx-auto py-6">
-        {renderTranscript(messages, status, firstSeenRef.current)}
+        {/* serverStreaming (reopened mid-generation): the live mirror patches
+            the last bubble's parts; render it as streaming so the caret +
+            reasoning panel behave like a live turn. */}
+        {renderTranscript(messages, chat.serverStreaming ? "streaming" : status, firstSeenRef.current)}
         {showGhost && (
           <div className="opacity-50 pointer-events-none select-none">
             <PreviewMessage message={ghost} isLast={false} status="ready" />
@@ -272,49 +268,53 @@ export function Messages() {
 }
 
 /**
- * Greeting — the empty-state centerpiece (DESIGN.md: no glass). Amber
- * signature text ("How can I help?") sits over a pure-CSS breathing amber
- * bloom (glass-breath keyframes, GPU-cheap, honors prefers-reduced-motion).
- * Auto-unmounts: `Messages` swaps `<Greeting/>` for the transcript the
- * instant `messages.length > 0`.
+ * Greeting — the empty-state centerpiece. Anti-slop pass (2026-08-31):
+ * script font + glow bloom + mouse-follow removed; Geist display per
+ * DESIGN.md (600 weight, negative tracking, sentence-case) with a single
+ * amber period as the brand accent. Composer wide + centered, no suggestion
+ * rows. Auto-unmounts the instant `messages.length > 0`.
  */
+/** Time-of-day greeting lines — each bucket carries alternates; one picked
+    per mount by hour+minute hash so it varies without a random API. */
+const GREETINGS: { until: number; lines: string[] }[] = [
+  { until: 5, lines: ["Moonlit chat?", "The den is quiet. Ask.", "Late hunt, good hunt."] },
+  { until: 12, lines: ["Early bird. Let's hunt.", "Morning. Sharp light, sharp questions.", "Sun's up. So am I."] },
+  { until: 17, lines: ["Prime hours. Ask away.", "Midday. Full stride.", "Daylight's burning — spend it here."] },
+  { until: 21, lines: ["Golden hour. Golden questions.", "Evening. Winding down or ramping up?", "Dusk patrol. What do you need?"] },
+  { until: 24, lines: ["Night owl? Me too.", "Moonlit chat?", "The quiet shift. I'm listening."] },
+];
+
+function pickGreeting(): string {
+  const now = new Date();
+  const bucket = GREETINGS.find((g) => now.getHours() < g.until) ?? GREETINGS[0];
+  return bucket.lines[(now.getHours() * 60 + now.getMinutes()) % bucket.lines.length];
+}
+
 function Greeting() {
-  // Glass retired (DESIGN.md 2026-08-26): the refracting lens is gone; the
-  // amber identity reads through a pure-CSS breathing bloom behind the text.
-  const { sendMessage } = useActiveChat();
+  // SSR/client clocks can disagree — render the neutral line on the server,
+  // swap to the time-of-day line after mount.
+  const [line, setLine] = useState("How can I help");
+  useEffect(() => setLine(pickGreeting()), []);
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 relative isolate">
-      {/* Φ9 mouse-following ambient amber glow. */}
-      <MouseGlow tone="amber" size={260} intensity={0.55} className="z-[1]" />
-      {/* Ambient amber bloom behind the text — CSS only, no lens. */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="glass-breath w-[min(440px,82vw)] h-[200px] rounded-[2.5rem] bg-[radial-gradient(closest-side,rgba(255,180,0,0.12),transparent_72%)]" />
-      </div>
-      {/* Amber identity text — crisp, above the lens (never enters Glass). */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative text-center"
+        className="relative w-full max-w-3xl text-center"
       >
-        {/* First-run tour (localStorage leopard-onboarded); self-hides after
-            skip/finish, leaving the EmptyState greeting as the fallback. */}
-        <FirstRunOnboarding className="mx-auto mb-4 text-left" />
-        <EmptyState>
-          <EmptyStateGreeting className="font-signature text-4xl sm:text-5xl text-[#ffb400] text-glow-amber mb-2">
-            How can I help?
+        <EmptyState className="max-w-3xl">
+          <EmptyStateGreeting className="font-greeting mb-2 text-[34px] font-medium leading-[42px] tracking-[-0.02em] dark:text-[#ececec] light:text-[#171717]">
+            {line}
+            {!/[?!.]$/.test(line) && (
+              <span className="dark:text-[#ffb400] light:text-[#d49600]">.</span>
+            )}
           </EmptyStateGreeting>
-          {/* Clone-style: composer centered in the empty state, chips below;
-              the bottom bar only exists once the thread has messages. */}
-          <div className="mt-6 w-full max-w-2xl">
+          {/* Clone-style: composer wide + centered in the empty state; no
+              suggestion rows (2026-08-31 operator). The bottom bar only
+              exists once the thread has messages. */}
+          <div className="mt-8 w-full max-w-3xl">
             <Composer placement="center" />
           </div>
-          <EmptyStateSuggestions className="mt-5">
-            <SuggestionRows
-              onSuggestion={(text) => {
-                void sendMessage({ parts: [{ type: "text", text }] } as never);
-              }}
-            />
-          </EmptyStateSuggestions>
         </EmptyState>
       </motion.div>
     </div>

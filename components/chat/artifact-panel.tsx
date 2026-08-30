@@ -127,7 +127,10 @@ export function ArtifactPanel() {
           saturation={1.35}
           specular
           chroma={0}
-          className="absolute inset-y-3 right-3 z-20 w-[min(472px,calc(100vw-1.5rem))]"
+          // Split canvas: ≥xl the panel sits in-flow beside the transcript
+          // (flex row in chat-shell → transcript shrinks, ChatGPT-canvas
+          // style); below xl it stays an absolute overlay.
+          className="absolute inset-y-3 right-3 z-20 w-[min(472px,calc(100vw-1.5rem))] xl:static xl:z-auto xl:my-3 xl:ml-0 xl:mr-3 xl:h-auto xl:w-[480px] xl:shrink-0"
         >
           <motion.aside
             initial={{ scale: 0.985, opacity: 0, y: 8 }}

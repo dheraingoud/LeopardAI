@@ -596,13 +596,13 @@ export async function POST(request: Request) {
         // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
         // env so the model doesn't advertise network tools in builds that
         // don't want them. webFetch needs ENABLE_WEB_FETCH=1; webSearch needs
-        // ENABLE_WEB_SEARCH=1 AND a TAVILY_API_KEY. Each enabled tool lifts
+        // ENABLE_WEB_SEARCH=1 (keyless DuckDuckGo backend since 2026-08-31 —
+        // no API key). Each enabled tool lifts
         // supportsTools (drives the tool-usage prompt block — prompts.ts owns
         // wording). stepCountIs(3) lets the model search→fetch→reply in one
         // stream.
         const webFetchEnabled = process.env.ENABLE_WEB_FETCH === "1";
-        const webSearchEnabled =
-          process.env.ENABLE_WEB_SEARCH === "1" && !!process.env.TAVILY_API_KEY;
+        const webSearchEnabled = process.env.ENABLE_WEB_SEARCH === "1";
         // LEOPARD MCP — operator-configured external tool servers (http/sse/
         // stdio). Fail-closed: LEOPARD_MCP_SERVERS unset → no MCP at all. A
         // broken server is logged + skipped; healthy ones contribute tools.
