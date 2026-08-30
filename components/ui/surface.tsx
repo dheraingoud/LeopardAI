@@ -38,6 +38,16 @@ function Surface({
   className,
   style,
   children,
+  // Retired glass props — accepted for call-site compat, never reach the DOM
+  // (spreading them onto the div fires React's non-boolean-attribute warning).
+  blur: _blur,
+  chroma: _chroma,
+  handleRef: _handleRef,
+  saturation: _saturation,
+  specular: _specular,
+  tint: _tint,
+  tintColor: _tintColor,
+  darkTintColor: _darkTintColor,
   ...props
 }: SurfaceProps) {
   return (
