@@ -719,9 +719,12 @@ export function backgroundServe(args: {
       // chunk-gap over LEOPARD_STALL_MS (default 18s) ends the attempt as a
       // stall error → the retry loop escalates to the next fallback model when
       // nothing committed yet, or keeps the partial when it has.
+      // Reasoning models think silently before the first chunk — 18s killed
+      // them mid-thought. 90s with reasoning on, 45s otherwise.
       const STALL_MS = Math.max(
         4_000,
-        Number(process.env.LEOPARD_STALL_MS ?? 18_000) || 18_000,
+        Number(process.env.LEOPARD_STALL_MS ?? (sendReasoning ? 90_000 : 45_000)) ||
+          (sendReasoning ? 90_000 : 45_000),
       );
       const it = merged[Symbol.asyncIterator]();
       try {

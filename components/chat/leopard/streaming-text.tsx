@@ -100,7 +100,9 @@ export const StreamingText = memo(function StreamingText({
           streaming={!!streaming && i === blocks.length - 1}
         />
       ))}
-      {streaming && <span aria-hidden className="leopard-stream-caret" />}
+      {streaming && content.trim().length > 0 && (
+        <span aria-hidden className="leopard-stream-caret" />
+      )}
     </div>
   );
 });
