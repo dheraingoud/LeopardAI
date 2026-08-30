@@ -487,14 +487,43 @@ class PartAccumulator {
       case "reasoning-delta":
         this.reasoning += String(chunk.delta ?? "");
         break;
-      case "tool-call-end":
+      case "tool-call-end": // legacy alias
+      case "tool-input-start":
+      case "tool-input-available":
         this.tools.push({
           type: "tool",
           toolCallId: chunk.toolCallId,
           toolName: chunk.toolName,
+          state: "pending",
           input: (chunk as { args?: unknown }).args ?? (chunk as { input?: unknown }).input,
         });
         break;
+      case "tool-approval-request": {
+        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        if (t) t.state = "approval-requested";
+        break;
+      }
+      case "tool-approval-response": {
+        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        if (t) t.state = "approval-responded";
+        break;
+      }
+      case "tool-output-available": {
+        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        if (t) {
+          t.state = "output-available";
+          t.output = (chunk as { output?: unknown }).output;
+        }
+        break;
+      }
+      case "tool-output-error": {
+        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        if (t) {
+          t.state = "output-error";
+          t.output = { error: String((chunk as { errorText?: unknown }).errorText ?? "tool error") };
+        }
+        break;
+      }
       default:
         break;
     }
