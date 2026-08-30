@@ -152,6 +152,39 @@ export async function persistAssistantRow(input: {
 }
 
 /**
+ * Approval-resume anchor (2026-08-31): the client's resend POST carries the
+ * approval-responded part on the CLIENT message id, which is NOT guaranteed to
+ * be the persisted row's id (the server assigns assistant ids mid-stream).
+ * Writing the resumed generation under the client id left the persisted row
+ * stuck at `approval-requested` forever (a live Allow/Deny card on every
+ * reload) and forked the turn into two rows. Resolve the ACTUAL persisted row
+ * — the newest assistant row in this chat still holding an approval-requested
+ * part — so the resumed generation upserts in place.
+ */
+export async function resolvePendingApprovalRowId(input: {
+  chatId: string;
+  userId: string;
+}): Promise<string | null> {
+  const c = convexClient();
+  if (!c) return null;
+  try {
+    const rows = (await c.query(api.messages.list as never, {
+      chatId: input.chatId,
+    } as never)) as Array<{ id: string; role: string; parts?: Array<{ state?: string }> }>;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (r.role !== "assistant") continue;
+      if ((r.parts ?? []).some((p) => p?.state === "approval-requested")) {
+        return r.id;
+      }
+    }
+  } catch (e) {
+    logWarn("resolvePendingApprovalRowId failed", e);
+  }
+  return null;
+}
+
+/**
  * Persist the generated chat title SERVER-side. Previously the title reached
  * Convex only via the client: the route emitted a `data-chat-title` chunk and
  * the hook called api.chats.updateTitle — but on the draft flow the client

@@ -1,46 +1,55 @@
 import { chromium } from "playwright";
-(async () => {
-  const b = await chromium.launch();
-  const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
-  const errors: string[] = [];
-  p.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
-  await p.goto("http://localhost:3001/chat", { waitUntil: "domcontentloaded" });
-  await p.waitForTimeout(2500);
-  const ta = p.locator("textarea").first();
-  await ta.click();
-  await ta.fill("Call the webFetch tool with url https://example.com right now. Do not answer from memory, I need the live fetch result.");
-  await p.keyboard.press("Enter");
-  let cardFound = false;
-  let docked = false;
+
+async function main() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto("http://localhost:3001/chat", { waitUntil: "networkidle" });
+  await page.fill("textarea", "fetch https://example.com and tell me its title");
+  await page.keyboard.press("Enter");
+
+  // Wait for the approval card (AskCard) to appear — approval-requested part.
+  const allow = page.getByRole("button", { name: /allow/i });
   try {
-    await p.waitForSelector("text=/Allow|Deny/i", { timeout: 75000 });
-    cardFound = true;
-    // ApprovalDock: while pending, the composer input is replaced by the card.
-    await p.waitForTimeout(800);
-    docked = await p.evaluate(() => {
-      // Real composer lives inside a <form>; an autosize clone textarea can
-      // linger outside it — don't count clones.
-      const formTa = document.querySelector("form textarea");
-      const dockText = /web access request|search access/i.test(document.body.innerText); const allowCount = [...document.querySelectorAll("button")].filter((x) => /^Allow$/i.test(x.textContent ?? "")).length; if (allowCount !== 1) return false;
-      return !formTa && dockText;
-    });
-  } catch {}
-  await p.screenshot({ path: "../verify-a1-card.png" });
-  let resumed = false;
-  if (cardFound) {
-    await p.getByRole("button", { name: /allow/i }).first().click();
-    try {
-      await p.waitForFunction(
-        () => /Example Domain/i.test(document.body.innerText),
-        { timeout: 90000 },
-      );
-      resumed = true;
-    } catch {}
+    await allow.waitFor({ timeout: 90_000 });
+  } catch {
+    console.log(JSON.stringify({ ok: false, stage: "no-askcard" }));
+    await page.screenshot({ path: "shots/approval-none.png" });
+    await browser.close();
+    return;
   }
-  await p.waitForTimeout(2500);
-  await p.screenshot({ path: "../verify-a2-resumed.png" });
-  const states = await p.evaluate(() => document.body.innerText.slice(0, 1500));
-  console.log(JSON.stringify({ cardFound, docked, resumed, errors: errors.slice(0, 4) }, null, 2));
-  if (!resumed) console.log("BODY:", states.slice(0, 600));
-  await b.close();
-})();
+  await page.screenshot({ path: "shots/approval-ask.png" });
+  await allow.first().click();
+
+  // After Allow, the run must resume and produce assistant text.
+  await page.waitForTimeout(3000);
+  const resumed = await page.evaluate(() => {
+    const els = document.querySelectorAll("[data-slot='message-content'], .prose, article, [class*='message']");
+    return Array.from(els).map((e) => (e as HTMLElement).innerText).join("\n");
+  });
+  await page.waitForTimeout(20_000);
+  const finalText = await page.evaluate(() => document.body.innerText);
+  const bubbleCount = await page.evaluate(
+    () => document.querySelectorAll('[data-slot="message-pair"]').length,
+  );
+  const ok =
+    /example domain|example\.com/i.test(finalText) &&
+    !/approval-requested/i.test(finalText);
+  await page.screenshot({ path: "shots/approval-done.png" });
+  // Reload → persisted transcript must show the answer and NO live approval card.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(2500);
+  const afterReload = await page.evaluate(() => document.body.innerText);
+  const staleCard = /^(allow|deny)$/im.test(afterReload) || /awaiting approval/i.test(afterReload);
+  await page.screenshot({ path: "shots/approval-reload.png" });
+  console.log(
+    JSON.stringify({
+      ok,
+      bubbles: bubbleCount,
+      stoppedChip: /\bStopped\b/.test(finalText),
+      answerAfterReload: /example domain/i.test(afterReload),
+      staleCardAfterReload: staleCard,
+    }),
+  );
+  await browser.close();
+}
+void main();

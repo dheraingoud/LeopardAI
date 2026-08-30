@@ -42,6 +42,7 @@ import {
   persistChatTitle,
   semanticRankMemories,
   recordAudit,
+  resolvePendingApprovalRowId,
   type UserMemory,
 } from "@/lib/ai/server-generation";
 import { memoryTools } from "@/lib/ai/tools/memory";
@@ -565,12 +566,18 @@ export async function POST(request: Request) {
         );
       });
       const isApprovalResume = !!approvalMsg;
-      const assistantId =
-        isApprovalResume &&
-        typeof approvalMsg?.id === "string" &&
-        approvalMsg.id
-          ? approvalMsg.id
-          : generateId();
+      // The wire id is the CLIENT's message id, which can diverge from the
+      // persisted row's id (server assigns assistant ids mid-stream). Anchor the
+      // resumed generation to the actual persisted row holding the pending
+      // approval — otherwise the old row stays stuck at "approval-requested"
+      // (live Allow/Deny card on every reload) and the turn forks into two rows.
+      const pendingRowId = isApprovalResume
+        ? await resolvePendingApprovalRowId({
+            chatId: realChatId,
+            userId: userId ?? DEV_USER_ID,
+          })
+        : null;
+      const assistantId = pendingRowId ?? generateId();
       const genCtrl = createGenerationController(assistantId);
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
