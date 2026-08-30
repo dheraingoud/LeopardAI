@@ -552,14 +552,24 @@ export async function POST(request: Request) {
       // same row (a fresh id would dup the bubble via the client's live-mirror)
       // and the SDK's streamText continues the paused tool call from history.
       const lastWire = messages[messages.length - 1];
-      const isApprovalResume =
-        lastWire?.role === "assistant" &&
-        ((lastWire.parts ?? []) as Array<{ type?: string; state?: string }>).some(
-          (p) => p?.state === "approval-responded",
+      // Approval-resume: find the wire message carrying the decision — the tool
+      // part flips to state "approval-responded" (or a bare tool-approval-response
+      // part rides along). Reuse THAT message's id so persistence upserts the
+      // same assistant row (a fresh id duplicates the bubble via the mirror).
+      const approvalMsg = [...messages].reverse().find((m) => {
+        if (m?.role !== "assistant") return false;
+        return ((m.parts ?? []) as Array<{ type?: string; state?: string }>).some(
+          (p) =>
+            p?.state === "approval-responded" ||
+            p?.type === "tool-approval-response",
         );
+      });
+      const isApprovalResume = !!approvalMsg;
       const assistantId =
-        isApprovalResume && typeof lastWire.id === "string" && lastWire.id
-          ? lastWire.id
+        isApprovalResume &&
+        typeof approvalMsg?.id === "string" &&
+        approvalMsg.id
+          ? approvalMsg.id
           : generateId();
       const genCtrl = createGenerationController(assistantId);
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
