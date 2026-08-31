@@ -577,7 +577,15 @@ export function ActiveChatProvider({
         const ui = toChatMessage(m);
         const at = next.findIndex((x) => x.id === ui.id);
         if (at >= 0) {
-          if (JSON.stringify(next[at].parts) !== JSON.stringify(ui.parts)) {
+          // Compare parts AND metadata: a row first mirrored while the server
+          // still had status:"streaming" keeps serverStreaming:true forever if
+          // metadata never refreshes — that deadlocked the composer (stuck
+          // isStreaming → sends enqueued, never drained).
+          if (
+            JSON.stringify(next[at].parts) !== JSON.stringify(ui.parts) ||
+            JSON.stringify(next[at].metadata ?? null) !==
+              JSON.stringify(ui.metadata ?? null)
+          ) {
             next[at] = ui;
             changed = true;
           }
@@ -601,6 +609,12 @@ export function ActiveChatProvider({
       return changed ? next : prev;
     });
   }, [convexMessages, chat.status, chat.setMessages, serverAssistantIdRef.current]);
+
+  // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
+  // status machine directly (DOM indicators lag/lie about the real state).
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__chatStatus = chat.status;
+  }, [chat.status]);
 
   // ── Stream timing: submit → ready per assistant reply (MessageTiming). ────
   const streamStartRef = useRef<number | null>(null);
