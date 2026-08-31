@@ -7,6 +7,7 @@ async function main() {
   await page.keyboard.press("Enter");
   await page.waitForFunction(
     () => document.body.innerText.length > 400 && !document.querySelector(".leopard-stream-caret"),
+    undefined,
     { timeout: 120_000 },
   );
   await page.waitForTimeout(1500);

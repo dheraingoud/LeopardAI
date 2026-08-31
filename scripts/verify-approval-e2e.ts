@@ -56,6 +56,7 @@ async function main() {
   // Wait for the stream to finish (send button back to Send).
   await page.waitForFunction(
     () => document.querySelector('[data-slot="composer-send"]')?.getAttribute("aria-label") === "Send message",
+    undefined,
     { timeout: 180000 },
   );
   const tail = await page.locator("main").innerText();

@@ -49,7 +49,7 @@ import { chromium } from "playwright";
   console.log("[click] Allow clicked");
   // wait for resumed content or timeout
   try {
-    await p.waitForFunction(() => /Example Domain/i.test(document.body.innerText), { timeout: 90000 });
+    await p.waitForFunction(() => /Example Domain/i.test(document.body.innerText), undefined, { timeout: 90000 });
     console.log("[resume] SUCCESS — Example Domain visible");
   } catch { console.log("[resume] TIMEOUT — no Example Domain"); }
   console.log("posts:", posts.length);

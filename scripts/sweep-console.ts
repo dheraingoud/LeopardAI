@@ -23,6 +23,7 @@ async function main() {
     () =>
       /leopard/i.test(document.body.innerText) &&
       !/Working on it/i.test(document.body.innerText),
+    undefined,
     { timeout: 120_000 },
   );
 

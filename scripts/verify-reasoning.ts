@@ -9,7 +9,20 @@ async function main() {
     "Think step by step: is 917 a prime number? Show brief reasoning then answer.",
   );
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(75_000);
+  // Wait for the run to START (status is "ready" at page load — without this
+  // gate the settle check passes instantly before the run even begins).
+  await page.waitForFunction(
+    () => (window as any).__chatStatus === "submitted" || (window as any).__chatStatus === "streaming",
+    undefined,
+    { timeout: 120_000 },
+  );
+  // …then for it to settle.
+  await page.waitForFunction(
+    () => (window as any).__chatStatus === "ready",
+    undefined,
+    { timeout: 300_000 },
+  );
+  await page.waitForTimeout(1500);
   const result = await page.evaluate(() => {
     const body = document.body.innerText;
     const hasHidden = /reasoning is hidden|hidden reasoning/i.test(body);

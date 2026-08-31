@@ -20,6 +20,7 @@ async function main() {
       !/Response failed/i.test(document.body.innerText) &&
       document.body.innerText.length > 300 &&
       !document.querySelector("button[aria-label='Stop generating']"),
+    undefined,
     { timeout: 180_000 },
   );
   await page.waitForTimeout(2500); // let any auto-retry fire before we edit
@@ -44,6 +45,7 @@ async function main() {
     // Save populates the composer ("press Enter to resend" toast) — resend.
     await page.waitForFunction(
       () => (document.querySelector("textarea[aria-label='Message']") as HTMLTextAreaElement)?.value.includes("moon"),
+      undefined,
       { timeout: 15_000 },
     );
     await page.locator("textarea[aria-label='Message']").first().press("Enter");
@@ -51,12 +53,14 @@ async function main() {
     // allow a generous window).
     await page.waitForFunction(
       () => document.body.innerText.includes("moon"),
+      undefined,
       { timeout: 150_000 },
     ).catch(() => {});
     // New answer streams.
     await page
       .waitForFunction(
         () => !/Working on it/i.test(document.body.innerText) && !document.querySelector("button[aria-label='Stop generating']"),
+        undefined,
         { timeout: 180_000 },
       )
       .catch(() => {});

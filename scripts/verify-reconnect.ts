@@ -21,7 +21,7 @@ async function main() {
   await page.keyboard.press("Enter");
 
   const chatId = (await page
-    .waitForFunction(() => location.pathname.split("/chat/")[1] ?? null, { timeout: 30_000 })
+    .waitForFunction(() => location.pathname.split("/chat/")[1] ?? null, undefined, { timeout: 30_000 })
     .then((h) => h.jsonValue())) as string;
 
   // Wait for server-side text (max 3 min — 429 storms slow first tokens).

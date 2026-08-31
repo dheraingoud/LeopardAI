@@ -20,10 +20,12 @@ async function main() {
   // Settled = answer text present AND "Working on it…" indicator gone.
   await page.waitForFunction(
     () => /coat|golden|yellow|rosette/i.test(document.body.innerText),
+    undefined,
     { timeout: 120_000 },
   );
   await page.waitForFunction(
     () => !/Working on it/i.test(document.body.innerText),
+    undefined,
     { timeout: 120_000 },
   );
   await page.waitForTimeout(1500);
@@ -58,6 +60,7 @@ async function main() {
       .catch(() => null);
     await page.waitForFunction(
       () => !document.querySelector(".leopard-stream-caret"),
+      undefined,
       { timeout: 120_000 },
     );
     const after = await page.evaluate(() => document.body.innerText.length);
