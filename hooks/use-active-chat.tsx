@@ -201,7 +201,11 @@ export function ActiveChatProvider({
   useEffect(() => {
     if (chatMeta?.model && !hasSyncedModelRef.current) {
       hasSyncedModelRef.current = true;
-      setCurrentModelIdState(chatMeta.model);
+      // A model removed from the registry (e.g. minimax-m3 dropped 2026-08-31)
+      // would fail the route's allowlist with a 400 — fall back to default.
+      setCurrentModelIdState(
+        getModelById(chatMeta.model) ? chatMeta.model : getDefaultChatModel().id,
+      );
     }
   }, [chatMeta?.model]);
   // Ref so the transport (created once) reads the latest model without
