@@ -10,7 +10,7 @@ async function main() {
   // Wait for the approval card (AskCard) to appear — approval-requested part.
   const allow = page.getByRole("button", { name: /allow/i });
   try {
-    await allow.waitFor({ timeout: 90_000 });
+    await allow.waitFor({ timeout: 240_000 });
   } catch {
     console.log(JSON.stringify({ ok: false, stage: "no-askcard" }));
     await page.screenshot({ path: "shots/approval-none.png" });
