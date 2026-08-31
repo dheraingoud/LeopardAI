@@ -129,7 +129,7 @@ export const NIM_BASE = "https://integrate.api.nvidia.com/v1";
 
 // Utility = title-gen/small-job model. Fast, used
 // for server-side title generation (low stakes — no reasoning sent for titles).
-export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-gen pinned to nemotron-3.5-lightning (2026-08-28)
+export const UTILITY_MODEL = "meta/muse-glimmer-30b"; // title-gen + subagents → muse-glimmer (cheaper, probed live 2026-08-31; was nemotron-3.5-lightning)
 
 // Default chat model. History of the default:
 //   z-ai/glm-5.2 (stalled upstream, then pulled from the NIM catalogue 2026-08-24)

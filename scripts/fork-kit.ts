@@ -8,12 +8,12 @@ const SRC = "C:/Users/HP/OneDrive/Desktop/leopard/addons/assistant-ui/packages/u
 const DST = "C:/Users/HP/OneDrive/Desktop/leopard/next-frontend/components/chat/leopard";
 
 const FILES = [
-  "activity-graph","agent-card","agent-handoff","agent-plan","agent-status",
+  "activity-graph","agent-plan","agent-status",
   "background-inbox","checkpoint-history","command-palette","comparison-card",
-  "confidence-marker","connection-state","context-breakdown","conversation-search",
+  "connection-state","context-breakdown","conversation-search",
   "cost-meter","data-table","day-separator","diagram","document-reference",
   "draft-restore","edit-message","empty-state",
-  "feedback-dialog","file-tree","flow-graph","guardrail-notice",
+  "feedback-dialog","file-tree","guardrail-notice",
   "image-generation","inline-citation","job-progress",
   "loading-state","map-answer","math-block","mcp-server-panel","memory-chips",
   "message-branches","message-pair","message-queue","message-timing",
@@ -21,7 +21,7 @@ const FILES = [
   "permission-grant","quota-banner","quote-reply",
   "read-aloud","reasoning-effort","recommendation-card","regenerate-menu",
   "research-report","retrieval-chunks","reviewable-diff","schedule-card",
-  "score-breakdown","scroll-anchor","settings-panel","shared-conversation",
+  "scroll-anchor","settings-panel","shared-conversation",
   "speaker-identity","timeline","todo-list","trace-waterfall",
   "voice-conversation","chart","code-diff",
   "composer","computer-use",
