@@ -23,13 +23,10 @@ export function ThinkingIndicator({
 
       {...props}
     >
-      <span
-        aria-hidden
-        className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-[#ffb400] light:bg-[#d49600] motion-reduce:animate-none"
-      />
+      {/* No blinking dot — the shimmer IS the live signal (operator 2026-09-01). */}
       <ShimmerLabel
         key={label}
-        className="fade-in slide-in-from-bottom-1 animate-in relative inline-block leading-none duration-300"
+        className="fade-in slide-in-from-bottom-1 animate-in relative inline-block font-sans text-[13px] font-medium leading-none tracking-[-0.01em] duration-300"
       >
         {label}
       </ShimmerLabel>

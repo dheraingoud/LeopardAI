@@ -31,8 +31,6 @@ import type { ReasoningLevel } from "@/lib/nim";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
 import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
-import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
-import { ToolTimeline } from "./leopard/tool-timeline";
 import { GuardrailNotice } from "./leopard/guardrail-notice";
 import { ToolError } from "./leopard/tool-error";
 import { AgentRunCard, type AgentRunState } from "./leopard/agent-run-card";
@@ -535,83 +533,6 @@ const REFUSAL_RE =
   /^\s*(?:i\s+(?:can'?t|cannot|can\s+not|won'?t|must\s+decline)|i'?m\s+sorry|sorry,?\s+i\s+(?:can'?t|cannot))/i;
 const isRefusal = (text: string) => REFUSAL_RE.test(text);
 
-type ToolSegShape = {
-  toolName: string;
-  state: string;
-  input?: unknown;
-  output?: unknown;
-  toolCallId?: string;
-};
-
-/**
- * ToolGroupSeg — a burst of consecutive tool calls as ONE collapsible group
- * (see leopard/tool-group). Auto-opens while any call is running, auto-collapses when
- * the burst settles; a manual toggle sticks. Expanded shows the full
- * per-tool ToolCards, so request/result content stays accessible.
- */
-function ToolGroupSeg({
-  tools,
-  isStreaming,
-  isTail,
-}: {
-  tools: ToolSegShape[];
-  isStreaming: boolean;
-  isTail: boolean;
-}) {
-  const anyRunning = tools.some(
-    (t) => t.state === "streaming" || t.state === "pending",
-  );
-  const [manual, setManual] = useState<boolean | null>(null);
-  const open = manual ?? anyRunning;
-  const names = new Set(tools.map((t) => t.toolName));
-  const label =
-    names.size === 1
-      ? `${tools.length}× ${tools[0].toolName}`
-      : `${tools.length} tool calls`;
-  const grouped: GroupedTool[] = tools.map((t, i) => ({
-    id: t.toolCallId ?? `tool-${i}`,
-    name: t.toolName,
-    target: toolTarget(t.toolName, t.input),
-    state:
-      t.state === "error"
-        ? "failed"
-        : t.state === "streaming" || t.state === "pending"
-          ? "running"
-          : "done",
-  }));
-  return (
-    <ToolGroup
-      label={label}
-      tools={grouped}
-      open={open}
-      onOpenChange={setManual}
-      className="max-w-none"
-    >
-      {/* Timeline ledger above the full cards; durations unknown → omitted. */}
-      <ToolTimeline
-        tools={grouped}
-        className="border-foreground/[0.06] border-b pb-1.5"
-      />
-      {tools.map((t, i) => {
-        const live =
-          isStreaming &&
-          isTail &&
-          t.state !== "complete" &&
-          t.state !== "ask";
-        return (
-          <ToolCard
-            key={`${t.toolCallId ?? "t"}-${i}`}
-            toolName={t.toolName}
-            state={live ? "streaming" : t.state}
-            input={t.input}
-            output={t.output}
-          />
-        );
-      })}
-    </ToolGroup>
-  );
-}
-
 export const PreviewMessage = memo(function PreviewMessage({
   message,
   isLast,
@@ -945,30 +866,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         out.push(cur);
       }
     }
-    // ToolGroup (TODO Task 5): consecutive non-ask tool segments merge
-    // into ONE collapsible group (search→fetch bursts render as a single
-    // "2 tool calls" row, expanding to the full per-tool cards). A lone tool
-    // stays a single card; ask (approval) segments never group — the
-    // composer-zone ApprovalDock owns those.
-    type ToolSeg = Extract<Seg, { kind: "tool" }>;
-    type GroupSeg = { kind: "toolgroup"; tools: ToolSeg[] };
-    const grouped: Array<Seg | GroupSeg> = [];
-    for (const s of out) {
-      // spawn_agents renders its own AgentRunCard — never swallowed by a group.
-      if (s.kind === "tool" && s.state !== "ask" && s.toolName !== "spawn_agents") {
-        const prev = grouped[grouped.length - 1];
-        if (prev && prev.kind === "toolgroup") {
-          prev.tools.push(s);
-        } else {
-          grouped.push({ kind: "toolgroup", tools: [s] });
-        }
-        continue;
-      }
-      grouped.push(s);
-    }
-    return grouped.map((g) =>
-      g.kind === "toolgroup" && g.tools.length === 1 ? g.tools[0] : g,
-    );
+    return out;
   }, [message.parts, isUser]);
 
   const textSegCount = segments.filter((s) => s.kind === "text").length;
@@ -978,7 +876,7 @@ export const PreviewMessage = memo(function PreviewMessage({
     const out: SourceItem[] = [];
     const seen = new Set<string>();
     for (const s of segments) {
-      const tools = s.kind === "tool" ? [s] : s.kind === "toolgroup" ? s.tools : [];
+      const tools = s.kind === "tool" ? [s] : [];
       for (const t of tools) {
         const o = t.output as
           | { results?: Array<{ url?: string; title?: string }>; url?: string }
@@ -1209,16 +1107,6 @@ export const PreviewMessage = memo(function PreviewMessage({
                       ? EFFORT_LABEL[currentReasoning]
                       : undefined
                   }
-                />
-              );
-            }
-            if (seg.kind === "toolgroup") {
-              return (
-                <ToolGroupSeg
-                  key={`tg-${i}`}
-                  tools={seg.tools}
-                  isStreaming={isStreaming}
-                  isTail={isLast}
                 />
               );
             }
