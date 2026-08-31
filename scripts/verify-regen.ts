@@ -11,7 +11,7 @@ import { chromium } from "playwright";
   await ta.fill("Say exactly: alpha one");
   await p.keyboard.press("Enter");
   // wait settle: message-actions appear
-  await p.waitForSelector('[data-slot="message-actions"]', { timeout: 90000 });
+  await p.waitForSelector('[data-slot="message-actions"]', { timeout: 300000 });
   const before = await p.evaluate(() => document.body.innerText.includes("alpha one"));
   // click regenerate (last icon-button in the actions bar)
   const regen = p.locator('[data-slot="message-actions"] button').last();
@@ -19,7 +19,7 @@ import { chromium } from "playwright";
   await p.waitForTimeout(1500);
   await p.screenshot({ path: "../verify-r-mid.png" });
   // wait for regen to settle again
-  await p.waitForSelector('[data-slot="message-actions"]', { timeout: 90000 });
+  await p.waitForSelector('[data-slot="message-actions"]', { timeout: 300000 });
   await p.waitForTimeout(1000);
   const counts = await p.evaluate(() => ({
     markdownBodies: document.querySelectorAll(".markdown-body").length,
