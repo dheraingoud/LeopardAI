@@ -47,6 +47,7 @@ import {
 } from "@/lib/ai/server-generation";
 import { memoryTools } from "@/lib/ai/tools/memory";
 import { researchTools } from "@/lib/ai/tools/research";
+import { agentsTools } from "@/lib/ai/tools/agents";
 import { buildFallbackModelChain, isFallbackableErrorText } from "@/lib/ai/fallback";
 import { chatUsageTelemetry } from "@/lib/ai/telemetry";
 import { redact, scrubAuditField } from "@/lib/redact";
@@ -647,6 +648,12 @@ export async function POST(request: Request) {
         // shares the chat model + Tavily; spawn is fire-and-forget (jobId back,
         // report later in the research panel).
         const researchEnabled = process.env.LEOPARD_DEEP_RESEARCH === "1";
+        // Φ-multi-agent — LEOPARD_MULTI_AGENTS=1 gives the master model a
+        // spawn_agents tool: named subagents run headless on the utility model
+        // (lib/ai/agents/orchestrator), stream data-orchestration snapshots for
+        // the inline AgentRunCard, and return compacted outputs the master
+        // synthesizes. NOT low-risk — gates behind the AskCard.
+        const multiAgentsEnabled = process.env.LEOPARD_MULTI_AGENTS === "1";
         // Φ6: createDocument — the downloadable-file tool. Gate consistent with
         // the other server tools: ENABLE_ARTIFACTS=1 (the flag the client uses
         // to decide whether artifact/file cards render). The tool needs the
@@ -657,6 +664,7 @@ export async function POST(request: Request) {
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
           ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
           ...(researchEnabled ? researchTools({ userId: memUserId, modelId }) : {}),
+          ...(multiAgentsEnabled ? agentsTools({ dataStream, userId: memUserId }) : {}),
           ...(artifactsEnabled
             ? { createDocument: createDocument({ dataStream, modelId }) }
             : {}),
@@ -667,6 +675,7 @@ export async function POST(request: Request) {
           webSearchEnabled ||
           memEnabled ||
           researchEnabled ||
+          multiAgentsEnabled ||
           artifactsEnabled ||
           mcpHasTools;
         // Φ-docs · recall injection — the user's stored facts ride into the

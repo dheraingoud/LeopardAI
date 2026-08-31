@@ -31,7 +31,8 @@ import { CitationLink } from "./inline-citation";
 import { BarChart, parseChartSpec } from "./chart";
 import { DataTable, parseCsvTable } from "./data-table";
 import { SpecSheet, parseSpecSheet } from "./spec-sheet";
-import { CodeDiff, parseDiff } from "./code-diff";
+import { CodeDiff, parseDiff, type DiffLine } from "./code-diff";
+import { ReviewableDiff, type DiffHunk, type HunkDecision } from "./reviewable-diff";
 import { useShikiHtml } from "./primitives/shiki-highlighter";
 
 function sanitizeSvg(code: string): string {
@@ -250,12 +251,20 @@ function PreBlock({
     }
   }
 
-  // Diff fences: plain code while streaming; settled render becomes CodeDiff
-  // and falls back to the code shell when nothing diff-like parsed.
+  // Diff fences: plain code while streaming; the settled render becomes a
+  // ReviewableDiff (per-hunk keep/discard; Apply copies the kept patch) and
+  // falls back to the plain CodeDiff when no hunks split out, then to the
+  // code shell when nothing diff-like parsed.
   if (lang === "diff" || lang === "patch") {
     if (!streaming) {
       const diff = parseDiff(text);
-      if (diff) return <CodeDiff filename={diff.filename} lines={diff.lines} />;
+      if (diff) {
+        const hunks = splitDiffHunks(diff.lines);
+        if (hunks.length > 0) {
+          return <SettledReviewableDiff filename={diff.filename} hunks={hunks} />;
+        }
+        return <CodeDiff filename={diff.filename} lines={diff.lines} />;
+      }
     } else {
       return (
         <PreShell lang={lang} copyText={text} longBlock={longBlock}>
@@ -570,6 +579,69 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
         </button>
       )}
     </div>
+  );
+}
+
+// Settled diff fences split into hunks (context runs of 6+ lines are hunk
+// breaks, keeping 3 lines of padding on each side) so each hunk gets its own
+// keep/discard review row. "Apply" copies the kept patch (added + context
+// lines of kept hunks) to the clipboard — client-side only, no file writes.
+function splitDiffHunks(lines: readonly DiffLine[]): DiffHunk[] {
+  const hunks: DiffLine[][] = [];
+  let cur: DiffLine[] = [];
+  let contextRun = 0;
+  for (const line of lines) {
+    if (line.kind === "context") {
+      contextRun++;
+      if (contextRun === 6 && cur.some((l) => l.kind !== "context")) {
+        // Close the hunk after 3 padding lines; the rest starts the next hunk.
+        hunks.push(cur.slice(0, cur.length - 3));
+        cur = cur.slice(-3);
+      }
+    } else {
+      contextRun = 0;
+    }
+    cur.push(line);
+  }
+  if (cur.length > 0) hunks.push(cur);
+  return hunks
+    .filter((h) => h.some((l) => l.kind !== "context"))
+    .map((h, i) => ({
+      id: `hunk-${i + 1}`,
+      range: `hunk ${i + 1}`,
+      decision: "pending" as const,
+      lines: h,
+    }));
+}
+
+function SettledReviewableDiff({
+  filename,
+  hunks,
+}: {
+  filename: string;
+  hunks: readonly DiffHunk[];
+}) {
+  const [decisions, setDecisions] = useState<Record<string, HunkDecision>>({});
+  const merged = hunks.map((h) => ({ ...h, decision: decisions[h.id] ?? h.decision }));
+  const apply = () => {
+    const kept = merged
+      .filter((h) => h.decision === "kept")
+      .flatMap((h) =>
+        h.lines
+          .filter((l) => l.kind !== "removed")
+          .map((l) => (l.kind === "added" ? `+${l.text}` : ` ${l.text}`)),
+      )
+      .join("\n");
+    navigator.clipboard.writeText(kept).then(() => toast.success("Kept patch copied"));
+  };
+  return (
+    <ReviewableDiff
+      filename={filename}
+      hunks={merged}
+      onKeep={(id) => setDecisions((d) => ({ ...d, [id]: "kept" }))}
+      onDiscard={(id) => setDecisions((d) => ({ ...d, [id]: "discarded" }))}
+      onApply={apply}
+    />
   );
 }
 
