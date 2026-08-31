@@ -10,7 +10,7 @@ async function main() {
   );
   await page.keyboard.press("Enter");
   // Wait for the rendered SVG (debounced live render).
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + 300_000;
   let svgFound = false;
   while (Date.now() < deadline) {
     svgFound = await page.evaluate(

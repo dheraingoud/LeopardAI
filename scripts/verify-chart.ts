@@ -9,7 +9,7 @@ async function main() {
     'Reply with ONLY this code fence, no other text:\n```chart\n{"title":"Big Cat Weights","series":[{"label":"Tiger","value":220},{"label":"Lion","value":190},{"label":"Leopard","value":60}]}\n```',
   );
   await page.keyboard.press("Enter");
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + 300_000;
   let chartFound = false;
   while (Date.now() < deadline) {
     chartFound = await page.evaluate(

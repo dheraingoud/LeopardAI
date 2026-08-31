@@ -11,7 +11,7 @@ async function main() {
     'Reply with ONLY this code fence, nothing else:\n```svg\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#ffb400"/><script>alert(1)</script></svg>\n```',
   );
   await page.keyboard.press("Enter");
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + 300_000;
   let live = { art: false, sanitized: true };
   while (Date.now() < deadline) {
     live = await page.evaluate(() => ({

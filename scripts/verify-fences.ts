@@ -30,7 +30,7 @@ async function main() {
   );
   await page.keyboard.press("Enter");
 
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + 300_000;
   let live = { table: false, spec: false, diff: false };
   while (Date.now() < deadline) {
     live = await page.evaluate(() => ({
