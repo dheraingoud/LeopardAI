@@ -822,7 +822,10 @@ export async function POST(request: Request) {
         },
         ...(supportsTools && {
           tools,
-          stopWhen: stepCountIs(3),
+          // 2026-09-01: was stepCountIs(3) — a 3-tool burst (even all-failed)
+          // ate the whole turn and the reply terminated with NO synthesis.
+          // 8 leaves room for search→fetch→retry bursts + the final text step.
+          stopWhen: stepCountIs(8),
         }),
         // Φ-docs: enterprise tool-execution audit. onToolExecutionEnd fires per
         // tool execution with toolCall (toolName/toolCallId/input) + toolOutput
