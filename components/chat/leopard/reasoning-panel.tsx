@@ -70,13 +70,8 @@ export function ReasoningPanel({
       onOpenChange={handleOpenChange}
       className={cn("my-3 w-full max-w-sm", className)}
     >
-      <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 py-1 text-[13.5px] text-foreground/55 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98]">
-        {streaming && (
-          <span
-            aria-hidden
-            className="inline-block size-1.5 rounded-full dark:bg-[#ffb400] light:bg-[#d49600] animate-pulse"
-          />
-        )}
+      <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 py-1 font-sans text-[13px] font-medium tracking-[-0.01em] text-foreground/60 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98]">
+        {/* No blinking dot — the shimmer IS the live signal (operator 2026-09-01). */}
         <SwapLabel active={streaming ? 0 : 1} className="text-start">
           <>
             <ShimmerLabel
@@ -114,7 +109,9 @@ export function ReasoningPanel({
         className={cn(collapsePanel, "outline-none")}
       >
         <div className="max-h-64 overflow-y-auto pt-2 pb-1">
-          <p className={cn(mono, "whitespace-pre-wrap text-[11.5px] leading-[1.65] text-foreground/55")}>
+          {/* CoT body is prose, not code — Geist per DESIGN.md (mono is for
+              technical labels only). */}
+          <p className="whitespace-pre-wrap font-sans text-[13px] leading-[1.65] text-foreground/60">
             {content || (streaming ? "Thinking…" : "No reasoning captured.")}
           </p>
         </div>
