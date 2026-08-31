@@ -17,13 +17,13 @@ const FILES = [
   "image-generation","inline-citation","job-progress","launcher-bubble",
   "loading-state","map-answer","math-block","mcp-server-panel","memory-chips",
   "message-branches","message-pair","message-queue","message-timing",
-  "mobile-composer","model-picker","number-ticker","onboarding",
-  "permission-grant","prompt-library","quota-banner","quote-reply",
+  "mobile-composer","number-ticker","onboarding",
+  "permission-grant","quota-banner","quote-reply",
   "read-aloud","reasoning-effort","recommendation-card","regenerate-menu",
   "research-report","retrieval-chunks","reviewable-diff","schedule-card",
   "score-breakdown","scroll-anchor","settings-panel","shared-conversation",
   "speaker-identity","timeline","todo-list","trace-waterfall",
-  "typing-indicator","voice-conversation","chart","chat-panel","code-diff",
+  "voice-conversation","chart","chat-panel","code-diff",
   "code-runner","composer","computer-use",
 ];
 
