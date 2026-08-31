@@ -25,6 +25,7 @@ import { RetrievalChunks } from "./leopard/retrieval-chunks";
 import { Timeline } from "./leopard/timeline";
 import { AgentStatus } from "./leopard/agent-status";
 import { AgentPlan } from "./leopard/agent-plan";
+import { TodoList, type TodoItem } from "./leopard/todo-list";
 
 interface Job {
   id: string;
@@ -193,6 +194,20 @@ export function ResearchPanel() {
       sources: 0,
     }));
 
+  // Running-job checklist: same steps the Timeline shows, as a TodoList
+  // (done / active spinner / pending) for the expanded active run.
+  const jobTodos = (job: Job): TodoItem[] =>
+    job.steps.map((label, i) => ({
+      id: `${job.id}-t${i}`,
+      text: label,
+      status:
+        i < job.step - 1
+          ? ("done" as const)
+          : i === job.step - 1
+            ? ("active" as const)
+            : ("pending" as const),
+    }));
+
   return (
     <div className="relative">
       <button
@@ -298,6 +313,13 @@ export function ResearchPanel() {
                         label={selectedJob.query}
                         elapsed={`${selectedJob.step}/${selectedJob.totalSteps}`}
                       />
+                      {selectedJob.steps.length > 0 && (
+                        <TodoList
+                          className="mx-2 mb-2 max-w-none"
+                          items={jobTodos(selectedJob)}
+                          revision={selectedJob.step}
+                        />
+                      )}
                       <Timeline
                         className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
                         events={jobTimeline(selectedJob)}

@@ -30,6 +30,21 @@ export type Suggestion = {
 
 export type CustomUIDataTypes = {
   "chat-title": string;
+  // Φ-multi-agent: spawn_agents orchestration snapshots (one per transition;
+  // the inline AgentRunCard reduces them to the latest state per toolCallId).
+  orchestration: {
+    toolCallId: string;
+    phase: "proposed" | "agent" | "handoff" | "synthesizing";
+    agents: Array<{
+      name: string;
+      kind: "research" | "write" | "verify" | "general";
+      task: string;
+      status: "pending" | "running" | "done" | "error";
+      note?: string;
+      output?: string;
+    }>;
+    handoff?: { from: string; to: string; reason: string };
+  };
   // Artifact lifecycle (emitted by create/update tools).
   kind: ArtifactKind;
   id: string;

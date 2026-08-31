@@ -106,7 +106,9 @@ function htmlToText(raw: string): string {
 }
 
 type WebFetchProps = {
-  dataStream: UIMessageStreamWriter<ChatMessage>;
+  // Optional: subagents (orchestrator) call this with no stream — the tool
+  // body never touches it, so headless callers pass nothing.
+  dataStream?: UIMessageStreamWriter<ChatMessage>;
 };
 
 export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>

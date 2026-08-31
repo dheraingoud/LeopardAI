@@ -35,9 +35,36 @@ import { ToolGroup, type GroupedTool } from "./leopard/tool-group";
 import { ToolTimeline } from "./leopard/tool-timeline";
 import { GuardrailNotice } from "./leopard/guardrail-notice";
 import { ToolError } from "./leopard/tool-error";
+import { AgentRunCard, type AgentRunState } from "./leopard/agent-run-card";
 import { MessageActions } from "./leopard/message-actions";
 import { ArtifactCard } from "./leopard/artifact-card";
 import { Sources, type SourceItem } from "./leopard/sources";
+import {
+  createDirectiveText,
+  type DirectiveTextFormatter,
+  type DirectiveTextSegment,
+} from "./leopard/directive-text";
+
+// User-bubble mention chips: the composer inserts @-mentions as plain
+// `@Title ` text (composer.tsx applyMention), so the bubble re-chips
+// `@Token` runs via the forked directive-text formatter. Whitespace ends a
+// mention (titles with spaces chip only the first word — plain-text mention
+// format carries no span info).
+const mentionFormatter: DirectiveTextFormatter = {
+  parse(text) {
+    const segs: DirectiveTextSegment[] = [];
+    const re = /@(\S+)/g;
+    let last = 0;
+    for (let m = re.exec(text); m; m = re.exec(text)) {
+      if (m.index > last) segs.push({ kind: "text", text: text.slice(last, m.index) });
+      segs.push({ kind: "mention", type: "chat", label: `@${m[1]}`, id: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) segs.push({ kind: "text", text: text.slice(last) });
+    return segs;
+  },
+};
+const UserText = createDirectiveText(mentionFormatter);
 import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
 import { EditMessage } from "./leopard/edit-message";
 import { RegenerateMenu, type RegenerateOption } from "./leopard/regenerate-menu";
@@ -137,6 +164,49 @@ const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
   image: ImageIcon,
   file: FileText,
 };
+
+/**
+ * Φ-multi-agent: reduce the spawn_agents tool call + its data-orchestration
+ * snapshots into the AgentRunCard's state. Before the first snapshot lands
+ * (or on a reload where only the tool part persisted), agents come from the
+ * tool INPUT's task list; a settled tool call (output with per-agent results)
+ * wins over both.
+ */
+function toAgentRunState(
+  snap: { agents: AgentRunState["agents"] } | undefined,
+  input: unknown,
+  state: string,
+  output: unknown,
+): AgentRunState {
+  const done = state === "complete";
+  const outAgents = (
+    output as { agents?: Array<{ name: string; kind: string; status: string; note?: string }> } | undefined
+  )?.agents;
+  if (outAgents?.length) {
+    return {
+      agents: outAgents.map((a) => ({
+        name: a.name,
+        kind: (a.kind as AgentRunState["agents"][number]["kind"]) ?? "general",
+        task: "",
+        status: (a.status as AgentRunState["agents"][number]["status"]) ?? "done",
+        note: a.note,
+      })),
+      done,
+    };
+  }
+  if (snap) return { agents: snap.agents, done };
+  const tasks =
+    (input as { tasks?: Array<{ name: string; kind: string; task: string }> } | undefined)?.tasks ?? [];
+  return {
+    agents: tasks.map((t) => ({
+      name: t.name,
+      kind: (t.kind as AgentRunState["agents"][number]["kind"]) ?? "general",
+      task: t.task,
+      status: done ? "done" : "pending",
+    })),
+    done,
+  };
+}
 
 /** MIME type for a filename's extension, so the Download Blob is typed. */
 function mimeForFilename(filename: string): string {
@@ -663,6 +733,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           output?: unknown;
           approvalId?: string;
           toolCallId?: string;
+          orch?: AgentRunState;
         }
     >;
     type Seg = (typeof out)[number];
@@ -678,8 +749,18 @@ export const PreviewMessage = memo(function PreviewMessage({
           // AskCard state — set while a tool waits on user approval.
           approvalId?: string;
           toolCallId?: string;
+          // Φ-multi-agent: reduced data-orchestration state for spawn_agents.
+          orch?: AgentRunState;
         }
     > = [];
+    // Φ-multi-agent: latest data-orchestration snapshot per toolCallId.
+    // Emitted by the spawn_agents tool execute.
+    const orchByCall = new Map<string, { agents: AgentRunState["agents"] }>();
+    for (const p of message.parts as Array<{ type?: string; data?: unknown }>) {
+      if (p.type !== "data-orchestration" || !p.data) continue;
+      const ev = p.data as { toolCallId: string; agents: AgentRunState["agents"] };
+      orchByCall.set(ev.toolCallId, { agents: ev.agents });
+    }
     let cur: Seg | null = null;
     // Indexed loop so an approval-request can look ahead to the matching
     // tool-call (which carries toolName + input) for the card preview.
@@ -763,6 +844,11 @@ export const PreviewMessage = memo(function PreviewMessage({
         ) {
           last.state = mapToolState(p.state);
           last.output = p.output ?? last.output;
+          if (last.toolName === "spawn_agents") {
+            const snap = (last.toolCallId ? orchByCall.get(last.toolCallId) : undefined) ??
+              (p.toolCallId ? orchByCall.get(p.toolCallId) : undefined);
+            last.orch = toAgentRunState(snap, last.input, last.state, last.output);
+          }
           continue;
         }
         cur = {
@@ -774,6 +860,13 @@ export const PreviewMessage = memo(function PreviewMessage({
           toolCallId: p.toolCallId,
           approvalId,
         };
+        // Φ-multi-agent: attach the reduced orchestration snapshot (undefined
+        // until the first data-orchestration part lands; the card falls back
+        // to the tool input's task list so it renders instantly on approval).
+        if (toolName === "spawn_agents") {
+          const snap = p.toolCallId ? orchByCall.get(p.toolCallId) : undefined;
+          cur.orch = toAgentRunState(snap, cur.input, cur.state, cur.output);
+        }
         out.push(cur);
       } else if (p.type === "tool-approval-request") {
         // The request part carries only approvalId + toolCallId — the tool
@@ -861,7 +954,8 @@ export const PreviewMessage = memo(function PreviewMessage({
     type GroupSeg = { kind: "toolgroup"; tools: ToolSeg[] };
     const grouped: Array<Seg | GroupSeg> = [];
     for (const s of out) {
-      if (s.kind === "tool" && s.state !== "ask") {
+      // spawn_agents renders its own AgentRunCard — never swallowed by a group.
+      if (s.kind === "tool" && s.state !== "ask" && s.toolName !== "spawn_agents") {
         const prev = grouped[grouped.length - 1];
         if (prev && prev.kind === "toolgroup") {
           prev.tools.push(s);
@@ -1022,7 +1116,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           ) : (
             // Clone-style user bubble (filled, rounded) in leopard tokens.
             <div className="max-w-[70%] rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
-              <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]">{text}</p>
+              <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]"><UserText text={text} /></p>
             </div>
           )}
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
@@ -1135,6 +1229,11 @@ export const PreviewMessage = memo(function PreviewMessage({
               // nothing until the decision morphs this segment into the
               // running/result card.
               if (seg.state === "ask") return null;
+              // Φ-multi-agent: spawn_agents → inline orchestration card
+              // (live data-orchestration snapshots + settled tool output).
+              if (seg.toolName === "spawn_agents" && seg.orch) {
+                return <AgentRunCard key={`orch-${i}`} run={seg.orch} />;
+              }
               if (seg.state === "error") {
                 const errMsg =
                   typeof seg.output === "object" && seg.output !== null

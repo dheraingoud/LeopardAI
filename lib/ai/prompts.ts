@@ -154,6 +154,13 @@ ${locationLine(requestHints ?? {})}`.trim();
     prompt = `${prompt}\n\nTOOLS AVAILABLE THIS TURN: ${availableTools.join(", ")}. These are the ONLY tools you can call.`;
   }
 
+  // Φ-multi-agent: steer the master model on when/how to spawn a team. It
+  // stays responsible for EVERYTHING user-visible (final answer, code,
+  // artifacts); subagents only feed it material.
+  if (availableTools?.includes("spawn_agents")) {
+    prompt = `${prompt}\n\nMULTI-AGENT TEAMS (spawn_agents): when a request genuinely splits into parts (e.g. research several angles, draft + verify, gather + compare), call spawn_agents ONCE with 2-4 named subagents — name each by its role (e.g. "source scout", "fact checker"). In your reply text BEFORE the call, give one short line per agent: its role and why it's needed for THIS request. Subagents have web search/fetch and see prior agents' outputs, so order chains research → write → verify. They are temporary and invisible to the user: when their outputs come back, YOU write the complete final answer — all prose, code blocks, and artifacts come from you, never relayed raw from a subagent. Never spawn agents for a simple or single-part question.`;
+  }
+
   // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the
   // route provided them; pinned facts come first. These are first-party, not
   // untrusted web content — no hostile-handling caveat needed.
