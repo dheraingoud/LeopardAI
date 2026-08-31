@@ -26,7 +26,12 @@ async function main() {
     const els = document.querySelectorAll("[data-slot='message-content'], .prose, article, [class*='message']");
     return Array.from(els).map((e) => (e as HTMLElement).innerText).join("\n");
   });
-  await page.waitForTimeout(20_000);
+  // Wait for the resumed run to actually settle before judging/reloading —
+  // slow backends (429-storm era) can take minutes.
+  await page
+    .waitForFunction(() => (window as any).__chatStatus === "ready", undefined, { timeout: 300_000 })
+    .catch(() => {});
+  await page.waitForTimeout(2000);
   const finalText = await page.evaluate(() => document.body.innerText);
   const bubbleCount = await page.evaluate(
     () => document.querySelectorAll('[data-slot="message-pair"]').length,
