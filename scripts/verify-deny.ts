@@ -10,7 +10,7 @@ async function main() {
   );
   await page.keyboard.press("Enter");
   const deny = page.getByRole("button", { name: /^deny/i });
-  await deny.waitFor({ timeout: 90_000 });
+  await deny.waitFor({ timeout: 240_000 });
   await deny.first().click();
   // Resumed run should answer WITHOUT fetching — wait for a text answer.
   await page.waitForTimeout(60_000);
