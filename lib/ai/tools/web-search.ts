@@ -20,7 +20,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-const DDG_ENDPOINT = "https://html.duckduckgo.com/html/";
+// html.duckduckgo.com POST is bot-walled (HTTP 202 → empty body) as of
+// 2026-08-31; the lite GET endpoint still serves real results.
+const DDG_ENDPOINT = "https://lite.duckduckgo.com/lite/";
 const SEARCH_TIMEOUT_MS = 10_000;
 const MAX_RESULTS = 8;
 
@@ -40,10 +42,10 @@ function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, "");
 }
 
-/** Parse DDG html results: <a class="result__a" href="/l/?uddg=<enc>…">title</a> */
+/** Parse DDG lite results: <a rel="nofollow" href="//duckduckgo.com/l/?uddg=<enc>…" class='result-link'>title</a> */
 function parseResults(html: string, max: number): WebResult[] {
   const out: WebResult[] = [];
-  const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  const re = /<a[^>]*href="([^"]+)"[^>]*class='result-link'[^>]*>([\s\S]*?)<\/a>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) && out.length < max) {
     const href = decodeEntities(m[1]);
@@ -63,10 +65,10 @@ function parseResults(html: string, max: number): WebResult[] {
   return out;
 }
 
-/** Snippet per result (research loop's evidence) from result__snippet blocks. */
+/** Snippet per result (research loop's evidence) from result-snippet cells. */
 function parseSnippets(html: string): string[] {
   const out: string[] = [];
-  const re = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+  const re = /<td[^>]*class='result-snippet'[^>]*>([\s\S]*?)<\/td>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) out.push(decodeEntities(stripTags(m[1])).trim());
   return out;
@@ -95,13 +97,10 @@ export async function searchWeb(opts: {
 
   let res: Response;
   try {
-    res = await fetch(DDG_ENDPOINT, {
-      method: "POST",
+    res = await fetch(`${DDG_ENDPOINT}?q=${encodeURIComponent(opts.query)}`, {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) leopard-chat",
       },
-      body: new URLSearchParams({ q: opts.query }).toString(),
       signal: composed,
     });
   } catch (e) {
@@ -116,6 +115,10 @@ export async function searchWeb(opts: {
 
   const html = await res.text();
   let results = parseResults(html, opts.maxResults ?? MAX_RESULTS);
+  // 0 results on a 200 = bot wall or markup drift — never a silent empty.
+  if (results.length === 0) {
+    return { error: "search_empty", detail: "no results parsed from DDG lite" };
+  }
 
   if (opts.allowedDomains?.length) {
     results = results.filter((r) => opts.allowedDomains!.some((d) => r.url.includes(d)));
