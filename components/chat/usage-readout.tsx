@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CostMeter, type CostLine } from "./leopard/cost-meter";
 import { NumberRoll } from "./leopard/primitives/number-roll";
 import { ActivityGraph } from "./leopard/activity-graph";
+import { TraceWaterfall, type TraceSpan } from "./leopard/trace-waterfall";
 
 type UsageRow = {
   model: string;
@@ -100,6 +101,29 @@ export function UsageReadout({ chatId }: { chatId?: string }) {
     };
   }, [u]);
 
+  // Trace waterfall of per-turn durations (chronological; each turn starts
+  // where the previous ended so bar lengths compare turn cost, not wall-gap).
+  const trace = useMemo(() => {
+    const rows = [...(u?.rows ?? [])]
+      .filter((r) => (r.durationMs ?? 0) > 0)
+      .sort((a, b) => a.ts - b.ts)
+      .slice(-8);
+    let cursor = 0;
+    const spans: TraceSpan[] = rows.map((r, i) => {
+      const span: TraceSpan = {
+        id: `turn-${i}`,
+        name: `${r.model.split("/").pop() ?? r.model}`,
+        depth: 0,
+        startMs: cursor,
+        durationMs: r.durationMs ?? 0,
+        status: "completed",
+      };
+      cursor += r.durationMs ?? 0;
+      return span;
+    });
+    return { spans, totalMs: cursor };
+  }, [u]);
+
   if (gone || !u || u.count === 0) return null;
 
   const title = `${u.count} turn${u.count === 1 ? "" : "s"} · in ${u.totalInputTokens} / out ${u.totalOutputTokens} tok${u.totalDurationMs ? ` · ${(u.totalDurationMs / 1000).toFixed(0)}s` : ""}`;
@@ -141,6 +165,14 @@ export function UsageReadout({ chatId }: { chatId?: string }) {
               end={new Date()}
               title="Turns per day"
               total={`${u.count} total`}
+            />
+          )}
+          {trace.spans.length > 0 && (
+            <TraceWaterfall
+              className="max-w-none"
+              spans={trace.spans}
+              totalMs={trace.totalMs}
+              visibleCount={trace.spans.length}
             />
           )}
         </div>
