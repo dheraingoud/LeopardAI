@@ -528,6 +528,21 @@ function toolTarget(toolName: string, input: unknown): string {
   return "";
 }
 
+// Models occasionally leak Hermes-style tool DSL or the raw spawn_agents
+// input JSON into TEXT when a tool call misfires — never render either
+// (the "json code block instead of a card" bug, 2026-09-01).
+const stripToolDsl = (t: string): string =>
+  t.replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/g, "").trim();
+const isRawTasksJson = (t: string): boolean => {
+  const c = t.trim().replace(/^```(?:json)?|```$/g, "").trim();
+  if (!c.startsWith("{") || !c.includes('"tasks"')) return false;
+  try {
+    return Array.isArray((JSON.parse(c) as { tasks?: unknown }).tasks);
+  } catch {
+    return false;
+  }
+};
+
 // Refusal heuristic — matches an answer that opens with a decline phrase.
 const REFUSAL_RE =
   /^\s*(?:i\s+(?:can'?t|cannot|can\s+not|won'?t|must\s+decline)|i'?m\s+sorry|sorry,?\s+i\s+(?:can'?t|cannot))/i;
@@ -707,7 +722,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           cur.content += "\n" + content;
         }
       } else if (p.type === "text") {
-        const content = p.text ?? "";
+        const content = stripToolDsl(p.text ?? "");
         if (!content) continue;
         if (!cur || cur.kind !== "text") {
           cur = { kind: "text", content };
@@ -864,6 +879,22 @@ export const PreviewMessage = memo(function PreviewMessage({
           output: p.output ?? undefined,
         };
         out.push(cur);
+      }
+    }
+    // One Subagents card per turn: a retried/repaired spawn leaves multiple
+    // tool segs — keep only the LAST. Also drop text segs that are just the
+    // raw {tasks:[…]} input echoing next to the card.
+    const spawnIdxs = out
+      .map((s, i) => (s.kind === "tool" && s.toolName === "spawn_agents" ? i : -1))
+      .filter((i) => i >= 0);
+    if (spawnIdxs.length > 1) {
+      // splice descending — earlier indexes stay valid
+      for (let i = spawnIdxs.length - 2; i >= 0; i--) out.splice(spawnIdxs[i], 1);
+    }
+    if (spawnIdxs.length > 0) {
+      for (let i = out.length - 1; i >= 0; i--) {
+        const s = out[i];
+        if (s.kind === "text" && isRawTasksJson(s.content)) out.splice(i, 1);
       }
     }
     return out;
