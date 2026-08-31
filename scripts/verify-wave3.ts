@@ -28,7 +28,11 @@ import { chromium } from "playwright";
   }));
   await page.screenshot({ path: "../verify-w3-mid.png" });
 
-  await page.waitForTimeout(15000);
+  // NIM models are slow (70-80s first response) — poll for the settled state
+  // instead of a fixed sleep.
+  await page
+    .waitForSelector('[data-slot="message-actions"]', { timeout: 150_000 })
+    .catch((e) => errors.push("settled wait: " + String(e).slice(0, 120)));
   const settled = await page.evaluate(() => ({
     carets: document.querySelectorAll(".leopard-stream-caret").length,
     actions: document.querySelectorAll('[data-slot="message-actions"]').length,

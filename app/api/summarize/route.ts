@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
-import { NIM_BASE } from "@/lib/nim";
+import { NIM_BASE, UTILITY_MODEL } from "@/lib/nim";
 
 export const runtime = "nodejs";
-const SUMMARIZE_MODEL = "minimaxai/minimax-m2.7";
+// minimax-m2.7 replaced 2026-08-31 (minimax deprecating) — reuse the pinned
+// title-gen utility model (nemotron-3.5-lightning).
+const SUMMARIZE_MODEL = UTILITY_MODEL;
 const SUMMARIZE_TIMEOUT = 60_000;
 
 const SUMMARIZE_SYSTEM_PROMPT = `You are a concise conversation summarizer. Summarize the following conversation in 200-400 words. Preserve key decisions, code changes, the user's goal, and any important technical details. Omit pleasantries and repetition. Output only the summary, no preamble.`;

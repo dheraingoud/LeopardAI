@@ -3,16 +3,17 @@
  *
  * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   moonshotai/kimi-k3 (DEFAULT), minimax-m3, gemma-4-31b-it,
+ *   moonshotai/kimi-k3 (DEFAULT), gemma-4-31b-it,
  *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, poolside-laguna-xs-2.1,
  *   nemotron-3.5-lightning-30b-a3b, deepseek-v4-flash-0731 (unfrozen
  *   2026-08-31), deepseek-v4-pro-0813.
  * inkling + step-3.7-flash removed 2026-08-31 (broken routing / NIM 404).
  * glm-5.2 removed 2026-08-24 (deprecated — no longer in /v1/models).
+ * minimax-m3 removed 2026-08-31 (operator: minimax deprecating; was also
+ *   returning 0-token "stop" responses with 50-85s latency).
  * All ids verified present in /v1/models (2026-08-24 probe: 102 models).
  * deepseek-v4-pro is NOT
- * in the catalogue and was dropped. minimax-m3 is a TEXT LLM on NIM (no vision
- * modality despite earlier card reads). diffusiongemma is a TEXT-OUT VLM (takes
+ * in the catalogue and was dropped. diffusiongemma is a TEXT-OUT VLM (takes
  * image/video, emits text via discrete diffusion) — it is NOT image-gen; no
  * true image-gen model is confirmed in /v1/models, so image gen stays dormant.
  * Each entry hard-codes contextWindow (NIM /v1/models exposes NO metadata) and
@@ -60,13 +61,13 @@ export interface ReasoningConfig {
    *
    *   "effort"          → { nim: { reasoningEffort: level } }. OFF (or a binary
    *                        effort model's "off") omits the key → NIM non-think
-   *                        mode. Binary on/off effort models (minimax/step)
+   *                        mode. Binary on/off effort models (gemma/step)
    *                        map ON → "high".
    *   "think"           → { nim: { chat_template_kwargs: { think: bool } } }
    *                        (literal pass-through).
    *   "enable_thinking" → { nim: { chat_template_kwargs:
    *                                { enable_thinking: bool } } } (literal
-   *                        pass-through). Used by NIM for GLM-5.2 / minimax-m3
+   *                        pass-through). Used by NIM for GLM-5.2
    *                        / deepseek-v4-pro / gemma-4 — empirical probe
    *                        2026-07-11: with reasoning_effort these models
    *                        accept the param (HTTP 200) but NIM emits
@@ -83,7 +84,7 @@ export interface ReasoningConfig {
   param?: "effort" | "think" | "enable_thinking";
   /**
    * Effort tiers selectable when reasoning is ON. Absent ⇒ pure on/off toggle
-   * (gemma / diffusion / minimax / step expose only a think toggle). Present ⇒
+   * (gemma / diffusion / step expose only a think toggle). Present ⇒
    * the bar renders an effort slider the user drags between these stops.
    */
   effortLevels?: ReasoningLevel[];
@@ -143,37 +144,17 @@ export const DEFAULT_MODEL = "moonshotai/kimi-k3";
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
 // build.nvidia model cards (NIM /v1/models exposes no metadata). All ids below
-// verified present in /v1/models 2026-08-17. minimax-m3 is a TEXT LLM (NDA).
+// verified present in /v1/models 2026-08-17.
 // glm-5.2 + deepseek-v4-flash-0731 are text-only; gemma-4 / step-3.7 /
 // diffusiongemma accept image/video (vision). The 4 additions (muse-glimmer /
 // thinkingmachines-inkling / poolside-laguna-xs-2.1 / nemotron-3.5-lightning)
 // are lean-in-setting reasoners — binary effort toggle (param:"effort") until
 // their /chat/completions reasoning_content probes seed real tiers.
 //
-// DOWN (2026-07-11): minimaxai/minimax-m3 returned "Bad Request" from NIM —
-// external downtime, confirmed by user. Keep entry; re-test when NIM recovers.
+// minimax-m3 REMOVED 2026-08-31 (operator: minimax deprecating; was returning
+// 0-token "stop" responses at 50-85s latency — pure latency burn).
 
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
-  "minimaxai/minimax-m3": {
-    id: "minimaxai/minimax-m3",
-    displayName: "MiniMax M3",
-    speedTier: 1.5,
-    type: "llm", // text model on NIM — no vision modality (2026-08-17)
-    supportsVision: false,
-    supportsTools: true,
-    contextWindow: 1_000_000,
-    // Long-context reasoner; on/off toggle. NIM probe 2026-07-11:
-    // `reasoning_effort:"max"` + `reasoning_effort:"high"` both accepted
-    // (HTTP 200) but NIM emits `reasoning_content:null` on every chunk.
-    // `chat_template_kwargs:{enable_thinking:true}` is what makes NIM
-    // actually populate `reasoning_content` (74 chunks observed).
-    reasoning: {
-      enabled: true,
-      toggleable: true,
-      param: "enable_thinking",
-      defaultEffort: "on",
-    },
-  },
   // GLM 5.2 removed 2026-08-24 — deprecated + pulled from the NIM /v1/models
   // catalogue (probe returns zero glm ids). Do not re-add.
   "moonshotai/kimi-k3": {

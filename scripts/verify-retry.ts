@@ -81,7 +81,8 @@ async function run() {
   const hasRetrySignal = received.some((c) => c.type === "data-retry");
   check("a `retry` signal chunk was emitted", hasRetrySignal);
   const retried = received.find((c) => c.type === "data-retry") as Chunk | undefined;
-  check("retry signal carries attempt/maxRetries for UX", !!retried && typeof retried.attempt === "number" && typeof retried.maxRetries === "number");
+  const retryData = retried?.data as { attempt?: unknown; maxRetries?: unknown } | undefined;
+  check("retry signal carries attempt/maxRetries for UX", !!retryData && typeof retryData.attempt === "number" && typeof retryData.maxRetries === "number");
   const text = received
     .filter((c) => c.type === "text-delta")
     .map((c) => c.delta)
