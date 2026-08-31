@@ -62,15 +62,12 @@ export function applyMention(value: string, name: string): string {
   return value.replace(/@[\w]*$/, `@${name} `);
 }
 
-function ComposerBar({ beam = false, className, ...props }: ComponentProps<"div"> & { beam?: boolean }) {
+function ComposerBar({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="composer-bar"
       className={cn(
         paper,
-        // Beam (orbiting amber ring) only in the centered empty state — the
-        // bottom-bar composer stays quiet per operator 2026-08-31.
-        beam && "composer-beam",
         "flex w-full flex-col gap-1 rounded-[28px] p-1.5 transition-shadow",
         "focus-within:ring-1 focus-within:ring-[#ffb400]/40",
         className,
@@ -115,7 +112,7 @@ function ComposerSend({
       {...props}
     >
       {streaming ? (
-        <SquareIcon className="size-3 fill-current dark:text-[#ffb400] light:text-white" />
+        <SquareIcon className="size-3 fill-current text-black" />
       ) : (
         <ArrowUpIcon className="size-4" />
       )}
@@ -475,7 +472,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               onSelect={selectMention}
             />
           )}
-          <ComposerBar beam={placement === "center"}>
+          <ComposerBar>
             {/* ChatGPT-style: text row on top, control row below. */}
             <TextareaAutosize
               ref={textareaRef}
