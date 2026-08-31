@@ -13,7 +13,7 @@ const FILES = [
   "connection-state","context-breakdown","conversation-search",
   "cost-meter","data-table","day-separator","diagram","document-reference",
   "draft-restore","edit-message","empty-state",
-  "feedback-dialog","file-tree","guardrail-notice",
+  "feedback-dialog","file-tree","flow-graph","guardrail-notice",
   "image-generation","inline-citation","job-progress",
   "loading-state","map-answer","math-block","mcp-server-panel","memory-chips",
   "message-branches","message-pair","message-queue","message-timing",

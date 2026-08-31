@@ -27,6 +27,7 @@ import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
 import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
+import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { loadMcpTools } from "@/lib/ai/mcp";
 import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
@@ -822,6 +823,9 @@ export async function POST(request: Request) {
         },
         ...(supportsTools && {
           tools,
+          // Salvage Hermes-DSL / mangled spawn_agents inputs from weaker
+          // master models instead of erroring the whole turn (2026-09-01).
+          repairToolCall,
           // 2026-09-01: was stepCountIs(3) — a 3-tool burst (even all-failed)
           // ate the whole turn and the reply terminated with NO synthesis.
           // 8 leaves room for search→fetch→retry bursts + the final text step.

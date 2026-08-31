@@ -12,9 +12,8 @@
 import { useState } from "react";
 import { BotIcon, CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { field, mono, paper } from "./surfaces";
+import { mono, paper } from "./surfaces";
 import { FlowGraph, type FlowNode } from "./flow-graph";
-import { UTILITY_MODEL } from "@/lib/nim";
 
 export interface AgentRunAgent {
   name: string;
@@ -70,7 +69,9 @@ function flowOf(run: AgentRunState): {
       return { id: a.name, label: a.name, column: 1, row: i, state };
     }),
   ];
-  const visible = 1 + run.agents.filter((a) => a.status !== "pending").length;
+  // All nodes always visible — hiding pending agents left the master floating
+  // in an empty box with dangling edges (operator screenshot 2026-09-01).
+  const visible = nodes.length;
   const edges = run.agents.map((a) => ({ from: "master", to: a.name }));
   return { nodes, edges, visible };
 }
@@ -187,16 +188,14 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn(mono, field, "text-foreground/35 rounded-full px-2 py-0.5")}>
-          subagents run on {UTILITY_MODEL.split("/").pop()}
-        </span>
-        {run.done && (
+      {/* Never name the subagent model in the UI (operator 2026-09-01). */}
+      {run.done && (
+        <div className="flex items-center justify-end gap-2">
           <span className={cn(mono, "text-foreground/45 shrink-0")}>
             coverage {total ? Math.round((doneCount / total) * 100) : 0}%
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
