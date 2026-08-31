@@ -135,7 +135,7 @@
   --chart-5: #803300;
   /* Typography System — mirror .dark so light never inherits stale vars */
   --font-display: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
-  --font-body: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --font-body: var(--font-geist), var(--font-instrument), "Segoe UI", sans-serif;
 
   /* Leopard brand tokens (light values) */
   --leopard-amber: #d49600;
@@ -238,7 +238,7 @@
 
   /* Typography System */
   --font-display: "Bricolage Grotesque", "Instrument Sans", "Segoe UI", sans-serif;
-  --font-body: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
+  --font-body: var(--font-geist), var(--font-instrument), "Segoe UI", sans-serif;
 }
 
 /* ─── Base Styles ─── */
@@ -279,7 +279,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Instrument Sans", "Bricolage Grotesque", "Segoe UI", sans-serif;
+    font-family: var(--font-sans);
     overflow-x: hidden;
   }
 
