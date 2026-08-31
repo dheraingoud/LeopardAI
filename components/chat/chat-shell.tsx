@@ -35,7 +35,6 @@ import { HeaderQuotaBanner } from "./leopard/quota-banner";
  */
 export function ChatShell() {
   const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming } = useActiveChat();
-  const generating = status === "submitted" || status === "streaming" || serverStreaming;
   const { user } = useUser();
   const router = useRouter();
   // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
@@ -164,7 +163,6 @@ export function ChatShell() {
               </h2>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {generating && <GeneratingChip />}
               <ConnectionDot />
               <HeaderQuotaBanner />
             </div>
@@ -218,7 +216,6 @@ export function ChatShell() {
             </h2>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {generating && <GeneratingChip />}
             <ConnectionDot />
             <HeaderQuotaBanner />
             <button
@@ -287,17 +284,6 @@ export function ChatShell() {
   );
 }
 
-
-/** Header generation-state chip — visible whenever a run is live, including
- *  reopened-mid-generation (serverStreaming) where no local stream exists. */
-function GeneratingChip() {
-  return (
-    <span className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] dark:border-[#ffb400]/25 dark:bg-[#ffb400]/[0.06] dark:text-[#ffb400] light:border-[#d49600]/25 light:bg-[#d49600]/[0.06] light:text-[#a57600]">
-      <span className="size-1.5 rounded-full bg-current animate-pulse" />
-      generating
-    </span>
-  );
-}
 
 function ChatBootLoader() {
   const [tick, setTick] = useState(0);
