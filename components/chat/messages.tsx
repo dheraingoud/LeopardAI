@@ -187,6 +187,21 @@ export function Messages() {
     el.scrollTop = el.scrollHeight;
   }, [messages, status]);
 
+  // Growth that bypasses `messages` (reasoning panel animating open, images
+  // loading, markdown reflow, cards expanding) used to un-pin the view
+  // mid-stream — observe the column's size and re-pin while stuck to bottom.
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    const col = contentRef.current;
+    if (!el || !col) return;
+    const ro = new ResizeObserver(() => {
+      if (stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(col);
+    return () => ro.disconnect();
+  }, []);
+
   // Kit-fidelity fix (audit 2026-08-28): scroll to bottom on RUN START
   // even when the user had scrolled up (runStart → scheduleScrollToBottom).
   // Without this, sending a message
@@ -239,7 +254,7 @@ export function Messages() {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
       >
-        <div className="max-w-3xl mx-auto py-6">
+        <div ref={contentRef} className="max-w-3xl mx-auto py-6">
         {/* serverStreaming (reopened mid-generation): the live mirror patches
             the last bubble's parts; render it as streaming so the caret +
             reasoning panel behave like a live turn. */}
@@ -257,7 +272,7 @@ export function Messages() {
               setStoppedId(null);
             }}
             onDiscard={() => setStoppedId(null)}
-            className="mt-1"
+            className="my-3"
           />
         )}
         {isThinking && <ThinkingMessage />}
@@ -275,7 +290,9 @@ export function Messages() {
             className="mt-3"
           />
         )}
-        <div className="h-32" /> {/* spacer for the floating input bar */}
+        {/* Floating-composer clearance — taller while streaming so expanding
+            cards (subagents, tools) never slide under the input bar. */}
+        <div className={status === "streaming" || status === "submitted" ? "h-48" : "h-32"} />
         </div>
       </div>
       {unseen > 0 && (

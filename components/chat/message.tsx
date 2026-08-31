@@ -965,15 +965,12 @@ export const PreviewMessage = memo(function PreviewMessage({
     const trimmed = editDraft.trim();
     setEditing(false);
     if (!trimmed || trimmed === text) return;
+    // Edit → auto-resend (no "press Enter" detour — operator 2026-09-01).
     try {
-      chat.editMessage?.(message.id);
+      chat.editAndResend?.(message.id, trimmed);
     } catch {
-      /* non-fatal — composer still populates */
+      toast.error("Couldn't resend the edited message");
     }
-    window.dispatchEvent(
-      new CustomEvent("composer:set-text", { detail: { text: trimmed } }),
-    );
-    toast.success("Editing — press Enter to resend");
   };
 
   // Registry text models for the RegenerateMenu "Retry with…" list.
@@ -1098,7 +1095,7 @@ export const PreviewMessage = memo(function PreviewMessage({
            * but nothing shows". Show the working dots exactly in that window;
            * the moment the first text/reasoning/doc lands, the gate closes. */}
                     {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
-            <ThinkingIndicator className="max-w-none" label="Working on it…" />
+            <ThinkingIndicator className="max-w-none my-2" label="Working on it…" />
           )}
 
           {/* Refusal heuristic: a settled assistant answer opening with a

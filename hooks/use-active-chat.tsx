@@ -114,6 +114,8 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
    * live-mirror resurrects them and the edited resend duplicates the old
    * bubble), then truncates local state so the resend starts clean. */
   editMessage: (messageId: string) => void;
+  /** Edit + immediately resend (truncates, waits for the send gate, sends). */
+  editAndResend: (messageId: string, text: string) => void;
   /** True when the latest assistant row is still being written by the
    * detached server task and no local stream owns it — i.e. the user reopened
    * the chat mid-generation and is watching the live mirror fill in. */
@@ -903,6 +905,25 @@ export function ActiveChatProvider({
     [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
   );
 
+  // Edit → auto-resend (operator 2026-09-01: "save and proceed" that doesn't
+  // resend is broken UX). editMessage stops any live stream + truncates; the
+  // status can lag a tick, so poll the send gate briefly before firing.
+  const editAndResend = useCallback(
+    (messageId: string, text: string) => {
+      editMessage(messageId);
+      let tries = 0;
+      const attempt = () => {
+        if (chat.status === "streaming" || chat.status === "submitted") {
+          if (++tries < 50) setTimeout(attempt, 100);
+          return;
+        }
+        void sendMessage({ text });
+      };
+      setTimeout(attempt, 0);
+    },
+    [editMessage, sendMessage, chat.status],
+  );
+
   // Prior reply variants for the turn an assistant message answers (empty when
   // the message was never regenerated this session).
   const getSiblings = useCallback(
@@ -951,6 +972,7 @@ export function ActiveChatProvider({
     isDraft,
     regenerateMessage,
     editMessage,
+    editAndResend,
     getSiblings,
     getTiming,
   };
