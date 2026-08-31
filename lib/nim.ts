@@ -139,7 +139,12 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 // google/diffusiongemma-26b-a4b-it 2026-08-30 over kimi's mid-stream gaps,
 // operator reverted to kimi 2026-08-31 — post-chunk stall budget now 180s
 // with reasoning on, which covers the gaps. diffusiongemma stays in picker.
-export const DEFAULT_MODEL = "moonshotai/kimi-k3";
+// 2026-08-31 (later): kimi-k3 went fully unresponsive upstream (0 bytes in
+// 60s on a 16-token probe, thinking on or off; 141s silent first attempt in
+// app → retry → 3.6min turns). gemma-4 + deepseek-flash hang the same way.
+// Live fast models probed: nemotron-3.5-lightning (0.7s), laguna, muse,
+// diffusiongemma. Default → nemotron-3.5-lightning until kimi recovers.
+export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
