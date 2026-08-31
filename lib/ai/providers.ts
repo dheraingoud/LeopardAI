@@ -47,6 +47,10 @@ export const nimProvider = createOpenAICompatible({
   name: "nim",
   baseURL: NIM_BASE,
   apiKey: nimApiKey,
+  // NIM (OpenAI-compatible) only emits a usage chunk when asked. Without this
+  // result.usage resolves to zeros and every usageLog row records 0 tokens
+  // (found 2026-08-31: usage readout showed "0 tokens" for real turns).
+  includeUsage: true,
 });
 
 export function getLanguageModel(modelId: string): LanguageModel {
