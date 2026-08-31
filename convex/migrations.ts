@@ -3,8 +3,18 @@ import { mutation } from "./_generated/server";
 // One-time migration to clear old data (retained for dev/reset).
 export const clearAll = mutation({
   handler: async (ctx) => {
-    // Clear all tables (only valid tables from schema)
-    const tables = ["chats", "messages", "users", "votes", "documents"] as const;
+    // Clear all tables (all tables from schema — testing-phase reset)
+    const tables = [
+      "chats",
+      "messages",
+      "users",
+      "votes",
+      "documents",
+      "summaries",
+      "usageLog",
+      "userMemory",
+      "skillLibrary",
+    ] as const;
     for (const table of tables) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
