@@ -35,7 +35,7 @@
  * `providerOptions.nim.reasoningEffort` (camel) and AUTO-MAPS it to body-root
  * `reasoning_effort` (snake); extra non-spec keys (chat_template_kwargs) pass
  * through literally snake_case. So:
- *   param:"effort" → { nim: { reasoningEffort } }   (deepseek/glm + binary minimax/step)
+ *   param:"effort" → { nim: { reasoningEffort } }   (deepseek/glm + binary gemma/step)
  *   param:"think"  → { nim: { chat_template_kwargs: { think } } }   (gemma/diffusion)
  *   param absent   → {} (locked-on Cosmos reasoner — reasons by architecture)
  * Consumed by route.ts only.
@@ -114,8 +114,8 @@ const speedTierMap: Record<ModelCapability["speedTier"], SpeedTier> = {
 };
 
 // Cap the effective context window fed to the model + shown on the context
-// indicator. The registry declares each model's TRUE window (e.g. minimax-m3
-// advertises 1M); the cap bounds prompt cost/size. All text models → 256k;
+// indicator. The registry declares each model's TRUE window; the cap bounds
+// prompt cost/size; the cap bounds prompt cost/size. All text models → 256k;
 // the compact muse line → 128k. Gen models (declared 0) keep 0 = "unknown".
 const CONTEXT_CAP_DEFAULT = 256_000;
 const CONTEXT_CAP_MUSE = 128_000;
@@ -342,7 +342,7 @@ export function resolveImageDimensions(
  *   param:"enable_thinking" → { nim: { chat_template_kwargs:
  *                                   { enable_thinking: bool } } } (literal
  *                             pass-through) — empirically the only param
- *                             that makes glm-5.2 / minimax-m3 / deepseek-pro
+ *                             that makes glm-5.2 / deepseek-pro
  *                             / gemma-4 surface `reasoning_content` at NIM
  *                             (probed 2026-07-11). reasoning_effort is
  *                             accepted (HTTP 200) but NIM emits

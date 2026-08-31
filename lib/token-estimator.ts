@@ -55,8 +55,6 @@ export function getContextBudget(contextWindow: number): number {
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "google/gemma-4-31b-it": 128000,
-  "minimaxai/minimax-m2.5": 128000,
-  "minimaxai/minimax-m2.7": 128000,
   "meta/llama-3.3-70b-instruct": 128000,
   "stepfun-ai/step-3.5-flash": 128000,
   "moonshotai/kimi-k2.5": 128000,
@@ -80,8 +78,6 @@ const ALIAS_TO_NIM: Record<string, string> = {
   "gemma-4-31b": "google/gemma-4-31b-it",
   "llama-3-70b": "meta/llama-3.3-70b-instruct",
   "step-3.5-flash": "stepfun-ai/step-3.5-flash",
-  "minimax-m2.5": "minimaxai/minimax-m2.5",
-  "minimax-m2.7": "minimaxai/minimax-m2.7",
   "kimi-k2.5": "moonshotai/kimi-k2.5",
   "deepseek-v3.2": "deepseek-ai/deepseek-v3.2",
   "qwen-300b": "qwen/qwen3.5-397b-a17b",
