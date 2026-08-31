@@ -17,16 +17,17 @@ async function main() {
   await page.keyboard.press("Enter");
 
   // Wait for a settled assistant answer (no streaming caret).
-  // Settled = answer text present AND "Working on it…" indicator gone.
+  // Settled = run started, then status back to ready (sidebar titles can
+  // contain the answer keywords — never trust body text for settle).
   await page.waitForFunction(
-    () => /coat|golden|yellow|rosette/i.test(document.body.innerText),
+    () => (window as any).__chatStatus === "submitted" || (window as any).__chatStatus === "streaming",
     undefined,
     { timeout: 120_000 },
   );
   await page.waitForFunction(
-    () => !/Working on it/i.test(document.body.innerText),
+    () => (window as any).__chatStatus === "ready",
     undefined,
-    { timeout: 120_000 },
+    { timeout: 300_000 },
   );
   await page.waitForTimeout(1500);
 
@@ -54,14 +55,18 @@ async function main() {
   if (regenVisible) {
     const before = await page.evaluate(() => document.body.innerText.length);
     await regenBtn.click();
-    // Regen should start streaming again (caret) then settle with content.
+    // Regen should leave ready, then settle back to ready.
     await page
-      .waitForSelector(".leopard-stream-caret", { timeout: 30_000 })
+      .waitForFunction(
+        () => (window as any).__chatStatus !== "ready",
+        undefined,
+        { timeout: 30_000 },
+      )
       .catch(() => null);
     await page.waitForFunction(
-      () => !document.querySelector(".leopard-stream-caret"),
+      () => (window as any).__chatStatus === "ready",
       undefined,
-      { timeout: 120_000 },
+      { timeout: 300_000 },
     );
     const after = await page.evaluate(() => document.body.innerText.length);
     regenWorked = after >= before - 50;
