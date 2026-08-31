@@ -230,9 +230,39 @@ function ComposerAttachMenu({
   );
 }
 
+// Pending composer text survives a composer swap: editing the ONLY message in
+// a chat truncates the thread to empty, which unmounts the bottom composer and
+// mounts the center one — the composer:set-text event fired before the new
+// instance subscribed. Park the text here; any mounted/mounting composer
+// consumes it.
+let pendingComposerText: { text: string; at: number } | null = null;
+const takePendingComposerText = (): string | null => {
+  const p = pendingComposerText;
+  pendingComposerText = null;
+  // 5s TTL — a park older than that belongs to an abandoned edit, not a
+  // composer swap in flight.
+  return p && Date.now() - p.at < 5000 ? p.text : null;
+};
+
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
   const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming } = useActiveChat();
   const [input, setInput] = useState("");
+  // Consume parked edit-text on mount (strict-mode safe: effects, not the
+  // useState initializer, which double-invokes and would eat the value).
+  const inputRef = useRef(input);
+  inputRef.current = input;
+  useEffect(() => {
+    const t = takePendingComposerText();
+    if (t !== null) setInput(t);
+    // Unmounting with unsent text re-parks it: an edit that empties the
+    // thread swaps bottom→center composer (and back, when the mirror heals
+    // the row) — the text must survive BOTH transitions.
+    return () => {
+      if (inputRef.current.trim()) {
+        pendingComposerText = { text: inputRef.current, at: Date.now() };
+      }
+    };
+  }, []);
   // Kit draft-restore: unsent text survives reloads, keyed per chat.
   const { draft, setDraft } = useDraftRestore(chatMeta?._id ?? "draft");
   useEffect(() => {
@@ -269,6 +299,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   useEffect(() => {
     function onSet(e: Event) {
       const text = (e as CustomEvent<{ text: string }>).detail?.text ?? "";
+      pendingComposerText = { text, at: Date.now() };
       setInput(text);
       setAttachments([]);
       queueMicrotask(() => {

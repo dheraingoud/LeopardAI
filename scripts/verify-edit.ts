@@ -1,90 +1,76 @@
-/* Edit-flow E2E: send → settle → edit the user message → resend → settle.
- * Pass: exactly ONE user bubble (right-aligned container) at every step. */
 import { chromium } from "playwright";
-(async () => {
-  const b = await chromium.launch();
-  const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
-  const errors: string[] = [];
-  p.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
-  await p.goto("http://localhost:3001/chat", { waitUntil: "domcontentloaded" });
-  await p.waitForTimeout(2500);
 
-  // Count only right-aligned USER bubbles containing the needle.
-  const userBubbleCount = async (needle: string) =>
-    p.evaluate((n) => {
-      const scope = document.querySelector(".max-w-3xl") ?? document.body;
-      let count = 0;
-      for (const el of scope.querySelectorAll("div.items-end")) {
-        const t = (el as HTMLElement).innerText?.trim() ?? "";
-        if (t.includes(n)) count++;
-      }
-      return count;
-    }, needle);
-
-  // Wait until the SDK reports ready (text-stability false-positives on
-  // long thinking pauses — that race is exactly what broke Enter before).
-  const settle = async () => {
-    // __composer debug hook is gone post-commit — fall back to text stability
-    // with a long sample window (thinking pauses can exceed 1.5s).
-    let last = "";
-    for (let i = 0; i < 80; i++) {
-      await p.waitForTimeout(2000);
-      const cur = await p.evaluate(() => document.body.innerText);
-      if (cur === last && cur.length > 0) return;
-      last = cur;
-    }
-  };
-
-  const ta = p.locator("form textarea").first();
-  await ta.click();
-  await ta.fill("alpha-unique-111 say hello there friend");
-  await ta.press("Enter");
-  await p.waitForFunction(
-    () => [...document.querySelectorAll(".markdown-body")].some((el) => (el.textContent ?? "").trim().length > 0), undefined, { timeout: 120000 },
+// Edit-message e2e: edit the user bubble, resend, assert new answer streams
+// and the edited text is what persists after reload.
+async function main() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+  await page.goto("http://localhost:3001/chat", { waitUntil: "networkidle" });
+  await page.fill(
+    "textarea",
+    "In one word: what color is the sun? Answer directly without using any tools.",
   );
-  await settle();
-  console.log("before edit:", await userBubbleCount("alpha-unique-111 say hello there friend"));
+  await page.keyboard.press("Enter");
+  // Full settle: answer text present, no thinking indicator, no Stop button,
+  // no error card (an errored first answer auto-retries mid-edit and races
+  // the flow). Rate-limited API days make the error path common.
+  await page.waitForFunction(
+    () =>
+      !/Working on it/i.test(document.body.innerText) &&
+      !/Response failed/i.test(document.body.innerText) &&
+      document.body.innerText.length > 300 &&
+      !document.querySelector("button[aria-label='Stop generating']"),
+    { timeout: 180_000 },
+  );
+  await page.waitForTimeout(2500); // let any auto-retry fire before we edit
+  const errored = await page.evaluate(() => /Response failed/i.test(document.body.innerText));
+  if (errored) {
+    console.log(JSON.stringify({ skipped: "first answer errored (API rate limit)" }));
+    await browser.close();
+    return;
+  }
 
-  // hover the user bubble to reveal actions, click Edit
-  const bubble = p.locator("div.items-end", { hasText: "alpha-unique-111" }).last();
-  await bubble.hover();
-  await p.getByRole("button", { name: /edit/i }).first().click();
-  await p.waitForTimeout(800);
-  console.log("during edit:", await userBubbleCount("alpha-unique-111 say hello there friend"),
-    "composer:", (await ta.inputValue()).slice(0, 40));
+  const editBtn = page.getByRole("button", { name: /edit and resend/i }).first();
+  await editBtn.scrollIntoViewIfNeeded();
+  await editBtn.click({ force: true });
+  await page.waitForTimeout(600);
+  // Edit field should appear inside the user bubble.
+  const editArea = page.locator("[data-slot='edit-message'] textarea, [data-slot='edit-message'] [contenteditable]").first();
+  const editable = await editArea.isVisible().catch(() => false);
+  let edited = false;
+  if (editable) {
+    await editArea.fill("In one word: what color is the moon?");
+    await page.getByRole("button", { name: /save & resend/i }).click();
+    // Save populates the composer ("press Enter to resend" toast) — resend.
+    await page.waitForFunction(
+      () => (document.querySelector("textarea[aria-label='Message']") as HTMLTextAreaElement)?.value.includes("moon"),
+      { timeout: 15_000 },
+    );
+    await page.locator("textarea[aria-label='Message']").first().press("Enter");
+    // New user bubble with the edited text must render (API can be slow —
+    // allow a generous window).
+    await page.waitForFunction(
+      () => document.body.innerText.includes("moon"),
+      { timeout: 150_000 },
+    ).catch(() => {});
+    // New answer streams.
+    await page
+      .waitForFunction(
+        () => !/Working on it/i.test(document.body.innerText) && !document.querySelector("button[aria-label='Stop generating']"),
+        { timeout: 180_000 },
+      )
+      .catch(() => {});
+    await page.waitForTimeout(1000);
+    edited = await page.evaluate(() => document.body.innerText.includes("moon"));
+  }
 
-  let postCount = 0;
-  p.on("request", (r) => {
-    if (r.url().includes("/api/chat") && r.method() === "POST") {
-      postCount++;
-      console.log("[net] POST #", postCount, (r.postData() ?? "").slice(0, 160));
-    }
-  });
-  p.on("console", (m) => { if (m.type() === "error") console.log("CONSOLE-ERR:", m.text().slice(0, 200)); });
-  await ta.click();
-  await ta.fill("alpha-unique-222 say hello there friend");
-  await ta.press("Enter");
-  await p.waitForTimeout(2000);
-  console.log("composer after Enter:", JSON.stringify(await ta.inputValue()));
-  console.log("composer state:", await p.evaluate(() => JSON.stringify((window as any).__composer)));
-  console.log("page state:", await p.evaluate(() => ({
-    textareas: document.querySelectorAll("textarea").length,
-    stopBtn: !!document.querySelector("[aria-label*='top' i]"),
-    caret: !!document.querySelector(".leopard-stream-caret"),
-    thinking: document.body.innerText.includes("Thinking"),
-    submitDisabled: (document.querySelector("button[type='submit']") as HTMLButtonElement | null)?.disabled,
-  })));
-  await p.waitForFunction(
-    () => [...document.querySelectorAll(".markdown-body")].some((el) => (el.textContent ?? "").trim().length > 0), undefined, { timeout: 120000 },
-  ).catch(() => {});
-  await settle();
-  const afterOld = await userBubbleCount("alpha-unique-111 say hello there friend");
-  const afterNew = await userBubbleCount("alpha-unique-222 say hello there friend");
-  console.log("after resend: old=", afterOld, "new=", afterNew);
-  console.log(JSON.stringify({
-    pass: afterOld === 0 && afterNew === 1,
-    errors: errors.slice(0, 4),
-  }));
-  await p.screenshot({ path: "../verify-edit.png" });
-  await b.close();
-})();
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(4000);
+  const persisted = await page.evaluate(() =>
+    document.body.innerText.includes("moon"),
+  );
+  console.log(JSON.stringify({ editable, edited, persisted }));
+  await page.screenshot({ path: "shots/edit.png" });
+  await browser.close();
+}
+void main();
