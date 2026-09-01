@@ -49,8 +49,18 @@ amber #ffb400/#d49600); no model names in UI.
   per-agent timeout (never stuck). (dbg-orchestrate) ✅ 2026-09-01 GREEN:
   1 card live, 1 after reload, expand shows full flow graph + prose,
   zero update-depth errors this run.
-- [ ] 8. Edit & resend — edit user msg → auto-resend, fork semantics,
-  Cmd/Ctrl+Enter save, Esc cancel.
+- [x] 8. Edit & resend — edit user msg → auto-resend, fork semantics,
+  Cmd/Ctrl+Enter save, Esc cancel. ✅ 2026-09-01 GREEN (dbg-edit-resend +
+  dbg-edit-timeline). THREE real bugs found + fixed: (1) retry loop read
+  stale `chat.status` closure — frozen "submitted" forever while the real
+  status was ready → resend silently never fired (user-reported "edit
+  doesn't trigger generation"); fixed with statusRef. (2) resend fired
+  before the row delete → live-mirror re-added old rows (mirror never
+  removes) and the resend re-POSTed them → route re-persisted duplicates;
+  fixed: await delete first + mirror suppressed during the edit window
+  (editWindowRef). (3) stop's abort-finalize upsert resurrected the old
+  assistant row after the delete; fixed: stop → 400ms → delete ordering in
+  BOTH editMessage and regenerateMessage.
 - [ ] 9. Stop mid-stream — visible stop glyph, partial content kept,
   follow-up works. (dbg-stop-recover)
 - [ ] 10. Error UX — forced failure → graceful card + working Retry; chat
