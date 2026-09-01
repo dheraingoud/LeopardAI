@@ -63,7 +63,6 @@ const mentionFormatter: DirectiveTextFormatter = {
   },
 };
 const UserText = createDirectiveText(mentionFormatter);
-import { FOLLOW_UP_SUGGESTIONS, Suggestions } from "./leopard/suggestions";
 import { EditMessage } from "./leopard/edit-message";
 import { RegenerateMenu, type RegenerateOption } from "./leopard/regenerate-menu";
 import { ReadAloudButton } from "./leopard/read-aloud";
@@ -552,10 +551,16 @@ export const PreviewMessage = memo(function PreviewMessage({
   message,
   isLast,
   status,
+  hideSpawnCard = false,
 }: {
   message: ChatMessage;
   isLast: boolean;
   status: string;
+  // Φ-multi-agent: one AgentRunCard per TURN. The approval→resume flow can
+  // leave the spawn_agents tool part on two messages (the pre-approval
+  // assistant row + the resumed row) — messages.tsx passes hideSpawnCard to
+  // every spawn-bearing message except the LAST, so the card renders once.
+  hideSpawnCard?: boolean;
 }) {
   const isUser = message.role === "user";
   const text = getMessageText(message);
@@ -1147,7 +1152,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               if (seg.state === "ask") return null;
               // Φ-multi-agent: spawn_agents → inline orchestration card
               // (live data-orchestration snapshots + settled tool output).
-              if (seg.toolName === "spawn_agents" && seg.orch) {
+              if (seg.toolName === "spawn_agents" && seg.orch && !hideSpawnCard) {
                 return <AgentRunCard key={`orch-${i}`} run={seg.orch} />;
               }
               if (seg.state === "error") {
@@ -1318,24 +1323,6 @@ export const PreviewMessage = memo(function PreviewMessage({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Follow-up suggestions (TODO Task 8): subtle chip row under the
-              LAST finished assistant turn (status ready). Clicks fill + send
-              through the composer via chat.sendMessage. */}
-          {isLast && status === "ready" && renderText && (
-            <div className="mt-2">
-              <Suggestions
-                suggestions={FOLLOW_UP_SUGGESTIONS}
-                label="Follow-up prompts"
-                className="justify-start"
-                onSuggestion={(text) => {
-                  void chat.sendMessage({
-                    parts: [{ type: "text", text }],
-                  } as never);
-                }}
-              />
             </div>
           )}
 
