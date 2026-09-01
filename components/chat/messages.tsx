@@ -278,8 +278,8 @@ export function Messages() {
         {isThinking && <ThinkingMessage />}
         {status === "error" && (
           <ErrorState
-            title="Response failed"
-            detail="The stream errored or stalled — retry the last turn."
+            title="That didn't go through"
+            detail="The reply errored or stalled mid-stream. Retry re-runs the last turn — your chat is intact."
             retrying={autoRetrying}
             onRetry={() => {
               const last =
