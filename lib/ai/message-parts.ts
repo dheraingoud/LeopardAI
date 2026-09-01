@@ -25,7 +25,9 @@ const DROP_PART_TYPES = new Set([
   "abort",
   "message-metadata",
   "data-chat-title",
-  "tool-approval-request",
+  // NOT "tool-approval-request": the SDK pairs approval request+response on
+  // resend — dropping the request makes every Allow/Deny POST throw
+  // ToolCallNotFoundForApprovalError (the 2026-09-01 approval-flash bug).
 ]);
 
 export function normalizeUIMessageParts<T extends { type?: unknown }>(
