@@ -27,8 +27,13 @@ amber #ffb400/#d49600); no model names in UI.
 - [x] 3. Multi-turn context chain — 3 turns building on each other; reload
   persistence. (dbg-multiturn) ✅ 2026-09-01 GREEN: 3 turns settled,
   markers count-verified, reload persisted (zephyr+noted).
-- [ ] 4. Reasoning — glimmer label, "Thought for Ns", expand/collapse,
+- [x] 4. Reasoning — glimmer label, "Thought for Ns", expand/collapse,
   effort chip, mono→Geist body.
+  ✅ 2026-09-01 GREEN (dbg-reasoning-panel): streaming "Thinking" shimmer,
+  settled "Thought for Ns" (fixed: start clock on reasoning appearance, not
+  `isStreaming && !text`; module-level cache keyed by reasoning-text prefix
+  survives optimistic→persisted id-swap remount), expand 556 chars,
+  collapse ok, effort chip present.
 - [ ] 5. Web search — per-call rows (no group pill), sources row, failure
   path copy.
 - [x] 6. Tool approval — Allow executes; Deny never executes + synthesized
