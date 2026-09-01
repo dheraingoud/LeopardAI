@@ -466,7 +466,98 @@ export async function POST(request: Request) {
 //     /api/summarize (falling back to a pure sliding window), keeping the tail.
 //     Fail-open: any compaction error keeps the FULL history. A folded summary
 //     is broadcast (data-compaction) so the UI can surface it.
-  let modelMessages = await convertToModelMessages(messages);
+  // Φ-approval-resume (2026-09-01 rewrite): a resume POST carries the user's
+  // decision as tool parts in state "approval-responded". SDK-native resume
+  // re-invokes the tool AND re-emits an approval-request that the folded wire
+  // history can't pair → ToolCallNotFoundForApprovalError, flash-and-die.
+  // Instead: execute the approved tools HERE (directly, once), mark the parts
+  // output-available with the real output, and strip approval scaffolding —
+  // the model continues straight into synthesis with results in context.
+  const resumeOutputs = new Map<string, unknown>();
+  const approvalMsgEarly = [...messages].reverse().find((m) => {
+    if (m?.role !== "assistant") return false;
+    return ((m.parts ?? []) as Array<{ type?: string; state?: string }>).some(
+      (p) => p?.state === "approval-responded" || p?.type === "tool-approval-response",
+    );
+  });
+  // Tools the user just approved that still need executing. Execution is
+  // DEFERRED into the backgroundServe prelude (2026-09-01): running it here
+  // held the response headers for minutes (subagent teams run serially), so
+  // the client stared at a frozen card with zero live progress. In the
+  // prelude the SSE is already open — seeds render instantly and
+  // data-orchestration snapshots stream live.
+  const pendingExecParts: Array<Record<string, any>> = approvalMsgEarly
+    ? ((approvalMsgEarly.parts ?? []) as Array<Record<string, any>>).filter(
+        (p) =>
+          typeof p?.type === "string" &&
+          p.type.startsWith("tool-") &&
+          p.type !== "tool-approval-request" &&
+          p.type !== "tool-approval-response" &&
+          p.state === "approval-responded" &&
+          p.output === undefined,
+      )
+    : [];
+  /** Execute the approved tools once, streaming orchestration progress through
+   * `emitChunk` (live card) and filling resumeOutputs for the model pass. */
+  const executeApprovedTools = async (
+    emitChunk: (chunk: Record<string, unknown>) => void,
+  ) => {
+    if (pendingExecParts.length === 0) return;
+    const manualTools: Record<string, any> = {
+      ...(process.env.ENABLE_WEB_FETCH === "1" ? { webFetch: webFetch({} as never) } : {}),
+      ...(process.env.ENABLE_WEB_SEARCH === "1" ? { webSearch: webSearch() } : {}),
+      ...(process.env.LEOPARD_MULTI_AGENTS === "1"
+        ? agentsTools({
+            // LIVE writer: orchestration snapshots flow straight into the
+            // open resume stream so the card updates per agent transition.
+            dataStream: { write: (chunk: unknown) => emitChunk(chunk as Record<string, unknown>) } as never,
+            userId: userId ?? DEV_USER_ID,
+          })
+        : {}),
+    };
+    for (const p of pendingExecParts) {
+      const toolName = p.toolName ?? String(p.type).slice(5);
+      const def = manualTools[toolName];
+      if (!def?.execute) {
+        continue;
+      }
+      try {
+        const output = await def.execute(p.input ?? {}, { toolCallId: p.toolCallId, messages: [] });
+        resumeOutputs.set(p.toolCallId, output);
+        // Persist + render the result: folds into the seeded tool part (card
+        // settles live) and lands in the accumulator for the final row.
+        emitChunk({ type: "tool-output-available", toolCallId: p.toolCallId, output });
+      } catch (e) {
+        resumeOutputs.set(p.toolCallId, {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        emitChunk({
+          type: "tool-output-available",
+          toolCallId: p.toolCallId,
+          output: { error: e instanceof Error ? e.message : String(e) },
+        });
+      }
+    }
+  };
+  // Model-history construction is DEFERRED for resume requests: it must run
+  // AFTER executeApprovedTools (the synthesis needs the tool outputs in
+  // context). Non-resume requests build eagerly right here, as before.
+  let modelMessages: Awaited<ReturnType<typeof convertToModelMessages>> | undefined;
+  let compactedSummary: string | undefined;
+  const buildModelMessages = async () => {
+  const messagesForConvert = messages.map((m) => {
+    if (m.role !== "assistant" || !Array.isArray(m.parts)) return m;
+    const parts = (m.parts as Array<Record<string, any>>)
+      // approval scaffolding is not model content — never convert it
+      .filter((p) => p?.type !== "tool-approval-request" && p?.type !== "tool-approval-response")
+      .map((p) =>
+        p.toolCallId && resumeOutputs.has(p.toolCallId)
+          ? { ...p, state: "output-available", output: resumeOutputs.get(p.toolCallId) }
+          : p,
+      );
+    return { ...m, parts };
+  }) as typeof messages;
+  modelMessages = await convertToModelMessages(messagesForConvert);
   // Orphan tool-call purge: terminated turns can persist an assistant
   // tool-call whose result never arrived; re-sending it 400s with "Tool
   // result is missing for tool call …" and the chat is bricked (2026-09-01).
@@ -494,7 +585,6 @@ export async function POST(request: Request) {
       },
     ) as typeof modelMessages;
   }
-  let compactedSummary: string | undefined;
   if (process.env.LEOPARD_CONTEXT_COMPACT === "1") {
     const contextWindow = modelConfig?.contextWindow ?? 128_000;
     try {
@@ -552,6 +642,9 @@ export async function POST(request: Request) {
     modelMessages,
     getContextBudget(modelConfig?.contextWindow ?? 128_000),
   );
+  };
+  // Non-resume requests build eagerly (no deferred execution to wait for).
+  if (pendingExecParts.length === 0) await buildModelMessages();
 
   // 8. Title gen: only on the first exchange (no assistant turn yet).
   const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
@@ -624,9 +717,18 @@ export async function POST(request: Request) {
         .filter(
           (p) =>
             typeof p?.type === "string" &&
+            p.type !== "tool-approval-request" && // matches startsWith("tool-")! Seeding it dangles the resumed stream ("Tool call not found for approval request").
+            p.type !== "tool-approval-response" &&
             (p.type.startsWith("tool-") || p.type === "dynamic-tool"),
         )
-        .map((p) => ({ ...p, state: "approval-responded" }));
+        .map((p) => {
+          const out = resumeOutputs.get((p as { toolCallId?: string }).toolCallId ?? "");
+          // Tools already executed above land as output-available (card +
+          // model both read the result); the rest stay approval-responded.
+          return out !== undefined
+            ? { ...p, state: "output-available", output: out }
+            : { ...p, state: "approval-responded" };
+        });
       const genCtrl = createGenerationController(assistantId);
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
@@ -742,7 +844,38 @@ export async function POST(request: Request) {
         const approveOn =
           supportsTools && approvalEnabled && (approvalRules.length > 0 || !approveAll);
 
+        // Φ-approval-resume: on a resume POST the user ALREADY decided — the
+        // SDK re-invokes the tool and would ask AGAIN (the approval-request
+        // part was never persisted, so the fresh gate also dangles the
+        // live-mirror with an unknown toolCallId → "Tool call not found for
+        // approval request"). Auto-approve exactly the tools the user just
+        // decided on (2026-09-01).
+        const resumedApprovedTools = new Set(
+          (approvalMsg?.parts ?? [])
+            .filter(
+              (p) =>
+                typeof p?.type === "string" &&
+                (p.type.startsWith("tool-") || p.type === "dynamic-tool") &&
+                (p as { state?: string }).state === "approval-responded",
+            )
+            .map((p) => {
+              const part = p as { toolName?: string; type?: string };
+              // wire parts may lack toolName — derive from the type suffix
+              // ("tool-spawn_agents" → "spawn_agents").
+              if (part.toolName) return part.toolName;
+              const t = part.type ?? "";
+              return t.startsWith("tool-") &&
+                t !== "tool-approval-request" &&
+                t !== "tool-approval-response"
+                ? t.slice(5)
+                : undefined;
+            })
+            .filter((n): n is string => typeof n === "string" && n.length > 0),
+        );
         const toolApprovalDecision = (toolName: string | undefined): "approved" | "denied" | "user-approval" => {
+          if (isApprovalResume && toolName && resumedApprovedTools.has(toolName)) {
+            return "approved";
+          }
           const d = resolveApproval(
             toolName ?? "",
             approvalRules,
@@ -791,7 +924,10 @@ export async function POST(request: Request) {
           return decision;
         };
 
-        buildStream = () => {
+        buildStream = async () => {
+          // Resume requests deferred the history build until the approved
+          // tools executed (prelude) — their outputs must be in context.
+          if (pendingExecParts.length > 0 && !modelMessages) await buildModelMessages();
           const attemptModel = fallbackModels[Math.min(attemptIndex, fallbackModels.length - 1)];
           attemptIndex += 1;
           actualModel = attemptModel;
@@ -822,7 +958,7 @@ export async function POST(request: Request) {
           // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
           styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),
         }),
-        messages: modelMessages,
+        messages: modelMessages!,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
         // 2026-07. 16384 fits within the smallest model context and matches
@@ -948,6 +1084,15 @@ export async function POST(request: Request) {
         seedToolParts,
         abortController: genCtrl,
         settleTimeoutMs: maxDuration * 1000,
+        // Φ-approval-resume: run the approved tools AFTER the SSE opened and
+        // the seeded tool parts went out (card live instantly) but BEFORE the
+        // synthesis stream starts. Orchestration snapshots stream through the
+        // same emit path, so the Subagents card updates per agent.
+        prelude: pendingExecParts.length
+          ? async (emitChunk) => {
+              await executeApprovedTools(emitChunk);
+            }
+          : undefined,
       });
       const unsubGen = gen.subscribe((chunk) => {
         try {
