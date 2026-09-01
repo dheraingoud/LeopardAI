@@ -17,6 +17,10 @@ import { runOrchestration } from "@/lib/ai/agents/orchestrator";
 export type AgentsToolContext = {
   dataStream: UIMessageStreamWriter<ChatMessage>;
   userId?: string;
+  /** Generation abort signal — Stop must cancel running subagents too,
+   *  otherwise the card stays "running" for up to 120s/agent after the
+   *  stream is already dead (observed 2026-09-02: frozen stop state). */
+  abortSignal?: AbortSignal;
 };
 
 const taskSchema = z.object({
@@ -28,10 +32,14 @@ const taskSchema = z.object({
   kind: z
     .enum(["research", "write", "verify", "general"])
     .describe("research = gather sources; write = draft content; verify = check prior outputs; general = anything else"),
-  task: z.string().min(1).max(500).describe("What this agent should do, stated concretely"),
+  // Generous cap — verbose master models (DeepSeek Flash writes 500+ char
+  // briefs) must not fail validation; the orchestrator clips to MAX_TASK on
+  // its side anyway. A hard 500 here killed the whole turn with
+  // AI_TypeValidationError (2026-09-02).
+  task: z.string().min(1).max(2000).describe("What this agent should do, stated concretely"),
 });
 
-export const agentsTools = ({ dataStream, userId }: AgentsToolContext) => ({
+export const agentsTools = ({ dataStream, userId, abortSignal }: AgentsToolContext) => ({
   spawn_agents: tool({
     description:
       "Spawn a small team of subagents (2-4) for a task that genuinely splits " +
@@ -50,6 +58,7 @@ export const agentsTools = ({ dataStream, userId }: AgentsToolContext) => ({
           toolCallId,
           tasks,
           userId,
+          abortSignal,
           emit: (event) => {
             dataStream.write({ type: "data-orchestration", data: event });
           },
