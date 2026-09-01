@@ -70,8 +70,12 @@ amber #ffb400/#d49600); no model names in UI.
   ENQUEUED (message-queue by design) until the mirror clears
   serverStreaming — probe must wait for the follow-up POST, not just a
   ready status (which is already true).
-- [ ] 10. Error UX — forced failure → graceful card + working Retry; chat
-  usable after. (dbg-error-ui, dbg-fail-recover)
+- [x] 10. Error UX — forced failure → graceful card + working Retry; chat
+  usable after. ✅ 2026-09-01 GREEN (dbg-error-ui): blocked /api/chat →
+  "Response interrupted" card + red Retry chip (toast copy via onError
+  noise-mapper), composer stays enabled, unblocked follow-up POSTs and
+  "back online." streams + settles. NB: post-failure resting status is
+  `error`, not `ready` — probes must not waitReady there.
 - [x] 11. Reload persistence — all part types survive reload (text,
   reasoning, tool cards, subagent card). ✅ 2026-09-01 via dbg-orchestrate
   (card + full parts after reload) + dbg-multiturn (text turns).
