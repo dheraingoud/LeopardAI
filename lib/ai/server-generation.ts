@@ -736,7 +736,38 @@ export function backgroundServe(args: {
     );
   }
 
+  // M5: hard settle safety net — a generation that can never settle (e.g. a
+  // tool-approval request whose browser is gone, or a hung upstream) is aborted
+  // after the ceiling so it can't hold the process open forever; partial is then
+  // persisted as completed by the loop's abort branch. The timer is IDLE-based,
+  // not absolute: any emitted chunk (text token, tool event, data-orchestration
+  // snapshot) resets it. Multi-agent runs legitimately stream progress for many
+  // minutes (3 agents × up to 120s each) — an absolute ceiling force-aborted
+  // them mid-orchestration (observed 2026-09-02: "Stopped" card + frozen
+  // composer at exactly 300s). Declared before `emit` — emit touches it, and
+  // the first emit (data-assistant-id) happens immediately below.
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armSettleTimer = () => {
+    settleTimer = setTimeout(() => {
+      if (!settled && !ctrl.signal.aborted) {
+        logWarn(
+          `generation ${assistantId} idle for ${settleTimeoutMs}ms — force-settling`,
+        );
+        try {
+          ctrl.abort();
+        } catch {}
+      }
+    }, settleTimeoutMs);
+  };
+  const touchSettleTimer = () => {
+    if (settled) return;
+    clearTimeout(settleTimer);
+    armSettleTimer();
+  };
+  armSettleTimer();
+
   const emit = (chunk: UIMessageStreamChunk) => {
+    touchSettleTimer();
     // tool-approval-request is a LIVE-ONLY gate signal: the decision is folded
     // into the tool part's state, so replaying the request to a reloaded
     // client (whose DB-seeded parts hold the call as approval-responded)
@@ -822,14 +853,7 @@ export function backgroundServe(args: {
   // after the ceiling so it can't hold the process open forever; partial is then
   // persisted as completed by the loop's abort branch. Declared before `done`
   // (its finally calls clearTimeout) to avoid a TDZ reference.
-  const settleTimer = setTimeout(() => {
-    if (!settled && !ctrl.signal.aborted) {
-      logWarn(`generation ${assistantId} exceeded ${settleTimeoutMs}ms — force-settling`);
-      try {
-        ctrl.abort();
-      } catch {}
-    }
-  }, settleTimeoutMs);
+  // (M5 settle safety net lives above `emit` — idle-based, reset per chunk.)
 
   // True once ANY text / reasoning / tool output landed. Guards the retry gate:
   // a turn that already produced content (or executed tools) is NEVER re-run —

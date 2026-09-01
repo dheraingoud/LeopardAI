@@ -892,7 +892,7 @@ export function ActiveChatProvider({
           title: "New Chat",
           model: currentModelIdRef.current,
         });
-        stashPendingMessage(id, parts);
+        stashPendingMessage(id, parts, currentModelIdRef.current);
         router.replace(`/chat/${id}`);
         return undefined as never;
       })();
@@ -906,9 +906,16 @@ export function ActiveChatProvider({
   useEffect(() => {
     if (isDraft || pendingSentRef.current) return;
     const pending = takePendingMessage(chatId);
-    if (!pending || pending.length === 0) return;
+    if (!pending || pending.parts.length === 0) return;
     pendingSentRef.current = true;
-    void chat.sendMessage({ parts: pending } as never);
+    // Honor the model picked on the draft screen: apply it to state + the ref
+    // BEFORE the send, otherwise the turn fires with the default model.
+    if (pending.model && pending.model !== currentModelIdRef.current) {
+      currentModelIdRef.current = pending.model;
+      setCurrentModelIdState(pending.model);
+      hasSyncedModelRef.current = true; // don't let the chatMeta sync override it
+    }
+    void chat.sendMessage({ parts: pending.parts } as never);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per mount
   }, [isDraft, chatId]);
 
