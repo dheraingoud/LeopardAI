@@ -486,17 +486,36 @@ export async function POST(request: Request) {
   // the client stared at a frozen card with zero live progress. In the
   // prelude the SSE is already open — seeds render instantly and
   // data-orchestration snapshots stream live.
-  const pendingExecParts: Array<Record<string, any>> = approvalMsgEarly
-    ? ((approvalMsgEarly.parts ?? []) as Array<Record<string, any>>).filter(
-        (p) =>
-          typeof p?.type === "string" &&
-          p.type.startsWith("tool-") &&
-          p.type !== "tool-approval-request" &&
-          p.type !== "tool-approval-response" &&
-          p.state === "approval-responded" &&
-          p.output === undefined,
-      )
+  // A part qualifies for execution only when the user actually ALLOWED it.
+  // The wire carries the decision as `approval: { id, approved }` on the tool
+  // part; a Deny must NEVER execute (previously the filter ignored the flag —
+  // clicking Deny ran spawn_agents for minutes anyway, and with no approved
+  // tool the seeds/prelude pairing could leave the stream without a matching
+  // invocation → "No tool invocation found" client error).
+  const isToolPart = (p: Record<string, any>) =>
+    typeof p?.type === "string" &&
+    p.type.startsWith("tool-") &&
+    p.type !== "tool-approval-request" &&
+    p.type !== "tool-approval-response" &&
+    p.state === "approval-responded" &&
+    p.output === undefined;
+  const respondedParts: Array<Record<string, any>> = approvalMsgEarly
+    ? ((approvalMsgEarly.parts ?? []) as Array<Record<string, any>>).filter(isToolPart)
     : [];
+  const pendingExecParts = respondedParts.filter(
+    (p) => (p as { approval?: { approved?: boolean } }).approval?.approved !== false,
+  );
+  // Denied tools: synthesize an error output instead of executing — the model
+  // sees the refusal in context, acknowledges it, and the turn settles. The
+  // seed pass below reads resumeOutputs and marks the part output-available,
+  // so the inline card lands on a denied state rather than hanging forever.
+  for (const p of respondedParts) {
+    if ((p as { approval?: { approved?: boolean } }).approval?.approved === false) {
+      resumeOutputs.set(p.toolCallId, {
+        error: "The user declined this action. Do not retry it.",
+      });
+    }
+  }
   /** Execute the approved tools once, streaming orchestration progress through
    * `emitChunk` (live card) and filling resumeOutputs for the model pass. */
   const executeApprovedTools = async (
