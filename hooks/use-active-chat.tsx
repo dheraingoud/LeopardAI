@@ -114,7 +114,8 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Edit a user message: deletes server rows at-or-after it FIRST (else the
    * live-mirror resurrects them and the edited resend duplicates the old
    * bubble), then truncates local state so the resend starts clean. */
-  editMessage: (messageId: string) => void;
+  /** Truncates at the message; resolves when the server rows are deleted. */
+  editMessage: (messageId: string) => Promise<unknown>;
   /** Edit + immediately resend (truncates, waits for the send gate, sends). */
   editAndResend: (messageId: string, text: string) => void;
   /** True when the latest assistant row is still being written by the
@@ -631,6 +632,7 @@ export function ActiveChatProvider({
   // so once the stream settles, this mirrors parts in place with no duplicate.
   useEffect(() => {
     if (!convexMessages) return;
+    if (editWindowRef.current) return; // edit→delete→resend in flight
     if (chat.status === "streaming" || chat.status === "submitted") return;
     chat.setMessages((prev) => {
       let changed = false;
@@ -702,6 +704,22 @@ export function ActiveChatProvider({
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__chatStatus = chat.status;
   }, [chat.status]);
+
+  // Live status ref for retry loops in callbacks (editAndResend): a setTimeout
+  // chain closes over the chat object from creation time, so `chat.status` in
+  // the closure freezes (was stuck "submitted" forever while the real status
+  // went ready — the resend silently never fired, 2026-09-01 user report).
+  const statusRef = useRef(chat.status);
+  useEffect(() => {
+    statusRef.current = chat.status;
+  }, [chat.status]);
+
+  // Edit window: while an edit→delete→resend is in flight the live-mirror must
+  // NOT run — the mirror only ever adds/updates (never removes), so a row it
+  // re-adds from pre-delete Convex data sticks locally and pollutes the resend
+  // POST (old prompt re-sent alongside the edit, 2026-09-01).
+  const editWindowRef = useRef(false);
+
 
   // ── Stream timing: submit → ready per assistant reply (MessageTiming). ────
   const streamStartRef = useRef<number | null>(null);
@@ -820,18 +838,23 @@ export function ActiveChatProvider({
   // and the server row is final.
   const stopGeneration = useCallback(() => {
       // Only ask the server to abort when we know the detached generation's id
-      // (image-gen has no server row, so local stop alone suffices).
+      // (image-gen has no server row, so local stop alone suffices). RETURNED
+      // so editMessage can order: stop → (abort's partial persist lands) →
+      // delete rows → resend. Fire-and-forget here raced the delete and the
+      // abort's finalize upsert resurrected the old assistant row (2026-09-01).
       const sid = serverAssistantIdRef.current;
-      if (sid) {
-        void fetch("/api/chat/stop", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ assistantId: sid }),
-        }).catch(() => {
-          /* server already settled — local stop still ends the mirror */
-        });
-      }
+      const stopped =
+        sid != null
+          ? fetch("/api/chat/stop", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ assistantId: sid }),
+            }).catch(() => {
+              /* server already settled — local stop still ends the mirror */
+            })
+          : Promise.resolve();
       chat.stop();
+      return stopped;
     },
     [chat.stop],
   );
@@ -915,19 +938,29 @@ export function ActiveChatProvider({
           }
         }
       }
+      // Same ordering as editAndResend: abort the detached generation first and
+      // let its finalize-partial write land BEFORE deleting rows, else the
+      // abort's upsert resurrects the old assistant row after the delete.
+      const stopped = stopGeneration();
       const u = uidRef.current;
-      if (!isDraft && u && convexMessages) {
-        const target = convexMessages.find((m) => m.id === messageId);
-        if (target) {
-          void deleteAfterTimestamp({
-            chatId: convexChatId,
-            timestamp: target.createdAt,
-            userId: u,
-          }).catch(() => {
-            /* cosmetic — worst case the mirror re-adds the stale row */
-          });
-        }
-      }
+      const target =
+        !isDraft && u && convexMessages
+          ? convexMessages.find((m) => m.id === messageId)
+          : undefined;
+      const cleanup = target
+        ? stopped
+            .then(() => new Promise((r2) => setTimeout(r2, 400)))
+            .then(() =>
+              deleteAfterTimestamp({
+                chatId: convexChatId,
+                timestamp: target.createdAt,
+                userId: u!,
+              }),
+            )
+            .catch(() => {
+              /* cosmetic — worst case the mirror re-adds the stale row */
+            })
+        : stopped;
       const r = (
         chat as unknown as {
           regenerate?: (opts?: { messageId?: string }) => void;
@@ -939,18 +972,20 @@ export function ActiveChatProvider({
       // re-sending the last user message, DUPLICATING the turn. Fall back to a
       // bare regenerate (last assistant reply) when the id isn't live.
       const known = chat.messages.some((m) => m.id === messageId);
-      try {
-        if (known) void r({ messageId });
-        else void r();
-      } catch {
+      void cleanup.then(() => {
         try {
-          void r();
+          if (known) void r({ messageId });
+          else void r();
         } catch {
-          toast.error("Couldn't regenerate");
+          try {
+            void r();
+          } catch {
+            toast.error("Couldn't regenerate");
+          }
         }
-      }
+      });
     },
-    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat],
+    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
   );
 
   // ── Edit (user message) with server-row cleanup ───────────────────────────
@@ -964,24 +999,39 @@ export function ActiveChatProvider({
       // under a live stream orphans it: the SDK never sees its finish chunk
       // and status sticks at "streaming", deadlocking the composer. Uses the
       // provider stop (also aborts the detached server generation).
-      stopGeneration();
+      const stopped = stopGeneration();
+      editWindowRef.current = true; // mirror off until the resend fires
       const u = uidRef.current;
+      let deleted: Promise<unknown> = Promise.resolve();
       if (!isDraft && u && convexMessages) {
         const target = convexMessages.find((m) => m.id === messageId);
         if (target) {
-          void deleteAfterTimestamp({
-            chatId: convexChatId,
-            timestamp: target.createdAt,
-            userId: u,
-          }).catch(() => {
-            /* cosmetic — mirror may briefly re-add the stale row */
-          });
+          // AWAITED by editAndResend: truncating local state before the server
+          // rows are gone lets the live-mirror re-add them (mirror never
+          // removes), and a resend fired in that window re-POSTs the old rows
+          // — the route then re-persists them (duplicate bubbles, 2026-09-01).
+          // Also: the abort's finalize-partial write lands just AFTER /stop
+          // responds — deleting before it lets that upsert resurrect the old
+          // assistant row. Stop, breathe 400ms, THEN delete.
+          deleted = stopped
+            .then(() => new Promise((r) => setTimeout(r, 400)))
+            .then(() =>
+              deleteAfterTimestamp({
+                chatId: convexChatId,
+                timestamp: target.createdAt,
+                userId: u,
+              }),
+            )
+            .catch(() => {
+              /* worst case the mirror briefly re-adds the stale row */
+            });
         }
       }
       chat.setMessages((prev) => {
         const idx = prev.findIndex((m) => m.id === messageId);
         return idx >= 0 ? prev.slice(0, idx) : prev;
       });
+      return deleted;
     },
     [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
   );
@@ -991,18 +1041,30 @@ export function ActiveChatProvider({
   // status can lag a tick, so poll the send gate briefly before firing.
   const editAndResend = useCallback(
     (messageId: string, text: string) => {
-      editMessage(messageId);
-      let tries = 0;
-      const attempt = () => {
-        if (chat.status === "streaming" || chat.status === "submitted") {
-          if (++tries < 50) setTimeout(attempt, 100);
-          return;
-        }
-        void sendMessage({ text });
-      };
-      setTimeout(attempt, 0);
+      // Await the server-side row delete: the live-mirror re-adds any row still
+      // present in Convex (it never removes), so truncating local state while
+      // the delete is in flight lets the old rows bounce back — and a resend
+      // fired in that window re-POSTs them (route re-persists → duplicates).
+      // The await also gives React a full network round-trip to apply the
+      // setMessages truncation before we send.
+      void Promise.resolve(editMessage(messageId)).then(() => {
+        let tries = 0;
+        const attempt = () => {
+          // statusRef, NOT chat.status: this closure is from callback-creation
+          // time; the SDK status inside it never advances.
+          const st = statusRef.current;
+          if (st === "streaming" || st === "submitted") {
+            if (++tries < 50) setTimeout(attempt, 100);
+            else editWindowRef.current = false; // give up — mirror back on
+            return;
+          }
+          void sendMessage({ text });
+          editWindowRef.current = false;
+        };
+        setTimeout(attempt, 0);
+      });
     },
-    [editMessage, sendMessage, chat.status],
+    [editMessage, sendMessage],
   );
 
   // Prior reply variants for the turn an assistant message answers (empty when
