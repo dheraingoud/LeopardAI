@@ -79,10 +79,16 @@ async function main() {
   );
   await page.locator('[data-slot="edit-message"] button:has-text("Save")').click();
   await (await editResp).finished();
-  await page.waitForTimeout(1000);
+  // wait until the turn settles — stop button gone — before shooting
+  await page
+    .locator('[aria-label="Stop generating"]')
+    .waitFor({ state: "hidden", timeout: 120_000 })
+    .catch(() => null);
+  await page.waitForTimeout(1500);
   await page.screenshot({ path: "../shots-sweep/08-edit-resend.png" });
 
-  // 6. Sidebar (history) — resize wide shot for layout context
+  // 6. Sidebar (history) — always-on in desktop layout; plain final shot.
+  await page.waitForTimeout(600);
   await page.screenshot({ path: "../shots-sweep/09-sidebar.png" });
 
   await browser.close();
