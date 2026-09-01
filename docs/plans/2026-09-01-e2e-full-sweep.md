@@ -11,11 +11,19 @@ amber #ffb400/#d49600); no model names in UI.
 
 ## Surfaces
 
-- [ ] 1. Empty state — greeting, composer glimmer (subtle, always-on), focus
+- [x] 1. Empty state — greeting, composer glimmer (subtle, always-on), focus
   ring, placeholder; dark + light; desktop + mobile.
-- [ ] 2. Plain text turn — streaming render, settle, markdown (headers,
+  ✅ 2026-09-01 GREEN (dbg-empty-state): both themes — composer + textarea
+  present, glimmer ::before animated AND --composer-glimmer-angle rotates
+  (sampled 2s apart, value changes), no horizontal overflow. Visual review:
+  01-dark/02-light clean (greeting, date, composer pills, sidebar); focus
+  shots show amber ring. Mobile half deferred to surface 15.
+- [x] 2. Plain text turn — streaming render, settle, markdown (headers,
   lists, bold, code block + copy, inline code, LaTeX, mermaid). NO
   post-response suggestion chips (removed 2026-09-01).
+  ✅ 2026-09-01 GREEN (dbg-markdown): h1/strong/li/inline-code/js-pre/KaTeX
+  all render, mermaid → live SVG in .cb-mermaid, ready status reached, no
+  suggestion chips, settled shot reviewed clean.
 - [x] 3. Multi-turn context chain — 3 turns building on each other; reload
   persistence. (dbg-multiturn) ✅ 2026-09-01 GREEN: 3 turns settled,
   markers count-verified, reload persisted (zephyr+noted).
