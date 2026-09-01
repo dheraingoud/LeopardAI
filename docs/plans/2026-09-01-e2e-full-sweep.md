@@ -87,8 +87,10 @@ amber #ffb400/#d49600); no model names in UI.
   reviewed clean (dark + light, current-model checkmark + amber accents).
 - [ ] 14. Composer extras — @mention menu, quote-reply pill, attachments
   UI, send disabled states, feedback (👍/👎 + modal), copy button.
-- [ ] 15. Mobile 390×844 — no horizontal overflow, composer usable, stream
-  settles. (dbg-mobile)
+- [x] 15. Mobile 390×844 — no horizontal overflow, composer usable, stream
+  settles. (dbg-mobile) ✅ 2026-09-01 GREEN: iPhone 13 device, 0px overflow
+  before+after, composer bbox in-view + tap/fill/Enter works, "mobile works."
+  reply settles; 01-empty + 04-settled shots reviewed clean.
 - [ ] 16. Theme toggle — no flash, tokens swap clean.
 - [ ] 17. Auto-scroll — pinned during stream + layout growth
   (ResizeObserver).
