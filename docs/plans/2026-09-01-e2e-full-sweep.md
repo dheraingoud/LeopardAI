@@ -61,8 +61,15 @@ amber #ffb400/#d49600); no model names in UI.
   (editWindowRef). (3) stop's abort-finalize upsert resurrected the old
   assistant row after the delete; fixed: stop → 400ms → delete ordering in
   BOTH editMessage and regenerateMessage.
-- [ ] 9. Stop mid-stream — visible stop glyph, partial content kept,
-  follow-up works. (dbg-stop-recover)
+- [x] 9. Stop mid-stream — visible stop glyph, partial content kept,
+  follow-up works. ✅ 2026-09-01 GREEN (dbg-stop-recover): stop glyph
+  visible, partial kept (400 chars streamed → 127-char finalized partial),
+  follow-up "recovered." streamed + settled, pairs=2. Probe fix (not app
+  bug): post-stop the Convex row still reads `streaming` for a beat
+  (abort→finalize→push), so isStreaming stays true and the follow-up is
+  ENQUEUED (message-queue by design) until the mirror clears
+  serverStreaming — probe must wait for the follow-up POST, not just a
+  ready status (which is already true).
 - [ ] 10. Error UX — forced failure → graceful card + working Retry; chat
   usable after. (dbg-error-ui, dbg-fail-recover)
 - [x] 11. Reload persistence — all part types survive reload (text,
