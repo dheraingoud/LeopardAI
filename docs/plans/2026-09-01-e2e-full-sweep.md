@@ -80,8 +80,11 @@ amber #ffb400/#d49600); no model names in UI.
   reasoning, tool cards, subagent card). ✅ 2026-09-01 via dbg-orchestrate
   (card + full parts after reload) + dbg-multiturn (text turns).
 - [ ] 12. Sidebar — history list, switch chats, new chat; always-on.
-- [ ] 13. Model selector — 8 models, switch, popover styling both themes.
-  (dbg-light-selector)
+- [x] 13. Model selector — 8 models, switch, popover styling both themes.
+  (dbg-light-selector) ✅ 2026-09-01 GREEN: 8 items listed both themes
+  (Kimi K3 / Gemma 4 / DS V4 Flash+Pro / Glimmer / Laguna / Nemotron /
+  DiffusionGemma), switch updates the trigger label, popover shots
+  reviewed clean (dark + light, current-model checkmark + amber accents).
 - [ ] 14. Composer extras — @mention menu, quote-reply pill, attachments
   UI, send disabled states, feedback (👍/👎 + modal), copy button.
 - [ ] 15. Mobile 390×844 — no horizontal overflow, composer usable, stream
