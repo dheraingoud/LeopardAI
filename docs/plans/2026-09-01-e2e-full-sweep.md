@@ -34,8 +34,13 @@ amber #ffb400/#d49600); no model names in UI.
   `isStreaming && !text`; module-level cache keyed by reasoning-text prefix
   survives optimistic→persisted id-swap remount), expand 556 chars,
   collapse ok, effort chip present.
-- [ ] 5. Web search — per-call rows (no group pill), sources row, failure
-  path copy.
+- [x] 5. Web search — per-call rows (no group pill), sources row, failure
+  path copy. ✅ 2026-09-01 GREEN (dbg-websearch): streaming "searching
+  web…" row, settled "Searched the web" + green check, 1 tool row (no
+  group pill), Sources row (6), expand → Request/Result disclosure,
+  no model-name leak outside the model selector. Failure-path copy
+  ("<verb> failed" + red tint) code-verified in ToolCard (resultOk=false
+  branch).
 - [x] 6. Tool approval — Allow executes; Deny never executes + synthesized
   refusal; card resolves <1s; resume synthesis. (dbg-deny / dbg-orchestrate)
   ✅ Allow path verified 2026-09-01 (approval card → click → resume POST).
