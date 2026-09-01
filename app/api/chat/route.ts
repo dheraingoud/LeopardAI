@@ -467,6 +467,33 @@ export async function POST(request: Request) {
 //     Fail-open: any compaction error keeps the FULL history. A folded summary
 //     is broadcast (data-compaction) so the UI can surface it.
   let modelMessages = await convertToModelMessages(messages);
+  // Orphan tool-call purge: terminated turns can persist an assistant
+  // tool-call whose result never arrived; re-sending it 400s with "Tool
+  // result is missing for tool call …" and the chat is bricked (2026-09-01).
+  {
+    const answered = new Set<string>();
+    for (const m of modelMessages) {
+      if (m.role !== "tool") continue;
+      const parts = (m.content ?? []) as Array<{ type: string; toolCallId?: string }>;
+      for (const part of parts) {
+        if (part.type === "tool-result" && part.toolCallId) answered.add(part.toolCallId);
+      }
+    }
+    modelMessages = (modelMessages as Array<{ role: string; content: unknown }>).flatMap(
+      (m) => {
+        if (m.role !== "assistant" || typeof m.content === "string") return [m];
+        const content = (
+          m.content as Array<{ type: string; toolCallId?: string }>
+        ).filter(
+          (part) =>
+            part.type !== "tool-call" ||
+            !part.toolCallId ||
+            answered.has(part.toolCallId),
+        );
+        return content.length === 0 ? [] : [{ ...m, content }];
+      },
+    ) as typeof modelMessages;
+  }
   let compactedSummary: string | undefined;
   if (process.env.LEOPARD_CONTEXT_COMPACT === "1") {
     const contextWindow = modelConfig?.contextWindow ?? 128_000;
