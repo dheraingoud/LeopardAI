@@ -132,6 +132,11 @@ export function getMessageText(message: ChatMessage): string {
 }
 
 /** Concatenate all `reasoning` parts (model thinking). */
+// Session-scoped cache of frozen reasoning durations, keyed by reasoning-text
+// prefix — survives the optimistic→persisted message-id remount so the settled
+// panel keeps "Thought for Ns" (see Message's reasoning tracker).
+const reasoningElapsedCache = new Map<string, number>();
+
 function getMessageReasoning(message: ChatMessage): string {
   return message.parts
     .filter((p) => p.type === "reasoning")
@@ -614,20 +619,32 @@ export const PreviewMessage = memo(function PreviewMessage({
   }, [message?.id]);
   // Reasoning elapsed tracker: start the clock when reasoning first appears,
   // freeze once the answer text begins (or the stream ends) → "Thought for Ns".
+  // The frozen value is stashed in a module-level map keyed by reasoning-text
+  // prefix: the optimistic→persisted message-id swap REMOUNTS this component,
+  // which would otherwise lose the ref/state and fall back to the bare
+  // "Thought process" label after settle.
   const reasoningStartRef = useRef<number | null>(null);
-  const [reasoningMs, setReasoningMs] = useState<number | undefined>(undefined);
+  const [reasoningMs, setReasoningMs] = useState<number | undefined>(
+    () => (reasoning ? reasoningElapsedCache.get(reasoning.slice(0, 64)) : undefined),
+  );
   useEffect(() => {
     if (isUser || !reasoning) {
       reasoningStartRef.current = null;
       return;
     }
-    if (reasoningStartRef.current === null && isStreaming && !text) {
-      reasoningStartRef.current = performance.now();
-      setReasoningMs(undefined);
+    // Start the clock the moment reasoning exists while streaming —
+    // regardless of whether text already arrived. (Old `&& !text` guard
+    // missed fast batches where reasoning+text land in the same render.)
+    if (reasoningStartRef.current === null && isStreaming) {
+      if (reasoningMs === undefined) {
+        reasoningStartRef.current = performance.now();
+      }
       return;
     }
     if (reasoningStartRef.current !== null && (text || !isStreaming)) {
-      setReasoningMs(Math.round(performance.now() - reasoningStartRef.current));
+      const ms = Math.round(performance.now() - reasoningStartRef.current);
+      reasoningElapsedCache.set(reasoning.slice(0, 64), ms);
+      setReasoningMs(ms);
       reasoningStartRef.current = null;
     }
     // reasoningMs intentionally excluded (would loop on every tick).
