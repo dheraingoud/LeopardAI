@@ -35,9 +35,10 @@ export const repairToolCall: ToolCallRepairFunction<any> = async ({
     if (!name || !task) continue;
     const kindRaw = KIND_RE.exec(chunk)?.[1] ?? "general";
     tasks.push({
-      name,
+      // Clip to the schema caps — a repaired call must re-validate.
+      name: name.slice(0, 60),
       kind: KINDS.has(kindRaw) ? kindRaw : "general",
-      task,
+      task: task.slice(0, 2000),
     });
   }
   if (tasks.length === 0) return null;

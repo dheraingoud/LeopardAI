@@ -87,6 +87,7 @@ async function runAgent(
   agent: OrchAgentState,
   priorOutputs: Array<{ name: string; output: string }>,
   modelId: string,
+  abortSignal?: AbortSignal,
 ): Promise<string> {
   const context = priorOutputs.length
     ? "\n\nPrior subagent outputs:\n" +
@@ -103,6 +104,7 @@ async function runAgent(
     tools: { webSearch: webSearch(), webFetch: webFetch({}) },
     stopWhen: stepCountIs(MAX_STEPS),
     maxOutputTokens: 1500,
+    abortSignal,
   });
   let text = first.text.trim();
   if (!text) {
@@ -124,6 +126,7 @@ async function runAgent(
       system,
       prompt: `${prompt}\n\nResearch material already gathered:\n${gathered || "(no usable results)"}\n\nWrite the final output now. No tool calls.`,
       maxOutputTokens: 1500,
+      abortSignal,
     });
     text = second.text.trim();
   }
@@ -141,6 +144,9 @@ export async function runOrchestration(input: {
   tasks: OrchTask[];
   userId?: string;
   modelId?: string;
+  /** Stop/abort signal from the generation controller — cancels in-flight
+   *  subagent calls and skips queued agents so Stop settles immediately. */
+  abortSignal?: AbortSignal;
   emit: (event: OrchestrationEvent) => void;
 }): Promise<OrchAgentState[]> {
   const agents: OrchAgentState[] = input.tasks.slice(0, MAX_AGENTS).map((t) => ({
@@ -163,6 +169,16 @@ export async function runOrchestration(input: {
 
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
+    // Stop hit between agents → mark everything remaining error and bail,
+    // so the card settles instead of hanging "running" forever.
+    if (input.abortSignal?.aborted) {
+      for (const rest of agents.slice(i)) {
+        if (rest.status === "pending") rest.status = "error";
+        rest.note = "stopped";
+      }
+      emit("synthesizing");
+      return agents;
+    }
     agent.status = "running";
     agent.note =
       agent.kind === "research"
@@ -173,10 +189,19 @@ export async function runOrchestration(input: {
     emit("agent");
     try {
       const output = await Promise.race([
-        runAgent(agent, priorOutputs, modelId),
+        runAgent(agent, priorOutputs, modelId, input.abortSignal),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("agent timed out")), AGENT_TIMEOUT_MS),
         ),
+        // Stop during a subagent's model call: reject immediately instead of
+        // waiting out the 120s ceiling (the generateText abortSignal also
+        // fires, but a hung tool inside the loop could ignore it).
+        new Promise<never>((_, reject) => {
+          const sig = input.abortSignal;
+          if (!sig) return;
+          if (sig.aborted) reject(new Error("stopped"));
+          else sig.addEventListener("abort", () => reject(new Error("stopped")), { once: true });
+        }),
       ]);
       agent.output = clip(output, OUTPUT_CAP);
       agent.status = "done";
