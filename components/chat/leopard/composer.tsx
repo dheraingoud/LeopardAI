@@ -68,6 +68,7 @@ function ComposerBar({ className, ...props }: ComponentProps<"div">) {
       data-slot="composer-bar"
       className={cn(
         paper,
+        "composer-glimmer",
         "flex w-full flex-col gap-1 rounded-[28px] p-1.5 transition-shadow",
         "focus-within:ring-1 focus-within:ring-[#ffb400]/40",
         className,

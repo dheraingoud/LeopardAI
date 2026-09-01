@@ -66,6 +66,23 @@ function renderTranscript(
     rows.push(<MessagePair key={pairKey}>{pairNodes}</MessagePair>);
     pairNodes = [];
   };
+  // Φ-multi-agent: ONE AgentRunCard per turn. The approval→resume flow can
+  // leave the spawn_agents tool part on TWO assistant messages (pre-approval
+  // row + resumed row); per-message dedup can't see across messages, so find
+  // the LAST spawn-bearing message here and hide the card on all earlier ones.
+  let lastSpawnIdx = -1;
+  messages.forEach((m, i) => {
+    if (
+      m.role === "assistant" &&
+      m.parts.some(
+        (p) =>
+          p.type === "tool-spawn_agents" ||
+          (p.type === "dynamic-tool" &&
+            (p as { toolName?: string }).toolName === "spawn_agents"),
+      )
+    )
+      lastSpawnIdx = i;
+  });
   messages.forEach((message, index) => {
     const day = dayLabel(firstSeen.get(message.id) ?? 0);
     if (day !== lastDay) {
@@ -87,6 +104,16 @@ function renderTranscript(
         message={message}
         isLast={index === messages.length - 1}
         status={status}
+        hideSpawnCard={
+          lastSpawnIdx !== -1 &&
+          index !== lastSpawnIdx &&
+          message.parts.some(
+            (p) =>
+              p.type === "tool-spawn_agents" ||
+              (p.type === "dynamic-tool" &&
+                (p as { toolName?: string }).toolName === "spawn_agents"),
+          )
+        }
       />,
     );
   });
