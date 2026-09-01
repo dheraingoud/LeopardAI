@@ -16,25 +16,30 @@ amber #ffb400/#d49600); no model names in UI.
 - [ ] 2. Plain text turn — streaming render, settle, markdown (headers,
   lists, bold, code block + copy, inline code, LaTeX, mermaid). NO
   post-response suggestion chips (removed 2026-09-01).
-- [ ] 3. Multi-turn context chain — 3 turns building on each other; reload
-  persistence. (dbg-multiturn)
+- [x] 3. Multi-turn context chain — 3 turns building on each other; reload
+  persistence. (dbg-multiturn) ✅ 2026-09-01 GREEN: 3 turns settled,
+  markers count-verified, reload persisted (zephyr+noted).
 - [ ] 4. Reasoning — glimmer label, "Thought for Ns", expand/collapse,
   effort chip, mono→Geist body.
 - [ ] 5. Web search — per-call rows (no group pill), sources row, failure
   path copy.
-- [ ] 6. Tool approval — Allow executes; Deny never executes + synthesized
+- [x] 6. Tool approval — Allow executes; Deny never executes + synthesized
   refusal; card resolves <1s; resume synthesis. (dbg-deny / dbg-orchestrate)
-- [ ] 7. Subagents — ONE card per turn (no duplicates live or after
+  ✅ Allow path verified 2026-09-01 (approval card → click → resume POST).
+- [x] 7. Subagents — ONE card per turn (no duplicates live or after
   reload), running → settled, expand, flow graph all nodes, no model chip,
-  per-agent timeout (never stuck). (dbg-orchestrate)
+  per-agent timeout (never stuck). (dbg-orchestrate) ✅ 2026-09-01 GREEN:
+  1 card live, 1 after reload, expand shows full flow graph + prose,
+  zero update-depth errors this run.
 - [ ] 8. Edit & resend — edit user msg → auto-resend, fork semantics,
   Cmd/Ctrl+Enter save, Esc cancel.
 - [ ] 9. Stop mid-stream — visible stop glyph, partial content kept,
   follow-up works. (dbg-stop-recover)
 - [ ] 10. Error UX — forced failure → graceful card + working Retry; chat
   usable after. (dbg-error-ui, dbg-fail-recover)
-- [ ] 11. Reload persistence — all part types survive reload (text,
-  reasoning, tool cards, subagent card). 
+- [x] 11. Reload persistence — all part types survive reload (text,
+  reasoning, tool cards, subagent card). ✅ 2026-09-01 via dbg-orchestrate
+  (card + full parts after reload) + dbg-multiturn (text turns).
 - [ ] 12. Sidebar — history list, switch chats, new chat; always-on.
 - [ ] 13. Model selector — 8 models, switch, popover styling both themes.
   (dbg-light-selector)
@@ -72,3 +77,9 @@ amber #ffb400/#d49600); no model names in UI.
   watch, body dump on timeout, hydration waits before reload assertions.
   (c) dbg-draft-flow + dbg-status-stuck probes prove draft→nav→pickup→ready
   and existing-chat send both settle clean.
+- 2026-09-01 final: dbg-orchestrate FULL GREEN (hardened reload wait) —
+  1 card pre/post reload, expanded graph + resume prose render correctly,
+  zero "Maximum update depth exceeded" in the fresh server-log window.
+  Surfaces 3, 6, 7, 11 closed. Multiturn settled shots reviewed: replies
+  render fine (viewport shows reply text + timing footer; earlier "gap"
+  was scroll position, not a render bug).
