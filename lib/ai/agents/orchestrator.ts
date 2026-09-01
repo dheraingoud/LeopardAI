@@ -4,7 +4,7 @@
 // code snippets, artifacts, formatting. When a request splits into parts it
 // calls `spawn_agents` with a small team — each subagent NAMED by its role
 // (e.g. "source scout", "draft writer") — and the orchestrator runs them
-// headless on the utility model (nemotron-lightning).
+// headless on the utility model (UTILITY_MODEL in lib/nim).
 //
 // Subagents are full tool users: they run a bounded agentic loop (generateText
 // + stopWhen) with the app's read-side tools (web search, web fetch) and see
@@ -53,6 +53,10 @@ export interface OrchestrationEvent {
 const MAX_AGENTS = 5;
 const MAX_TASK = 500;
 const MAX_STEPS = 5;
+/** One agent can hang (model stall, upstream outage) — never let it freeze
+ *  the whole run: 120s ceiling, then the agent is marked error and the team
+ *  moves on. The card ALWAYS reaches a settled state. */
+const AGENT_TIMEOUT_MS = 120_000;
 const PRIOR_OUTPUT_CAP = 1500;
 const OUTPUT_CAP = 2500;
 
@@ -142,7 +146,12 @@ export async function runOrchestration(input: {
           : "working";
     emit("agent");
     try {
-      const output = await runAgent(agent, priorOutputs, modelId);
+      const output = await Promise.race([
+        runAgent(agent, priorOutputs, modelId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("agent timed out")), AGENT_TIMEOUT_MS),
+        ),
+      ]);
       agent.output = clip(output, OUTPUT_CAP);
       agent.status = "done";
       agent.note = undefined;
