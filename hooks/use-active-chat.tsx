@@ -23,6 +23,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { getDefaultChatModel, getModelById, isImageModel } from "@/lib/ai/models";
 import type { ReasoningLevel } from "@/lib/nim";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
+import { dropOrphanToolParts } from "@/lib/chat-repair";
 import {
   sanitizeMessageForStorage,
   persistImagesForMessage,
@@ -364,6 +365,14 @@ export function ActiveChatProvider({
       // a concise human toast. Recognized noise → targeted copy; unknown → a
       // generic retry prompt.
       console.error("[chat] stream error:", error);
+      // A failed/terminated turn can leave orphan tool-call parts in state;
+      // they poison the NEXT send ("Tool result is missing for tool call").
+      // Purge immediately so the chat never bricks (2026-09-01).
+      try {
+        chat.setMessages((prev) => dropOrphanToolParts(prev));
+      } catch {
+        /* non-fatal */
+      }
       const raw = String((error as Error)?.message ?? error ?? "");
       const noise: Array<[RegExp, string]> = [
         [/Empty content is not allowed|empty.*(content|response)|AIMessageEmpty/,
