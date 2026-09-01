@@ -52,7 +52,7 @@ export interface OrchestrationEvent {
 
 const MAX_AGENTS = 5;
 const MAX_TASK = 500;
-const MAX_STEPS = 5;
+const MAX_STEPS = 6;
 /** One agent can hang (model stall, upstream outage) — never let it freeze
  *  the whole run: 120s ceiling, then the agent is marked error and the team
  *  moves on. The card ALWAYS reaches a settled state. */
@@ -93,15 +93,41 @@ async function runAgent(
       priorOutputs.map((p) => `### ${p.name}\n${clip(p.output, PRIOR_OUTPUT_CAP)}`).join("\n\n")
     : "";
 
-  const { text } = await generateText({
-    model: getLanguageModel(modelId),
-    system: `${SUBAGENT_SYSTEM}\n\nRole (${agent.kind}): ${KIND_GUIDANCE[agent.kind]}`,
-    prompt: `Task: ${agent.task}${context}`,
+  const system = `${SUBAGENT_SYSTEM}\n\nRole (${agent.kind}): ${KIND_GUIDANCE[agent.kind]}`;
+  const prompt = `Task: ${agent.task}${context}`;
+  const model = getLanguageModel(modelId);
+  const first = await generateText({
+    model,
+    system,
+    prompt,
     tools: { webSearch: webSearch(), webFetch: webFetch({}) },
     stopWhen: stepCountIs(MAX_STEPS),
     maxOutputTokens: 1500,
   });
-  return text.trim();
+  let text = first.text.trim();
+  if (!text) {
+    // The model spent every step on tool calls (finishReason tool-calls) and
+    // produced NO text — forcing toolChoice:"none" mid-loop doesn't help
+    // either (the model just rambles its "thinking process" as text). Run a
+    // dedicated tools-free pass over the gathered results (2026-09-01).
+    const gathered = first.steps
+      .flatMap((s) =>
+        (s.toolResults ?? []).map((tr) => {
+          const out = (tr as { output?: unknown }).output;
+          return typeof out === "string" ? out : JSON.stringify(out ?? "");
+        }),
+      )
+      .join("\n\n")
+      .slice(0, 6000);
+    const second = await generateText({
+      model,
+      system,
+      prompt: `${prompt}\n\nResearch material already gathered:\n${gathered || "(no usable results)"}\n\nWrite the final output now. No tool calls.`,
+      maxOutputTokens: 1500,
+    });
+    text = second.text.trim();
+  }
+  return text;
 }
 
 /**

@@ -674,6 +674,12 @@ export function backgroundServe(args: {
   /** Tool parts carried over from the persisted row on an approval-resume —
    * the placeholder write would otherwise wipe them (card gone on reload). */
   seedToolParts?: Array<Record<string, unknown>>;
+  /** Runs once at generation start — after the seed parts are emitted, before
+   * the first stream attempt. Approval-resume uses it to execute the approved
+   * tools live: chunks it emits (data-orchestration progress,
+   * tool-output-available) go to the bus AND the accumulator, so the card
+   * updates in real time and the outputs persist. */
+  prelude?: (emit: (chunk: UIMessageStreamChunk) => void) => Promise<void>;
   /** The controller driving this generation (see createGenerationController). */
   abortController: AbortController;
   /** Hard ceiling before a stuck generation is force-persisted + aborted. */
@@ -731,13 +737,47 @@ export function backgroundServe(args: {
   }
 
   const emit = (chunk: UIMessageStreamChunk) => {
-    if (replay.length < REPLAY_CAP) replay.push(chunk);
+    // tool-approval-request is a LIVE-ONLY gate signal: the decision is folded
+    // into the tool part's state, so replaying the request to a reloaded
+    // client (whose DB-seeded parts hold the call as approval-responded)
+    // throws ToolCallNotFoundForApprovalError in the SDK transform. Keep it
+    // out of the replay log; live subscribers still receive it below.
+    if (chunk.type !== "tool-approval-request" && replay.length < REPLAY_CAP)
+      replay.push(chunk);
     bus.emit("chunk", chunk);
   };
 
   // M8: the server id is a control signal — mark transient so the client never
   // folds it into message.parts (and it never round-trips into model history).
   emit({ type: "data-assistant-id", data: assistantId, transient: true });
+
+  // Approval-resume: seeded tool parts live only in the accumulator (DB +
+  // replay) — the LIVE client never sees them unless they go out as protocol
+  // chunks, so the resumed Subagents/tool card didn't render until reload.
+  // Emit them as tool-input-available (+ tool-output-available when the
+  // resume already executed the tool) so the card appears live.
+  for (const seeded of args.seedToolParts ?? []) {
+    const toolCallId = (seeded as { toolCallId?: string }).toolCallId;
+    if (!toolCallId) continue;
+    const toolName =
+      (seeded as { toolName?: string }).toolName ??
+      String((seeded as { type?: string }).type ?? "").replace(/^tool-/, "");
+    emit({
+      type: "tool-input-available",
+      toolCallId,
+      toolName,
+      input: (seeded as { input?: unknown }).input,
+    } as UIMessageStreamChunk);
+    const out = (seeded as { output?: unknown }).output;
+    const st = (seeded as { state?: string }).state;
+    if (st === "output-available" && out !== undefined) {
+      emit({
+        type: "tool-output-available",
+        toolCallId,
+        output: out,
+      } as UIMessageStreamChunk);
+    }
+  }
 
   // Throttled progressive patch.
   let unpersisted = 0;
@@ -868,6 +908,21 @@ export function backgroundServe(args: {
 
   const done = (async () => {
     try {
+      // Approval-resume tool execution (and any other pre-stream work) — runs
+      // after the seed chunks went out, before the first streamText attempt.
+      // Emitted chunks persist via the accumulator AND stream to the client.
+      if (args.prelude) {
+        try {
+          await args.prelude((c) => {
+            acc.push(c);
+            emit(c);
+          });
+        } catch (preludeErr) {
+          // A failed prelude must not kill the turn: log + continue into the
+          // synthesis stream (the model sees the tool error in its history).
+          logWarn("prelude failed", preludeErr);
+        }
+      }
       if (!makeResult) {
         emit({ type: "error", errorText: "missing generation source" });
         await finalizePartial();

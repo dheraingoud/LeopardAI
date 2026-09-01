@@ -311,6 +311,75 @@ export function ActiveChatProvider({
     () =>
       new DefaultChatTransport<ChatMessage>({
         api: "/api/chat",
+        // Φ-guard (2026-09-01): drop `tool-approval-request` chunks whose
+        // toolCallId was never seen (stale chunk from a retried/duplicated
+        // server attempt). The SDK hard-throws on them ("Tool call … not
+        // found for approval request"), killing the stream mid-turn. Known
+        // ids = every tool part in the outgoing history + every tool chunk
+        // seen earlier in THIS response.
+        fetch: (async (url: RequestInfo | URL, options?: RequestInit) => {
+          const known = new Set<string>();
+          try {
+            const body = JSON.parse(String(options?.body ?? "{}")) as {
+              messages?: Array<{ parts?: Array<{ toolCallId?: string }> }>;
+            };
+            for (const m of body.messages ?? [])
+              for (const p of m.parts ?? [])
+                if (typeof p?.toolCallId === "string") known.add(p.toolCallId);
+          } catch {
+            /* body parse is best-effort */
+          }
+          const res = await fetch(url, options);
+          const ct = res.headers.get("content-type") ?? "";
+          if (!res.body || !ct.includes("text/event-stream")) return res;
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          const encoder = new TextEncoder();
+          const filtered = new ReadableStream<Uint8Array>({
+            async start(controller) {
+              let buf = "";
+              for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const lines = buf.split("\n");
+                buf = lines.pop() ?? "";
+                for (const line of lines) {
+                  if (line.startsWith("data:")) {
+                    try {
+                      const chunk = JSON.parse(line.slice(5).trim()) as {
+                        type?: string;
+                        toolCallId?: string;
+                      };
+                      if (
+                        typeof chunk.toolCallId === "string" &&
+                        chunk.type !== "tool-approval-request"
+                      )
+                        known.add(chunk.toolCallId);
+                      if (
+                        chunk.type === "tool-approval-request" &&
+                        typeof chunk.toolCallId === "string" &&
+                        !known.has(chunk.toolCallId)
+                      ) {
+                        continue; // drop the dangling chunk
+                      }
+                    } catch {
+                      /* unparseable line passes through */
+                    }
+                  }
+                  controller.enqueue(encoder.encode(line + "\n"));
+                }
+              }
+              if (buf) controller.enqueue(encoder.encode(buf));
+              controller.close();
+            },
+          });
+          return new Response(filtered, {
+            status: res.status,
+            statusText: res.statusText,
+            headers: res.headers,
+          });
+        }) as typeof fetch,
         prepareSendMessagesRequest: ({ id, messages }) => ({
           body: {
             id,
@@ -365,13 +434,16 @@ export function ActiveChatProvider({
       // a concise human toast. Recognized noise → targeted copy; unknown → a
       // generic retry prompt.
       console.error("[chat] stream error:", error);
-      // A failed/terminated turn can leave orphan tool-call parts in state;
-      // they poison the NEXT send ("Tool result is missing for tool call").
-      // Purge immediately so the chat never bricks (2026-09-01).
-      try {
-        chat.setMessages((prev) => dropOrphanToolParts(prev));
-      } catch {
-        /* non-fatal */
+      // Orphan tool parts (terminated mid-call) poison the NEXT send with
+      // "Tool result is missing for tool call". Purge ONLY on that exact
+      // failure — purging eagerly can race a landing approval-request part
+      // and dangle it ("Tool call not found for approval request").
+      if (/Tool result is missing for tool call/i.test(String((error as Error)?.message ?? error ?? ""))) {
+        try {
+          chat.setMessages((prev) => dropOrphanToolParts(prev));
+        } catch {
+          /* non-fatal */
+        }
       }
       const raw = String((error as Error)?.message ?? error ?? "");
       const noise: Array<[RegExp, string]> = [
