@@ -965,8 +965,25 @@ export function backgroundServe(args: {
         try {
           r = await makeResult();
         } catch (err) {
+          // A construction-time throw (e.g. upstream 400 surfaced eagerly) is a
+          // content-free failure too — run it through the SAME retry/fallback
+          // path as an in-stream error instead of dying on attempt 1.
           outcome = { error: errMsg(err) };
-          break;
+          if (ctrl.signal.aborted) {
+            generationAborted = true;
+            await finalizePartial();
+            return;
+          }
+          if (attempt >= maxAttempts) break;
+          if (retryPredicate && !retryPredicate(outcome.error ?? "")) break;
+          emit({
+            type: "data-retry",
+            data: { attempt, maxRetries: maxAttempts - attempt, delayMs: retryBackoffMs },
+            transient: true,
+          });
+          await new Promise((res) => setTimeout(res, retryBackoffMs * attempt));
+          attempt += 1;
+          continue;
         }
         lastResult = r;
         outcome = await driveAttempt(r);
