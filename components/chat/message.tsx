@@ -1007,12 +1007,16 @@ export const PreviewMessage = memo(function PreviewMessage({
     const trimmed = editDraft.trim();
     setEditing(false);
     if (!trimmed || trimmed === text) return;
-    // Edit → auto-resend (no "press Enter" detour — operator 2026-09-01).
-    try {
-      chat.editAndResend?.(message.id, trimmed);
-    } catch {
-      toast.error("Couldn't resend the edited message");
-    }
+    // Defer one tick: if the edit-UI model picker just changed the model, the
+    // currentModelIdRef syncs in an effect AFTER this commit — sending in the
+    // same tick would resend on the STALE model (same race as pickRegenModel).
+    setTimeout(() => {
+      try {
+        chat.editAndResend?.(message.id, trimmed);
+      } catch {
+        toast.error("Couldn't resend the edited message");
+      }
+    }, 50);
   };
 
   // Registry text models for the RegenerateMenu "Retry with…" list.
@@ -1080,6 +1084,9 @@ export const PreviewMessage = memo(function PreviewMessage({
               onValueChange={setEditDraft}
               onSave={saveEdit}
               onCancel={() => setEditing(false)}
+              models={regenOptions.map((o) => ({ id: o.id, label: o.label }))}
+              currentModelId={chat.currentModelId}
+              onModelChange={(id) => chat.setCurrentModel(id)}
             />
           ) : (
             // Clone-style user bubble (filled, rounded) in leopard tokens.

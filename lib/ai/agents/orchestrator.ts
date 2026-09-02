@@ -105,6 +105,7 @@ async function runAgent(
   priorOutputs: Array<{ name: string; output: string }>,
   modelId: string,
   abortSignal?: AbortSignal,
+  onActivity?: (note: string) => void,
 ): Promise<string> {
   const context = priorOutputs.length
     ? "\n\nPrior subagent outputs:\n" +
@@ -122,6 +123,25 @@ async function runAgent(
     stopWhen: stepCountIs(MAX_STEPS),
     maxOutputTokens: 1500,
     abortSignal,
+    // Live activity for the card: every step surfaces WHAT the agent is doing
+    // — "searching: <query>", "fetching: <url>", or "writing" — not just the
+    // static kind hint (operator 2026-09-02).
+    onStepFinish: (step) => {
+      const calls = (step.toolCalls ?? []) as Array<{ toolName?: string; input?: unknown }>;
+      const last = calls[calls.length - 1];
+      if (!last) {
+        if (step.text?.trim()) onActivity?.("writing");
+        return;
+      }
+      const input = (last.input ?? {}) as Record<string, unknown>;
+      const target =
+        (typeof input.url === "string" && input.url) ||
+        (typeof input.query === "string" && input.query) ||
+        "";
+      const verb =
+        last.toolName === "webSearch" ? "searching" : last.toolName === "webFetch" ? "fetching" : `using ${last.toolName ?? "tool"}`;
+      onActivity?.(target ? `${verb}: ${clip(target, 60)}` : verb);
+    },
   });
   let text = first.text.trim();
   if (!text) {
@@ -206,7 +226,10 @@ export async function runOrchestration(input: {
     emit("agent");
     try {
       const output = await Promise.race([
-        runAgent(agent, priorOutputs, modelId, input.abortSignal),
+        runAgent(agent, priorOutputs, modelId, input.abortSignal, (note) => {
+          agent.note = note;
+          emit("agent");
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("agent timed out")), AGENT_TIMEOUT_MS),
         ),

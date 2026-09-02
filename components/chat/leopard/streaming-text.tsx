@@ -26,6 +26,7 @@ import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
 import DOMPurify from "dompurify";
 import { MathBlock } from "./math-block";
+import { FlowGraph, type FlowEdge, type FlowNode } from "./flow-graph";
 import { TerminalBlock } from "./terminal-block";
 import { CitationLink } from "./inline-citation";
 import { BarChart, parseChartSpec } from "./chart";
@@ -205,6 +206,13 @@ function PreBlock({
 
   if (lang === "mermaid" || lang === "diagram") {
     return <MermaidBlock code={text} streaming={streaming} />;
+  }
+
+  // `flow` fence — leopard's own node/edge DSL, rendered by the same FlowGraph
+  // the subagent card used before (moved out of the card 2026-09-02). Mermaid
+  // keeps `mermaid`/`diagram`; `flow` NEVER routes there — no clash.
+  if (lang === "flow" || lang === "flowgraph") {
+    return <FlowBlock code={text} />;
   }
 
   if (lang === "math" || lang === "latex" || lang === "tex") {
@@ -450,6 +458,128 @@ function SvgBlock({ code }: { code: string }) {
 // SVG; failed FINAL code shows a quiet "view source" fallback; error graphics
 // mermaid appends to <body> are purged; wide diagrams render at natural size
 // in a horizontal scroll container.
+// Flow fence DSL: one edge per line `from -> to`, optional node state suffix
+// `name[done|active|pending]`. Columns assigned by BFS depth from the roots,
+// rows = order within a column. Empty/unparseable input falls back to source.
+function FlowBlock({ code }: { code: string }) {
+  const [mode, setMode] = useState<"graph" | "code">("graph");
+  const parsed = useMemo(() => {
+    const stateOf = new Map<string, FlowNode["state"]>();
+    const edges: FlowEdge[] = [];
+    for (const rawLine of code.split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("//") || line.startsWith("#")) continue;
+      const m = /^(.+?)\s*->\s*(.+)$/.exec(line);
+      const readNode = (s: string): string => {
+        const sm = /^(.*?)\[(done|active|pending)\]\s*$/.exec(s.trim());
+        if (sm) {
+          stateOf.set(sm[1].trim(), sm[2] as FlowNode["state"]);
+          return sm[1].trim();
+        }
+        return s.trim();
+      };
+      if (m) {
+        const from = readNode(m[1]);
+        const to = readNode(m[2]);
+        if (from && to) edges.push({ from, to });
+      } else {
+        readNode(line); // bare node line — may still carry a [state]
+      }
+    }
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const e of edges) {
+      for (const id of [e.from, e.to]) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          ids.push(id);
+        }
+      }
+    }
+    for (const id of stateOf.keys()) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+    if (!ids.length) return null;
+    // BFS layering: roots = never a target; depth → column, order → row.
+    const targets = new Set(edges.map((e) => e.to));
+    const depth = new Map<string, number>();
+    const queue = ids.filter((id) => !targets.has(id));
+    for (const id of queue) depth.set(id, 0);
+    let guard = 0;
+    while (queue.length && guard++ < 1000) {
+      const cur = queue.shift()!;
+      const d = depth.get(cur) ?? 0;
+      for (const e of edges) {
+        if (e.from !== cur) continue;
+        if ((depth.get(e.to) ?? -1) < d + 1) {
+          depth.set(e.to, d + 1);
+          queue.push(e.to);
+        }
+      }
+    }
+    const perColumn = new Map<number, number>();
+    const nodes: FlowNode[] = ids.map((id) => {
+      const column = depth.get(id) ?? 0;
+      const row = perColumn.get(column) ?? 0;
+      perColumn.set(column, row + 1);
+      return { id, label: id, column, row, state: stateOf.get(id) ?? "done" };
+    });
+    return { nodes, edges };
+  }, [code]);
+
+  if (mode === "code" || !parsed) {
+    return (
+      <PreShell lang="flow" copyText={code} longBlock={false}>
+        <pre className="cb-plain">
+          <code>{code}</code>
+        </pre>
+        {parsed && (
+          <div
+            className="cb-mermaid-chrome cb-mermaid-chrome-left"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label="View rendered flow graph"
+              className="cb-mermaid-btn"
+              onClick={() => setMode("graph")}
+            >
+              render
+            </button>
+          </div>
+        )}
+      </PreShell>
+    );
+  }
+
+  return (
+    <PreShell lang="flow" copyText={code} longBlock={false}>
+      <FlowGraph
+        nodes={parsed.nodes}
+        edges={parsed.edges}
+        visibleCount={parsed.nodes.length}
+        className="border-transparent bg-transparent p-0 shadow-none backdrop-blur-none dark:bg-none light:bg-none"
+      />
+      <div
+        className="cb-mermaid-chrome cb-mermaid-chrome-left"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="View flow source"
+          className="cb-mermaid-btn"
+          onClick={() => setMode("code")}
+        >
+          source
+        </button>
+      </div>
+    </PreShell>
+  );
+}
+
 function MermaidBlock({ code, streaming }: { code: string; streaming: boolean }) {
   const rawId = useId();
   const id = `mmd-${rawId.replace(/[^a-zA-Z0-9-]/g, "")}`;

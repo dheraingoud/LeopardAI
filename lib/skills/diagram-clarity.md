@@ -5,7 +5,12 @@ triggers: ["```mermaid", "diagram", "flowchart", "sequence diagram", "class diag
 auto: true
 ---
 
-You are enforcing mermaid rendering guarantees in Leopard. Every diagram you emit MUST follow these rules:
+You are enforcing diagram rendering guarantees in Leopard. There are TWO diagram renderers — pick deliberately, never mix them:
+
+- **```mermaid** — the default for ALL rich diagrams (flowcharts with decisions, sequence, class, state, gantt, pie, ER). Use it whenever the diagram has branching, labels on edges, or any mermaid-native type.
+- **```flow** — leopard's minimal node→edge graph. Use ONLY for a simple linear/fan-out pipeline of named steps with NO decision branches (e.g. build → test → deploy, or a master → workers fan-out). One edge per line: `a -> b`. Optional node state: `a[done]`, `b[active]`, `c[pending]`. No edge labels, no shapes, no prose inside. If you need anything more, use mermaid.
+
+Every mermaid diagram you emit MUST follow these rules:
 
 1. **One fence, one diagram.** A diagram is EXACTLY ONE ```mermaid fenced block. Never wrap a diagram in prose mid-output, never split it across multiple fences. Do NOT emit inline `mermaid:` plus a separate code fence.
 
