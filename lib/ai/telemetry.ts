@@ -78,8 +78,16 @@ export function chatUsageTelemetry(opts?: {
       try {
         const input = event.usage.inputTokens ?? 0;
         const output = event.usage.outputTokens ?? 0;
-        const parts = event.content as unknown as Array<{ type?: string; name?: string }>;
-        const tools = parts.filter((p) => p.type === "tool-call").map((p) => p.name ?? "?");
+        // v6 tool-call content parts name the tool in `toolName` (older SDKs
+        // used `name`) — read both so the log never degrades to "?".
+        const parts = event.content as unknown as Array<{
+          type?: string;
+          toolName?: string;
+          name?: string;
+        }>;
+        const tools = parts
+          .filter((p) => p.type === "tool-call")
+          .map((p) => p.toolName ?? p.name ?? "?");
         console.log(
           "[usage] llm-end " +
             JSON.stringify({
