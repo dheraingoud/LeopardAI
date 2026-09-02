@@ -14,6 +14,9 @@ export function EditMessage({
   onSave,
   onCancel,
   className,
+  models,
+  currentModelId,
+  onModelChange,
 }: {
   value: string;
   discardedReplies: number;
@@ -21,6 +24,10 @@ export function EditMessage({
   onSave?: () => void;
   onCancel?: () => void;
   className?: string;
+  /** Slim model picker (operator 2026-09-02): resend on a different model. */
+  models?: Array<{ id: string; label: string }>;
+  currentModelId?: string;
+  onModelChange?: (id: string) => void;
 }) {
   return (
     <div
@@ -62,6 +69,23 @@ export function EditMessage({
       )}
 
       <div className="flex items-center justify-end gap-2">
+        {models && models.length > 1 && (
+          <select
+            aria-label="Model for the resent message"
+            value={currentModelId}
+            onChange={(event) => onModelChange?.(event.target.value)}
+            className={cn(
+              mono,
+              "mr-auto h-8 cursor-pointer rounded-full border border-foreground/[0.08] bg-transparent px-2.5 text-[11px] dark:text-[#a3a3a3] light:text-[#525252] outline-none transition-colors hover:border-foreground/20 focus-visible:border-[#ffb400]/50 [&>option]:bg-background",
+            )}
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           onClick={onCancel}

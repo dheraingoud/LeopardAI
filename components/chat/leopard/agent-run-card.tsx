@@ -13,7 +13,6 @@ import { useState } from "react";
 import { BotIcon, CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "./surfaces";
-import { FlowGraph, type FlowNode } from "./flow-graph";
 
 export interface AgentRunAgent {
   name: string;
@@ -49,32 +48,6 @@ const KIND_CHIP: Record<AgentRunAgent["kind"], string> = {
   verify: "verify",
   general: "task",
 };
-
-/** Fan-out DAG: master node → one node per agent. Agents reveal as they start. */
-function flowOf(run: AgentRunState): {
-  nodes: FlowNode[];
-  edges: { from: string; to: string }[];
-  visible: number;
-} {
-  const mid = (run.agents.length - 1) / 2;
-  const nodes: FlowNode[] = [
-    { id: "master", label: "master", column: 0, row: mid, state: run.done ? "done" : "active" },
-    ...run.agents.map((a, i): FlowNode => {
-      const state =
-        a.status === "done" || a.status === "error"
-          ? "done"
-          : a.status === "running"
-            ? "active"
-            : "pending";
-      return { id: a.name, label: a.name, column: 1, row: i, state };
-    }),
-  ];
-  // All nodes always visible — hiding pending agents left the master floating
-  // in an empty box with dangling edges (operator screenshot 2026-09-01).
-  const visible = nodes.length;
-  const edges = run.agents.map((a) => ({ from: "master", to: a.name }));
-  return { nodes, edges, visible };
-}
 
 export function AgentRunCard({ run, className }: { run: AgentRunState; className?: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -136,20 +109,10 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
         ))}
       </div>
 
-      {/* Expanded body: fan-out DAG + flat agent list. */}
+      {/* Expanded body: flat agent list with live activity notes. The fan-out
+          DAG moved to chat as a `flow` fence renderer (operator 2026-09-02). */}
       {expanded && (
         <div className="border-foreground/[0.07] fade-in slide-in-from-top-1 animate-in flex flex-col gap-0.5 border-t pt-2 duration-300">
-          {(() => {
-            const { nodes, edges, visible } = flowOf(run);
-            return (
-              <FlowGraph
-                nodes={nodes}
-                edges={edges}
-                visibleCount={visible}
-                className="border-transparent bg-transparent p-0 shadow-none backdrop-blur-none dark:bg-none light:bg-none"
-              />
-            );
-          })()}
           {run.agents.map((a) => (
             <div key={a.name} className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5">
               <span
