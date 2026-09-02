@@ -1,7 +1,7 @@
 // @ts-nocheck — probe: send on an EXISTING chat, watch __chatStatus transitions.
 import { chromium } from "playwright";
 
-const CHAT = process.argv[2] ?? "j57eybbrm6sdc6eyw1wxtacd458dkjaw";
+const CHAT = process.argv[2]; // optional existing chat id; default = fresh /chat
 
 async function main() {
   const browser = await chromium.launch();
@@ -17,7 +17,7 @@ async function main() {
     if (r.url().includes("/api/chat")) console.log("[resp]", r.status(), r.url());
   });
 
-  await page.goto(`http://localhost:3001/chat/${CHAT}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`http://localhost:3001/chat${CHAT ? `/${CHAT}` : ""}`, { waitUntil: "domcontentloaded" });
   await page
     .waitForFunction(() => (document.body?.innerText ?? "").length > 300, undefined, { timeout: 60_000 })
     .catch(() => {});
@@ -32,6 +32,7 @@ async function main() {
   }, 3000);
 
   const input = page.locator('[data-slot="composer-bar"] textarea');
+  await input.waitFor({ timeout: 60_000 });
   await input.click();
   await input.fill("Reply with exactly: pong");
   await page.keyboard.press("Enter");
