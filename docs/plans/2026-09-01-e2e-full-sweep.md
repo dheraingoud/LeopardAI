@@ -88,8 +88,12 @@ amber #ffb400/#d49600); no model names in UI.
   (Kimi K3 / Gemma 4 / DS V4 Flash+Pro / Glimmer / Laguna / Nemotron /
   DiffusionGemma), switch updates the trigger label, popover shots
   reviewed clean (dark + light, current-model checkmark + amber accents).
-- [ ] 14. Composer extras — @mention menu, quote-reply pill, attachments
+- [x] 14. Composer extras — @mention menu, quote-reply pill, attachments
   UI, send disabled states, feedback (👍/👎 + modal), copy button.
+  ✅ 2026-09-02 GREEN (dbg-composer-extras 17/17). Fixes landed en route:
+  attachment fallback blob:→data: (blob: killed the whole turn server-side),
+  feedback dialog role=dialog + Escape close, clipboard writes guarded.
+  Probe bugs fixed: menu portal left open, ready-wait raced the run start.
 - [x] 15. Mobile 390×844 — no horizontal overflow, composer usable, stream
   settles. (dbg-mobile) ✅ 2026-09-01 GREEN: iPhone 13 device, 0px overflow
   before+after, composer bbox in-view + tap/fill/Enter works, "mobile works."
@@ -97,10 +101,17 @@ amber #ffb400/#d49600); no model names in UI.
 - [x] 16. Theme toggle — no flash, tokens swap clean. (dbg-sidebar)
   ✅ 2026-09-02 GREEN: dark→light flip swaps html class (dark→light) AND
   body bg (rgb(10,9,7)→rgb(250,248,241)); persists across full reload.
-- [ ] 17. Auto-scroll — pinned during stream + layout growth
-  (ResizeObserver).
-- [ ] 18. Full dark sweep + light sweep regression. (dbg-visual-sweep,
-  dbg-visual-sweep-light)
+- [x] 17. Auto-scroll — pinned during stream + layout growth.
+  ✅ 2026-09-02 GREEN (dbg-auto-scroll 4/4): run-start re-pin, wheel-up
+  disengages mid-stream (user-intent listeners fix the scroll-event race),
+  settle preserves position, next send re-pins. Bonus kills: renderText
+  per-token state → "Maximum update depth exceeded" turn crash (now
+  placeholder-gated + useChat experimental_throttle 100ms); slow title
+  model no longer holds the stream open (detached title persist).
+- [x] 18. Full dark sweep + light sweep regression. (dbg-visual-sweep,
+  dbg-visual-sweep-light) ✅ 2026-09-02 GREEN: both sweeps ran clean,
+  settled shots reviewed (dark + light: reply, actions, sources, sidebar,
+  model selector all correct).
 
 ## Log
 
