@@ -11,7 +11,14 @@ const BASE = "http://localhost:3001";
 const SHOTS = "C:/Users/HP/leopard-shots/composer-extras";
 const results = {};
 
-async function waitReady(page, timeout = 420_000) {
+async function waitReady(page, timeout = 420_000, awaitRun = true) {
+  // Gate on the run actually starting first — status is "ready" before send,
+  // so a bare ready-wait returns instantly and dumps run mid-flight.
+  if (awaitRun) {
+    await page
+      .waitForFunction(() => window.__chatStatus === "submitted" || window.__chatStatus === "streaming", undefined, { timeout: 30_000 })
+      .catch(() => console.log("[warn] run never left ready"));
+  }
   await page
     .waitForFunction(() => window.__chatStatus === "ready", undefined, { timeout })
     .catch(() => console.log("[warn] status never returned ready"));
@@ -35,7 +42,7 @@ async function main() {
   await page.goto(`${BASE}/chat`, { waitUntil: "domcontentloaded" });
   const input = page.locator('[data-slot="composer-bar"] textarea');
   await input.waitFor({ timeout: 60_000 });
-  await waitReady(page, 120_000);
+  await waitReady(page, 120_000, false);
   await page.waitForTimeout(800);
 
   // ── 1. send disabled empty → enabled with text ─────────────────
@@ -67,17 +74,22 @@ async function main() {
   await page.locator('button[aria-label="Add attachment"]').click();
   await page.waitForTimeout(500);
   await shot(page, "03-plus-menu");
-  // hidden file input on the composer
-  const fileInput = page.locator('[data-slot="composer-bar"] input[type="file"]').last();
-  results.fileInputExists = (await fileInput.count()) > 0;
+  // click the "Attach file" menu item (real flow closes the menu), then set
+  // files on the hidden input it points at
+  const attachItem = page.locator('button:has-text("Attach file")').first();
+  results.fileInputExists = (await page.locator('[data-slot="composer-bar"] input[type="file"]').count()) > 0;
   if (results.fileInputExists) {
+    await attachItem.click().catch(() => {});
+    await page.waitForTimeout(300);
+    const fileInput = page.locator('[data-slot="composer-bar"] input[type="file"]').last();
     await fileInput.setInputFiles("C:/Users/HP/leopard-shots/probe-note.txt");
-    await page.waitForTimeout(900);
+    await page.keyboard.press("Escape"); // safety: close any leftover portal
+    await page.waitForTimeout(1200);
     results.attachmentChip = await page.locator('[data-slot="composer-attachments"]').isVisible().catch(() => false);
     console.log("attachment chip visible:", results.attachmentChip);
     await shot(page, "04-attachment-chip");
     if (results.attachmentChip) {
-      const removeBtn = page.locator('[data-slot="composer-attachments"] button').first();
+      const removeBtn = page.locator('[data-slot="composer-attachments"] button[aria-label^="Remove "]').first();
       await removeBtn.click().catch(() => {});
       await page.waitForTimeout(500);
       results.attachmentRemoved = !(await page.locator('[data-slot="composer-attachments"]').isVisible().catch(() => false));
@@ -90,13 +102,19 @@ async function main() {
 
   // ── 4. send a prompt for message-level actions ─────────────────
   await input.fill("quote probe — reply with exactly: zebra apple melon kiwi");
-  await page.keyboard.press("Enter");
+  await input.press("Enter");
   await waitReady(page);
   await page.waitForTimeout(1200);
   await shot(page, "05-settled");
+  console.log("post-settle dump:", await page.evaluate(`JSON.stringify({
+    status: window.__chatStatus,
+    actions: document.querySelectorAll('[data-slot="message-actions"]').length,
+    reveals: document.querySelectorAll('.action-reveal').length,
+    paras: [...document.querySelectorAll('main p')].slice(-2).map(p => p.textContent.slice(0, 40)),
+  })`));
 
   // ── 5. quote-reply pill on selection ───────────────────────────
-  const assistantText = page.locator('[data-slot="message-content"], .cb-markdown, main p').last();
+  const assistantText = page.locator('.markdown-body').last();
   const box = await assistantText.boundingBox().catch(() => null);
   if (box) {
     await page.mouse.move(box.x + 5, box.y + 8);

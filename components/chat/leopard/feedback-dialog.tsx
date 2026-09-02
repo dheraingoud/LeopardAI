@@ -40,6 +40,9 @@ export function FeedbackDialog({
   return (
     <div
       data-slot="feedback-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Response feedback"
       className={cn(
         paper,
         "flex w-full max-w-sm rounded-[20px] p-4",

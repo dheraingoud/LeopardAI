@@ -79,7 +79,10 @@ amber #ffb400/#d49600); no model names in UI.
 - [x] 11. Reload persistence — all part types survive reload (text,
   reasoning, tool cards, subagent card). ✅ 2026-09-01 via dbg-orchestrate
   (card + full parts after reload) + dbg-multiturn (text turns).
-- [ ] 12. Sidebar — history list, switch chats, new chat; always-on.
+- [x] 12. Sidebar — history list, switch chats, new chat; always-on.
+  (dbg-sidebar) ✅ 2026-09-02 GREEN: row lists after send, row click
+  navigates, New chat → /chat draft, search filters, collapse rail ↔
+  expand. Shots reviewed (dark sidebar, light theme).
 - [x] 13. Model selector — 8 models, switch, popover styling both themes.
   (dbg-light-selector) ✅ 2026-09-01 GREEN: 8 items listed both themes
   (Kimi K3 / Gemma 4 / DS V4 Flash+Pro / Glimmer / Laguna / Nemotron /
@@ -91,7 +94,9 @@ amber #ffb400/#d49600); no model names in UI.
   settles. (dbg-mobile) ✅ 2026-09-01 GREEN: iPhone 13 device, 0px overflow
   before+after, composer bbox in-view + tap/fill/Enter works, "mobile works."
   reply settles; 01-empty + 04-settled shots reviewed clean.
-- [ ] 16. Theme toggle — no flash, tokens swap clean.
+- [x] 16. Theme toggle — no flash, tokens swap clean. (dbg-sidebar)
+  ✅ 2026-09-02 GREEN: dark→light flip swaps html class (dark→light) AND
+  body bg (rgb(10,9,7)→rgb(250,248,241)); persists across full reload.
 - [ ] 17. Auto-scroll — pinned during stream + layout growth
   (ResizeObserver).
 - [ ] 18. Full dark sweep + light sweep regression. (dbg-visual-sweep,

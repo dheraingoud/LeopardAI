@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1560, height: 1000 } });
-  await page.goto("http://localhost:3001/chat/j57dfatennwwm9p7ea3zhh9c7x8dknm7", { waitUntil: "domcontentloaded" });
+  await page.goto("http://localhost:3001/chat/j573er3j7w3vx7b4dh1zmj7qc18djqqh", { waitUntil: "domcontentloaded" });
   await page.waitForSelector('[data-slot="composer-bar"] textarea', { timeout: 60_000 });
   await page
     .waitForFunction(() => window.__chatStatus === "ready", undefined, { timeout: 120_000 })
