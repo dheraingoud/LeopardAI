@@ -48,8 +48,15 @@ async function main() {
   console.log("pin on run start:", results.pinOnRunStart, JSON.stringify(s));
   await page.screenshot({ path: `${SHOTS}/01-streaming-pinned.png` });
 
-  // 2. user scroll-up disengages — position must NOT snap back while streaming
-  await page.evaluate((sel) => { document.querySelector(sel).scrollTop = 0; }, SCROLLER);
+  // 2. user scroll-up disengages — position must NOT snap back while streaming.
+  // Wait until content actually overflows (else "unpinned" is unmeasurable),
+  // then wheel-up like a user (exercises the intent path).
+  await page.waitForFunction((sel) => {
+    const el = document.querySelector(sel);
+    return el && el.scrollHeight - el.clientHeight > 100;
+  }, SCROLLER, { timeout: 120_000 });
+  await page.hover(SCROLLER);
+  for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -600); await page.waitForTimeout(80); }
   await page.waitForTimeout(2500);
   const mid = await scrollState(page);
   results.staysUnpinned = !!mid && !mid.atBottom;

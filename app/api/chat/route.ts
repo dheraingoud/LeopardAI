@@ -1131,26 +1131,31 @@ export async function POST(request: Request) {
         }
       });
 
-      // Emit a custom `data-chat-title` part so the client hook can call
-      // api.chats.updateTitle. (Title stays a client-owned side effect; this is
-      // a cosmetic broadcast, not the Convex write path.)
+      // Title is fully DETACHED (fire-and-forget): a slow title-model call must
+      // never hold the chat stream open — an awaited titlePromise here kept the
+      // turn in `submitted`/`streaming` for MINUTES when the title endpoint
+      // stalled (2026-09-02, 4.8-min title → client never saw `ready` until it
+      // resolved). Persist is durable + server-side; the dataStream write is a
+      // cosmetic fast-path that no-ops if the stream already closed.
       if (titlePromise) {
-        try {
-          const title = await titlePromise;
-          console.log("[title] generated:", title, "for chat", realChatId);
-          // Durable write: draft handoff navigates mid-stream, so the client
-          // hint below can die with the abandoned response. The server owns
-          // the real chat id — persist directly (sidebar "New Chat" bug).
-          void persistChatTitle({
-            chatId: realChatId,
-            userId: userId ?? DEV_USER_ID,
-            title,
+        void titlePromise
+          .then((title) => {
+            console.log("[title] generated:", title, "for chat", realChatId);
+            return persistChatTitle({
+              chatId: realChatId,
+              userId: userId ?? DEV_USER_ID,
+              title,
+            }).then(() => {
+              try {
+                dataStream.write({ type: "data-chat-title", data: title });
+              } catch {
+                /* mirror already released — the durable write above is enough */
+              }
+            });
+          })
+          .catch((e) => {
+            console.warn("[title] generation failed:", String(e).slice(0, 300));
           });
-          // Cosmetic fast-path for a client that's still listening.
-          dataStream.write({ type: "data-chat-title", data: title });
-        } catch (e) {
-          console.warn("[title] generation failed:", String(e).slice(0, 300));
-        }
       } else {
         console.log("[title] skipped — not first exchange");
       }

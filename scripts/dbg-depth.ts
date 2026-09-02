@@ -6,9 +6,9 @@ async function once(i) {
   let hit = false;
   p.on("console", (m) => {
     const t = m.text();
-    if (t.includes("Maximum update depth")) { hit = true; console.log(`[run ${i}] CONSOLE:`, t.slice(0, 4000)); }
+    if (t.includes("Maximum update depth")) { hit = true; console.log(`[run ${i}] CONSOLE:`, t); }
   });
-  p.on("pageerror", (e) => { if (String(e).includes("Maximum update depth")) { hit = true; console.log(`[run ${i}] PAGEERROR:`, String(e.stack || e).slice(0, 4000)); } });
+  p.on("pageerror", (e) => { if (String(e).includes("Maximum update depth")) { hit = true; console.log(`[run ${i}] PAGEERROR:`, String(e.stack || e)); } });
   await p.goto("http://localhost:3001/chat", { waitUntil: "domcontentloaded" });
   const input = p.locator('[data-slot="composer-bar"] textarea');
   await input.waitFor({ timeout: 60_000 });

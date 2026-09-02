@@ -206,6 +206,43 @@ export function Messages() {
     if (atBottom) setUnseen(0);
   };
 
+  // User-intent disengage: a programmatic scrollTop write + the async scroll
+  // event can lose to a same-tick stream re-pin (probe 2026-09-02: scrollTop=0
+  // snapped back mid-stream). Wheel/touch/keyboard are USER intent — unpin
+  // synchronously on upward gestures, before any scroll event ordering race.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) stickToBottomRef.current = false;
+    };
+    let touchY: number | null = null;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchY === null) return;
+      const y = e.touches[0]?.clientY ?? touchY;
+      if (y > touchY + 4) stickToBottomRef.current = false; // drag down = scroll up
+      touchY = y;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "Home") {
+        stickToBottomRef.current = false;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("keydown", onKey);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !stickToBottomRef.current) return;

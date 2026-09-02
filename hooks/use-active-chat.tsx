@@ -428,6 +428,12 @@ export function ActiveChatProvider({
     id: chatId,
     generateId: nanoid,
     transport,
+    // Batch store notifications to ~10fps: an unthrottled per-chunk notify
+    // storm could cascade past React's nested-update limit (forceStoreRerender
+    // re-queues mid-commit) and kill the whole turn with "Maximum update depth
+    // exceeded" (2026-09-02). Rendering is already throttle-aware downstream
+    // (StreamingText 48ms), so visual smoothness is unchanged.
+    experimental_throttle: 100,
     onError: (error) => {
       // Φ-hardening: never surface a cryptic engine/parse message (nobody can
       // act on "Syntax error in text…", "Session creation failed", empty-content
