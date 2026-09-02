@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 
 async function main() {
-  mkdirSync("shots/fail", { recursive: true });
+  mkdirSync("C:/Users/HP/leopard-shots/fail", { recursive: true });
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1560, height: 1000 } });
   const page = await ctx.newPage();
@@ -19,8 +19,8 @@ async function main() {
   await page.keyboard.press("Enter");
 
   // Turn terminates (search fails). Wait until composer is usable again.
-  await page.waitForTimeout(60_000);
-  await page.screenshot({ path: "shots/fail/1-terminated.png", fullPage: true });
+  await page.waitForTimeout(90_000);
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/fail/1-terminated.png", fullPage: true });
 
   // Follow-up in the SAME chat — the bug: this never streams.
   await input.click();
@@ -32,13 +32,13 @@ async function main() {
     await page.waitForFunction(
       () => document.body.innerText.includes("alive"),
       undefined,
-      { timeout: 90_000 },
+      { timeout: 150_000 },
     );
     recovered = true;
   } catch {
     recovered = false;
   }
-  await page.screenshot({ path: "shots/fail/2-followup.png", fullPage: true });
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/fail/2-followup.png", fullPage: true });
   console.log(JSON.stringify({ recovered }));
   await browser.close();
   process.exit(recovered ? 0 : 1);
