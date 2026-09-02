@@ -19,7 +19,9 @@ async function main() {
   console.log("chips:", await p.locator('[data-slot="attachment-chip"]').count());
   const btn = p.locator('[data-slot="attachment-chip"] button').first();
   console.log("btn aria:", await btn.getAttribute("aria-label"));
-  await btn.click();
+  // Playwright actionability flakes on the tiny ghost button — DOM click is
+  // what matters (verified working in dbg-attach2).
+  await p.evaluate(() => (document.querySelector('[data-slot="attachment-chip"] button') as HTMLButtonElement | null)?.click());
   await p.waitForTimeout(800);
   console.log("chips after remove:", await p.locator('[data-slot="attachment-chip"]').count());
   console.log("attachments wrap:", await p.locator('[data-slot="composer-attachments"]').count());
