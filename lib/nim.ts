@@ -3,7 +3,7 @@
  *
  * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   moonshotai/kimi-k3 (DEFAULT), gemma-4-31b-it,
+ *   nemotron-3.5-lightning-30b-a3b (DEFAULT), kimi-k3 (hangs on tool-use turns 2026-09-02),
  *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, poolside-laguna-xs-2.1,
  *   nemotron-3.5-lightning-30b-a3b, deepseek-v4-flash-0731 (unfrozen
  *   2026-08-31), deepseek-v4-pro-0813.
@@ -144,10 +144,10 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 // app → retry → 3.6min turns). gemma-4 + deepseek-flash hang the same way.
 // Live fast models probed: nemotron-3.5-lightning (0.7s), laguna, muse,
 // diffusiongemma. Default → nemotron-3.5-lightning until kimi recovers.
-// 2026-09-02: kimi-k3 back alive (edit-model probe 3/3 green, ~3s turns) while
-// nemotron-lightning went flaky (180s no-chunk stalls in visual sweep).
-// Default reverted → kimi-k3. nemotron stays as UTILITY_MODEL.
-export const DEFAULT_MODEL = "moonshotai/kimi-k3";
+// 2026-09-02: kimi briefly re-defaulted (plain replies fast) but HANGS on
+// tool-use turns (300s, spawn_agents never fires) → default back to
+// nemotron-3.5-lightning; orchestration green again (live-notes PASS).
+export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
