@@ -670,21 +670,23 @@ export const PreviewMessage = memo(function PreviewMessage({
 
 // Φ8: hydrate persisted image placeholders (post-reload) from IndexedDB.
   // Render `text` immediately (no blank), then swap once hydrate resolves.
-  // For non-image content (the common case) hydrate is a no-op (returns the
-  // string unchanged) → renderText never diverges → no extra render.
-  const [renderText, setRenderText] = useState(text);
+  // State only exists when the text ACTUALLY carries #img- placeholders —
+  // previously a per-token state write ran for plain-text streams, and the
+  // queued promise resolves could cascade past React's nested-update limit
+  // ("Maximum update depth exceeded" killing the whole turn, 2026-09-02).
+  const needsHydrate = text.includes("#img-");
+  const [hydrated, setHydrated] = useState<string | null>(null);
   useEffect(() => {
+    if (!needsHydrate) return;
     let active = true;
     void hydrateMessageImages(message.id, text).then((h) => {
-      if (active && h !== renderText) setRenderText(h);
+      if (active) setHydrated((prev) => (h === prev ? prev : h));
     });
     return () => {
       active = false;
     };
-    // renderText is intentionally excluded: tracking it would re-trigger the
-    // effect on every hydrate swap and loop. Deps are "message text changed".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message.id, text]);
+  }, [message.id, text, needsHydrate]);
+  const renderText = needsHydrate && hydrated !== null ? hydrated : text;
 
   // Φ9 interleaved thinking — walk the parts in stream order and collapse
   // consecutive runs into alternating text / reasoning segments. This keeps
