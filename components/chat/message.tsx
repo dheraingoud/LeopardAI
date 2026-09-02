@@ -425,6 +425,9 @@ function ToolCard({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const isSearch = toolName === "webSearch";
   const pending = state === "streaming" || state === "pending" || state === "loading";
+  // An explicit error state (incl. a stale-pending call settled by the parent
+  // when the turn died) renders failed even without an error payload.
+  const stateFailed = state === "error";
   const TOOL_VERB: Record<string, string> = {
     webFetch: "Fetching",
     webSearch: "Searching the web",
@@ -446,7 +449,7 @@ function ToolCard({
   }
   // Result line for the open state.
   let resultLine = "";
-  let resultOk = true;
+  let resultOk = !stateFailed;
   if (isSearch && output && typeof output === "object") {
     const res = (output as { results?: Array<{ url?: string; title?: string }> }).results;
     if (Array.isArray(res)) {
@@ -1170,7 +1173,22 @@ export const PreviewMessage = memo(function PreviewMessage({
               // Φ-multi-agent: spawn_agents → inline orchestration card
               // (live data-orchestration snapshots + settled tool output).
               if (seg.toolName === "spawn_agents" && seg.orch && !hideSpawnCard) {
-                return <AgentRunCard key={`orch-${i}`} run={seg.orch} />;
+                // Settle a stale card: the turn ended (not streaming) but the
+                // tool never reached output-available (stop/error/crash
+                // mid-orchestration). Without this the card pulses "running ·
+                // x/y" forever on a dead turn (2026-09-02 audit).
+                const orch =
+                  !isStreaming && seg.state !== "complete"
+                    ? {
+                        agents: seg.orch.agents.map((a) =>
+                          a.status === "done" || a.status === "error"
+                            ? a
+                            : { ...a, status: "error" as const, note: "interrupted" },
+                        ),
+                        done: true,
+                      }
+                    : seg.orch;
+                return <AgentRunCard key={`orch-${i}`} run={orch} />;
               }
               if (seg.state === "error") {
                 const errMsg =
@@ -1194,11 +1212,18 @@ export const PreviewMessage = memo(function PreviewMessage({
                 isLast &&
                 seg.state !== "complete" &&
                 seg.state !== "ask";
+              // Stale-pending settle: a tool part left in pending/streaming
+              // when the turn is NOT live (stop/error/crash/reload mid-call)
+              // must not shimmer "searching…" forever — render it failed.
+              const settledState =
+                !live && (seg.state === "pending" || seg.state === "streaming")
+                  ? "error"
+                  : seg.state;
               return (
                 <ToolCard
                   key={`t-${i}`}
                   toolName={seg.toolName}
-                  state={live ? "streaming" : seg.state}
+                  state={live ? "streaming" : settledState}
                   input={seg.input}
                   output={seg.output}
                 />
