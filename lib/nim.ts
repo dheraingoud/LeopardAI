@@ -144,7 +144,10 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 // app → retry → 3.6min turns). gemma-4 + deepseek-flash hang the same way.
 // Live fast models probed: nemotron-3.5-lightning (0.7s), laguna, muse,
 // diffusiongemma. Default → nemotron-3.5-lightning until kimi recovers.
-export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
+// 2026-09-02: kimi-k3 back alive (edit-model probe 3/3 green, ~3s turns) while
+// nemotron-lightning went flaky (180s no-chunk stalls in visual sweep).
+// Default reverted → kimi-k3. nemotron stays as UTILITY_MODEL.
+export const DEFAULT_MODEL = "moonshotai/kimi-k3";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
