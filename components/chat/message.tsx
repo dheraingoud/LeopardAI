@@ -615,6 +615,18 @@ export const PreviewMessage = memo(function PreviewMessage({
   const [reasoningOpen, setReasoningOpen] = useState<Record<number, boolean>>(
     {},
   );
+  // Feedback dialog: Escape closes (backdrop click + Cancel already do).
+  useEffect(() => {
+    if (!feedbackOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setFeedbackOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [feedbackOpen]);
   useEffect(() => {
     // Re-read vote if message.id changes (e.g. after streaming completes and
     // the optimistic id gets swapped for the persisted one).
@@ -964,7 +976,10 @@ export const PreviewMessage = memo(function PreviewMessage({
   }, [segments]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(renderText);
+    // clipboard.writeText rejects when the document lacks focus/permission —
+    // never let that surface as an unhandled error; the copy still "worked"
+    // from the user's view in secure contexts, and elsewhere we just skip.
+    navigator.clipboard.writeText(renderText).catch(() => {});
     setCopied(true);
     toast.success("Copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
@@ -972,7 +987,7 @@ export const PreviewMessage = memo(function PreviewMessage({
 
   // ── Φ7 action buttons ───────────────────────────────────────────────────
   const handleCopyUser = () => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {});
     setCopiedUser(true);
     toast.success("Copied to clipboard");
     setTimeout(() => setCopiedUser(false), 1600);

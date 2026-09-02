@@ -516,6 +516,10 @@ export async function POST(request: Request) {
       });
     }
   }
+  // Set when the generation controller is created (inside the stream execute);
+  // executeApprovedTools runs in the backgroundServe prelude, i.e. AFTER that,
+  // so the closure is populated by the time subagents read it.
+  let generationSignal: AbortSignal | undefined;
   /** Execute the approved tools once, streaming orchestration progress through
    * `emitChunk` (live card) and filling resumeOutputs for the model pass. */
   const executeApprovedTools = async (
@@ -531,6 +535,7 @@ export async function POST(request: Request) {
             // open resume stream so the card updates per agent transition.
             dataStream: { write: (chunk: unknown) => emitChunk(chunk as Record<string, unknown>) } as never,
             userId: userId ?? DEV_USER_ID,
+            abortSignal: generationSignal,
           })
         : {}),
     };
@@ -749,6 +754,7 @@ export async function POST(request: Request) {
             : { ...p, state: "approval-responded" };
         });
       const genCtrl = createGenerationController(assistantId);
+      generationSignal = genCtrl.signal;
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
       let buildStream: (() => any) | null = null;
@@ -813,7 +819,9 @@ export async function POST(request: Request) {
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
           ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
           ...(researchEnabled ? researchTools({ userId: memUserId, modelId }) : {}),
-          ...(multiAgentsEnabled ? agentsTools({ dataStream, userId: memUserId }) : {}),
+          ...(multiAgentsEnabled
+            ? agentsTools({ dataStream, userId: memUserId, abortSignal: genCtrl.signal })
+            : {}),
           ...(artifactsEnabled
             ? { createDocument: createDocument({ dataStream, modelId }) }
             : {}),
