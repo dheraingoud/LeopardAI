@@ -43,7 +43,9 @@ async function main() {
       await mer.screenshot({ path: `${SHOTS}/mermaid-element.png` }).catch(() => {});
     }
     if (!gotM) process.exitCode = 1;
-    await page.screenshot({ path: `${SHOTS}/both.png` });
+    // Element-level shots are reliable; viewport shots race the re-rendering stream.
+    const pair = page.locator('[data-slot="message-pair"]').last();
+    await pair.screenshot({ path: `${SHOTS}/pair.png` }).catch(() => {});
   } else {
     await page.screenshot({ path: `${SHOTS}/both.png`, fullPage: true });
   }

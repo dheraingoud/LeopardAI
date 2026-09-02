@@ -532,51 +532,43 @@ function FlowBlock({ code }: { code: string }) {
 
   if (mode === "code" || !parsed) {
     return (
-      <PreShell lang="flow" copyText={code} longBlock={false}>
+      <div className="cb-mermaid-inline">
+        {parsed && (
+          <button
+            type="button"
+            aria-label="View rendered flow graph"
+            className="cb-mermaid-sourcebtn"
+            onClick={() => setMode("graph")}
+          >
+            view graph
+          </button>
+        )}
         <pre className="cb-plain">
           <code>{code}</code>
         </pre>
-        {parsed && (
-          <div
-            className="cb-mermaid-chrome cb-mermaid-chrome-left"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              aria-label="View rendered flow graph"
-              className="cb-mermaid-btn"
-              onClick={() => setMode("graph")}
-            >
-              render
-            </button>
-          </div>
-        )}
-      </PreShell>
+      </div>
     );
   }
 
+  // Inline (no-canvas) like cb-mermaid-inline: transparent column, quiet
+  // mono "view source" row below — same visual contract as mermaid diagrams.
   return (
-    <PreShell lang="flow" copyText={code} longBlock={false}>
+    <div className="cb-mermaid-inline">
       <FlowGraph
         nodes={parsed.nodes}
         edges={parsed.edges}
         visibleCount={parsed.nodes.length}
         className="border-transparent bg-transparent p-0 shadow-none backdrop-blur-none dark:bg-none light:bg-none"
       />
-      <div
-        className="cb-mermaid-chrome cb-mermaid-chrome-left"
-        onPointerDown={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        aria-label="View flow source"
+        className="cb-mermaid-sourcebtn"
+        onClick={() => setMode("code")}
       >
-        <button
-          type="button"
-          aria-label="View flow source"
-          className="cb-mermaid-btn"
-          onClick={() => setMode("code")}
-        >
-          source
-        </button>
-      </div>
-    </PreShell>
+        view source
+      </button>
+    </div>
   );
 }
 
