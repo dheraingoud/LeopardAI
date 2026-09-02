@@ -169,8 +169,9 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     id: "moonshotai/kimi-k3",
     displayName: "Kimi K3",
     speedTier: 1.5,
-    type: "llm",
-    supportsVision: false,
+    type: "vlm",
+    supportsVision: true, // operator-confirmed vision 2026-09-03
+    visionModalities: ["image", "video"],
     supportsTools: true,
     contextWindow: 262_144,
     // Probed live 2026-08-24: responds without params (reasoning_content
