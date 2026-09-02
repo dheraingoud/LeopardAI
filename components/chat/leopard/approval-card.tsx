@@ -33,7 +33,13 @@ export function ApprovalCard({
         </span>
         <div className="flex min-w-0 flex-col">
           <p className="text-[13.5px] font-medium">
-            {toolName === "webSearch" ? "Search access" : "Web access request"}
+            {toolName === "webSearch"
+              ? "Search access"
+              : toolName === "webFetch"
+                ? "Web access request"
+                : toolName === "spawn_agents"
+                  ? "Subagent run"
+                  : "Tool request"}
           </p>
           <p className="text-foreground/45 text-xs">
             Leopard wants to run <span className={cn(mono, "dark:text-[#ffb400] light:text-[#b67f00]")}>{toolName}</span> — the response pauses until you decide.

@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 const BASE = "http://localhost:3001";
 
 async function main() {
-  mkdirSync("../shots-deny", { recursive: true });
+  mkdirSync("C:/Users/HP/leopard-shots/deny", { recursive: true });
   const browser = await chromium.launch();
   const ctx = await browser.newContext({
     viewport: { width: 1560, height: 1000 },
@@ -34,11 +34,11 @@ async function main() {
   const card = page.locator('[data-slot="approval-card"]');
   await card.waitFor({ timeout: 120_000 });
   console.log("approval card visible");
-  await page.screenshot({ path: "../shots-deny/1-approval.png" });
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/1-approval.png" });
   await card.locator('button:has-text("Deny")').click();
   console.log("clicked Deny");
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: "../shots-deny/2-after-deny.png", fullPage: true });
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/2-after-deny.png", fullPage: true });
 
   // 2. Wait for the turn to settle — assistant should respond or terminate.
   const body1 = (await page.textContent("body")) ?? "";
@@ -47,14 +47,14 @@ async function main() {
     .isVisible()
     .catch(() => false);
   console.log("stop visible after deny:", stillGenerating);
-  if (stillGenerating) {
-    // give it a bit more, some models produce a graceful fallback text
-    await page.waitForTimeout(6000);
-    console.log(
-      "still generating after 6s more:",
-      await page.locator('[aria-label="Stop generating"]').isVisible().catch(() => false),
-    );
-  }
+  // Deny → resume POST synthesizes a refusal — must SETTLE ready and the
+  // approval card must be gone (a card that stays means the dock can be
+  // double-answered).
+  await page.waitForFunction(() => (window as any).__chatStatus === "ready", undefined, { timeout: 180_000 });
+  const cardGone = (await page.locator('[data-slot="approval-card"]').count()) === 0;
+  console.log("settled ready after deny; approval card gone:", cardGone);
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/2b-settled.png", fullPage: true });
+  if (!cardGone) { console.log("FAIL: approval card persisted after deny"); process.exit(1); }
 
   // 3. Follow-up prompt must work — this is the brick regression check.
   await input.click();
@@ -66,7 +66,7 @@ async function main() {
   await page.keyboard.press("Enter");
   await (await followResp).finished();
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: "../shots-deny/3-followup.png", fullPage: true });
+  await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/3-followup.png", fullPage: true });
 
   const body2 = (await page.textContent("body")) ?? "";
   console.log("follow-up text present:", /still alive\./.test(body2));

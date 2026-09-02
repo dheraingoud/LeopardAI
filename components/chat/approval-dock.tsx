@@ -29,11 +29,23 @@ export function ApprovalDock({
   const chat = useActiveChat();
   const [decided, setDecided] = useState<boolean | null>(null);
 
-  // Human summary of the target (url / query), same shape as the inline card.
+  // Human summary of the target (url / query / spawn task list), same shape
+  // as the inline card.
   let target = "";
   if (input && typeof input === "object") {
-    const o = input as { url?: string; query?: string };
-    target = (o.url ?? o.query ?? "").replace(/^https?:\/\//, "");
+    const o = input as {
+      url?: string;
+      query?: string;
+      tasks?: Array<{ name?: string }>;
+    };
+    if (Array.isArray(o.tasks) && o.tasks.length > 0) {
+      // spawn_agents: show the team the model wants to launch.
+      target = `${o.tasks.length} tasks — ${o.tasks
+        .map((t) => t.name ?? "agent")
+        .join(", ")}`;
+    } else {
+      target = (o.url ?? o.query ?? "").replace(/^https?:\/\//, "");
+    }
   }
 
   const decide = (approved: boolean) => {
