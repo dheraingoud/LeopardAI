@@ -167,7 +167,11 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
                   <span className={cn(mono, "text-foreground/30 shrink-0")}>{KIND_CHIP[a.kind]}</span>
                 </span>
                 <span className={cn(mono, "text-foreground/45 truncate")}>
-                  {a.status === "running" ? (a.note ?? "working") : a.task}
+                  {a.status === "running"
+                    ? (a.note ?? "working")
+                    : a.status === "error" && a.note
+                      ? a.note
+                      : a.task}
                 </span>
               </span>
               <span className={cn(mono, "flex shrink-0 items-center gap-1 text-[11px]")}>

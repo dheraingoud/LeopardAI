@@ -57,6 +57,8 @@ const MAX_STEPS = 6;
  *  the whole run: 120s ceiling, then the agent is marked error and the team
  *  moves on. The card ALWAYS reaches a settled state. */
 const AGENT_TIMEOUT_MS = 120_000;
+/** Retry pass ceiling — plain generateText, no tool loop, so it should land fast. */
+const RETRY_TIMEOUT_MS = 60_000;
 const PRIOR_OUTPUT_CAP = 1500;
 const OUTPUT_CAP = 2500;
 
@@ -81,6 +83,21 @@ const SUBAGENT_SYSTEM =
 
 function clip(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/** Subagent failures land in the UI as one-word "failed" — useless for RCA.
+ *  Mirror every failure to a JSONL log the probes can read (2026-09-02). */
+function logAgentError(agent: string, phase: string, error: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require("node:fs") as typeof import("node:fs");
+    fs.appendFileSync(
+      "orchestrator-errors.jsonl",
+      JSON.stringify({ t: new Date().toISOString(), agent, phase, error }) + "\n",
+    );
+  } catch {
+    /* logging must never break the run */
+  }
 }
 
 async function runAgent(
@@ -208,8 +225,45 @@ export async function runOrchestration(input: {
       agent.note = undefined;
       priorOutputs.push({ name: agent.name, output: agent.output });
     } catch (err) {
-      agent.status = "error";
-      agent.note = err instanceof Error ? err.message : String(err);
+      const firstError = err instanceof Error ? err.message : String(err);
+      logAgentError(agent.name, "attempt-1", firstError);
+      console.warn(`[orchestrator] agent "${agent.name}" failed attempt 1: ${firstError}`);
+      // AT ANY COST: retry once, tools-free, tighter ceiling. Most failures are
+      // upstream hangs in the tool loop (nemotron-lightning stalls) — a plain
+      // generateText over prior context usually lands. (2026-09-02 RCA)
+      agent.note = "retrying";
+      emit("agent");
+      try {
+        const retry = await Promise.race([
+          generateText({
+            model: getLanguageModel(modelId),
+            system: `${SUBAGENT_SYSTEM}\n\nRole (${agent.kind}): ${KIND_GUIDANCE[agent.kind]}`,
+            prompt:
+              `Task: ${agent.task}` +
+              (priorOutputs.length
+                ? "\n\nPrior subagent outputs:\n" +
+                  priorOutputs.map((p) => `### ${p.name}\n${clip(p.output, PRIOR_OUTPUT_CAP)}`).join("\n\n")
+                : "") +
+              "\n\nAnswer directly from your own knowledge. No tool calls.",
+            maxOutputTokens: 1500,
+            abortSignal: input.abortSignal,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("retry timed out")), RETRY_TIMEOUT_MS),
+          ),
+        ]);
+        const text = retry.text.trim();
+        if (!text) throw new Error("empty retry output");
+        agent.output = clip(text, OUTPUT_CAP);
+        agent.status = "done";
+        agent.note = undefined;
+        priorOutputs.push({ name: agent.name, output: agent.output });
+      } catch (err2) {
+        agent.status = "error";
+        agent.note = err2 instanceof Error ? err2.message : String(err2);
+        logAgentError(agent.name, "retry", agent.note);
+        console.warn(`[orchestrator] agent "${agent.name}" failed retry: ${agent.note}`);
+      }
     }
     emit("agent");
 
