@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasoningEffort } from "@/components/chat/leopard/reasoning-effort";
 import { ComparisonCard } from "@/components/chat/leopard/comparison-card";
 import { RecommendationCard } from "@/components/chat/leopard/recommendation-card";
@@ -117,7 +118,7 @@ function ThemeControl() {
             pressable,
             "flex h-7 items-center gap-1.5 rounded px-2.5 text-xs outline-none transition-colors",
             current === o.id
-              ? "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#a57600]"
+              ? "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#d49600]"
               : cn(muted, "hover:dark:text-white hover:light:text-black"),
           )}
         >
@@ -164,9 +165,11 @@ export default function SettingsPage() {
     [chats],
   );
 
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+
   const handleDeleteAll = async () => {
     if (!chats || chats.length === 0 || !userId) return;
-    if (!window.confirm(`Delete all ${chats.length} conversations? This is permanent and cannot be undone.`)) return;
+    setConfirmDeleteAll(false);
     setDeleting(true);
     try {
       for (const chat of chats) await deleteChat({ chatId: chat._id, userId });
@@ -218,7 +221,7 @@ export default function SettingsPage() {
           transition={{ duration: 0.35 }}
           className="mb-8"
         >
-          <p className={cn(mono, "mb-1.5 uppercase dark:text-[#ffb400] light:text-[#a57600]")}>Settings</p>
+          <p className={cn(mono, "mb-1.5 uppercase dark:text-[#ffb400] light:text-[#d49600]")}>Settings</p>
           <h1 className="text-[26px] font-medium tracking-[-0.02em] dark:text-[#ececec] light:text-[#171717]">
             Den control<span className="dark:text-[#ffb400] light:text-[#d49600]">.</span>
           </h1>
@@ -237,7 +240,7 @@ export default function SettingsPage() {
                   pressable,
                   "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13px] outline-none transition-colors",
                   section === s.id
-                    ? cn(fieldInteractive, hairline, "border dark:text-[#ffb400] light:text-[#a57600]")
+                    ? cn(fieldInteractive, hairline, "border dark:text-[#ffb400] light:text-[#d49600]")
                     : cn(muted, "hover:dark:text-white hover:light:text-black"),
                 )}
               >
@@ -260,7 +263,7 @@ export default function SettingsPage() {
                 <Row label="Avatar">
                   <Avatar className="h-10 w-10 ring-1 dark:ring-[#ffb400]/25 light:ring-[#d49600]/30">
                     <AvatarImage src={user?.imageUrl} />
-                    <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] font-mono font-bold">
+                    <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] font-mono font-semibold">
                       {user?.firstName?.[0] || "U"}
                     </AvatarFallback>
                   </Avatar>
@@ -298,7 +301,7 @@ export default function SettingsPage() {
                             <p className="text-[13px] font-medium dark:text-[#d4d4d4] light:text-[#262626]">{m.name}</p>
                             <span className={cn(mono, faint)}>{m.provider}</span>
                             {m.supportsVision && (
-                              <span className={cn(mono, "rounded-full px-1.5 py-px dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#a57600]")}>
+                              <span className={cn(mono, "rounded-full px-1.5 py-px dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#d49600]")}>
                                 vision
                               </span>
                             )}
@@ -311,7 +314,7 @@ export default function SettingsPage() {
                             "shrink-0 rounded-full px-1.5 py-px",
                             m.speedTier === "fast"
                               ? "bg-emerald-500/10 text-emerald-400"
-                              : "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#a57600]",
+                              : "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#d49600]",
                           )}
                         >
                           {m.speedTier}
@@ -415,7 +418,7 @@ export default function SettingsPage() {
             {section === "danger" && (
               <Section title="Danger zone" hint="no undo past this line" danger>
                 <Row label="Delete all conversations" description={`${chats?.length || 0} chats — permanent`}>
-                  <ActionButton danger onClick={handleDeleteAll} disabled={deleting}>
+                  <ActionButton danger onClick={() => setConfirmDeleteAll(true)} disabled={deleting}>
                     <Trash2 className="size-3.5" /> {deleting ? "Deleting…" : "Delete all"}
                   </ActionButton>
                 </Row>
@@ -429,6 +432,14 @@ export default function SettingsPage() {
           </motion.div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        title="Delete all conversations?"
+        description={`All ${chats?.length ?? 0} chats and every message in them are permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete everything"
+        onConfirm={handleDeleteAll}
+        onCancel={() => setConfirmDeleteAll(false)}
+      />
     </div>
   );
 }

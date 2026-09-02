@@ -42,7 +42,7 @@ export function ApprovalCard({
                   : "Tool request"}
           </p>
           <p className="text-foreground/45 text-xs">
-            Leopard wants to run <span className={cn(mono, "dark:text-[#ffb400] light:text-[#b67f00]")}>{toolName}</span> — the response pauses until you decide.
+            Leopard wants to run <span className={cn(mono, "dark:text-[#ffb400] light:text-[#d49600]")}>{toolName}</span> — the response pauses until you decide.
           </p>
         </div>
       </div>
