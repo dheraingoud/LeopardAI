@@ -225,7 +225,7 @@ export function ResearchPanel() {
       >
         <Search className="h-3 w-3" strokeWidth={1.5} />
         {active > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-cyan-400 px-0.5 font-mono text-[8px] font-bold text-black">
+          <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-cyan-400 px-0.5 font-mono text-[8px] font-semibold text-black">
             {active}
           </span>
         )}

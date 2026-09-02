@@ -132,7 +132,7 @@ export function SkillConfigModal({ open, onClose }: Props) {
             <div className="flex items-center justify-between px-5 h-14 border-b dark:border-white/[0.07] light:border-black/[0.07] shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="h-7 w-7 rounded-lg flex items-center justify-center dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.14]">
-                  <Sparkles className="h-3.5 w-3.5 dark:text-[#ffb400] light:text-[#b8860b]" />
+                  <Sparkles className="h-3.5 w-3.5 dark:text-[#ffb400] light:text-[#d49600]" />
                 </div>
                 <div className="leading-tight">
                   <p className="text-[13px] font-medium dark:text-[#e5e5e5] light:text-[#262626]">
@@ -189,19 +189,19 @@ export function SkillConfigModal({ open, onClose }: Props) {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="skill name"
-                        className="w-full h-9 px-3 rounded-lg text-[12px] font-mono outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#b8860b]/[0.5]"
+                        className="w-full h-9 px-3 rounded-lg text-[12px] font-mono outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#d49600]/[0.5]"
                       />
                       <textarea
                         value={body}
                         onChange={(e) => setBody(e.target.value)}
                         rows={5}
                         placeholder="Instructions the model should follow…"
-                        className="mt-2 w-full px-3 py-2 rounded-lg text-[12px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#b8860b]/[0.5] resize-none"
+                        className="mt-2 w-full px-3 py-2 rounded-lg text-[12px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#d49600]/[0.5] resize-none"
                       />
                       <button
                         type="button"
                         onClick={() => fileRef.current?.click()}
-                        className="mt-2 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-tight dark:text-[#606060] light:text-[#8a8a8a] hover:dark:text-[#ffb400] hover:light:text-[#b8860b] transition-colors"
+                        className="mt-2 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-tight dark:text-[#606060] light:text-[#8a8a8a] hover:dark:text-[#ffb400] hover:light:text-[#d49600] transition-colors"
                       >
                         <Upload className="h-3 w-3" />
                         {filename ? `loaded ${filename}` : "load from file"}
@@ -243,7 +243,7 @@ export function SkillConfigModal({ open, onClose }: Props) {
               </p>
               <button
                 onClick={() => setFormOpen((o) => !o)}
-                className="flex items-center gap-1.5 px-3.5 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight dark:bg-white/[0.06] light:bg-black/[0.05] dark:text-[#e5e5e5] light:text-[#262626] border dark:border-white/10 light:border-black/10 hover:dark:border-[#ffb400]/[0.4] hover:light:border-[#b8860b]/[0.4] transition-colors"
+                className="flex items-center gap-1.5 px-3.5 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight dark:bg-white/[0.06] light:bg-black/[0.05] dark:text-[#e5e5e5] light:text-[#262626] border dark:border-white/10 light:border-black/10 hover:dark:border-[#ffb400]/[0.4] hover:light:border-[#d49600]/[0.4] transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {formOpen ? "close form" : "add skill"}
@@ -309,7 +309,7 @@ function SkillRow({
             <span
               className={cn(
                 "h-1.5 w-1.5 rounded-full shrink-0",
-                skill.enabled ? "dark:bg-[#ffb400] light:bg-[#b8860b]" : "dark:bg-[#404040] light:bg-[#c0c0c0]",
+                skill.enabled ? "dark:bg-[#ffb400] light:bg-[#d49600]" : "dark:bg-[#404040] light:bg-[#c0c0c0]",
               )}
             />
             <p
@@ -323,12 +323,12 @@ function SkillRow({
               {skill.name}
             </p>
             {skill.permanent && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#ffb400]/[0.85] light:text-[#b8860b] dark:bg-[#ffb400]/[0.08] light:bg-[#b8860b]/[0.1]">
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#ffb400]/[0.85] light:text-[#d49600] dark:bg-[#ffb400]/[0.08] light:bg-[#d49600]/[0.1]">
                 permanent
               </span>
             )}
             {skill.overridden && (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#7ecbff]/[0.9] light:text-[#1d6fd1] dark:bg-[#7ecbff]/[0.08] light:bg-[#1d6fd1]/[0.1]">
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-wide dark:text-[#7ecbff]/[0.9] light:text-[#0070f3] dark:bg-[#7ecbff]/[0.08] light:bg-[#0070f3]/[0.1]">
                 edited
               </span>
             )}
@@ -347,7 +347,7 @@ function SkillRow({
         <button
           onClick={startEdit}
           title="Edit body"
-          className="h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors dark:text-[#8a8a8a] light:text-[#808080] hover:dark:text-[#ffb400] hover:light:text-[#b8860b]"
+          className="h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors dark:text-[#8a8a8a] light:text-[#808080] hover:dark:text-[#ffb400] hover:light:text-[#d49600]"
         >
           edit
         </button>
@@ -357,7 +357,7 @@ function SkillRow({
           className={cn(
             "h-7 px-2.5 rounded-md text-[10px] font-mono uppercase tracking-tight transition-colors",
             skill.enabled
-              ? "dark:text-[#ffb400] light:text-[#b8860b] hover:dark:bg-[#ffb400]/[0.08] hover:light:bg-[#b8860b]/[0.08]"
+              ? "dark:text-[#ffb400] light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.08] hover:light:bg-[#d49600]/[0.08]"
               : "dark:text-[#666666] light:text-[#909090] hover:dark:text-white hover:light:text-black",
           )}
         >
@@ -388,7 +388,7 @@ function SkillRow({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={10}
-            className="w-full px-3 py-2 rounded-lg text-[11px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#b8860b]/[0.5] resize-y"
+            className="w-full px-3 py-2 rounded-lg text-[11px] font-mono leading-relaxed outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#d49600]/[0.5] resize-y"
           />
           <div className="mt-2 flex items-center justify-end gap-2">
             {skill.overridden && (
@@ -397,7 +397,7 @@ function SkillRow({
                   resetSkillOverride(skill.id);
                   setEditing(false);
                 }}
-                className="mr-auto px-3 h-8 rounded-lg text-[10px] font-mono uppercase tracking-tight dark:text-[#7ecbff] light:text-[#1d6fd1] hover:dark:bg-[#7ecbff]/[0.08] transition-colors"
+                className="mr-auto px-3 h-8 rounded-lg text-[10px] font-mono uppercase tracking-tight dark:text-[#7ecbff] light:text-[#0070f3] hover:dark:bg-[#7ecbff]/[0.08] transition-colors"
               >
                 reset to default
               </button>

@@ -32,7 +32,7 @@ export function PermissionGrant({
           mono,
           "flex items-center gap-2 rounded-full px-3 py-1.5",
           granted
-            ? "dark:text-[#ffb400] light:text-[#b67f00]"
+            ? "dark:text-[#ffb400] light:text-[#d49600]"
             : "text-red-400 light:text-red-600",
         )}
       >

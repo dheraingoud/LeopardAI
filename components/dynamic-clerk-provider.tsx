@@ -49,7 +49,7 @@ const LIGHT_APPEARANCE = {
     socialButtonsBlockButton:
       "!bg-black/[0.02] !border-black/[0.08] hover:!bg-black/[0.04] !text-[#404040]",
     formButtonPrimary:
-      "!bg-[#d49600] !text-white hover:!bg-[#b37e00] !font-mono",
+      "!bg-[#d49600] !text-white hover:!bg-[#9e7200] !font-mono",
     footerActionLink: "!text-[#d49600]",
     headerTitle: "!text-[#171717] !font-mono",
     headerSubtitle: "!text-[#8c8c8c] !font-mono",
