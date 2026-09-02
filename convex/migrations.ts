@@ -14,6 +14,7 @@ export const clearAll = mutation({
       "usageLog",
       "userMemory",
       "skillLibrary",
+      "toolAuditLog",
     ] as const;
     for (const table of tables) {
       try {
