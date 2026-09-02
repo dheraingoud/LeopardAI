@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import {
   Collapsible,
@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 import { collapsePanel, mono, ShimmerLabel, SwapLabel } from "./surfaces";
 
 // Leopard reasoning panel: clickable trigger (kit behavior); expands to the
-// model's thinking rendered as markdown. Auto-open while streaming, resting
-// "Thought for Ns" + effort chip when done.
+// model's thinking rendered as markdown. Auto-open while streaming with a
+// live second counter; resting "Thought for N seconds" + effort chip on settle.
 export interface LeopardReasoningPanelProps {
   content: string;
   streaming: boolean;
@@ -34,8 +34,28 @@ export function ReasoningPanel({
 }: LeopardReasoningPanelProps) {
   const seconds =
     elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;
+  // Operator 2026-09-02: resting label is "thought for x seconds" — never
+  // "thought process". Falls back to plain "Thought" if no clock survived.
   const resting =
-    seconds !== null ? `Thought for ${seconds}s` : "Thought process";
+    seconds !== null ? `Thought for ${seconds} seconds` : "Thought";
+
+  // Live ticking while the model is still thinking — counts up from 0s and
+  // freezes (via the parent's elapsedMs) once the answer text begins.
+  const startRef = useRef<number | null>(null);
+  const [liveSeconds, setLiveSeconds] = useState(0);
+  useEffect(() => {
+    if (!streaming) {
+      startRef.current = null;
+      return;
+    }
+    if (startRef.current === null) startRef.current = performance.now();
+    const start = startRef.current;
+    const tick = () =>
+      setLiveSeconds(Math.max(0, Math.round((performance.now() - start) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [streaming]);
 
   // Height animation runs inside the transcript scroller — dispatch per-frame
   // deltas so messages.tsx can hold the reading anchor.
@@ -80,11 +100,13 @@ export function ReasoningPanel({
             >
               Thinking
             </ShimmerLabel>
-            {elapsedMs !== undefined && (
-              <span className={cn(mono, "text-foreground/30 tabular-nums")}>
-                {Math.max(0.1, elapsedMs / 1000).toFixed(1)}s
-              </span>
-            )}
+            <span className={cn(mono, "text-foreground/30 tabular-nums")}>
+              {streaming
+                ? `${liveSeconds}s`
+                : elapsedMs !== undefined
+                  ? `${Math.max(0.1, elapsedMs / 1000).toFixed(1)}s`
+                  : null}
+            </span>
           </>
           <>
             <span>{resting}</span>
