@@ -36,20 +36,33 @@ async function main() {
   await page.screenshot({ path: `${SHOTS}/menu.png` });
 
   // Pick "Retry with…" — a different model than current.
-  const opts = menu.locator("button");
-  const count = await opts.count();
-  stamp(`menu options: ${count}`);
-  let picked = "";
-  for (let i = 0; i < count; i++) {
-    const b = opts.nth(i);
-    const txt = (await b.innerText().catch(() => "")) ?? "";
-    stamp(`  opt[${i}]: ${txt.replace(/\n/g, " | ")}`);
-    if (picked) continue;
-    if (/^Retry$/.test(txt.trim())) continue; // plain retry = same model
-    if (/current/i.test(txt)) continue;
-    if (/deepseek|kimi|gemma/i.test(txt)) continue; // known-dead upstreams
-    picked = txt.replace(/\n/g, " | ");
-    await b.click();
+  // Options live in the floating dropdown (div.absolute) — the root also
+  // contains the icon-only trigger button; scope it out.
+  const opts = menu.locator("div.absolute button");
+  // Batch-read once — the menu can unmount when the pair remounts on settle,
+  // and per-option innerText calls then burn 30s timeouts each.
+  const texts = (await opts.allInnerTexts().catch(() => [] as string[])) ?? [];
+  stamp(`menu options: ${texts.length}`);
+  texts.forEach((t, i) => stamp(`  opt[${i}]: ${t.replace(/\n/g, " | ")}`));
+  let pickIdx = -1;
+  for (let i = 0; i < texts.length; i++) {
+    const t = texts[i];
+    if (/^Retry/i.test(t.trim())) continue; // plain retry = same model
+    if (/current/i.test(t)) continue;
+    if (/deepseek|kimi|gemma/i.test(t)) continue; // known-dead upstreams
+    pickIdx = i;
+    break;
+  }
+  let picked = pickIdx >= 0 ? texts[pickIdx].replace(/\n/g, " | ") : "";
+  // Click with reopen-retry: pair remount can close the menu between reads.
+  for (let k = 0; k < 4 && pickIdx >= 0; k++) {
+    const b = opts.nth(pickIdx);
+    const ok = await b.click({ timeout: 3000 }).then(() => true).catch(() => false);
+    if (ok) break;
+    stamp("click failed — re-hover + reopen menu");
+    await pair.hover().catch(() => {});
+    await regenBtn.click().catch(() => {});
+    await page.waitForTimeout(600);
   }
   stamp(`picked: ${picked || "(none — fell through)"}`);
   if (!picked) {
