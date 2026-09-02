@@ -57,7 +57,7 @@ async function main() {
   await page.screenshot({ path: `${SHOTS}/03-new-chat-draft.png` });
 
   // ── 3. Switch back via row click ───────────────────────────────
-  await page.getByText("sidebar probe", { exact: false }).first().click();
+  await page.locator('[data-slot="thread-list"] [role="button"]').first().click(); // newest chat row (AI titles vary)
   await page.waitForTimeout(1200);
   const backOnChat = page.url().includes("/chat/");
   console.log("row click navigates to chat:", backOnChat);
