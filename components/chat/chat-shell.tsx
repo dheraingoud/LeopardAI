@@ -93,9 +93,16 @@ export function ChatShell() {
         if (isTool && p.state === "approval-requested") {
           const approval = p.approval as { id?: string } | undefined;
           if (approval?.id) {
+            // Wire parts may lack toolName — derive from the type suffix
+            // ("tool-spawn_agents" → "spawn_agents"), same as the route's
+            // resume resolver. Without this the dock showed "tool".
+            const toolName =
+              (p.toolName as string) ??
+              (t.startsWith("tool-") && t !== "tool" ? t.slice(5) : undefined) ??
+              "tool";
             return {
               approvalId: approval.id,
-              toolName: (p.toolName as string) ?? "tool",
+              toolName,
               input: p.input,
             };
           }
