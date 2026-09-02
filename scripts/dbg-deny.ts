@@ -35,7 +35,14 @@ async function main() {
   await card.waitFor({ timeout: 120_000 });
   console.log("approval card visible");
   await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/1-approval.png" });
-  await card.locator('button:has-text("Deny")').click();
+  // New card is the LAST one; click races snapshot remounts — retry loop.
+  for (let k = 0; k < 12; k++) {
+    const btn = page.locator('[data-slot="approval-card"]').last().locator('button:has-text("Deny")');
+    const ok = await btn.click({ timeout: 5000 }).then(() => true).catch(() => false);
+    if (ok) break;
+    await page.waitForTimeout(1000);
+    if (k === 11) { console.log("FAIL: Deny never clickable"); process.exit(1); }
+  }
   console.log("clicked Deny");
   await page.waitForTimeout(2500);
   await page.screenshot({ path: "C:/Users/HP/leopard-shots/deny/2-after-deny.png", fullPage: true });
