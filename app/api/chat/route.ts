@@ -474,12 +474,22 @@ export async function POST(request: Request) {
   // output-available with the real output, and strip approval scaffolding —
   // the model continues straight into synthesis with results in context.
   const resumeOutputs = new Map<string, unknown>();
-  const approvalMsgEarly = [...messages].reverse().find((m) => {
-    if (m?.role !== "assistant") return false;
-    return ((m.parts ?? []) as Array<{ type?: string; state?: string }>).some(
+  // A request is an approval RESUME only when its LAST message is the
+  // assistant row carrying the decision. An approval-responded part in earlier
+  // history is STALE (the turn was stopped/crashed before the tool output
+  // landed) — treating every follow-up as a resume re-executed the whole
+  // (stopped) orchestration server-side and hung the chat for minutes
+  // (2026-09-02 dbg-stop-hang reproduction).
+  const hasApprovalDecision = (m: unknown): boolean => {
+    if ((m as { role?: string })?.role !== "assistant") return false;
+    return (((m as { parts?: unknown[] }).parts ?? []) as Array<{ type?: string; state?: string }>).some(
       (p) => p?.state === "approval-responded" || p?.type === "tool-approval-response",
     );
-  });
+  };
+  const approvalMsgEarly = (() => {
+    const last = messages[messages.length - 1];
+    return hasApprovalDecision(last) ? last : undefined;
+  })();
   // Tools the user just approved that still need executing. Execution is
   // DEFERRED into the backgroundServe prelude (2026-09-01): running it here
   // held the response headers for minutes (subagent teams run serially), so
@@ -703,14 +713,9 @@ export async function POST(request: Request) {
       // part flips to state "approval-responded" (or a bare tool-approval-response
       // part rides along). Reuse THAT message's id so persistence upserts the
       // same assistant row (a fresh id duplicates the bubble via the mirror).
-      const approvalMsg = [...messages].reverse().find((m) => {
-        if (m?.role !== "assistant") return false;
-        return ((m.parts ?? []) as Array<{ type?: string; state?: string }>).some(
-          (p) =>
-            p?.state === "approval-responded" ||
-            p?.type === "tool-approval-response",
-        );
-      });
+      // Same staleness gate as approvalMsgEarly above: only a trailing
+      // approval-carrying assistant row makes this request a resume.
+      const approvalMsg = hasApprovalDecision(lastWire) ? lastWire : undefined;
       const isApprovalResume = !!approvalMsg;
       // The wire id is the CLIENT's message id, which can diverge from the
       // persisted row's id (server assigns assistant ids mid-stream). Anchor the
