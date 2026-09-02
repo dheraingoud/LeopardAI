@@ -35,23 +35,38 @@ async function main() {
   stamp("sent");
 
   const card = page.locator('[data-slot="approval-card"]');
-  await card.waitFor({ timeout: 300_000 });
+  const gotCard = await card.waitFor({ timeout: 300_000 }).then(() => true).catch(() => false);
+  if (!gotCard) {
+    // Master ignored spawn_agents (or hung) — capture what it did instead.
+    const tail = (await page.locator('[data-slot="message-pair"]').last().innerText().catch(() => "")) ?? "";
+    stamp(`no approval card; last pair tail: ${tail.slice(-300).replace(/\n/g, " | ")}`);
+    await page.screenshot({ path: `${SHOTS}/no-approval.png`, fullPage: true });
+    process.exit(1);
+  }
   stamp("approval → Allow");
   await card.locator('button:has-text("Allow")').click();
 
+  // New messages append at the bottom, so THIS run's card is the LAST one —
+  // indexing by priorCards races the async history restore (stale card win).
   await page.waitForFunction(
     (n) => document.querySelectorAll('[data-slot="agent-run-card"]').length > n,
     priorCards,
     { timeout: 120_000 },
   );
-  const runCard = page.locator('[data-slot="agent-run-card"]').nth(priorCards);
-  const toggle = runCard.locator("button[aria-expanded]");
-  if ((await toggle.getAttribute("aria-expanded").catch(() => null)) !== "true") {
-    await toggle.click().catch(() => {});
+  const runCard = page.locator('[data-slot="agent-run-card"]').last();
+  const toggle = runCard.locator("button[aria-expanded]").first();
+  // Expand and VERIFY — snapshots keep re-rendering the card; the click can
+  // race a remount and land nowhere, leaving us sampling a collapsed card.
+  for (let k = 0; k < 10; k++) {
+    if ((await toggle.getAttribute("aria-expanded").catch(() => null)) === "true") break;
+    await toggle.click().catch((e) => stamp(`toggle click err: ${String(e).slice(0, 120)}`));
+    await page.waitForTimeout(500);
   }
+  stamp(`expanded: ${await toggle.getAttribute("aria-expanded").catch(() => null)}`);
 
   const seen = new Set<string>();
   let liveNote = false;
+  let agentTiming = false;
   for (let i = 0; i < 100; i++) {
     const txt = (await runCard.innerText().catch(() => "")) ?? "";
     if (i < 3 || i % 10 === 0) stamp(`sample[${i}]: ${txt.replace(/\n/g, " | ").slice(0, 220)}`);
@@ -62,14 +77,20 @@ async function main() {
         liveNote = true;
       }
     }
+    // Per-agent timing: settled rows carry a "Ns" duration next to status.
+    if (/\b\d+s\b/.test(txt)) agentTiming = true;
     // Don't trust an instantly-"done" card — could be a stale restored one.
-    if (i > 5 && /done ·/.test(txt) && !/running/.test(txt)) break;
+    if (i > 5 && /done ·/.test(txt) && !/running/.test(txt)) {
+      stamp(`final card: ${txt.replace(/\n/g, " | ").slice(0, 400)}`);
+      break;
+    }
     if (i === 5) await page.screenshot({ path: `${SHOTS}/mid-run.png` });
     await page.waitForTimeout(4000);
   }
-  stamp(`live activity notes seen: ${liveNote}`);
+  stamp(`live activity notes seen: ${liveNote}; per-agent timing seen: ${agentTiming}`);
   await page.screenshot({ path: `${SHOTS}/settled.png`, fullPage: true });
   if (!liveNote) { console.log("FAIL: no live tool-activity notes observed"); process.exit(1); }
+  if (!agentTiming) { console.log("FAIL: no per-agent Ns timing on settled rows"); process.exit(1); }
   stamp("PASS");
   await browser.close();
 }

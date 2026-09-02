@@ -72,6 +72,7 @@ export const agentsTools = ({ dataStream, userId, abortSignal }: AgentsToolConte
             kind: a.kind,
             status: a.status,
             output: a.output ?? a.note ?? "(no output)",
+            durationMs: a.durationMs,
           })),
           // FAILSAFE (2026-09-02): subagents can still fail after retry — the
           // user asked for a task, not a status report. The master must pick

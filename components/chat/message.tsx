@@ -69,7 +69,6 @@ import { ReadAloudButton } from "./leopard/read-aloud";
 import { QuoteReply } from "./leopard/quote-reply";
 import { FeedbackDialog } from "./leopard/feedback-dialog";
 import { MessageBranches } from "./leopard/message-branches";
-import { MessageTiming } from "./leopard/message-timing";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -182,7 +181,9 @@ function toAgentRunState(
 ): AgentRunState {
   const done = state === "complete";
   const outAgents = (
-    output as { agents?: Array<{ name: string; kind: string; status: string; note?: string }> } | undefined
+    output as
+      | { agents?: Array<{ name: string; kind: string; status: string; note?: string; durationMs?: number }> }
+      | undefined
   )?.agents;
   if (outAgents?.length) {
     return {
@@ -192,6 +193,7 @@ function toAgentRunState(
         task: "",
         status: (a.status as AgentRunState["agents"][number]["status"]) ?? "done",
         note: a.note,
+        durationMs: a.durationMs,
       })),
       done,
     };
@@ -608,7 +610,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Regen history (session-scoped, from use-active-chat) + stream duration.
   const siblings = isUser ? [] : chat.getSiblings(message.id);
   const [branchIdx, setBranchIdx] = useState<number | null>(null); // null = latest
-  const timingMs = isUser ? undefined : chat.getTiming(message.id);
+  // (Whole-run timing display removed 2026-09-02 — see reasoning panel.)
   // Reasoning panel open overrides — keyed by segment index. Default is
   // derived (`live`): completed cards default collapsed, live ones open; an
   // explicit click wins. (Keeps the stale-card fix: no mount-time open state.)
@@ -1332,21 +1334,8 @@ export const PreviewMessage = memo(function PreviewMessage({
                   }
                 />
                 <ReadAloudButton text={renderText} />
-                {/* Total stream time for this reply (recorded by use-active-chat). */}
-                {timingMs !== undefined && (
-                  <MessageTiming
-                    className="ml-2"
-                    stats={[
-                      {
-                        label: "total",
-                        value:
-                          timingMs >= 1000
-                            ? `${(timingMs / 1000).toFixed(1)}s`
-                            : `${timingMs}ms`,
-                      },
-                    ]}
-                  />
-                )}
+                {/* Operator 2026-09-02: no whole-run timing — timing lives only
+                    on the thinking panel and per-agent rows. */}
               </div>
               {/* Regen history: prior replies to the same prompt, browsable.
                   Latest (visible above) is the last variant. */}

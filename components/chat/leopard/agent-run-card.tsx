@@ -9,7 +9,7 @@
 // Agents are temporary and invisible outside this card; the master's
 // synthesis streams as normal text after it.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BotIcon, CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "./surfaces";
@@ -21,6 +21,10 @@ export interface AgentRunAgent {
   status: "pending" | "running" | "done" | "error";
   /** One-line live activity note (e.g. "searching the web"). */
   note?: string;
+  /** Wall-clock ms when the agent started running. */
+  startedAt?: number;
+  /** Final run time in ms (set on done/error). */
+  durationMs?: number;
 }
 
 export interface AgentRunState {
@@ -51,6 +55,16 @@ const KIND_CHIP: Record<AgentRunAgent["kind"], string> = {
 
 export function AgentRunCard({ run, className }: { run: AgentRunState; className?: string }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Per-agent wall-clock: tick once a second while any agent is running so
+  // the row shows a live count, then freezes at durationMs on settle.
+  const [now, setNow] = useState(() => Date.now());
+  const anyRunning = run.agents.some((a) => a.status === "running");
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [anyRunning]);
 
   const total = run.agents.length;
   const doneCount = run.agents.filter((a) => a.status === "done").length;
@@ -140,6 +154,14 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
               <span className={cn(mono, "flex shrink-0 items-center gap-1 text-[11px]")}>
                 {a.status === "done" && <CheckIcon className="size-3 text-emerald-400/80" />}
                 {a.status === "error" && <XIcon className="size-3 text-red-400/70" />}
+                {(a.durationMs !== undefined ||
+                  (a.status === "running" && a.startedAt !== undefined)) && (
+                  <span className="text-foreground/30 tabular-nums">
+                    {a.durationMs !== undefined
+                      ? `${Math.max(1, Math.round(a.durationMs / 1000))}s`
+                      : `${Math.max(0, Math.round((now - (a.startedAt ?? now)) / 1000))}s`}
+                  </span>
+                )}
                 <span
                   className={cn(
                     a.status === "running"
