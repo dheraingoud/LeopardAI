@@ -23,6 +23,7 @@ import { ThreadList } from "./chat/leopard/thread-list";
 import { ThreadSearch } from "./chat/leopard/thread-search";
 import { useLeopardTheme } from "@/components/theme-provider";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getDefaultChatModel } from "@/lib/ai/models";
@@ -127,13 +128,16 @@ export default function Sidebar({
     setEditingId(null);
   };
 
-  const handleDelete = async (e: React.MouseEvent, chatId: string) => {
-    e.stopPropagation();
+  // Destructive delete is gated by ConfirmDialog — row click only arms it.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  const handleDelete = async (chatId: string) => {
     if (!userId) return;
     await deleteChat({ chatId: chatId as Id<"chats">, userId });
     if (pathname === `/chat/${chatId}`) {
       router.push("/chat");
     }
+    setPendingDelete(null);
   };
 
   // ─── Collapsed sidebar (Desktop only) ───
@@ -276,12 +280,7 @@ export default function Sidebar({
                     setEditTitle(chat?.title ?? "");
                     setEditingId(id);
                   }}
-                  onDelete={(id) =>
-                    handleDelete(
-                      { stopPropagation: () => {} } as unknown as React.MouseEvent,
-                      id,
-                    )
-                  }
+                  onDelete={(id) => setPendingDelete(id)}
                   editingId={editingId}
                   editValue={editTitle}
                   onEditChange={setEditTitle}
@@ -299,7 +298,7 @@ export default function Sidebar({
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 ring-1 dark:ring-white/10 light:ring-black/10">
             <AvatarImage src={user?.imageUrl} />
-            <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] text-sm font-body font-bold">
+            <AvatarFallback className="bg-[#ffb40015] text-[#ffb400] text-sm font-body font-semibold">
               {user?.firstName?.[0] || "U"}
             </AvatarFallback>
           </Avatar>
@@ -349,6 +348,14 @@ export default function Sidebar({
       style={{ width: isMobile ? undefined : 280 }}
     >
       {sidebarContent}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this chat?"
+        description="The conversation and all its messages are permanently removed. This cannot be undone."
+        confirmLabel="Delete chat"
+        onConfirm={() => (pendingDelete ? handleDelete(pendingDelete) : undefined)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

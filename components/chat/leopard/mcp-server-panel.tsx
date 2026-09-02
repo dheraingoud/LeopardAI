@@ -15,6 +15,7 @@ import {
   type McpTransport,
 } from "@/lib/mcp-config";
 import { field, mono, paper } from "./surfaces";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // Forked server-panel rows inside the Leopard modal shell. Fail-closed probe:
 // without NEXT_PUBLIC_ENABLE_MCP_PROBE every dot is neutral "unprobed" — we
@@ -182,10 +183,14 @@ export function McpServerPanel({ open, onClose }: { open: boolean; onClose: () =
     saveMcpConfig(updated);
   };
 
+  // Destructive: removal is gated by ConfirmDialog — trash icon only arms it.
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+
   const removeServer = (id: string) => {
     const updated = servers.filter((s) => s.id !== id);
     setServers(updated);
     saveMcpConfig(updated);
+    setPendingRemove(null);
   };
 
   const addPreset = (preset: (typeof MCP_PRESETS)[number]) => {
@@ -301,11 +306,20 @@ export function McpServerPanel({ open, onClose }: { open: boolean; onClose: () =
                       expanded={expandedId === s.id}
                       onExpand={(id) => setExpandedId((cur) => (cur === id ? undefined : id))}
                       onToggle={toggleServer}
-                      onRemove={removeServer}
+                      onRemove={(id) => setPendingRemove(id)}
                     />
                   ))}
                 </div>
               )}
+
+              <ConfirmDialog
+                open={pendingRemove !== null}
+                title="Remove this server?"
+                description={`"${servers.find((s) => s.id === pendingRemove)?.name ?? "This server"}" and its config are removed. Its tools stop being available to the model.`}
+                confirmLabel="Remove server"
+                onConfirm={() => (pendingRemove ? removeServer(pendingRemove) : undefined)}
+                onCancel={() => setPendingRemove(null)}
+              />
 
               <AnimatePresence initial={false}>
                 {formOpen && (

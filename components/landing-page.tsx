@@ -252,7 +252,7 @@ export default function LandingPage() {
                     <f.icon className="h-4.5 w-4.5 dark:text-[#737373] light:text-[#737373] group-hover:text-[#ffb400] transition-colors" />
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-mono text-[#ffb400] font-bold leading-none">
+                    <p className="text-base font-mono text-[#ffb400] font-semibold leading-none">
                       {f.stat}
                     </p>
                     <p className="text-[9px] font-mono dark:text-[#525252] light:text-[#8c8c8c] uppercase tracking-wider mt-0.5">
