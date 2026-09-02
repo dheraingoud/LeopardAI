@@ -36,6 +36,10 @@ export interface OrchAgentState extends OrchTask {
   status: AgentStatus;
   /** One-line live activity note. */
   note?: string;
+  /** Wall-clock ms when the agent started running. */
+  startedAt?: number;
+  /** Final run time in ms (set on done/error). */
+  durationMs?: number;
   /** Compacted final output (returned to the master model). */
   output?: string;
 }
@@ -217,6 +221,8 @@ export async function runOrchestration(input: {
       return agents;
     }
     agent.status = "running";
+    agent.startedAt = Date.now();
+    agent.durationMs = undefined;
     agent.note =
       agent.kind === "research"
         ? "searching the web"
@@ -246,6 +252,7 @@ export async function runOrchestration(input: {
       agent.output = clip(output, OUTPUT_CAP);
       agent.status = "done";
       agent.note = undefined;
+      agent.durationMs = agent.startedAt ? Date.now() - agent.startedAt : undefined;
       priorOutputs.push({ name: agent.name, output: agent.output });
     } catch (err) {
       const firstError = err instanceof Error ? err.message : String(err);
@@ -280,10 +287,12 @@ export async function runOrchestration(input: {
         agent.output = clip(text, OUTPUT_CAP);
         agent.status = "done";
         agent.note = undefined;
+        agent.durationMs = agent.startedAt ? Date.now() - agent.startedAt : undefined;
         priorOutputs.push({ name: agent.name, output: agent.output });
       } catch (err2) {
         agent.status = "error";
         agent.note = err2 instanceof Error ? err2.message : String(err2);
+        agent.durationMs = agent.startedAt ? Date.now() - agent.startedAt : undefined;
         logAgentError(agent.name, "retry", agent.note);
         console.warn(`[orchestrator] agent "${agent.name}" failed retry: ${agent.note}`);
       }
