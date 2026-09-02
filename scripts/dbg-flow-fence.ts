@@ -28,7 +28,25 @@ async function main() {
   const got = await flow.first().waitFor({ timeout: 240_000 }).then(() => true).catch(() => false);
   stamp(`flow-graph rendered: ${got}`);
   await page.waitForTimeout(3000);
-  await page.screenshot({ path: `${SHOTS}/both.png`, fullPage: true });
+  if (got) {
+    await flow.first().scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(800);
+    await flow.first().screenshot({ path: `${SHOTS}/flow-element.png` }).catch(() => {});
+    // mermaid coexistence: the same reply must also render a mermaid diagram
+    const mer = page.locator(".cb-mermaid-inline").first();
+    const gotM = await mer.waitFor({ timeout: 30_000 }).then(() => true).catch(() => false);
+    stamp(`mermaid rendered: ${gotM}`);
+    if (gotM) {
+      await mer.locator("svg").first().waitFor({ timeout: 20_000 }).catch(() => {});
+      await mer.scrollIntoViewIfNeeded().catch(() => {});
+      await page.waitForTimeout(800);
+      await mer.screenshot({ path: `${SHOTS}/mermaid-element.png` }).catch(() => {});
+    }
+    if (!gotM) process.exitCode = 1;
+    await page.screenshot({ path: `${SHOTS}/both.png` });
+  } else {
+    await page.screenshot({ path: `${SHOTS}/both.png`, fullPage: true });
+  }
   if (!got) {
     const tail = (await page.locator('[data-slot="message-pair"]').last().innerText().catch(() => "")) ?? "";
     console.log("LAST PAIR:", tail.slice(-800));
