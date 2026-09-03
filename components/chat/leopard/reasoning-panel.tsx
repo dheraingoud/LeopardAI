@@ -32,12 +32,21 @@ export function ReasoningPanel({
   effortBadge,
   className,
 }: LeopardReasoningPanelProps) {
-  const seconds =
-    elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : null;
+  // Resting label matches the frozen chip's precision (tenths under 10s) so
+  // "0.5s" while streaming doesn't become "Thought for 1 seconds" at rest.
+  const secs = elapsedMs !== undefined ? Math.max(0.1, elapsedMs / 1000) : null;
+  const secsLabel =
+    secs === null
+      ? null
+      : secs < 10
+        ? secs.toFixed(1).replace(/\.0$/, "")
+        : String(Math.round(secs));
   // Operator 2026-09-02: resting label is "thought for x seconds" — never
   // "thought process". Falls back to plain "Thought" if no clock survived.
   const resting =
-    seconds !== null ? `Thought for ${seconds} seconds` : "Thought";
+    secsLabel !== null
+      ? `Thought for ${secsLabel} second${secsLabel === "1" ? "" : "s"}`
+      : "Thought";
 
   // Live ticking while the model is still thinking — counts up from 0s and
   // freezes (via the parent's elapsedMs) once the answer text begins.

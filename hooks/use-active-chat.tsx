@@ -125,6 +125,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Prior response texts for the turn this assistant message answers
    * (session-scoped regen history; the server rows are deleted on regen). */
   getSiblings: (messageId: string) => string[];
+  /** True during the auto-retry pause after an errored run (QA M5) — lets the
+   * composer show the stop state while the retry is pending/in-flight. */
+  retrying: boolean;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -817,7 +820,13 @@ export function ActiveChatProvider({
   // This also asks the server (POST /api/chat/stop) to abort + persist the
   // partial reply as `completed`, so the stopped bubble shows what it produced
   // and the server row is final.
+  // Pending auto-retry timer — stop during the retry pause must cancel it,
+  // else the regenerate fires anyway after the user hit stop (QA M5).
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelRetryRef = useRef<() => void>(() => {});
+
   const stopGeneration = useCallback(() => {
+      cancelRetryRef.current();
       // Only ask the server to abort when we know the detached generation's id
       // (image-gen has no server row, so local stop alone suffices). RETURNED
       // so editMessage can order: stop → (abort's partial persist lands) →
@@ -1082,10 +1091,41 @@ export function ActiveChatProvider({
     lastMsg?.role === "assistant" &&
     (lastMsg.metadata as { serverStreaming?: boolean } | undefined)
       ?.serverStreaming === true;
+  // Auto-retry once on a failed run before surfacing the error card (QA M5 —
+  // lifted out of Messages so the composer can flip to the stop state during
+  // the retry window). Keyed per trailing message id: a new turn gets its own
+  // free retry; StrictMode double-invoke is guarded by the ref.
+  const [retrying, setRetrying] = useState(false);
+  const autoRetriedRef = useRef<string | null>(null);
+  cancelRetryRef.current = () => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    setRetrying(false);
+  };
+  useEffect(() => {
+    if (chat.status !== "error") return;
+    const last = chat.messages[chat.messages.length - 1];
+    const key = last?.id ?? "empty";
+    if (autoRetriedRef.current === key) return;
+    autoRetriedRef.current = key;
+    setRetrying(true);
+    const t = setTimeout(() => {
+      retryTimeoutRef.current = null;
+      setRetrying(false);
+      if (last) regenerateMessage(last.id);
+    }, 1500);
+    retryTimeoutRef.current = t;
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.status, chat.messages]);
+
   const value: ActiveChatContextValue = {
     ...chat,
     sendMessage,
     serverStreaming,
+    retrying,
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,
