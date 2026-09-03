@@ -1107,6 +1107,22 @@ export function ActiveChatProvider({
   useEffect(() => {
     if (chat.status !== "error") return;
     const last = chat.messages[chat.messages.length - 1];
+    // QA M1: never auto-regenerate a turn whose reply already streamed content —
+    // regen deletes the good persisted row and a fresh generation can answer
+    // differently (observed: "Ultraviolet." → "Unknown" after reload). A partial
+    // turn shows the manual error card instead of being silently replaced.
+    const hasContent =
+      last?.role === "assistant" &&
+      (last.parts ?? []).some(
+        (p) =>
+          (p.type === "text" &&
+            typeof (p as { text?: unknown }).text === "string" &&
+            (p as { text: string }).text.trim().length > 0) ||
+          (typeof p.type === "string" &&
+            p.type.startsWith("tool-") &&
+            (p as { state?: string }).state === "output-available"),
+      );
+    if (hasContent) return;
     const key = last?.id ?? "empty";
     if (autoRetriedRef.current === key) return;
     autoRetriedRef.current = key;
