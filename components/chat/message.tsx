@@ -8,6 +8,7 @@ import {
   Copy,
   Check,
   FileText,
+  Paperclip,
   Code,
   Table,
   Image as ImageIcon,
@@ -574,6 +575,15 @@ export const PreviewMessage = memo(function PreviewMessage({
 }) {
   const isUser = message.role === "user";
   const text = getMessageText(message);
+  // QA M2: user attachments ride as `file` parts (data-URL inline) — the
+  // bubble used to render text only, so images/files vanished after send.
+  const userFileParts = isUser
+    ? (message.parts.filter((p) => p.type === "file") as Array<{
+        url: string;
+        filename?: string;
+        mediaType?: string;
+      }>)
+    : [];
   const reasoning = !isUser ? getMessageReasoning(message) : "";
   const isStreaming = !isUser && isLast && status === "streaming";
   // Φ6: tool-createDocument parts → inline artifact-opener cards (see
@@ -1099,10 +1109,38 @@ export const PreviewMessage = memo(function PreviewMessage({
               onModelChange={(id) => chat.setCurrentModel(id)}
             />
           ) : (
-            // Clone-style user bubble (filled, rounded) in leopard tokens.
-            <div className="max-w-[70%] rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
-              <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]"><UserText text={text} /></p>
-            </div>
+            <>
+              {/* Attachments above the bubble: images as real thumbnails
+                  (data-URL persists verbatim, works live + after reload),
+                  other files as name cards. */}
+              {userFileParts.length > 0 && (
+                <div className="mb-2 flex max-w-[70%] flex-col items-end gap-1.5">
+                  {userFileParts.map((f, i) =>
+                    f.mediaType?.startsWith("image/") ? (
+                      <img
+                        key={i}
+                        src={f.url}
+                        alt={f.filename ?? "attachment"}
+                        className="max-h-64 max-w-full rounded-2xl object-cover dark:border dark:border-white/[0.08]"
+                      />
+                    ) : (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] dark:bg-white/[0.07] dark:text-[#d4d4d4] light:bg-black/[0.05] light:text-[#404040]"
+                      >
+                        <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                        <span className="max-w-56 truncate">{f.filename ?? "file"}</span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+              {text.trim() && (
+                <div className="max-w-[70%] rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
+                  <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]"><UserText text={text} /></p>
+                </div>
+              )}
+            </>
           )}
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
             <button
