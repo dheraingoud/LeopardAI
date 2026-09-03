@@ -641,9 +641,17 @@ export const PreviewMessage = memo(function PreviewMessage({
   // which would otherwise lose the ref/state and fall back to the bare
   // "Thought process" label after settle.
   const reasoningStartRef = useRef<number | null>(null);
-  const [reasoningMs, setReasoningMs] = useState<number | undefined>(
-    () => (reasoning ? reasoningElapsedCache.get(reasoning.slice(0, 64)) : undefined),
-  );
+  const [reasoningMs, setReasoningMs] = useState<number | undefined>(() => {
+    // Persisted duration (stamped server-side into the reasoning part) wins —
+    // it survives reload; the session cache only covers the id-swap remount.
+    const persisted = message?.parts?.find(
+      (p) =>
+        p?.type === "reasoning" &&
+        typeof (p as { durationMs?: unknown }).durationMs === "number",
+    ) as { durationMs?: number } | undefined;
+    if (persisted?.durationMs !== undefined) return persisted.durationMs;
+    return reasoning ? reasoningElapsedCache.get(reasoning.slice(0, 64)) : undefined;
+  });
   useEffect(() => {
     if (isUser || !reasoning) {
       reasoningStartRef.current = null;

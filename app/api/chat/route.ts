@@ -158,6 +158,31 @@ function hasModelWorthyAssistantContent<
   );
 }
 
+/** QA M3 — strip image/video file parts from history for text-only models.
+ * convertToModelMessages keeps `file` parts verbatim and openai-compatible
+ * serializes them as image_url unconditionally; a text-only NIM model then
+ * throws "multimodal processing is not enabled" and the turn hangs. Applied
+ * per attempt (fallback may escalate to a VLM that accepts them). An emptied
+ * message keeps a placeholder so roles/alternation stay intact. */
+function stripNonVisionFileParts<T extends { role?: string; content?: unknown }>(
+  msgs: T[],
+): T[] {
+  return msgs.map((m) => {
+    if (m.role !== "user" || !Array.isArray(m.content)) return m;
+    const kept = (m.content as Array<{ type?: string; mediaType?: string }>).filter(
+      (p) => p?.type !== "file" || !/^(image|video)\//.test(p.mediaType ?? ""),
+    );
+    if (kept.length === m.content.length) return m;
+    return {
+      ...m,
+      content:
+        kept.length > 0
+          ? kept
+          : [{ type: "text", text: "[attachment omitted: model has no vision]" }],
+    };
+  });
+}
+
 /** Flatten a model message's content (string or part array) to text for token
  * estimation — mirrors TokenMessage for estimateConversationTokens. */
 function modelMessagesToTokenInput(
@@ -964,6 +989,14 @@ export async function POST(request: Request) {
           attemptIndex += 1;
           actualModel = attemptModel;
           const attemptCfg = getModelById(attemptModel);
+          // Vision gating applies per ATTEMPT (fallback may escalate to a VLM
+          // that legitimately accepts the images). Text-only models must never
+          // receive image/video file parts from earlier turns — NIM/vLLM throws
+          // "multimodal data but multimodal processing is not enabled" and the
+          // turn dies (QA M3).
+          const attemptMessages = attemptCfg?.supportsVision
+            ? modelMessages!
+            : stripNonVisionFileParts(modelMessages!);
           return streamText({
         model: getLanguageModel(attemptModel),
         // Φ10/#3 — aborts only on deliberate stop / settle-timeout, NOT on the
@@ -990,7 +1023,7 @@ export async function POST(request: Request) {
           // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
           styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),
         }),
-        messages: modelMessages!,
+        messages: attemptMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
         // 2026-07. 16384 fits within the smallest model context and matches
