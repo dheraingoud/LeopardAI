@@ -519,6 +519,10 @@ class PartAccumulator {
   private text = "";
   private reasoning = "";
   private tools: Array<Record<string, unknown>> = [];
+  /** Reasoning wall-clock window — persisted as durationMs so the "Thought for
+   * N seconds" label survives reload (client-side cache dies with the page). */
+  private reasoningStartMs: number | null = null;
+  private reasoningEndMs: number | null = null;
 
   /** Approval-resume seed: the resumed run re-persists the row from scratch
    * (placeholder write), so the previously persisted tool parts must be
@@ -531,9 +535,12 @@ class PartAccumulator {
   push(chunk: { type?: string; [k: string]: unknown }): void {
     switch (chunk.type) {
       case "text-delta":
+        if (this.reasoningStartMs !== null && this.reasoningEndMs === null)
+          this.reasoningEndMs = Date.now();
         this.text += String(chunk.delta ?? "");
         break;
       case "reasoning-delta":
+        if (this.reasoningStartMs === null) this.reasoningStartMs = Date.now();
         this.reasoning += String(chunk.delta ?? "");
         break;
       case "tool-call-end": // legacy alias
@@ -604,7 +611,18 @@ class PartAccumulator {
       | { type: "reasoning"; text: string }
       | Record<string, unknown>
     > = [];
-    if (this.reasoning.trim()) out.push({ type: "reasoning", text: this.reasoning });
+    if (this.reasoning.trim()) {
+      // parts() runs progressively mid-stream — never mutate the window here;
+      // an open window (reasoning-only so far) just measures up to now.
+      const end = this.reasoningEndMs ?? Date.now();
+      const durationMs =
+        this.reasoningStartMs !== null ? end - this.reasoningStartMs : undefined;
+      out.push({
+        type: "reasoning",
+        text: this.reasoning,
+        ...(durationMs !== undefined ? { durationMs } : {}),
+      });
+    }
     if (this.text.trim()) out.push({ type: "text", text: this.text });
     out.push(...this.tools);
     return out;

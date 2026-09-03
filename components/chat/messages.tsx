@@ -284,26 +284,9 @@ export function Messages() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [status]);
 
-  // Auto-retry once on a failed run before surfacing the error card: the card
-  // shows "retrying…" during the pause and the manual button only if the
-  // second attempt also fails. Keyed per trailing message id so a new turn
-  // gets its own free retry.
-  const [autoRetrying, setAutoRetrying] = useState(false);
-  const autoRetriedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (status !== "error") return;
-    const last = messages[messages.length - 1];
-    const key = last?.id ?? "empty";
-    if (autoRetriedRef.current === key) return;
-    autoRetriedRef.current = key;
-    setAutoRetrying(true);
-    const t = setTimeout(() => {
-      setAutoRetrying(false);
-      if (last) chat.regenerateMessage(last.id);
-    }, 1500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, messages]);
+  // Auto-retry state lives in use-active-chat (QA M5) so the composer flips to
+  // the stop state during the retry window — here we only render it.
+  const autoRetrying = chat.retrying;
 
   if (messages.length === 0) {
     return <Greeting />;
@@ -340,11 +323,11 @@ export function Messages() {
           />
         )}
         {isThinking && <ThinkingMessage />}
-        {status === "error" && (
+        {status === "error" && !autoRetrying && (
           <ErrorState
             title="That didn't go through"
             detail="The reply errored or stalled mid-stream. Retry re-runs the last turn — your chat is intact."
-            retrying={autoRetrying}
+            retrying={false}
             onRetry={() => {
               const last =
                 [...messages].reverse().find((m) => m.role === "assistant") ??
@@ -354,11 +337,25 @@ export function Messages() {
             className="mt-3"
           />
         )}
-        {/* Floating-composer clearance — taller while streaming so expanding
-            cards (subagents, tools) never slide under the input bar. */}
-        <div className={status === "streaming" || status === "submitted" ? "h-48" : "h-32"} />
+        {/* Floating-composer clearance — taller while streaming or errored so
+            expanding cards + the error card never slide under the input bar. */}
+        <div className={status === "streaming" || status === "submitted" || status === "error" ? "h-48" : "h-32"} />
         </div>
       </div>
+      {/* QA M5 — retry indicator floats above the composer (like the scroll
+          pill) instead of sitting in the transcript flow where attachment
+          chips push the composer over it. bottom-36 clears composer+chips. */}
+      {status === "error" && autoRetrying && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-36 z-10 flex justify-center">
+          <ErrorState
+            title="That didn't go through"
+            detail="The reply errored or stalled mid-stream. Retrying…"
+            retrying
+            onRetry={() => {}}
+            className="mt-0"
+          />
+        </div>
+      )}
       {unseen > 0 && (
         <div className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center">
           <ScrollAnchorPill

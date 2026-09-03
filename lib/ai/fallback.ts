@@ -91,7 +91,7 @@ export function buildFallbackModelChain(
 // turn + adds latency. Everything else (5xx, network drop, abort-by-timeout,
 // empty output) may be instance-specific and IS worth a fallback try.
 const NOT_FALLBACKABLE =
-  /401|403|429|unauthorized|api\s?key|rate\s?limit|quota|payment|credit\s?card|invalid\s?request|not\s?allowed|model_not_allowed/i;
+  /401|403|429|unauthorized|api\s?key|rate\s?limit|quota|payment|credit\s?card|invalid\s?request|not\s?allowed|model_not_allowed|multimodal|bad\s?request/i;
 
 /** True when a terminal, content-free attempt SHOULD try the next model (a hard
  * / transient failure). False for auth/rate-limit/config errors that would recur

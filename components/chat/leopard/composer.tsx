@@ -243,7 +243,7 @@ const takePendingComposerText = (): string | null => {
 };
 
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
-  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming, retrying } = useActiveChat();
   const [input, setInput] = useState("");
   // Consume parked edit-text on mount (strict-mode safe: effects, not the
   // useState initializer, which double-invokes and would eat the value).
@@ -324,8 +324,10 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const sendWithEnter = useSettingsStore((s) => s.sendWithEnter);
   // serverStreaming: reopened mid-generation — the detached route task owns
   // the run; stop still works (server abort registry is keyed by assistant id).
+  // retrying: the auto-retry pause after an errored run — show the stop state
+  // (QA M5: the button used to sit inert/disabled through the whole retry).
   const isStreaming =
-    status === "submitted" || status === "streaming" || serverStreaming;
+    status === "submitted" || status === "streaming" || serverStreaming || retrying;
   const hasContent = input.trim().length > 0 || attachments.length > 0;
   const canSend = hasContent && !isStreaming && !uploading;
   const { enqueue, drain } = useMessageQueue();
