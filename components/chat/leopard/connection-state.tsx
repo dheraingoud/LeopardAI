@@ -112,15 +112,22 @@ export function ConnectionDot({ className }: { className?: string }) {
 
   if (online) return null;
 
+  // QA m7: a 1.5px dot read as "no indicator at all" — render a labeled pill.
   return (
     <span
       role="status"
       aria-label="Offline"
       title="Offline — reconnecting when the network returns"
       className={cn(
-        "size-1.5 shrink-0 rounded-full bg-[#ffb400] light:bg-[#d49600] animate-pulse motion-reduce:animate-none",
+        "flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5",
+        "dark:bg-[#ffb400]/[0.08] light:bg-[#d49600]/[0.10]",
         className,
       )}
-    />
+    >
+      <span className="size-1.5 rounded-full bg-[#ffb400] light:bg-[#d49600] animate-pulse motion-reduce:animate-none" />
+      <span className={cn(mono, "text-[10px] uppercase tracking-[0.08em] dark:text-[#ffb400] light:text-[#a87700]")}>
+        Offline
+      </span>
+    </span>
   );
 }
