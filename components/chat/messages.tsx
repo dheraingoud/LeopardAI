@@ -346,7 +346,7 @@ export function Messages() {
           pill) instead of sitting in the transcript flow where attachment
           chips push the composer over it. bottom-36 clears composer+chips. */}
       {status === "error" && autoRetrying && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-36 z-10 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 bottom-44 z-10 flex justify-center">
           <ErrorState
             title="That didn't go through"
             detail="The reply errored or stalled mid-stream. Retrying…"
