@@ -1127,9 +1127,14 @@ export function ActiveChatProvider({
     }
     setRetrying(false);
   };
+  // Deps are PRIMITIVES (status + stable keys): chat.messages is a new array
+  // identity almost every render, and re-running this effect cleared the 1.5s
+  // timer before it fired — retrying stuck true, no retry, no error card.
+  const lastMsgForRetry = chat.messages[chat.messages.length - 1];
+  const lastUserIdForRetry = [...chat.messages].reverse().find((m) => m.role === "user")?.id;
   useEffect(() => {
     if (chat.status !== "error") return;
-    const last = chat.messages[chat.messages.length - 1];
+    const last = lastMsgForRetry;
     // QA M1: never auto-regenerate a turn whose reply already streamed content —
     // regen deletes the good persisted row and a fresh generation can answer
     // differently (observed: "Ultraviolet." → "Unknown" after reload). A partial
@@ -1146,7 +1151,10 @@ export function ActiveChatProvider({
             (p as { state?: string }).state === "output-available"),
       );
     if (hasContent) return;
-    const key = last?.id ?? "empty";
+    // Key on the last USER message id, not the assistant row: regenerate
+    // mints a fresh assistant id each attempt, which made the guard re-arm on
+    // every failure → infinite retry loop and the error card never showed.
+    const key = lastUserIdForRetry ?? last?.id ?? "empty";
     if (autoRetriedRef.current === key) return;
     autoRetriedRef.current = key;
     setRetrying(true);
@@ -1158,7 +1166,7 @@ export function ActiveChatProvider({
     retryTimeoutRef.current = t;
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat.status, chat.messages]);
+  }, [chat.status, lastMsgForRetry?.id, lastUserIdForRetry]);
 
   const value: ActiveChatContextValue = {
     ...chat,

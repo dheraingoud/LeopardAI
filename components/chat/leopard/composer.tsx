@@ -330,7 +330,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     status === "submitted" || status === "streaming" || serverStreaming || retrying;
   const hasContent = input.trim().length > 0 || attachments.length > 0;
   const canSend = hasContent && !isStreaming && !uploading;
-  const { enqueue, drain } = useMessageQueue();
+  const { queued, enqueue, drain } = useMessageQueue();
 
   // Flush queued text once the active run returns to ready.
   const prevStreaming = useRef(false);
@@ -446,6 +446,24 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   return (
     <div className={placement === "center" ? "pointer-events-none w-full px-4 sm:px-6" : "pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6"}>
       <div className="pointer-events-auto mx-auto max-w-3xl">
+        {/* QA loop-2: queued sends used to vanish silently — show them. */}
+        {queued.length > 0 && (
+          <div data-slot="composer-queue" className="mb-3 flex flex-wrap items-center gap-2">
+            {queued.map((q) => (
+              <span
+                key={q.id}
+                className="flex items-center gap-1.5 rounded-lg border py-1 px-2 dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.04] light:bg-black/[0.03]"
+              >
+                <span className="max-w-40 truncate text-[11px] dark:text-[#a3a3a3] light:text-[#525252]">
+                  {q.text}
+                </span>
+                <span className="font-mono text-[9px] uppercase tracking-tight dark:text-[#ffb400]/70 light:text-[#d49600]/80">
+                  queued
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
         {(attachments.length > 0 || uploading) && (
           <div data-slot="composer-attachments" className="mb-3 flex flex-wrap items-center gap-2">
             {attachments.map((a, i) => (
