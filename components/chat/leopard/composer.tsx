@@ -354,6 +354,8 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     try {
       for (const f of Array.from(files)) {
         if (kind === "media" && modelImageEdit && !modelVision && !f.type.startsWith("image/")) continue;
+        // QA m4: skip exact duplicates (same name + size already queued).
+        if (attachments.some((a) => a.name === f.name)) continue;
         const up = await uploadFile(f);
         setAttachments((a) => [...a, { url: up.url, name: up.name, mediaType: up.mediaType }]);
       }
@@ -445,7 +447,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     <div className={placement === "center" ? "pointer-events-none w-full px-4 sm:px-6" : "pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6"}>
       <div className="pointer-events-auto mx-auto max-w-3xl">
         {(attachments.length > 0 || uploading) && (
-          <div data-slot="composer-attachments" className="mb-2 flex flex-wrap items-center gap-2">
+          <div data-slot="composer-attachments" className="mb-3 flex flex-wrap items-center gap-2">
             {attachments.map((a, i) => (
               <MessageAttachmentChip
                 key={`${a.url}-${i}`}

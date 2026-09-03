@@ -196,9 +196,20 @@ export function ActiveChatProvider({
   const documentsSave = useMutation(api.documents.save);
 
   // ── Selected model ─────────────────────────────────────────────────────────
-  const [currentModelId, setCurrentModelIdState] = useState<string>(
-    () => getDefaultChatModel().id,
-  );
+  // QA m2: draft/new chats default to the LAST picked model (localStorage),
+  // not always the registry default — a reload used to silently reset the
+  // user's pick. Real chats still sync from chatMeta (row wins).
+  const [currentModelId, setCurrentModelIdState] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const last = window.localStorage.getItem("leopard:last-model");
+        if (last && getModelById(last)) return last;
+      } catch {
+        /* ignore quota / private mode */
+      }
+    }
+    return getDefaultChatModel().id;
+  });
   // Sync ONCE from the loaded chat (race-guard: don't clobber a user pick made
   // before chatMeta arrived). Provider is keyed by chatId, so the ref resets on
   // every chat switch — first sync is the saved chat model.
@@ -808,6 +819,11 @@ export function ActiveChatProvider({
   // ── Model change (local state + persist) ───────────────────────────────────
   const setCurrentModel = (id: string) => {
     setCurrentModelIdState(id);
+    try {
+      window.localStorage.setItem("leopard:last-model", id);
+    } catch {
+      /* ignore quota / private mode */
+    }
     if (isDraft) return; // no row yet — the draft send persists the picked model
     const u = uidRef.current;
     if (u) void updateModel({ chatId: convexChatId, userId: u, model: id });
