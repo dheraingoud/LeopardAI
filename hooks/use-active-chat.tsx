@@ -168,16 +168,21 @@ export function ActiveChatProvider({
   // skip; the first send mints the row, stashes the parts, and routes to
   // /chat/<realId> where the remounted provider picks the pending message up.
   const isDraft = chatId === "draft";
+  // QA m6: a malformed id (typed URL) fails Convex arg validation and the
+  // query error used to leave a silent empty/crashed view — treat it as
+  // not-found instead. Convex ids are lowercase base32-ish strings.
+  const badId = !isDraft && !/^[a-z0-9]{16,64}$/.test(chatId);
   const convexChatId = chatId as Id<"chats">;
 
   // ── Convex: load chat + messages ──────────────────────────────────────────
-  const chatMeta = useQuery(
+  const chatMetaRaw = useQuery(
     api.chats.get,
-    isDraft || !uid ? "skip" : { chatId: convexChatId, userId: uid },
+    isDraft || badId || !uid ? "skip" : { chatId: convexChatId, userId: uid },
   );
+  const chatMeta = badId ? null : chatMetaRaw;
   const convexMessages = useQuery(
     api.messages.list,
-    isDraft ? "skip" : { chatId: convexChatId },
+    isDraft || badId ? "skip" : { chatId: convexChatId },
   );
   const createChat = useMutation(api.chats.create);
 
@@ -1097,7 +1102,9 @@ export function ActiveChatProvider({
   );
   const isLoading = isDraft
     ? false
-    : chatMeta === undefined || convexMessages === undefined;
+    : badId
+      ? false // malformed id → not-found UI, never a loader
+      : chatMeta === undefined || convexMessages === undefined;
   // No local stream, but the newest assistant row is still server-written →
   // the user reopened mid-generation and Convex is live-patching the bubble.
   const lastMsg = chat.messages[chat.messages.length - 1];
