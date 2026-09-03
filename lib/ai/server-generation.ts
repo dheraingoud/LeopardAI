@@ -890,7 +890,13 @@ export function backgroundServe(args: {
         sendReasoning,
         onError: (err: unknown) => {
           attemptError = errMsg(err);
-          emit({ type: "error", errorText: errMsg(err) });
+          // QA M1: once content has committed, the partial is persisted as the
+          // final row — a protocol error chunk would flip the client to
+          // status:"error" and trigger the destructive auto-regenerate, which
+          // deletes the good row and replaces it with a second generation.
+          // Log it; don't emit it.
+          if (!committed) emit({ type: "error", errorText: errMsg(err) });
+          else logWarn("post-commit upstream error suppressed", err);
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
       // Φ-stall watchdog: an upstream that opens fine but then hangs (observed:
