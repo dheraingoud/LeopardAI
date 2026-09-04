@@ -611,16 +611,22 @@ async function renderMermaid(
   } catch (err) {
     const lines = code.split("\n");
     // Only worth retrying when there's something to drop.
-    if (lines.length > 3) {
-      const trimmed = lines.slice(0, -1).join("\n").trimEnd();
-      if (trimmed) {
-        try {
-          return (await mermaid.render(`${id}-salvage`, trimmed)).svg;
-        } catch {
-          /* fall through to the real error path */
-        }
+    // Salvage: drop trailing lines one at a time until the diagram parses
+    // (models often stream a valid chart + a broken tail like a classless
+    // `class a,b,c` line). Cap at 5 drops so we don't eat the diagram.
+    let trimmed = code;
+    for (let drop = 0; drop < 5; drop++) {
+      const lines = trimmed.split("\n");
+      if (lines.length <= 3) break;
+      trimmed = lines.slice(0, -1).join("\n").trimEnd();
+      if (!trimmed) break;
+      try {
+        return (await mermaid.render(`${id}-salvage${drop}`, trimmed)).svg;
+      } catch {
+        /* try one line shorter */
       }
     }
+    console.warn("[mermaid] render failed:", (err as Error)?.message?.slice(0, 200), "\ncode:", code.slice(0, 400));
     throw err;
   }
 }
