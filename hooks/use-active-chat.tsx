@@ -824,6 +824,21 @@ export function ActiveChatProvider({
     statusRef.current = chat.status;
   }, [chat.status]);
 
+  // Sidebar "generating" blink (2026-09-04): flip the chat row on stream
+  // start / off at settle. Client-side because dev runs without
+  // CONVEX_DEPLOY_KEY (route-side upsertAssistant patch is the prod path).
+  const setGenerating = useMutation(api.chats.setGenerating);
+  useEffect(() => {
+    if (isDraft) return;
+    const u = uidRef.current;
+    if (!u) return;
+    const live = chat.status === "streaming" || chat.status === "submitted";
+    void setGenerating({ chatId: convexChatId, userId: u, generating: live }).catch(
+      () => {},
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat.status, isDraft, convexChatId]);
+
   // Edit window: while an edit→delete→resend is in flight the live-mirror must
   // NOT run — the mirror only ever adds/updates (never removes), so a row it
   // re-adds from pre-delete Convex data sticks locally and pollutes the resend

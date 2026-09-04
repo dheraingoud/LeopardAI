@@ -109,6 +109,18 @@ export const updateTitle = mutation({
   },
 });
 
+// Sidebar live indicator (2026-09-04): client flips this on send / off on
+// settle (dev has no CONVEX_DEPLOY_KEY so the route's upsertAssistant patch
+// only runs in prod). Does NOT touch updatedAt — a status flip must not
+// reorder the list or mark the chat unread.
+export const setGenerating = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), generating: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    await ctx.db.patch(args.chatId, { generating: args.generating });
+  },
+});
+
 export const remove = mutation({
   args: { chatId: v.id("chats"), userId: v.string() },
   handler: async (ctx, args) => {
