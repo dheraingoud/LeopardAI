@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { getModelById } from "@/lib/ai/models";
@@ -112,16 +112,28 @@ export function ChatShell() {
     return null;
   }, [messages]);
 
-  const handleExport = useCallback(() => {
-    if (!chatMeta || messages.length === 0) return;
+  // QA loop-10: exporting right as a turn settles could capture the Convex
+  // placeholder (empty assistant row) — the detached route finalizes the row a
+  // beat AFTER the UI settles. If the trailing assistant message is empty,
+  // wait once and rebuild from the freshest state before downloading.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const chatMetaRef = useRef(chatMeta);
+  chatMetaRef.current = chatMeta;
+  const exportRef = useRef<() => void>(() => {});
+
+  const buildAndDownload = useCallback(() => {
+    const meta = chatMetaRef.current;
+    const msgs = messagesRef.current;
+    if (!meta || msgs.length === 0) return;
     const lines: string[] = [
-      `# ${chatMeta.title}`,
+      `# ${meta.title}`,
       `*Exported from Leopard AI — ${new Date().toLocaleString()}*`,
       "",
       "---",
       "",
     ];
-    for (const m of messages) {
+    for (const m of msgs) {
       const role = m.role === "user" ? "**You**" : "**Leopard**";
       lines.push(`### ${role}`, "", getMessageText(m), "", "---", "");
     }
@@ -129,11 +141,27 @@ export function ChatShell() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${chatMeta.title.replace(/\s+/g, "-").toLowerCase() || "chat"}.md`;
+    a.download = `${meta.title.replace(/\s+/g, "-").toLowerCase() || "chat"}.md`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Chat exported as Markdown");
-  }, [chatMeta, messages]);
+  }, []);
+
+  const handleExport = useCallback(() => {
+    if (!chatMetaRef.current || messagesRef.current.length === 0) return;
+    const lastAssistant = [...messagesRef.current].reverse().find((m) => m.role === "assistant");
+    const emptyPending =
+      lastAssistant && !getMessageText(lastAssistant).trim();
+    if (emptyPending) {
+      // One deferred retry — covers the finalize lag without blocking exports
+      // of chats that genuinely end on an empty reply.
+      toast.info("Finishing the reply — export in a second…");
+      setTimeout(() => exportRef.current(), 1500);
+      return;
+    }
+    buildAndDownload();
+  }, [buildAndDownload]);
+  exportRef.current = handleExport;
 
   const handleShare = useCallback(async () => {
     if (!chatMeta || !userId) return;
