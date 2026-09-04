@@ -118,6 +118,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   editMessage: (messageId: string) => Promise<unknown>;
   /** Edit + immediately resend (truncates, waits for the send gate, sends). */
   editAndResend: (messageId: string, text: string) => void;
+  /** Approve/deny a tool call and fire the resume POST once the SDK gate
+   * opens (provider-lived; survives the dock unmounting on approval). */
+  approveAndResume: (approvalId: string, approved: boolean) => void;
   /** True when the latest assistant row is still being written by the
    * detached server task and no local stream owns it — i.e. the user reopened
    * the chat mid-generation and is watching the live mirror fill in. */
@@ -655,6 +658,17 @@ export function ActiveChatProvider({
     if (!convexMessages) return;
     if (editWindowRef.current) return; // edit→delete→resend in flight
     if (chat.status === "streaming" || chat.status === "submitted") return;
+    // Approval-resume window: the user clicked Allow/Deny but the resume POST
+    // hasn't started. The persisted row still says approval-requested, so a
+    // mirror pass here would CLOBBER the SDK's approval-responded state and
+    // the dock's resend would no-op — dead turn (probe 2026-09-04).
+    const approvalAnswered = chat.messages.some((m) =>
+      m.role === "assistant" &&
+      m.parts.some(
+        (p) => (p as { state?: string }).state === "approval-responded",
+      ),
+    );
+    if (approvalAnswered) return;
     chat.setMessages((prev) => {
       let changed = false;
       let next = prev.slice();
@@ -733,6 +747,16 @@ export function ActiveChatProvider({
     // server row lags (progressive patches are throttled) — dropping there
     // kills the live reply.
     if (chat.status === "streaming" || chat.status === "submitted") return;
+    // Approval-resume window: a local bubble holds approval-responded state
+    // the server row doesn't have yet — collapsing to the server row now
+    // would delete the user's Allow/Deny before the resume POST leaves.
+    const approvalAnswered = chat.messages.some((m) =>
+      m.role === "assistant" &&
+      m.parts.some(
+        (p) => (p as { state?: string }).state === "approval-responded",
+      ),
+    );
+    if (approvalAnswered) return;
     const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
     chat.setMessages((prev) => {
       let lastUser = -1;
@@ -740,10 +764,19 @@ export function ActiveChatProvider({
         if (m.role === "user") lastUser = i;
       });
       const tail = prev.slice(lastUser + 1);
+      // The server row must be present IN STATE, not just in the query
+      // snapshot — dropping the SDK bubble before the mirror inserts the
+      // server row leaves an empty bubble window (observed in load probes).
       const serverHasTurn = tail.some(
         (m) => m.role === "assistant" && serverIds.has(m.id),
       );
       if (!serverHasTurn) return prev;
+      // …and the present server row must already carry the content (parts can
+      // lag a progressive patch behind).
+      const serverRow = tail.find(
+        (m) => m.role === "assistant" && serverIds.has(m.id),
+      );
+      if (!serverRow || serverRow.parts.length === 0) return prev;
       const keep = prev.filter(
         (m, i) =>
           i <= lastUser ||
@@ -752,13 +785,20 @@ export function ActiveChatProvider({
       );
       return keep.length === prev.length ? prev : keep;
     });
-  }, [chat.messages, chat.setMessages, convexMessages]);
+  }, [chat.messages, chat.status, chat.setMessages, convexMessages]);
 
   // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
   // status machine directly (DOM indicators lag/lie about the real state).
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__chatStatus = chat.status;
-  }, [chat.status]);
+    // Tag with chatId: the draft provider and the real-chat provider can BOTH
+    // be alive across the deferred-create navigation, and the draft's "ready"
+    // then masks the real provider's status in probes (2026-09-04).
+    (window as unknown as Record<string, unknown>).__chatStatusById = {
+      ...((window as unknown as Record<string, Record<string, string>>).__chatStatusById ?? {}),
+      [chatId]: chat.status,
+    };
+  }, [chat.status, chatId]);
   // Parts debug handle for e2e probes (part-type + toolCallId skeleton only).
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__chatParts = chat.messages.map(
@@ -1134,6 +1174,35 @@ export function ActiveChatProvider({
     [editMessage, sendMessage],
   );
 
+  // Approval answer + resume, PROVIDER-side (2026-09-04): the ApprovalDock
+  // unmounts the instant the part flips to approval-responded, killing any
+  // dock-local poll/timer before the resume POST fires — the turn died
+  // silently on fast approvals. Here the poll lives as long as the chat.
+  // Status read via statusRef (closure statuses freeze); sendMessage is a
+  // stable Chat-instance method.
+  const approveAndResume = useCallback(
+    (approvalId: string, approved: boolean) => {
+      (
+        chat as unknown as {
+          addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
+        }
+      ).addToolApprovalResponse?.({ id: approvalId, approved });
+      let tries = 0;
+      const attempt = () => {
+        const st = statusRef.current;
+        if (st === "streaming" || st === "submitted") {
+          if (++tries < 120) setTimeout(attempt, 150); // up to ~18s
+          return;
+        }
+        void chat.sendMessage().catch(() => {
+          /* surfaced via chat.error → error card */
+        });
+      };
+      attempt();
+    },
+    [chat],
+  );
+
   // Prior reply variants for the turn an assistant message answers (empty when
   // the message was never regenerated this session).
   const getSiblings = useCallback(
@@ -1235,6 +1304,7 @@ export function ActiveChatProvider({
     regenerateMessage,
     editMessage,
     editAndResend,
+    approveAndResume,
     getSiblings,
   };
 
