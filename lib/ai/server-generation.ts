@@ -963,6 +963,17 @@ export function backgroundServe(args: {
           (sendReasoning ? 180_000 : 45_000),
       );
       let sawChunk = false;
+      // Token-burn guard (2026-09-04): a reasoning model that thinks FOREVER
+      // (observed: laguna reasoning 1500s+ on a simple prompt) burns tokens the
+      // whole time. Cap the reasoning-only phase; past the budget with no
+      // answer text the attempt ends as a retryable error and the fallback
+      // chain takes over. Env: LEOPARD_REASONING_BUDGET_MS (default 240s).
+      let firstReasoningAt: number | null = null;
+      let sawAnswerText = false;
+      const REASONING_BUDGET_MS = Math.max(
+        30_000,
+        Number(process.env.LEOPARD_REASONING_BUDGET_MS ?? 240_000) || 240_000,
+      );
       const it = merged[Symbol.asyncIterator]();
       try {
         for (;;) {
@@ -985,6 +996,19 @@ export function backgroundServe(args: {
           acc.push(chunk);
           emit(chunk);
           committed = committed || isGenerationContent(chunk);
+          const ctype = (chunk as { type?: string }).type;
+          if (ctype === "reasoning-start" && firstReasoningAt === null)
+            firstReasoningAt = Date.now();
+          if (ctype === "text-start" || ctype === "text-delta") sawAnswerText = true;
+          if (
+            firstReasoningAt !== null &&
+            !sawAnswerText &&
+            Date.now() - firstReasoningAt > REASONING_BUDGET_MS
+          ) {
+            throw new Error(
+              `reasoning budget exceeded: ${Math.round((Date.now() - firstReasoningAt) / 1000)}s of thinking with no answer (cap ${Math.round(REASONING_BUDGET_MS / 1000)}s)`,
+            );
+          }
           void maybePersistProgressive(); // throttled; serialized by the write chain
         }
       } finally {
@@ -1080,7 +1104,12 @@ export function backgroundServe(args: {
         // the partial, end turn) — never re-run a side-effecting turn. A caller
         // retryPredicate can also veto escalation (e.g. don't swap to another
         // model on an auth/rate-limit error that would recur identically).
-        if (committed || attempt >= maxAttempts) break;
+        // A reasoning-budget abort IS content-free for retry purposes even
+        // though reasoning-deltas set `committed` — the user got zero answer;
+        // escalate to the next attempt/model instead of parking on a
+        // reasoning-only turn (2026-09-04 token-burn guard).
+        const budgetHit = outcome?.error?.startsWith("reasoning budget exceeded") === true;
+        if ((committed && !budgetHit) || attempt >= maxAttempts) break;
         if (retryPredicate && !retryPredicate(outcome?.error ?? "")) break;
 
         // Client-visible "Retrying in Ns · attempt x/y" (docs retry-progress UX).
