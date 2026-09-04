@@ -46,6 +46,18 @@ export function ChatShell() {
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
+  // Header bar is gone (2026-09-04) — Ctrl/Cmd+F opens in-conversation find
+  // so the feature stays keyboard-reachable.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const findHits = useMemo<SearchHit[]>(() => {
     const q = findQuery.trim().toLowerCase();
     if (!q) return [];
@@ -199,16 +211,10 @@ export function ChatShell() {
       <div role="presentation" className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
         <SessionExpiryToast />
         <div className="flex-1 flex flex-col min-w-0 relative">
-          <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <h1 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
-                Start a conversation
-              </h1>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <ConnectionDot />
-              <HeaderQuotaBanner />
-            </div>
+          {/* No header bar — floating pill, top-right (operator 2026-09-04). */}
+          <div className="absolute top-3 right-4 z-30 flex items-center gap-1 rounded-full border px-2 py-1 dark:border-white/[0.08] dark:bg-black/60 light:border-black/[0.08] light:bg-white/70 backdrop-blur-xl">
+            <ConnectionDot />
+            <HeaderQuotaBanner />
           </div>
           <Messages />
           {pendingApproval ? (
@@ -252,40 +258,34 @@ export function ChatShell() {
     <div role="presentation" className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
       <SessionExpiryToast />
       <div className="flex-1 flex flex-col min-w-0 relative">
-        <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <h1 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
-              {chatMeta.title === "New Chat" ? "Start a conversation" : chatMeta.title}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <ConnectionDot />
-            <HeaderQuotaBanner />
-            <button
-              type="button"
-              onClick={() => setFindOpen((o) => !o)}
-              className="h-10 w-10 flex items-center justify-center rounded-lg text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
-              title="Find in conversation"
-              aria-expanded={findOpen}
-            >
-              <Search className="h-3.5 w-3.5" />
-            </button>
-            <UsageReadout chatId={chatMeta._id ?? undefined} />
-            <TooltipIconButton
-              tooltip="Export as Markdown"
-              onClick={handleExport}
-              className="h-10 w-10"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </TooltipIconButton>
-            <TooltipIconButton
-              tooltip={shared ? "Share link copied" : "Share chat"}
-              onClick={handleShare}
-              className="h-10 w-10"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-            </TooltipIconButton>
-          </div>
+        {/* No header bar — floating pill, top-right (operator 2026-09-04). */}
+        <div className="absolute top-3 right-4 z-30 flex items-center gap-1 rounded-full border px-2 py-1 dark:border-white/[0.08] dark:bg-black/60 light:border-black/[0.08] light:bg-white/70 backdrop-blur-xl">
+          <ConnectionDot />
+          <HeaderQuotaBanner />
+          <button
+            type="button"
+            onClick={() => setFindOpen((o) => !o)}
+            className="h-7 w-7 flex items-center justify-center rounded-full text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
+            title="Find in conversation"
+            aria-expanded={findOpen}
+          >
+            <Search className="h-3.5 w-3.5" />
+          </button>
+          <UsageReadout chatId={chatMeta._id ?? undefined} />
+          <TooltipIconButton
+            tooltip="Export as Markdown"
+            onClick={handleExport}
+            className="h-7 w-7 rounded-full"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </TooltipIconButton>
+          <TooltipIconButton
+            tooltip={shared ? "Share link copied" : "Share chat"}
+            onClick={handleShare}
+            className="h-7 w-7 rounded-full"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </TooltipIconButton>
         </div>
 
         {findOpen && (
