@@ -401,6 +401,11 @@
 .light [class*="text-[#dadada]"] { color: #333333 !important; }
 .light [class*="text-[#0a0a0a]"] { color: #0a0a0a !important; }
 .light [class*="text-[#505050]"] { color: #737373 !important; }
+/* Exception: the remap above uses substring matching, which also catches
+   variant-prefixed tokens — the composer textarea's `placeholder:text-[#505050]`
+   got its own text color hijacked to #737373 (4.46:1, under AA). Restore the
+   intended light text color; the placeholder keeps its own rule. */
+.light textarea[class*="placeholder:text-[#505050]"] { color: #262626 !important; }
 
 /* hover:text-white → hover dark */
 .light [class*="hover:text-white"]:hover { color: #171717 !important; }
