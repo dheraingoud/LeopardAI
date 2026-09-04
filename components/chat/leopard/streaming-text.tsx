@@ -287,13 +287,11 @@ function PreBlock({
   }
 
   if (lang === "svg") {
-    return streaming ? (
-      <PreShell lang="svg" copyText={text} longBlock={false}>
-        <div className="cb-mermaid-loading">rendering svg…</div>
-      </PreShell>
-    ) : (
-      <SvgBlock code={text} />
-    );
+    // Live render while streaming (250ms debounce) — waiting for the full
+    // settle made svg fences appear "after a long long long time" (operator
+    // 2026-09-04). DOMPurify tolerates partial markup; a broken partial just
+    // renders whatever parses, same as mermaid's live pass.
+    return <LiveSvgBlock code={text} streaming={streaming} />;
   }
 
   return (
@@ -400,6 +398,19 @@ function CodeBody({
     );
   }
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function LiveSvgBlock({ code, streaming }: { code: string; streaming: boolean }) {
+  const [debounced, setDebounced] = useState(code);
+  useEffect(() => {
+    if (!streaming) {
+      setDebounced(code);
+      return;
+    }
+    const t = setTimeout(() => setDebounced(code), 250);
+    return () => clearTimeout(t);
+  }, [code, streaming]);
+  return <SvgBlock code={debounced} />;
 }
 
 function SvgBlock({ code }: { code: string }) {
