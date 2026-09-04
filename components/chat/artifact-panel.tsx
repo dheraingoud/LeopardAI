@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useActiveChat, type UIArtifact } from "@/hooks/use-active-chat";
+import { useSidebar } from "@/hooks/sidebar-context";
 import { Surface, useReducedFx } from "@/components/ui/surface";
 import { DocumentReference } from "@/components/chat/leopard/document-reference";
 import { FileTree, type FileTreeNode } from "@/components/chat/leopard/file-tree";
@@ -65,6 +66,17 @@ function buildTreeNodes(docs: { id: string; title: string }[]): FileTreeNode[] {
 
 export function ArtifactPanel() {
   const { artifact, setArtifact, messages } = useActiveChat();
+  // Operator 2026-09-04: opening an artifact auto-collapses the sidebar so
+  // the panel gets real width (chat shifts left, artifact on the right);
+  // closing restores the user's previous sidebar state.
+  const { autoCollapse, restoreCollapse } = useSidebar();
+  const openNow = artifact?.isVisible === true;
+  useEffect(() => {
+    if (!openNow) return;
+    autoCollapse();
+    return () => restoreCollapse();
+    // autoCollapse/restoreCollapse are stable callbacks from the layout.
+  }, [openNow, autoCollapse, restoreCollapse]);
 
   // Rehydrate reopened artifacts from Convex (seeded content:"" + status:"idle"
   // by the DocumentCard click in message.tsx). Skipped during live streams and
@@ -127,10 +139,11 @@ export function ArtifactPanel() {
           saturation={1.35}
           specular
           chroma={0}
-          // Split canvas: ≥xl the panel sits in-flow beside the transcript
+          // Split canvas: ≥md the panel sits in-flow beside the transcript
           // (flex row in chat-shell → transcript shrinks, ChatGPT-canvas
-          // style); below xl it stays an absolute overlay.
-          className="absolute inset-y-3 right-3 z-20 w-[min(472px,calc(100vw-1.5rem))] xl:static xl:z-auto xl:my-3 xl:ml-0 xl:mr-3 xl:h-auto xl:w-[480px] xl:shrink-0"
+          // style; the sidebar auto-collapses to make room); below md it
+          // stays an absolute overlay.
+          className="absolute inset-y-3 right-3 z-20 w-[min(472px,calc(100vw-1.5rem))] md:static md:z-auto md:my-3 md:ml-0 md:mr-3 md:h-auto md:w-[480px] md:shrink-0"
         >
           <motion.aside
             initial={{ scale: 0.985, opacity: 0, y: 8 }}
@@ -241,7 +254,10 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
     );
   }
 
-  if (artifact.kind !== "text") {
+  // kind="file" IS text content (md/txt/json/csv…) — render it like a text
+  // doc. Only kinds with genuinely no textual body (images) keep the
+  // placeholder. (2026-09-04: user report — panel opened with NO content.)
+  if (artifact.kind !== "text" && artifact.kind !== "file") {
     return (
       <div className="flex-1 flex items-center justify-center px-8 text-center">
         <div className="space-y-2">

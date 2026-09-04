@@ -733,7 +733,7 @@ export function ActiveChatProvider({
     // server row lags (progressive patches are throttled) — dropping by
     // toolCall ownership there kills the live reply.
     if (chat.status === "streaming" || chat.status === "submitted") return;
-    const serverIds = new Set((convexMessages ?? []).map((m) => m.id));
+    const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
     chat.setMessages((prev) => {
       const ownerByToolCall = new Map<string, number>();
       prev.forEach((m, i) => {
