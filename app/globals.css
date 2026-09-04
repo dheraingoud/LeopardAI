@@ -401,6 +401,21 @@
 .light [class*="text-[#dadada]"] { color: #333333 !important; }
 .light [class*="text-[#0a0a0a]"] { color: #0a0a0a !important; }
 .light [class*="text-[#505050]"] { color: #737373 !important; }
+
+/* Guards: the substring remap above also matches light:-prefixed tokens and
+   double-converts them (e.g. light:text-[#525252] — the intended sidebar-row
+   color — was being hijacked to #8c8c8c, 3.0:1 on the cream sidebar; axe
+   color-contrast flagged 23 nodes). Re-assert the intended value for
+   light:-prefixed tokens; these come later in the file, same !important
+   specificity, so they win. */
+.light [class*="light:text-[#171717]"] { color: #171717 !important; }
+.light [class*="light:text-[#262626]"] { color: #262626 !important; }
+.light [class*="light:text-[#333333]"] { color: #333333 !important; }
+.light [class*="light:text-[#404040]"] { color: #404040 !important; }
+.light [class*="light:text-[#525252]"] { color: #525252 !important; }
+.light [class*="light:text-[#8c8c8c]"] { color: #8c8c8c !important; }
+.light [class*="light:text-[#a3a3a3]"] { color: #a3a3a3 !important; }
+.light [class*="light:text-[#0a0a0a]"] { color: #0a0a0a !important; }
 /* Exception: the remap above uses substring matching, which also catches
    variant-prefixed tokens — the composer textarea's `placeholder:text-[#505050]`
    got its own text color hijacked to #737373 (4.46:1, under AA). Restore the
@@ -447,8 +462,10 @@
 }
 .light [class*="border-[#ffb4004d]"] { border-color: rgba(212, 150, 0, 0.3) !important; }
 .light [class*="bg-[#ffb40010]"] { background: rgba(212, 150, 0, 0.06) !important; }
-.light [class*="text-[#ffb400]"] { color: #d49600 !important; }
-.light [class*="hover:text-[#ffb400]"]:hover { color: #d49600 !important; }
+/* #a87700 (not #d49600) on cream: the brand wordmark measured 2.34:1 — axe
+   color-contrast. Darker amber passes AA-large for the signature sizes. */
+.light [class*="text-[#ffb400]"] { color: #8a6100 !important; }
+.light [class*="hover:text-[#ffb400]"]:hover { color: #8a6100 !important; }
 
 /* Pulsing dot (online indicators etc) */
 .light [class*="bg-emerald-400"] { --tw-bg-opacity: 1; }
@@ -458,7 +475,7 @@
 .light [class*="shadow-xl"] { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08) !important; }
 
 /* Placeholder colors */
-.light .placeholder\:text-muted-foreground::placeholder { color: #737373; }
+.light .placeholder\:text-muted-foreground::placeholder { color: #6b6b6b; }
 
 /* Brand amber adjustments for light */
 .light .text-leopard-amber { color: #d49600; }

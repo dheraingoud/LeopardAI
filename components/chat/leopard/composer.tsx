@@ -540,7 +540,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             </div>
           </ComposerBar>
         </form>
-        <p className="mt-2 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#b8b8b8]">
+        <p className="mt-2 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
           Leopard can make mistakes. Verify important info.
         </p>
       </div>

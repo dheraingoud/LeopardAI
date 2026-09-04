@@ -43,9 +43,9 @@ function Section({ title, hint, danger, children }: {
   return (
     <section className={cn(paper, "elev-2 rounded-xl", danger && "dark:border-red-500/15 light:border-red-500/20")}>
       <header className={cn("border-b px-5 py-3.5", hairline)}>
-        <h3 className={cn("text-[13px] font-medium tracking-tight", danger ? "text-red-400" : "dark:text-[#ececec] light:text-[#171717]")}>
+        <h2 className={cn("text-[13px] font-medium tracking-tight", danger ? "text-red-400" : "dark:text-[#ececec] light:text-[#171717]")}>
           {title}
-        </h3>
+        </h2>
         {hint && <p className={cn(mono, "mt-0.5", faint)}>{hint}</p>}
       </header>
       <div className="px-5">{children}</div>

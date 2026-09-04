@@ -104,7 +104,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div ref={heroRef} className="relative min-h-screen flex flex-col dark:bg-black light:bg-white overflow-hidden">
+    <main ref={heroRef} className="relative min-h-screen flex flex-col dark:bg-black light:bg-white overflow-hidden">
       {/* ── Ambient Background ── */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(255,180,0,0.06)_0%,transparent_70%)]" />
@@ -283,6 +283,6 @@ export default function LandingPage() {
           © {new Date().getFullYear()} Leopard · Built with precision
         </p>
       </motion.footer>
-    </div>
+    </main>
   );
 }

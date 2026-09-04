@@ -196,14 +196,14 @@ export function ChatShell() {
   // bare header (no usage/export/share, they need a real chat row).
   if (isDraft) {
     return (
-      <div className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
+      <div role="presentation" className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
         <SessionExpiryToast />
         <div className="flex-1 flex flex-col min-w-0 relative">
           <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <h2 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
+              <h1 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
                 Start a conversation
-              </h2>
+              </h1>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <ConnectionDot />
@@ -249,14 +249,14 @@ export function ChatShell() {
   }
 
   return (
-    <div className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
+    <div role="presentation" className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
       <SessionExpiryToast />
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="flex items-center justify-between px-4 sm:px-8 h-14 border-b dark:border-white/[0.08] light:border-black/[0.08] shrink-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <h2 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
+            <h1 className="text-sm font-body font-medium dark:text-[#e5e5e5] light:text-[#262626] truncate">
               {chatMeta.title === "New Chat" ? "Start a conversation" : chatMeta.title}
-            </h2>
+            </h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ConnectionDot />
