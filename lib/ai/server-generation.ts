@@ -572,7 +572,15 @@ class PartAccumulator {
       }
       case "tool-approval-request": {
         const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
-        if (t) t.state = "approval-requested";
+        if (t) {
+          t.state = "approval-requested";
+          // Persist the approval id: the client's pendingApproval gate reads
+          // p.approval.id. Without it the live-mirror swap (SDK bubble →
+          // Convex row) dropped the field and the Allow/Deny dock unmounted
+          // mid-decision (card vanished, turn looked dead — 2026-09-04).
+          const approvalId = (chunk as { approvalId?: string }).approvalId;
+          if (approvalId) t.approval = { id: approvalId };
+        }
         break;
       }
       case "tool-approval-response": {
