@@ -622,11 +622,29 @@ export async function POST(request: Request) {
   // result is missing for tool call …" and the chat is bricked (2026-09-01).
   {
     const answered = new Set<string>();
+    // Approval responses answer a tool call too, via approvalId → the
+    // approval-request part's toolCallId. Without this the purge below dropped
+    // a resume's tool-call (its result only lands after execution) and the SDK
+    // threw "Tool call not found for approval request" — killing every
+    // approval-resume (2026-09-04).
+    const approvalToCall = new Map<string, string>();
+    for (const m of modelMessages) {
+      if (m.role !== "assistant" || typeof m.content === "string") continue;
+      for (const part of m.content as Array<{ type: string; approvalId?: string; toolCallId?: string }>) {
+        if (part.type === "tool-approval-request" && part.approvalId && part.toolCallId) {
+          approvalToCall.set(part.approvalId, part.toolCallId);
+        }
+      }
+    }
     for (const m of modelMessages) {
       if (m.role !== "tool") continue;
-      const parts = (m.content ?? []) as Array<{ type: string; toolCallId?: string }>;
+      const parts = (m.content ?? []) as Array<{ type: string; toolCallId?: string; approvalId?: string }>;
       for (const part of parts) {
         if (part.type === "tool-result" && part.toolCallId) answered.add(part.toolCallId);
+        if (part.type === "tool-approval-response" && part.approvalId) {
+          const tc = approvalToCall.get(part.approvalId);
+          if (tc) answered.add(tc);
+        }
       }
     }
     modelMessages = (modelMessages as Array<{ role: string; content: unknown }>).flatMap(
