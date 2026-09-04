@@ -723,52 +723,34 @@ export function ActiveChatProvider({
 
   // Approval-resume dedupe (2026-09-04): the resume POST forks ids — the
   // pre-approval SDK bubble, the resume's fresh SDK bubble, and the persisted
-  // server row all carry the SAME toolCallIds with different message ids, and
-  // they land at DIFFERENT times (mirror pass can't see them together). So run
-  // a standalone pass on every messages change: assistant messages whose tool
-  // calls are ALL owned by a different assistant message get dropped (keep the
-  // server row when present, else the later message).
+  // server row. The server row is the COMPLETE ordered record (reasoning →
+  // tool card → fresh reasoning → answer), so once it exists for the current
+  // turn, drop every LOCAL-ONLY assistant bubble after the last user message.
+  // (The earlier toolCall-ownership variant only dropped bubbles carrying tool
+  // parts — the resume bubble had none, so duplicated thinking survived.)
   useEffect(() => {
     // Never dedupe mid-stream: the actively-streaming bubble leads and the
-    // server row lags (progressive patches are throttled) — dropping by
-    // toolCall ownership there kills the live reply.
+    // server row lags (progressive patches are throttled) — dropping there
+    // kills the live reply.
     if (chat.status === "streaming" || chat.status === "submitted") return;
     const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
     chat.setMessages((prev) => {
-      const ownerByToolCall = new Map<string, number>();
+      let lastUser = -1;
       prev.forEach((m, i) => {
-        if (m.role !== "assistant") return;
-        for (const p of m.parts) {
-          const tc = (p as { toolCallId?: string }).toolCallId;
-          if (!tc) continue;
-          const prevIdx = ownerByToolCall.get(tc);
-          if (prevIdx === undefined) {
-            ownerByToolCall.set(tc, i);
-            continue;
-          }
-          const prevIsServer = serverIds.has(prev[prevIdx].id);
-          const curIsServer = serverIds.has(m.id);
-          if (curIsServer || (!prevIsServer && i > prevIdx)) {
-            ownerByToolCall.set(tc, i);
-          }
-        }
+        if (m.role === "user") lastUser = i;
       });
-      if (ownerByToolCall.size === 0) return prev;
-      const dropIdx = new Set<number>();
-      prev.forEach((m, i) => {
-        if (m.role !== "assistant") return;
-        const myToolCalls = m.parts
-          .map((p) => (p as { toolCallId?: string }).toolCallId)
-          .filter(Boolean) as string[];
-        if (
-          myToolCalls.length > 0 &&
-          myToolCalls.every((tc) => ownerByToolCall.get(tc) !== i)
-        ) {
-          dropIdx.add(i);
-        }
-      });
-      if (dropIdx.size === 0) return prev;
-      return prev.filter((_, i) => !dropIdx.has(i));
+      const tail = prev.slice(lastUser + 1);
+      const serverHasTurn = tail.some(
+        (m) => m.role === "assistant" && serverIds.has(m.id),
+      );
+      if (!serverHasTurn) return prev;
+      const keep = prev.filter(
+        (m, i) =>
+          i <= lastUser ||
+          m.role !== "assistant" ||
+          serverIds.has(m.id),
+      );
+      return keep.length === prev.length ? prev : keep;
     });
   }, [chat.messages, chat.setMessages, convexMessages]);
 

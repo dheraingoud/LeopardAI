@@ -57,19 +57,10 @@ export function ApprovalDock({
           addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
         }
       ).addToolApprovalResponse?.({ id: approvalId, approved });
-      // The resume streams a FRESH reasoning+text pass. If the trailing
-      // assistant message still carries the pre-approval reasoning/text parts,
-      // they render TWICE (old persisted parts + new stream) — strip everything
-      // but the tool parts; the resumed stream re-adds the rest.
-      chat.setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (!last || last.role !== "assistant") return prev;
-        const toolParts = last.parts.filter(
-          (p) => typeof p.type === "string" && (p.type === "dynamic-tool" || p.type.startsWith("tool-")),
-        );
-        if (toolParts.length === last.parts.length) return prev;
-        return [...prev.slice(0, -1), { ...last, parts: toolParts }];
-      });
+      // The resume streams a FRESH reasoning+text pass as a new SDK bubble
+      // while the pre-approval bubble (old reasoning + the tool card) stays —
+      // user wants BOTH (2026-09-04). Settle-time tail-collapse dedupe in
+      // use-active-chat folds them into the single persisted server row.
       void chat.sendMessage();
     } catch {
       /* surfaced via chat.error */

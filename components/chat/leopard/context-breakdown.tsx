@@ -118,6 +118,7 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
           contextWindow={contextWindow}
           text={text}
           attachmentCount={attachmentCount}
+          usedTokens={dynamicUsed}
         />
       </PopoverTrigger>
 
