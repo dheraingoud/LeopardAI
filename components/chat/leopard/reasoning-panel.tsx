@@ -69,6 +69,16 @@ export function ReasoningPanel({
   // Height animation runs inside the transcript scroller — dispatch per-frame
   // deltas so messages.tsx can hold the reading anchor.
   const contentRef = useRef<HTMLDivElement>(null);
+  // Follow the thinking while it streams: the inner scroller is capped at
+  // max-h-64, so without this the tail of the reasoning freezes out of view
+  // mid-stream (operator 2026-09-04). Pins only while streaming + open — once
+  // it settles the user scrolls the static text freely.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!streaming || !open) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [content, streaming, open]);
   const handleOpenChange = (next: boolean) => {
     const el = contentRef.current;
     if (el && typeof window !== "undefined") {
@@ -139,7 +149,7 @@ export function ReasoningPanel({
         ref={contentRef}
         className={cn(collapsePanel, "outline-none")}
       >
-        <div className="max-h-64 overflow-y-auto pt-2 pb-1">
+        <div ref={scrollRef} className="max-h-64 overflow-y-auto pt-2 pb-1">
           {/* CoT body is prose, not code — Geist per DESIGN.md (mono is for
               technical labels only). */}
           <p className="whitespace-pre-wrap font-sans text-[13px] leading-[1.65] text-foreground/60">

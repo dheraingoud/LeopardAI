@@ -716,15 +716,82 @@ export function ActiveChatProvider({
           changed = true;
         }
       }
+
       return changed ? next : prev;
     });
   }, [convexMessages, chat.status, chat.setMessages, serverAssistantIdRef.current]);
+
+  // Approval-resume dedupe (2026-09-04): the resume POST forks ids — the
+  // pre-approval SDK bubble, the resume's fresh SDK bubble, and the persisted
+  // server row all carry the SAME toolCallIds with different message ids, and
+  // they land at DIFFERENT times (mirror pass can't see them together). So run
+  // a standalone pass on every messages change: assistant messages whose tool
+  // calls are ALL owned by a different assistant message get dropped (keep the
+  // server row when present, else the later message).
+  useEffect(() => {
+    // Never dedupe mid-stream: the actively-streaming bubble leads and the
+    // server row lags (progressive patches are throttled) — dropping by
+    // toolCall ownership there kills the live reply.
+    if (chat.status === "streaming" || chat.status === "submitted") return;
+    const serverIds = new Set((convexMessages ?? []).map((m) => m.id));
+    chat.setMessages((prev) => {
+      const ownerByToolCall = new Map<string, number>();
+      prev.forEach((m, i) => {
+        if (m.role !== "assistant") return;
+        for (const p of m.parts) {
+          const tc = (p as { toolCallId?: string }).toolCallId;
+          if (!tc) continue;
+          const prevIdx = ownerByToolCall.get(tc);
+          if (prevIdx === undefined) {
+            ownerByToolCall.set(tc, i);
+            continue;
+          }
+          const prevIsServer = serverIds.has(prev[prevIdx].id);
+          const curIsServer = serverIds.has(m.id);
+          if (curIsServer || (!prevIsServer && i > prevIdx)) {
+            ownerByToolCall.set(tc, i);
+          }
+        }
+      });
+      if (ownerByToolCall.size === 0) return prev;
+      const dropIdx = new Set<number>();
+      prev.forEach((m, i) => {
+        if (m.role !== "assistant") return;
+        const myToolCalls = m.parts
+          .map((p) => (p as { toolCallId?: string }).toolCallId)
+          .filter(Boolean) as string[];
+        if (
+          myToolCalls.length > 0 &&
+          myToolCalls.every((tc) => ownerByToolCall.get(tc) !== i)
+        ) {
+          dropIdx.add(i);
+        }
+      });
+      if (dropIdx.size === 0) return prev;
+      return prev.filter((_, i) => !dropIdx.has(i));
+    });
+  }, [chat.messages, chat.setMessages, convexMessages]);
 
   // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
   // status machine directly (DOM indicators lag/lie about the real state).
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__chatStatus = chat.status;
   }, [chat.status]);
+  // Parts debug handle for e2e probes (part-type + toolCallId skeleton only).
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__chatParts = chat.messages.map(
+      (m) => ({
+        role: m.role,
+        id: m.id,
+        parts: m.parts.map((p) => ({
+          t: p.type,
+          s: (p as { state?: string }).state,
+          c: (p as { toolCallId?: string }).toolCallId,
+          len: p.type === "text" || p.type === "reasoning" ? (p as { text?: string }).text?.length : undefined,
+        })),
+      }),
+    );
+  }, [chat.messages]);
 
   // Live status ref for retry loops in callbacks (editAndResend): a setTimeout
   // chain closes over the chat object from creation time, so `chat.status` in
