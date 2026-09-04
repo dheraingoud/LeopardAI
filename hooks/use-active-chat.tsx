@@ -790,6 +790,10 @@ export function ActiveChatProvider({
   // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
   // status machine directly (DOM indicators lag/lie about the real state).
   useEffect(() => {
+    // The draft provider can stay mounted (Next keeps /chat alive for back-nav)
+    // and would keep writing "ready" over the REAL provider's status, fooling
+    // e2e probes. Draft writes only while /chat is actually the active route.
+    if (chatId === "draft" && window.location.pathname !== "/chat") return;
     (window as unknown as Record<string, unknown>).__chatStatus = chat.status;
     // Tag with chatId: the draft provider and the real-chat provider can BOTH
     // be alive across the deferred-create navigation, and the draft's "ready"
@@ -829,7 +833,7 @@ export function ActiveChatProvider({
   // CONVEX_DEPLOY_KEY (route-side upsertAssistant patch is the prod path).
   const setGenerating = useMutation(api.chats.setGenerating);
   useEffect(() => {
-    if (isDraft) return;
+    if (isDraft || badId) return; // badId: no such row — the mutation would 500
     const u = uidRef.current;
     if (!u) return;
     const live = chat.status === "streaming" || chat.status === "submitted";
@@ -837,7 +841,7 @@ export function ActiveChatProvider({
       () => {},
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat.status, isDraft, convexChatId]);
+  }, [chat.status, isDraft, badId, convexChatId]);
 
   // Edit window: while an edit→delete→resend is in flight the live-mirror must
   // NOT run — the mirror only ever adds/updates (never removes), so a row it
