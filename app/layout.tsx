@@ -108,7 +108,7 @@ export default function RootLayout({
             Next's sanctioned loader → no warning. Key mirrors the custom
             ThemeProvider's STORAGE_KEY ("leopard-theme"). */}
         <Script id="leopard-theme-init" strategy="beforeInteractive">
-          {`(function(){var d=document.documentElement;d.classList.remove("dark","light");var apply="light";try{var t=localStorage.getItem("leopard-theme");if(t==="dark"){apply="dark";}else if(t==="light"){apply="light";}else if(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches){apply="dark";}}catch(e){}d.classList.add(apply);d.style.colorScheme=apply;})();`}
+          {`(function(){var d=document.documentElement;d.classList.remove("dark","light");var apply="dark";try{var t=localStorage.getItem("leopard-theme");if(t==="dark"||t==="light"){apply=t;}}catch(e){}d.classList.add(apply);d.style.colorScheme=apply;})();`}
         </Script>
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground noise-overlay">

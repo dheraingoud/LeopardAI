@@ -4,6 +4,11 @@ type Props = {
   contextWindow?: number;
   text: string;
   attachmentCount: number;
+  /** Real used-token total (history + attachments + composer). When supplied
+   *  the ring shows ACTUAL conversation fill instead of the composer-only
+   *  estimate (operator 2026-09-04: ring looked dead because it never counted
+   *  history). */
+  usedTokens?: number;
 };
 
 /** No client tokenizer yet — rough estimate: chars/4 + 200 tokens/attachment. */
@@ -19,9 +24,9 @@ function estimateTokens(text: string, attachments: number): number {
  * renders so the slot keeps a fixed footprint instead of collapsing to an
  * invisible hairline. Tokens used/total ride the hover title.
  */
-export function ContextIndicator({ contextWindow, text, attachmentCount }: Props) {
+export function ContextIndicator({ contextWindow, text, attachmentCount, usedTokens }: Props) {
   const known = typeof contextWindow === "number" && contextWindow > 0;
-  const used = estimateTokens(text, attachmentCount);
+  const used = usedTokens ?? estimateTokens(text, attachmentCount);
   const pct = known ? Math.min(1, used / contextWindow) : 0;
   // Leopard-yellow context ring. The active arc is always #ffb400; only
   // >90% tips to red as an overload warning. Idle (unknown window) renders
@@ -50,8 +55,8 @@ export function ContextIndicator({ contextWindow, text, attachmentCount }: Props
           cy="11"
           r={R}
           fill="none"
-          strokeWidth="2"
-          className="dark:stroke-white/[0.10] light:stroke-black/[0.10]"
+          strokeWidth="2.8"
+          className="dark:stroke-white/[0.14] light:stroke-black/[0.14]"
         />
         <circle
           cx="11"
@@ -59,7 +64,7 @@ export function ContextIndicator({ contextWindow, text, attachmentCount }: Props
           r={R}
           fill="none"
           stroke={tone}
-          strokeWidth="2"
+          strokeWidth="2.8"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${C - dash}`}
           transform="rotate(-90 11 11)"
