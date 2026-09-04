@@ -188,7 +188,7 @@ export default function Sidebar({
 
   // ─── Sidebar content ───
   const sidebarContent = (
-    <div className="flex flex-col h-full overflow-hidden">
+    <nav aria-label="Chats" className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <Link href="/" className="flex items-center gap-1.5 group">
@@ -232,7 +232,7 @@ export default function Sidebar({
             placeholder="Search chats…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] light:text-[#737373] light:text-[#737373]"
+            className="h-10 pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
           />
         </div>
       </div>
@@ -331,7 +331,7 @@ export default function Sidebar({
           </button>
         </div>
       </div>
-    </div>
+    </nav>
   );
 
   // Expanded sidebar

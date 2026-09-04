@@ -49,7 +49,7 @@ export function ThreadList({
       className={cn("flex w-full flex-col gap-0.5", className)}
       {...props}
     >
-      <div className={cn(mono, "text-foreground/35 px-3 pb-1.5")}>{label}</div>
+      <div className={cn(mono, "text-foreground/35 light:text-foreground/60 px-3 pb-1.5")}>{label}</div>
       {threads.map((thread) => {
         const active = thread.id === activeId;
         if (editingId === thread.id) {
@@ -97,7 +97,7 @@ export function ThreadList({
               <span
                 className={cn(
                   mono,
-                  "text-foreground/35 tabular-nums group-hover:hidden",
+                  "text-foreground/35 light:text-foreground/60 tabular-nums group-hover:hidden",
                 )}
               >
                 {thread.time}
