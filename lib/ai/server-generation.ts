@@ -905,6 +905,11 @@ export function backgroundServe(args: {
           // Log it; don't emit it.
           if (!committed) emit({ type: "error", errorText: errMsg(err) });
           else logWarn("post-commit upstream error suppressed", err);
+          // MUST return a string: undefined here serializes as a bare
+          // {"type":"error"} chunk, which the client's uiMessageChunkSchema
+          // rejects with AI_TypeValidationError and the whole stream dies
+          // (2026-09-04 approval-resume crash).
+          return attemptError ?? "Unknown error";
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
       // Φ-stall watchdog: an upstream that opens fine but then hangs (observed:
