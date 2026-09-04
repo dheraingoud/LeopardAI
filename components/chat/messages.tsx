@@ -47,7 +47,9 @@ const hasVisibleText = (m: ChatMessage) =>
     (p) =>
       (p.type === "text" && p.text.trim().length > 0) ||
       ((p.type === "dynamic-tool" || p.type.startsWith("tool-")) &&
-        (p as { state?: string }).state === "output-available"),
+        ["output-available", "approval-requested"].includes(
+          (p as { state?: string }).state ?? "",
+        )),
   );
 
 // Day separators between day groups; each user→assistant turn is wrapped in

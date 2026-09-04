@@ -143,7 +143,7 @@ export default function Sidebar({
   // ─── Collapsed sidebar (Desktop only) ───
   if (!sidebarOpen && !isMobile) {
     return (
-      <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#070605] light:bg-[#f8f8f8]">
+      <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-black light:bg-white">
         <div className="flex flex-col items-center gap-3">
           <button
             className="h-10 w-10 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
@@ -338,7 +338,7 @@ export default function Sidebar({
   return (
     <div
       className={cn(
-        "dark:bg-[#070605] light:bg-[#f8f8f8] border-r dark:border-white/[0.04] light:border-black/[0.05] shrink-0",
+        "dark:bg-black light:bg-white border-r dark:border-white/[0.04] light:border-black/[0.05] shrink-0",
         isMobile
           ? cn("sidebar-mobile", !sidebarOpen && "-translate-x-full")
           : overlayDesktop

@@ -50,7 +50,10 @@ export function ErrorState({
       key="error"
       role="alert"
       className={cn(
-        "fade-in animate-in flex w-full max-w-sm items-start gap-2.5 rounded-2xl bg-red-500/[0.06] px-4 py-3 text-sm duration-300 motion-reduce:animate-none dark:bg-red-500/10",
+        // QA: card sits in the chat bg (vercel black / cream), not a red wash —
+        // red carries the icon + text only.
+        "fade-in animate-in flex w-full max-w-sm items-start gap-2.5 rounded-2xl border px-4 py-3 text-sm duration-300 motion-reduce:animate-none",
+        "dark:bg-black dark:border-red-500/25 light:bg-white light:border-red-500/20",
         className,
       )}
 
