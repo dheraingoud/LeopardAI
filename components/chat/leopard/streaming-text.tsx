@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
@@ -205,6 +206,9 @@ function PreBlock({
   const longBlock = lineCount > 16;
 
   if (lang === "mermaid" || lang === "diagram") {
+    // Warm the shared import the moment the fence is SEEN (during streaming),
+    // not 250ms later when the debounce fires — first paint lands sooner.
+    void loadMermaid();
     return <MermaidBlock code={text} streaming={streaming} />;
   }
 
@@ -572,6 +576,55 @@ function FlowBlock({ code }: { code: string }) {
   );
 }
 
+// Shared mermaid import — one promise for the whole session. Without this the
+// 250ms-debounced render paid a fresh dynamic-import round trip per attempt
+// and the first diagram appeared seconds late (operator 2026-09-04).
+let mermaidPromise: Promise<typeof import("mermaid")> | null = null;
+const loadMermaid = () => (mermaidPromise ??= import("mermaid"));
+
+// Salvage pass: models often stream a valid diagram followed by a broken tail
+// line (e.g. a `class a,b,c` with no className). If the full source fails,
+// drop trailing lines until it parses — a slightly-less-decorated diagram beats
+// "couldn't be rendered" for an otherwise-good flowchart.
+async function renderMermaid(
+  id: string,
+  code: string,
+  dark: boolean,
+): Promise<string> {
+  const mermaid = (await loadMermaid()).default;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    securityLevel: "loose",
+    themeVariables: dark ? MERMAID_DARK : MERMAID_LIGHT,
+    flowchart: {
+      curve: "basis",
+      htmlLabels: false,
+      padding: 12,
+      nodeSpacing: 36,
+      rankSpacing: 44,
+    },
+    fontFamily: "var(--font-body), ui-sans-serif, system-ui, sans-serif",
+  });
+  try {
+    return (await mermaid.render(id, code)).svg;
+  } catch (err) {
+    const lines = code.split("\n");
+    // Only worth retrying when there's something to drop.
+    if (lines.length > 3) {
+      const trimmed = lines.slice(0, -1).join("\n").trimEnd();
+      if (trimmed) {
+        try {
+          return (await mermaid.render(`${id}-salvage`, trimmed)).svg;
+        } catch {
+          /* fall through to the real error path */
+        }
+      }
+    }
+    throw err;
+  }
+}
+
 function MermaidBlock({ code, streaming }: { code: string; streaming: boolean }) {
   const rawId = useId();
   const id = `mmd-${rawId.replace(/[^a-zA-Z0-9-]/g, "")}`;
@@ -581,36 +634,25 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
   const [softFailed, setSoftFailed] = useState(false);
   const [mode, setMode] = useState<"diagram" | "code">("diagram");
   const prevCodeRef = useRef<string>("");
+  // Keep the last good SVG across a failed re-render — mid-stream a broken
+  // partial must never blank an already-drawn diagram.
+  const lastGoodRef = useRef<string | null>(null);
   useEffect(() => {
     const prev = prevCodeRef.current;
     const isExtension = code.startsWith(prev) && code.length >= prev.length;
     if (prev && !isExtension && !streaming) {
       setSvg(null);
+      lastGoodRef.current = null;
     }
     prevCodeRef.current = code;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const render = async () => {
       try {
-        const mermaidMod = await import("mermaid");
-        const mermaid = mermaidMod.default;
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: "base",
-          securityLevel: "loose",
-          themeVariables: dark ? MERMAID_DARK : MERMAID_LIGHT,
-          flowchart: {
-            curve: "basis",
-            htmlLabels: false,
-            padding: 12,
-            nodeSpacing: 36,
-            rankSpacing: 44,
-          },
-          fontFamily: "var(--font-body), ui-sans-serif, system-ui, sans-serif",
-        });
-        const { svg: out } = await mermaid.render(id, code);
+        const out = await renderMermaid(id, code, dark);
         if (active) {
           setSvg(out);
+          lastGoodRef.current = out;
           setSoftFailed(false);
         }
       } catch {
@@ -622,7 +664,9 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
             .querySelectorAll('.mermaid [aria-roledescription="error"], div[id^="dmmd-"]')
             .forEach((n) => n.remove());
         }
-        if (active && !svg && !streaming) setSoftFailed(true);
+        // On failure keep showing the last good render (streaming partials
+        // fail constantly). Only when NOTHING ever rendered do we soft-fail.
+        if (active && !lastGoodRef.current && !streaming) setSoftFailed(true);
       }
     };
     timer = setTimeout(render, 250);
@@ -641,9 +685,36 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
     return h > 0 ? { w, h } : null;
   }, [svg]);
 
+  // Drag-to-pan: wide/tall diagrams render at natural size inside a scroll
+  // container; pointer-drag pans it (grab cursor). Overflow-y allows tall
+  // diagrams to pan vertically too (operator 2026-09-04).
+  const panRef = useRef<HTMLDivElement>(null);
+  const panState = useRef<{ x: number; y: number; l: number; t: number } | null>(null);
+  const onPanDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = panRef.current;
+    if (!el) return;
+    panState.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
+    el.setPointerCapture(e.pointerId);
+  };
+  const onPanMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = panRef.current;
+    const s = panState.current;
+    if (!el || !s) return;
+    el.scrollLeft = s.l - (e.clientX - s.x);
+    el.scrollTop = s.t - (e.clientY - s.y);
+  };
+  const onPanUp = () => {
+    panState.current = null;
+  };
+
   const renderBody = svg ? (
     <div
-      className="cb-mermaid-wide"
+      ref={panRef}
+      className="cb-mermaid-wide cb-mermaid-pan"
+      onPointerDown={onPanDown}
+      onPointerMove={onPanMove}
+      onPointerUp={onPanUp}
+      onPointerCancel={onPanUp}
       dangerouslySetInnerHTML={{
         __html: naturalDims
           ? svg.replace(

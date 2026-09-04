@@ -1191,10 +1191,20 @@ pre code {
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  overflow-y: hidden;
+  /* Tall diagrams pan vertically too (cap so a giant flowchart doesn't eat
+     the transcript) — drag-to-pan handles both axes. */
+  overflow-y: auto;
+  max-height: 70vh;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   padding-bottom: 4px; /* room for the scrollbar */
+}
+.markdown-body .cb-mermaid .cb-mermaid-pan {
+  cursor: grab;
+  touch-action: none;
+}
+.markdown-body .cb-mermaid .cb-mermaid-pan:active {
+  cursor: grabbing;
 }
 .markdown-body .cb-mermaid .cb-mermaid-wide svg {
   /* width/height pinned to the natural viewBox px via inline style in the
