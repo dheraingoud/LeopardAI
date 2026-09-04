@@ -52,16 +52,11 @@ export function ApprovalDock({
     if (decided !== null) return;
     setDecided(approved);
     try {
-      (
-        chat as unknown as {
-          addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
-        }
-      ).addToolApprovalResponse?.({ id: approvalId, approved });
-      // The resume streams a FRESH reasoning+text pass as a new SDK bubble
-      // while the pre-approval bubble (old reasoning + the tool card) stays —
-      // user wants BOTH (2026-09-04). Settle-time tail-collapse dedupe in
-      // use-active-chat folds them into the single persisted server row.
-      void chat.sendMessage();
+      // Provider-owned: the dock UNMOUNTS the moment the part flips to
+      // approval-responded (pendingApproval clears), killing any local poll —
+      // the resume POST must live where the chat lives (2026-09-04: instant
+      // approvals silently died here).
+      chat.approveAndResume(approvalId, approved);
     } catch {
       /* surfaced via chat.error */
     }

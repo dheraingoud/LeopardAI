@@ -46,6 +46,7 @@ import {
   resolvePendingApprovalRowId,
   type UserMemory,
 } from "@/lib/ai/server-generation";
+import { withUpstreamSlot } from "@/lib/ai/upstream-slot";
 import { memoryTools } from "@/lib/ai/tools/memory";
 import { researchTools } from "@/lib/ai/tools/research";
 import { agentsTools } from "@/lib/ai/tools/agents";
@@ -247,12 +248,12 @@ async function generateTitleFromUserMessage(message: UIMessage): Promise<string>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 400);
-  const { text } = await generateText({
+  const { text } = await withUpstreamSlot(() => generateText({
     model: getTitleModel(),
     // AI SDK v7: `system` → `instructions`.
     instructions: titlePrompt,
     prompt: input,
-  });
+  }));
   const cleaned = text
     .replace(/^[#*"\s]+/, "")
     .replace(/["]+$/, "")

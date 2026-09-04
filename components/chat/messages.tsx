@@ -85,6 +85,17 @@ function renderTranscript(
     )
       lastSpawnIdx = i;
   });
+  // Approval-resume fork (2026-09-04): while the resume bubble streams, the
+  // pre-approval bubble still carries the FIRST reasoning block — two thinking
+  // panels (usually identical re-think) stack and read as a duplication bug.
+  // Hide reasoning on every assistant message of the current turn except the
+  // LAST one; at settle the tail-collapse merges them into one row anyway.
+  let lastUserIdx = -1;
+  let lastAssistantIdx = -1;
+  messages.forEach((m, i) => {
+    if (m.role === "user") lastUserIdx = i;
+    if (m.role === "assistant") lastAssistantIdx = i;
+  });
   messages.forEach((message, index) => {
     const day = dayLabel(firstSeen.get(message.id) ?? 0);
     if (day !== lastDay) {
@@ -106,6 +117,12 @@ function renderTranscript(
         message={message}
         isLast={index === messages.length - 1}
         status={status}
+        hideReasoning={
+          message.role === "assistant" &&
+          index > lastUserIdx &&
+          index !== lastAssistantIdx &&
+          lastAssistantIdx > lastUserIdx
+        }
         hideSpawnCard={
           lastSpawnIdx !== -1 &&
           index !== lastSpawnIdx &&

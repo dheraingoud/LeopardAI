@@ -563,10 +563,14 @@ export const PreviewMessage = memo(function PreviewMessage({
   isLast,
   status,
   hideSpawnCard = false,
+  hideReasoning = false,
 }: {
   message: ChatMessage;
   isLast: boolean;
   status: string;
+  // Approval-resume fork: this bubble's reasoning is superseded by the resume
+  // bubble's fresh reasoning — hide the panel (tool cards still render).
+  hideReasoning?: boolean;
   // Φ-multi-agent: one AgentRunCard per TURN. The approval→resume flow can
   // leave the spawn_agents tool part on two messages (the pre-approval
   // assistant row + the resumed row) — messages.tsx passes hideSpawnCard to
@@ -584,7 +588,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         mediaType?: string;
       }>)
     : [];
-  const reasoning = !isUser ? getMessageReasoning(message) : "";
+  const reasoning = !isUser && !hideReasoning ? getMessageReasoning(message) : "";
   const isStreaming = !isUser && isLast && status === "streaming";
   // Φ6: tool-createDocument parts → inline artifact-opener cards (see
   // DocumentCard). Empty for user msgs; assistant msgs get one per tool call.

@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { withUpstreamSlot, UpstreamBusyError } from "@/lib/ai/upstream-slot";
 import { ConvexHttpClient } from "convex/browser";
 import { api, internal } from "@/convex/_generated/api";
 import { estimateCostUsd } from "@/lib/ai/telemetry";
@@ -1029,14 +1030,29 @@ export function backgroundServe(args: {
           await finalizePartial();
           return;
         }
-        let r: any;
+        // One upstream slot covers makeResult + the FULL drain: the NIM
+        // request stays open for the entire stream, so the slot must too
+        // (NIM workers cap at 32 concurrent — ResourceExhausted otherwise).
+        let slotError: unknown = null;
         try {
-          r = await makeResult();
+          await withUpstreamSlot(async () => {
+            const r = await makeResult();
+            lastResult = r;
+            outcome = await driveAttempt(r);
+          });
         } catch (err) {
+          slotError = err;
+        }
+        if (slotError) {
+          if (slotError instanceof UpstreamBusyError) {
+            // Queue was full for 20s — clean error card, not a hung stream.
+            outcome = { error: "Server is at capacity — retry in a moment." };
+            break;
+          }
           // A construction-time throw (e.g. upstream 400 surfaced eagerly) is a
           // content-free failure too — run it through the SAME retry/fallback
           // path as an in-stream error instead of dying on attempt 1.
-          outcome = { error: errMsg(err) };
+          outcome = { error: errMsg(slotError) };
           if (ctrl.signal.aborted) {
             generationAborted = true;
             await finalizePartial();
@@ -1053,8 +1069,6 @@ export function backgroundServe(args: {
           attempt += 1;
           continue;
         }
-        lastResult = r;
-        outcome = await driveAttempt(r);
 
         if (ctrl.signal.aborted) {
           generationAborted = true;
