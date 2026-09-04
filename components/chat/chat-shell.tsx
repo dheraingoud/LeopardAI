@@ -135,7 +135,15 @@ export function ChatShell() {
     ];
     for (const m of msgs) {
       const role = m.role === "user" ? "**You**" : "**Leopard**";
-      lines.push(`### ${role}`, "", getMessageText(m), "", "---", "");
+      // Attachments ride as file parts — export them as markers (base64 blobs
+      // don't belong in markdown) so the transcript isn't silently lossy.
+      const fileNotes = (m.parts ?? [])
+        .filter((p) => p.type === "file")
+        .map((p) => {
+          const f = p as { filename?: string; mediaType?: string };
+          return `[attachment: ${f.filename ?? "file"}${f.mediaType ? ` (${f.mediaType})` : ""}]`;
+        });
+      lines.push(`### ${role}`, "", ...fileNotes, getMessageText(m), "", "---", "");
     }
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
