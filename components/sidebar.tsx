@@ -30,12 +30,12 @@ import { getDefaultChatModel } from "@/lib/ai/models";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /** Group chats by relative date buckets */
-function groupChats(
-  chats: { _id: string; title: string; updatedAt: number }[]
+function groupChats<T extends { _id: string; title: string; updatedAt: number }>(
+  chats: T[]
 ) {
   const now = Date.now();
   const DAY = 86_400_000;
-  const groups: Record<string, typeof chats> = {};
+  const groups: Record<string, T[]> = {};
   const sorted = [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
   for (const chat of sorted) {
     const diff = now - chat.updatedAt;
@@ -57,6 +57,16 @@ interface SidebarProps {
   onClose?: () => void;
   /** When true on desktop, render sidebar as overlay over content */
   overlayDesktop?: boolean;
+}
+
+function isUnread(chatId: string, updatedAt: number, pathname: string): boolean {
+  if (pathname === `/chat/${chatId}`) return false;
+  try {
+    const stamp = window.localStorage.getItem(`leopard:read:${chatId}`);
+    return stamp === null ? false : updatedAt > Number(stamp);
+  } catch {
+    return false;
+  }
 }
 
 export default function Sidebar({
@@ -92,6 +102,17 @@ export default function Sidebar({
 
   const sidebarOpen = !collapsed;
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Unread tracking (2026-09-04): opening a chat stamps leopard:read:<id>;
+  // any chat whose updatedAt is newer than its stamp (and isn't open) shows
+  // the unread dot. localStorage — per-browser, no schema churn.
+  const activeChatId = pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : null;
+  useEffect(() => {
+    if (!activeChatId) return;
+    try {
+      window.localStorage.setItem(`leopard:read:${activeChatId}`, String(Date.now()));
+    } catch { /* private mode */ }
+  }, [activeChatId]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -102,7 +123,7 @@ export default function Sidebar({
     return chats.filter((c) => c.title.toLowerCase().includes(q));
   }, [chats, searchQuery]);
 
-  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number }[]), [filtered]);
+  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean }[]), [filtered]);
 
 
   // Deferred-create: just open the draft surface; the row is minted on the
@@ -133,6 +154,21 @@ export default function Sidebar({
 
   const handleDelete = async (chatId: string) => {
     if (!userId) return;
+    // Abort any detached server generation for this chat FIRST — else the
+    // route keeps streaming/writing into a deleted conversation (operator
+    // 2026-09-04: "deleted the chat but generation continued").
+    try {
+      await fetch("/api/chat/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId }),
+      });
+    } catch {
+      /* generation may not exist — delete proceeds regardless */
+    }
+    // The abort's finalize-partial write lands just after /stop responds —
+    // give it a beat so the row delete below isn't followed by a zombie upsert.
+    await new Promise((r) => setTimeout(r, 300));
     await deleteChat({ chatId: chatId as Id<"chats">, userId });
     if (pathname === `/chat/${chatId}`) {
       router.push("/chat");
@@ -146,14 +182,14 @@ export default function Sidebar({
       <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-black light:bg-white">
         <div className="flex flex-col items-center gap-3">
           <button
-            className="h-10 w-10 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-10 w-10 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             onClick={onToggle}
             title="Expand sidebar"
           >
             <PanelLeft className="h-5 w-5" />
           </button>
           <button
-            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
             onClick={handleNewChat}
             title="New chat"
           >
@@ -163,13 +199,13 @@ export default function Sidebar({
         <div className="flex flex-col items-center gap-2">
           <Link
             href="/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>
         <button
-          className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+          className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
           onClick={toggleTheme}
           title={theme === "dark" ? "Light" : "Dark"}
         >
@@ -198,7 +234,7 @@ export default function Sidebar({
         </Link>
         <div className="flex items-center gap-0.5">
           <button
-            className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] hover-lift transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] hover-lift transition-colors"
             onClick={handleNewChat}
             title="New chat"
           >
@@ -206,7 +242,7 @@ export default function Sidebar({
           </button>
           {!isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onToggle}
               title="Collapse sidebar"
             >
@@ -215,7 +251,7 @@ export default function Sidebar({
           )}
           {isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onClose}
             >
               <X className="h-4 w-4" />
@@ -232,7 +268,7 @@ export default function Sidebar({
             placeholder="Search chats…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
+            className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
           />
         </div>
       </div>
@@ -247,7 +283,7 @@ export default function Sidebar({
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 rounded-lg dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse"
+                  className="h-10 rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse"
                 />
               ))}
             </div>
@@ -272,7 +308,12 @@ export default function Sidebar({
                   key={bucket}
                   label={bucket}
                   className="mb-5"
-                  threads={items.map((c) => ({ id: c._id, title: c.title }))}
+                  threads={items.map((c) => ({
+                    id: c._id,
+                    title: c.title,
+                    generating: c.generating === true,
+                    unread: isUnread(c._id, c.updatedAt, pathname),
+                  }))}
                   activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : undefined}
                   onSelect={(id) => handleChatClick(id)}
                   onRename={(id) => {
@@ -309,21 +350,21 @@ export default function Sidebar({
           </div>
           <Link
             href="/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
             onClick={() => isMobile && onClose && onClose()}
           >
             <Settings className="h-4 w-4" />
           </Link>
       <button
-        className="h-9 w-9 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+        className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
         onClick={toggleTheme}
         title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       >
         {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
           <button
-            className="h-7 w-7 flex items-center justify-center rounded-lg dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
+            className="h-7 w-7 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
             onClick={() => signOut()}
             title="Sign out"
           >

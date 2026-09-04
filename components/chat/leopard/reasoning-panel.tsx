@@ -41,12 +41,14 @@ export function ReasoningPanel({
       : secs < 10
         ? secs.toFixed(1).replace(/\.0$/, "")
         : String(Math.round(secs));
-  // Operator 2026-09-02: resting label is "thought for x seconds" — never
-  // "thought process". Falls back to plain "Thought" if no clock survived.
+  // ≥60s reads "x mins y secs" (operator 2026-09-04) — "Thought for 217
+  // seconds" is unreadable on long reasoning turns.
   const resting =
-    secsLabel !== null
-      ? `Thought for ${secsLabel} second${secsLabel === "1" ? "" : "s"}`
-      : "Thought";
+    secsLabel !== null && secs !== null && secs >= 60
+      ? `Thought for ${Math.floor(secs / 60)} min${Math.floor(secs / 60) === 1 ? "" : "s"} ${Math.round(secs % 60)} sec${Math.round(secs % 60) === 1 ? "" : "s"}`
+      : secsLabel !== null
+        ? `Thought for ${secsLabel} second${secsLabel === "1" ? "" : "s"}`
+        : "Thought";
 
   // Live ticking while the model is still thinking — counts up from 0s and
   // freezes (via the parent's elapsedMs) once the answer text begins.
@@ -121,9 +123,13 @@ export function ReasoningPanel({
             </ShimmerLabel>
             <span className={cn(mono, "text-foreground/30 tabular-nums")}>
               {streaming
-                ? `${liveSeconds}s`
+                ? liveSeconds >= 60
+                  ? `${Math.floor(liveSeconds / 60)}m ${liveSeconds % 60}s`
+                  : `${liveSeconds}s`
                 : elapsedMs !== undefined
-                  ? `${Math.max(0.1, elapsedMs / 1000).toFixed(1)}s`
+                  ? elapsedMs >= 60000
+                    ? `${Math.floor(elapsedMs / 60000)}m ${Math.round((elapsedMs % 60000) / 1000)}s`
+                    : `${Math.max(0.1, elapsedMs / 1000).toFixed(1)}s`
                   : null}
             </span>
           </>

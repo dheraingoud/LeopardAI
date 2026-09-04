@@ -9,6 +9,10 @@ export interface ThreadListItem {
   id: string;
   title: string;
   time?: string;
+  /** Detached generation live on the server → blinking amber dot. */
+  generating?: boolean;
+  /** Latest activity newer than the user's last open → solid unread dot. */
+  unread?: boolean;
 }
 
 // Leopard fork of the kit ThreadList, extended to the production sidebar API:
@@ -64,7 +68,7 @@ export function ThreadList({
                   if (e.key === "Enter") onEditSubmit?.();
                   if (e.key === "Escape") onEditCancel?.();
                 }}
-                className="h-9 w-full rounded-md bg-transparent px-2 text-sm outline-none ring-1 dark:ring-[#ffb400]/40 light:ring-[#d49600]/40"
+                className="h-9 w-full rounded-xl bg-transparent px-2 text-sm outline-none ring-1 dark:ring-[#ffb400]/40 light:ring-[#d49600]/40"
               />
             </div>
           );
@@ -83,7 +87,7 @@ export function ThreadList({
               }
             }}
             className={cn(
-              "group relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-start text-[13.5px] transition-colors",
+              "group relative flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-start text-[13.5px] transition-colors",
               active
                 ? "dark:bg-white/[0.08] light:bg-black/[0.05] dark:text-white light:text-[#171717]"
                 : "dark:text-[#a3a3a3] light:text-[#525252] hover:dark:bg-white/[0.04] hover:light:bg-black/[0.03]",
@@ -93,6 +97,19 @@ export function ThreadList({
               <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#ffb400]" />
             )}
             <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+            {thread.generating ? (
+              <span
+                role="status"
+                title="Generating…"
+                className="size-1.5 shrink-0 animate-pulse rounded-full bg-[#ffb400]"
+              />
+            ) : thread.unread ? (
+              <span
+                role="status"
+                title="Unread"
+                className="size-1.5 shrink-0 rounded-full dark:bg-white/50 light:bg-black/40"
+              />
+            ) : null}
             {thread.time && (
               <span
                 className={cn(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRightIcon, Eye, EyeOff, PlugIcon, PlusIcon, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -245,7 +246,11 @@ export function McpServerPanel({ open, onClose }: { open: boolean; onClose: () =
   const inputCls =
     "w-full h-9 px-3 rounded-lg text-[12px] font-mono outline-none dark:bg-black/40 light:bg-white/60 dark:text-[#e5e5e5] light:text-[#262626] dark:border dark:border-white/10 light:border light:border-black/10 placeholder:dark:text-[#505050] placeholder:light:text-[#aaaaaa] focus:dark:border-[#ffb400]/[0.5] focus:light:border-[#d49600]/[0.5]";
 
-  return (
+  // Portal to <body>: rendered inside the composer's motion tree, a
+  // `fixed` overlay resolves against the nearest transformed ancestor and the
+  //  modal squashed into the composer zone (operator 2026-09-04 screenshot).
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -518,6 +523,7 @@ export function McpServerPanel({ open, onClose }: { open: boolean; onClose: () =
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

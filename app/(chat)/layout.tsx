@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import Sidebar from "@/components/sidebar";
 import { CommandPaletteHost } from "@/components/chat/leopard/command-palette-host";
@@ -23,7 +23,8 @@ export default function ChatLayout({
 }) {
   const { isLoaded } = useUser();
   const [collapsed, setCollapsed] = useState(false);
-  const [preCollapseState, setPreCollapseState] = useState(false);
+  // Ref, not state: pre-collapse snapshot must not retrigger effects.
+  const preCollapseRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -37,14 +38,20 @@ export default function ChatLayout({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Stable callbacks (no deps): a state-dependent autoCollapse recreated
+  // itself on every collapse flip, which re-ran the ArtifactPanel effect and
+  // ping-ponged collapsed true/false forever — the "Maximum update depth
+  // exceeded" crash on artifact open (operator 2026-09-04).
   const autoCollapse = useCallback(() => {
-    setPreCollapseState(collapsed);
-    if (!collapsed) setCollapsed(true);
-  }, [collapsed]);
+    setCollapsed((c) => {
+      preCollapseRef.current = c;
+      return true;
+    });
+  }, []);
 
   const restoreCollapse = useCallback(() => {
-    setCollapsed(preCollapseState);
-  }, [preCollapseState]);
+    setCollapsed(preCollapseRef.current);
+  }, []);
 
   if (!isLoaded) return null;
 

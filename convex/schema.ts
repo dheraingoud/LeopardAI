@@ -46,6 +46,8 @@ export default defineSchema({
     type: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // True while a detached generation for this chat is live (sidebar blink).
+    generating: v.optional(v.boolean()),
   })
     .index("by_user", ["userId"])
     .index("by_share_id", ["shareId"])

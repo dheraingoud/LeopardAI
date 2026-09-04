@@ -801,7 +801,7 @@ export async function POST(request: Request) {
             ? { ...p, state: "output-available", output: out }
             : { ...p, state: "approval-responded" };
         });
-      const genCtrl = createGenerationController(assistantId);
+      const genCtrl = createGenerationController(assistantId, realChatId);
       generationSignal = genCtrl.signal;
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.

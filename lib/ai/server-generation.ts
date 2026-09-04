@@ -67,12 +67,16 @@ export type GenerationStatus = "streaming" | "completed";
 
 // ── Per-generation abort registry (review M1) ───────────────────────────────
 const _abortControllers = new Map<string, AbortController>();
+// assistantId → chatId, so deleting a chat can abort its in-flight generation
+// (operator 2026-09-04: deleted chats kept generating against a ghost row).
+const _generationChat = new Map<string, string>();
 
 /** Abort a live generation by its assistant message id. Returns false if none. */
 export function abortGeneration(assistantId: string): boolean {
   const c = _abortControllers.get(assistantId);
   if (!c) return false;
   _abortControllers.delete(assistantId);
+  _generationChat.delete(assistantId);
   try {
     c.abort();
   } catch {
@@ -81,19 +85,30 @@ export function abortGeneration(assistantId: string): boolean {
   return true;
 }
 
+/** Abort EVERY live generation for a chat (chat delete path). Count aborted. */
+export function abortChatGenerations(chatId: string): number {
+  let n = 0;
+  for (const [aid, cid] of [..._generationChat]) {
+    if (cid === chatId && abortGeneration(aid)) n++;
+  }
+  return n;
+}
+
 /**
  * Create + register the controller for a generation, to run BEFORE the route
  * builds its streamText (so the signal can be passed in). Reload/exit must NOT
  * abort it; only stop (abortGeneration) or the settle timeout should.
  */
-export function createGenerationController(assistantId: string): AbortController {
+export function createGenerationController(assistantId: string, chatId?: string): AbortController {
   const c = new AbortController();
   _abortControllers.set(assistantId, c);
+  if (chatId) _generationChat.set(assistantId, chatId);
   return c;
 }
 
 function unregisterGeneration(assistantId: string): void {
   _abortControllers.delete(assistantId);
+  _generationChat.delete(assistantId);
 }
 
 // ── Convex admin client ─────────────────────────────────────────────────────
@@ -658,6 +673,22 @@ const errMsg = (err: unknown): string => {
 };
 
 const REPLAY_CAP = 5000;
+
+/** Sleep that ends EARLY when the generation aborts — a stop clicked during
+ *  the retry backoff used to wait out the full delay before the loop noticed
+ *  (operator 2026-09-04: "stop doesn't work during automatic retry"). */
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((res) => {
+    const t = setTimeout(done, ms);
+    function done() {
+      clearTimeout(t);
+      signal.removeEventListener("abort", done);
+      res();
+    }
+    signal.addEventListener("abort", done, { once: true });
+  });
+}
 const PERSIST_INTERVAL_MS = 800;
 const PERSIST_BATCH = 120;
 
@@ -1018,7 +1049,7 @@ export function backgroundServe(args: {
             data: { attempt, maxRetries: maxAttempts - attempt, delayMs: retryBackoffMs },
             transient: true,
           });
-          await new Promise((res) => setTimeout(res, retryBackoffMs * attempt));
+          await abortableSleep(retryBackoffMs * attempt, ctrl.signal);
           attempt += 1;
           continue;
         }
@@ -1047,7 +1078,7 @@ export function backgroundServe(args: {
           data: { attempt, maxRetries: maxAttempts - attempt, delayMs: retryBackoffMs },
           transient: true,
         });
-        await new Promise((res) => setTimeout(res, retryBackoffMs * attempt));
+        await abortableSleep(retryBackoffMs * attempt, ctrl.signal);
         attempt += 1;
       }
 
@@ -1059,9 +1090,22 @@ export function backgroundServe(args: {
 
       if (committed) {
         // Stream produced output (or was finalized) → canonical completed status.
+        const accParts = acc.parts();
         const finalParts = normalizeUIMessageParts(
-          Array.isArray(await lastResult.parts) ? await lastResult.parts : acc.parts(),
+          Array.isArray(await lastResult.parts) ? await lastResult.parts : accParts,
         ) as unknown[];
+        // SDK response parts drop our durationMs stamp — re-attach so the
+        // "Thought for N" label survives reload (operator 2026-09-04).
+        const accReasoning = accParts.find(
+          (p) => p.type === "reasoning" && (p as { durationMs?: number }).durationMs,
+        ) as { durationMs?: number } | undefined;
+        if (accReasoning?.durationMs !== undefined) {
+          const target = (finalParts as Array<{ type?: string; durationMs?: number }>)
+            .find((p) => p.type === "reasoning");
+          if (target && target.durationMs === undefined) {
+            target.durationMs = accReasoning.durationMs;
+          }
+        }
         await enqueueWrite(() =>
           persistAssistantRow({
             chatId,

@@ -199,7 +199,7 @@ export function ChatShell() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center dark:bg-black light:bg-white">
         <ChatBootLoader />
       </div>
     );
@@ -233,7 +233,7 @@ export function ChatShell() {
   }
   if (!chatMeta) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center dark:bg-black light:bg-white">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -260,6 +260,9 @@ export function ChatShell() {
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* No header bar — floating pill, top-right (operator 2026-09-04). */}
         <div className="absolute top-3 right-4 z-30 flex items-center gap-1 rounded-full border px-2 py-1 dark:border-white/[0.08] dark:bg-black/60 light:border-black/[0.08] light:bg-white/70 backdrop-blur-xl">
+          <span className="max-w-[220px] truncate pl-1.5 pr-1 text-xs font-body dark:text-[#d4d4d4] light:text-[#404040]">
+            {chatMeta.title === "New Chat" ? "Start a conversation" : chatMeta.title}
+          </span>
           <ConnectionDot />
           <HeaderQuotaBanner />
           <button

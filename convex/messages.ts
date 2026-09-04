@@ -129,6 +129,13 @@ export const upsertAssistant = internalMutation({
       if (args.status !== undefined) patch.status = args.status;
       if (args.model !== undefined) patch.model = args.model;
       await ctx.db.patch(existing._id, patch);
+      // Sidebar "generating" blink (2026-09-04): mirror the lifecycle onto the
+      // chat row so the list shows a live dot without a per-chat query.
+      if (args.status !== undefined) {
+        await ctx.db.patch(args.chatId, {
+          generating: args.status === "streaming",
+        });
+      }
       return { _id: existing._id, id: args.id, createdAt: existing.createdAt, updated: true };
     }
 
@@ -141,6 +148,11 @@ export const upsertAssistant = internalMutation({
       ...(args.status !== undefined ? { status: args.status } : {}),
       createdAt: Date.now(),
     });
+    if (args.status !== undefined) {
+      await ctx.db.patch(args.chatId, {
+        generating: args.status === "streaming",
+      });
+    }
     return { _id: inserted, id: args.id, createdAt: undefined, updated: false };
   },
 });

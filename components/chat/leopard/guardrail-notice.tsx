@@ -28,6 +28,8 @@ export function GuardrailNotice({
       data-slot="guardrail-notice"
       className={cn(
         paper,
+        // Vercel black like the error card (operator 2026-09-04).
+        "dark:bg-black dark:bg-none light:bg-white light:bg-none",
         "flex w-full max-w-sm flex-col gap-3 rounded-[20px] p-4",
         className,
       )}
