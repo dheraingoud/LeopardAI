@@ -65,12 +65,39 @@ export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
         throw new Error(`No document handler found for kind: ${kind}`);
       }
 
-      await documentHandler.onCreateDocument({
-        id,
-        title,
-        dataStream,
-        modelId,
-      });
+      // Stall guard: the inner document stream runs OUTSIDE the chat turn's
+      // own watchdogs. An upstream that opens then hangs (observed on NIM)
+      // would otherwise park the generation forever — the assistant row stays
+      // a seed-only "approval-responded" placeholder (X4.2, 2026-09-05). Abort
+      // after 60s without a content delta; whatever streamed is kept.
+      const ctrl = new AbortController();
+      let lastDelta = Date.now();
+      const guardedStream = {
+        ...dataStream,
+        write: (chunk: Parameters<typeof dataStream.write>[0]) => {
+          if ((chunk as { type?: string })?.type === "data-textDelta") {
+            lastDelta = Date.now();
+          }
+          dataStream.write(chunk);
+        },
+      } as typeof dataStream;
+      const guard = setInterval(() => {
+        if (Date.now() - lastDelta > 60_000) ctrl.abort();
+      }, 5_000);
+      try {
+        await documentHandler.onCreateDocument({
+          id,
+          title,
+          dataStream: guardedStream,
+          modelId,
+          signal: ctrl.signal,
+        });
+      } catch (e) {
+        // An abort after partial content is not an error — finish what we have.
+        if (!ctrl.signal.aborted) throw e;
+      } finally {
+        clearInterval(guard);
+      }
 
       dataStream.write({ type: "data-finish", data: null, transient: true });
 

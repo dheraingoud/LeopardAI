@@ -29,12 +29,13 @@ function fileStreamHandler(
 ): ReturnType<typeof createDocumentHandler<typeof kind>> {
   return createDocumentHandler({
     kind,
-    onCreateDocument: async ({ title, dataStream, modelId }) => {
+    onCreateDocument: async ({ title, dataStream, modelId, signal }) => {
       const { fullStream } = streamText({
         model: getLanguageModel(modelId),
         system: FILE_SYSTEM_PROMPT,
         experimental_transform: smoothStream({ chunking: "word" }),
         prompt: title,
+        abortSignal: signal,
       });
 
       for await (const delta of fullStream) {

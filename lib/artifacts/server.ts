@@ -36,6 +36,10 @@ export type CreateDocumentCallbackProps = {
   title: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
   modelId: string;
+  /** Aborts the inner document stream when it stalls (no delta for 60s) —
+   *  an open-ended hang here parked the whole turn on a seeded
+   *  approval-responded row forever (X4.2 RCA, 2026-09-05). */
+  signal: AbortSignal;
 };
 
 export type UpdateDocumentCallbackProps = {
@@ -48,6 +52,7 @@ export type UpdateDocumentCallbackProps = {
   description: string;
   dataStream: UIMessageStreamWriter<ChatMessage>;
   modelId: string;
+  signal: AbortSignal;
 };
 
 export type DocumentHandler<T extends ArtifactKind = ArtifactKind> = {
