@@ -989,6 +989,29 @@ export function ActiveChatProvider({
     [chat.stop, chatId, isDraft],
   );
 
+  // ── Hung-request watchdog (X3.2): a POST that never answers (proxy swallow,
+  // dead upstream before first byte) leaves the SDK stuck in "submitted"/
+  // "streaming" forever — spinner with no way back short of reload. The server
+  // has its own stall watchdog for streams it OWNS; this covers the case where
+  // no response ever reaches the client. If status stays non-ready AND no
+  // message content changes for 75s, abort: stopGeneration returns the UI to
+  // "ready" (and halts any detached server generation via the chatId fallback).
+  const lastActivityRef = useRef(Date.now());
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+  }, [chat.messages, chat.status]);
+  useEffect(() => {
+    const live = chat.status === "streaming" || chat.status === "submitted";
+    if (!live) return;
+    const t = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > 75_000) {
+        console.warn("[chat] hung request — no activity for 75s, aborting");
+        stopGeneration();
+      }
+    }, 5_000);
+    return () => clearInterval(t);
+  }, [chat.status, stopGeneration]);
+
   // ── Reasoning change (local state + localStorage) ──────────────────────────
   const setReasoning = (level: ReasoningLevel) => {
     setCurrentReasoning(level);
