@@ -677,13 +677,12 @@ export function ActiveChatProvider({
     // hasn't started. The persisted row still says approval-requested, so a
     // mirror pass here would CLOBBER the SDK's approval-responded state and
     // the dock's resend would no-op — dead turn (probe 2026-09-04).
-    const approvalAnswered = chat.messages.some((m) =>
-      m.role === "assistant" &&
-      m.parts.some(
-        (p) => (p as { state?: string }).state === "approval-responded",
-      ),
-    );
-    if (approvalAnswered) return;
+    // Stand down only while a resume POST is actually in flight (the window
+    // between the Allow/Deny click and the resume stream). Do NOT key this off
+    // the part state: after a reload mid-resume the persisted placeholder row
+    // IS approval-responded, and the guard would lock forever — the row never
+    // updates to output-available and the card hangs on "Writing" (X4.2 RCA).
+    if (resumeInFlightRef.current) return;
     chat.setMessages((prev) => {
       let changed = false;
       let next = prev.slice();
@@ -762,16 +761,10 @@ export function ActiveChatProvider({
     // server row lags (progressive patches are throttled) — dropping there
     // kills the live reply.
     if (chat.status === "streaming" || chat.status === "submitted") return;
-    // Approval-resume window: a local bubble holds approval-responded state
-    // the server row doesn't have yet — collapsing to the server row now
-    // would delete the user's Allow/Deny before the resume POST leaves.
-    const approvalAnswered = chat.messages.some((m) =>
-      m.role === "assistant" &&
-      m.parts.some(
-        (p) => (p as { state?: string }).state === "approval-responded",
-      ),
-    );
-    if (approvalAnswered) return;
+    // Approval-resume window: stand down only while a resume POST is in
+    // flight (see the mirror effect above — a part-state check locks forever
+    // after a mid-resume reload).
+    if (resumeInFlightRef.current) return;
     const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
     chat.setMessages((prev) => {
       let lastUser = -1;
@@ -1241,6 +1234,10 @@ export function ActiveChatProvider({
   // silently on fast approvals. Here the poll lives as long as the chat.
   // Status read via statusRef (closure statuses freeze); sendMessage is a
   // stable Chat-instance method.
+  // True from the Allow/Deny click until the resume stream settles. The mirror
+  // + dedupe stand down only in this window; a persisted approval-responded
+  // row after a reload must NOT block them (X4.2).
+  const resumeInFlightRef = useRef(false);
   const approveAndResume = useCallback(
     (approvalId: string, approved: boolean) => {
       (
@@ -1248,6 +1245,7 @@ export function ActiveChatProvider({
           addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
         }
       ).addToolApprovalResponse?.({ id: approvalId, approved });
+      resumeInFlightRef.current = true;
       let tries = 0;
       const attempt = () => {
         const st = statusRef.current;
@@ -1258,6 +1256,16 @@ export function ActiveChatProvider({
         void chat.sendMessage().catch(() => {
           /* surfaced via chat.error → error card */
         });
+        // Release once the resume stream drains back to ready.
+        const release = () => {
+          const s = statusRef.current;
+          if (s === "streaming" || s === "submitted") {
+            setTimeout(release, 250);
+            return;
+          }
+          resumeInFlightRef.current = false;
+        };
+        setTimeout(release, 250);
       };
       attempt();
     },
