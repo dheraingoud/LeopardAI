@@ -968,12 +968,17 @@ export function ActiveChatProvider({
       // delete rows → resend. Fire-and-forget here raced the delete and the
       // abort's finalize upsert resurrected the old assistant row (2026-09-01).
       const sid = serverAssistantIdRef.current;
+      // After a mid-stream reload the assistantId ref is empty (it's only set
+      // from the live data-assistant-id chunk) — but the server-side detached
+      // generation is still running and the mirror keeps syncing it into the
+      // UI. Fall back to chatId so stop halts the server generation too
+      // (X1.1: reload → stop kept growing 1393 chars in 5s).
       const stopped =
-        sid != null
+        sid != null || !isDraft
           ? fetch("/api/chat/stop", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ assistantId: sid }),
+              body: JSON.stringify(sid != null ? { assistantId: sid, chatId } : { chatId }),
             }).catch(() => {
               /* server already settled — local stop still ends the mirror */
             })
@@ -981,7 +986,7 @@ export function ActiveChatProvider({
       chat.stop();
       return stopped;
     },
-    [chat.stop],
+    [chat.stop, chatId, isDraft],
   );
 
   // ── Reasoning change (local state + localStorage) ──────────────────────────
