@@ -116,7 +116,8 @@ function unregisterGeneration(assistantId: string): void {
 let _client: ConvexHttpClient | null = null;
 let _clientInitFailed = false;
 
-function convexClient(): ConvexHttpClient | null {
+/** Admin Convex client for server-side persistence (null without deploy key). */
+export function convexClient(): ConvexHttpClient | null {
   if (_client || _clientInitFailed) return _client;
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   const key = process.env.CONVEX_DEPLOY_KEY;
@@ -1141,9 +1142,13 @@ export function backgroundServe(args: {
       if (committed) {
         // Stream produced output (or was finalized) → canonical completed status.
         const accParts = acc.parts();
+        const sdkParts = Array.isArray(await lastResult.parts)
+          ? await lastResult.parts
+          : null;
         const finalParts = normalizeUIMessageParts(
-          Array.isArray(await lastResult.parts) ? await lastResult.parts : accParts,
+          sdkParts ?? accParts,
         ) as unknown[];
+
         // SDK response parts drop our durationMs stamp — re-attach so the
         // "Thought for N" label survives reload (operator 2026-09-04).
         const accReasoning = accParts.find(
