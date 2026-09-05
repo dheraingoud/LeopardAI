@@ -581,6 +581,7 @@ export async function POST(request: Request) {
                 write: (chunk: unknown) => emitChunk(chunk as Record<string, unknown>),
               } as never,
               modelId,
+              userId: userId ?? DEV_USER_ID,
             }),
           }
         : {}),
@@ -903,7 +904,7 @@ export async function POST(request: Request) {
             ? agentsTools({ dataStream, userId: memUserId, abortSignal: genCtrl.signal })
             : {}),
           ...(artifactsEnabled
-            ? { createDocument: createDocument({ dataStream, modelId }) }
+            ? { createDocument: createDocument({ dataStream, modelId, userId: userId ?? DEV_USER_ID }) }
             : {}),
           ...mcpHandle.tools,
         };

@@ -4,6 +4,8 @@ import {
   artifactKinds,
   documentHandlersByArtifactKind,
 } from "@/lib/artifacts/server";
+import { convexClient } from "@/lib/ai/server-generation";
+import { api } from "@/convex/_generated/api";
 import type { ChatMessage } from "@/lib/types";
 
 /**
@@ -29,9 +31,11 @@ import type { ChatMessage } from "@/lib/types";
 type CreateDocumentProps = {
   dataStream: UIMessageStreamWriter<ChatMessage>;
   modelId: string;
+  /** Owner for the server-side fallback document save (see below). */
+  userId?: string;
 };
 
-export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
+export const createDocument = ({ dataStream, modelId, userId }: CreateDocumentProps) =>
   tool({
     description:
       "Create a downloadable file card that appears in the chat after your reply. Use this whenever the user asks for a real file ('.md file', '.txt file', '.json', '.csv', 'a script', 'make me a sheet', etc). Set kind='file' for any arbitrary file and include the extension in the title (e.g. title: 'notes.md'). kind='text' for a document/essay. kind='code' for a script. kind='sheet' for tabular/CSV data.",
@@ -72,11 +76,13 @@ export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
       // after 60s without a content delta; whatever streamed is kept.
       const ctrl = new AbortController();
       let lastDelta = Date.now();
+      let accumulated = "";
       const guardedStream = {
         ...dataStream,
         write: (chunk: Parameters<typeof dataStream.write>[0]) => {
           if ((chunk as { type?: string })?.type === "data-textDelta") {
             lastDelta = Date.now();
+            accumulated += String((chunk as { data?: unknown }).data ?? "");
           }
           dataStream.write(chunk);
         },
@@ -100,6 +106,28 @@ export const createDocument = ({ dataStream, modelId }: CreateDocumentProps) =>
       }
 
       dataStream.write({ type: "data-finish", data: null, transient: true });
+
+      // Server-side fallback persist: the canonical save is client-side on
+      // data-finish, but a browser that reloads mid-stream never receives the
+      // finish chunk — the document is then lost from Convex and the reopened
+      // panel shows an empty body (X4.2, 2026-09-05). Idempotent: the client's
+      // save upserts the same id.
+      if (userId && accumulated.trim()) {
+        const c = convexClient();
+        if (c) {
+          void c
+            .mutation(api.documents.save as never, {
+              id,
+              title: title || "Untitled",
+              kind,
+              content: accumulated,
+              userId,
+            } as never)
+            .catch(() => {
+              /* cosmetic — the client save is the primary path */
+            });
+        }
+      }
 
       return {
         id,
