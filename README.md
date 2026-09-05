@@ -1,103 +1,36 @@
-<div align="center">
-  <img src="public/leopard.svg" alt="Leopard Logo" width="64" height="64" />
-  <br /><br />
+# Leopard
 
-  <h1>
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://readme-typing-svg.demolab.com?font=Dancing+Script&weight=700&size=72&pause=1000&color=FFB400&center=true&vCenter=true&width=500&height=100&lines=Leopard" />
-      <img src="https://readme-typing-svg.demolab.com?font=Dancing+Script&weight=700&size=72&pause=1000&color=FFB400&center=true&vCenter=true&width=500&height=100&lines=Leopard" alt="Leopard" />
-    </picture>
-  </h1>
+Leopard is a fast, local-first AI chat client built on Next.js, the Vercel AI SDK, and Convex.
 
-  <p><code>Predatory precision. Lightning speed.</code></p>
+## Features
 
-  <p>
-    <a href="https://leopardai.vercel.app">
-      <img src="https://img.shields.io/badge/Live-leopardai.vercel.app-FFB400?style=for-the-badge&logo=vercel&logoColor=black&labelColor=111111" alt="Live Site" />
-    </a>
-    &nbsp;
-    <img src="https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=nextdotjs&logoColor=white&labelColor=111111" alt="Next.js" />
-    &nbsp;
-    <img src="https://img.shields.io/badge/Powered_by-NVIDIA_NIM-76B900?style=for-the-badge&logo=nvidia&logoColor=white&labelColor=111111" alt="NVIDIA NIM" />
-  </p>
-</div>
-
----
-
-Leopard is an AI chat interface that gets out of your way. No clutter, no gimmicks. You open it, you talk, it responds. Your conversations stay organized, your code previews right in the chat, and everything moves fast.
-
-<br />
-
-## What it does
-
-| Feature | Description |
-|---|---|
-| Real-time chat | Streams responses token by token, no waiting |
-| Code canvas | Preview HTML, React, SVG, Mermaid and more inline |
-| File uploads | Drag, paste or attach images and code files as context |
-| Chat history | All your conversations, organized and searchable |
-| Export | Download any conversation as Markdown |
-| Share | Send a chat to anyone with a link |
-| Model switching | Pick your model per conversation |
-
-<br />
+- **Multi-model chat** via NVIDIA NIM (reasoning on/off per model, model picker with effort tiers)
+- **Detached server-side generation** — replies survive reloads and closed tabs; stop/resume anywhere
+- **Artifacts** — createDocument streams documents into a side panel (live preview, download, rehydrate after reload)
+- **Tool approvals** — AskCard gate for risky tools with allow/deny resume
+- **MCP server bridge** — add MCP servers (stdio/http) from the composer panel; their tools reach the model
+- **Orchestration** — spawn parallel research agents (multi-agent turns)
+- **Memory, output styles, context compaction** (flag-gated)
+- **Sidebar** — search, rename, unread/generating indicators, delete
 
 ## Stack
 
-- **[Next.js 16](https://nextjs.org)** — full-stack framework with App Router
-- **[Convex](https://convex.dev)** — real-time database with live queries
-- **[Clerk](https://clerk.com)** — authentication via Google OAuth
-- **[NVIDIA NIM](https://build.nvidia.com)** — inference API for LLMs
+- Next.js (App Router) + React, Vercel AI SDK (useChat + streamText)
+- Convex (messages, chats, documents, memory) — dev/prod deployment split
+- Clerk auth (dev bypass via `BYPASS_CLERK`)
+- NIM upstream for models
 
-<br />
-
-## Running locally
+## Development
 
 ```bash
-git clone https://github.com/dheraingoud/LeopardAI.git
-cd LeopardAI
 npm install
+npx next dev -p 3001
 ```
 
-Copy the example environment file and fill in your keys:
+Key env vars (see `.env.example`): `NVIDIA_API_KEY`, `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOY_KEY` (prod) / `CONVEX_DEPLOY_KEY_DEV` (dev deployment), feature flags (`ENABLE_ARTIFACTS`, `ENABLE_TOOL_APPROVAL`, `LEOPARD_MULTI_AGENTS`, `LEOPARD_MEMORY`, …).
 
-```bash
-cp .env.example .env.local
-```
+Dev vs prod Convex: local dev points at the dev deployment (`patient-elephant-642`); production picks up the prod deployment from Vercel env (`expert-vulture-839`). Schema/function changes: `npx convex dev`/`deploy` against dev first, verify, then prod.
 
-```env
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
-CLERK_SECRET_KEY=sk_...
-NEXT_PUBLIC_CONVEX_URL=https://...convex.cloud
-NVIDIA_API_KEY=nvapi-...
-```
+## QA
 
-Then start the dev server:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-<br />
-
-## Project layout
-
-```
-app/              Pages and API routes (Next.js App Router)
-components/       UI components (sidebar, message, canvas, etc.)
-convex/           Database schema, queries, and mutations
-hooks/            Shared React hooks (streaming, media upload)
-lib/              Utilities
-public/           Static assets
-types/            Shared TypeScript types
-```
-
-<br />
-
----
-
-<div align="center">
-  <sub>Built for speed. Kept simple on purpose.</sub>
-</div>
+Browser probe suite lives outside the repo (Playwright, `leopard-shots/qa/`): x1 detached lifecycle, x2 approval edges, x3 NIM quirks, x4 artifacts, x5 MCP bridge, x6–x8 extras, x9 sidebar flags, x10 probe handles.
