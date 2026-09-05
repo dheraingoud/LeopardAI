@@ -298,6 +298,10 @@ export function ActiveChatProvider({
   // adoption itself runs in the live-mirror effect below (review M3).
   const serverAssistantIdRef = useRef<string | null>(null);
 
+  // Last stream activity timestamp for the hung-request watchdog (declared
+  // before useChat so onData can bump it — see the watchdog effect below).
+  const lastActivityRef = useRef(Date.now());
+
   // Regen history: prior assistant texts keyed by the PRECEDING USER message id
   // (regen mints a new assistant id, so keying by assistant id would orphan the
   // history). Session-scoped — Convex keeps only the latest reply by design.
@@ -494,6 +498,11 @@ export function ActiveChatProvider({
       toast.error(hit ? hit[1] : "Something went wrong streaming the response — try again.");
     },
     onData: (part) => {
+      // Hung-request watchdog activity: ANY stream chunk (incl. artifact
+      // data-* parts, which never touch chat.messages) proves the wire is
+      // alive. Without this a >75s prelude (createDocument streaming into the
+      // panel, no message parts) read as "hung" and got aborted (X4.2).
+      lastActivityRef.current = Date.now();
       // Φ10 / #3: route emits the persisted assistant id as its first chunk
       // (transient). ONLY record it here — the optimistic bubble is not yet in
       // chat.messages at onData time (write() runs after), so any rename attempt
@@ -996,7 +1005,6 @@ export function ActiveChatProvider({
   // no response ever reaches the client. If status stays non-ready AND no
   // message content changes for 75s, abort: stopGeneration returns the UI to
   // "ready" (and halts any detached server generation via the chatId fallback).
-  const lastActivityRef = useRef(Date.now());
   useEffect(() => {
     lastActivityRef.current = Date.now();
   }, [chat.messages, chat.status]);
