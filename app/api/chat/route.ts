@@ -567,6 +567,23 @@ export async function POST(request: Request) {
     const manualTools: Record<string, any> = {
       ...(process.env.ENABLE_WEB_FETCH === "1" ? { webFetch: webFetch({} as never) } : {}),
       ...(process.env.ENABLE_WEB_SEARCH === "1" ? { webSearch: webSearch() } : {}),
+      // createDocument is approval-gated whenever TOOL_APPROVAL_RULES is set
+      // (its low-risk auto-approve only fires with rules unset). On resume the
+      // SDK never re-invokes it, so without this entry the approved call never
+      // executed — the card hung on "Writing…" forever and no document was
+      // persisted (X4.2, 2026-09-05). Its data-* parts flow through emitChunk
+      // to the live client + replay; the accumulator ignores them by design
+      // (the client assembles + persists the document itself on data-finish).
+      ...(process.env.ENABLE_ARTIFACTS === "1"
+        ? {
+            createDocument: createDocument({
+              dataStream: {
+                write: (chunk: unknown) => emitChunk(chunk as Record<string, unknown>),
+              } as never,
+              modelId,
+            }),
+          }
+        : {}),
       ...(process.env.LEOPARD_MULTI_AGENTS === "1"
         ? agentsTools({
             // LIVE writer: orchestration snapshots flow straight into the
