@@ -545,8 +545,10 @@ export async function POST(request: Request) {
   // sees the refusal in context, acknowledges it, and the turn settles. The
   // seed pass below reads resumeOutputs and marks the part output-available,
   // so the inline card lands on a denied state rather than hanging forever.
+  const deniedToolCallIds = new Set<string>();
   for (const p of respondedParts) {
     if ((p as { approval?: { approved?: boolean } }).approval?.approved === false) {
+      deniedToolCallIds.add(p.toolCallId);
       resumeOutputs.set(p.toolCallId, {
         error: "The user declined this action. Do not retry it.",
       });
@@ -795,7 +797,13 @@ export async function POST(request: Request) {
             (p.type.startsWith("tool-") || p.type === "dynamic-tool"),
         )
         .map((p) => {
-          const out = resumeOutputs.get((p as { toolCallId?: string }).toolCallId ?? "");
+          const tcid = (p as { toolCallId?: string }).toolCallId ?? "";
+          const out = resumeOutputs.get(tcid);
+          // Denied calls render as DENIED (not "output-available" with an error
+          // payload — that reads as if the fetch ran). 2026-09-05 QA.
+          if (deniedToolCallIds.has(tcid)) {
+            return { ...p, state: "output-denied", output: out };
+          }
           // Tools already executed above land as output-available (card +
           // model both read the result); the rest stay approval-responded.
           return out !== undefined
