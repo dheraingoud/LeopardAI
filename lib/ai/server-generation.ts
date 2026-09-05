@@ -997,7 +997,14 @@ export function backgroundServe(args: {
           emit(chunk);
           committed = committed || isGenerationContent(chunk);
           const ctype = (chunk as { type?: string }).type;
-          if (ctype === "reasoning-start" && firstReasoningAt === null)
+          // Arm on ANY reasoning chunk — some providers (deepseek-v4-flash on
+          // NIM, observed 2026-09-05) stream reasoning-delta without a preceding
+          // reasoning-start, which left firstReasoningAt null and disabled the
+          // budget entirely (a 354s reasoning run slipped through).
+          if (
+            (ctype === "reasoning-start" || ctype === "reasoning-delta") &&
+            firstReasoningAt === null
+          )
             firstReasoningAt = Date.now();
           if (ctype === "text-start" || ctype === "text-delta") sawAnswerText = true;
           if (
