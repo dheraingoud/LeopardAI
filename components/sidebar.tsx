@@ -88,8 +88,17 @@ function StaleGeneratingSweeper({
   const clearedRef = useRef(false);
   useEffect(() => {
     if (!messages || !userId || clearedRef.current) return;
+    // A row stuck in `streaming` forever means its generation died with a
+    // server restart (in-memory generations don't survive; no final write ever
+    // lands). Older than 10 min (settle cap is 300s) → treat as settled.
+    const STALE_MS = 10 * 60_000;
+    const now = Date.now();
     const stillStreaming = messages.some(
-      (m) => m.role === "assistant" && m.status === "streaming",
+      (m) =>
+        m.role === "assistant" &&
+        m.status === "streaming" &&
+        typeof m.createdAt === "number" &&
+        now - m.createdAt < STALE_MS,
     );
     if (!stillStreaming) {
       clearedRef.current = true;
