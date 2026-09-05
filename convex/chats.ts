@@ -116,6 +116,11 @@ export const updateTitle = mutation({
 export const setGenerating = mutation({
   args: { chatId: v.id("chats"), userId: v.string(), generating: v.boolean() },
   handler: async (ctx, args) => {
+    // A deleted chat is a no-op, NOT an error: the sidebar sweeper's clear can
+    // land after chats.remove deleted the row (X9.3 console noise). Wrong-owner
+    // still throws via requireChatOwner below.
+    const row = await ctx.db.get(args.chatId);
+    if (!row) return;
     await requireChatOwner(ctx, args.chatId, args.userId);
     await ctx.db.patch(args.chatId, { generating: args.generating });
   },
