@@ -116,12 +116,30 @@ function unregisterGeneration(assistantId: string): void {
 let _client: ConvexHttpClient | null = null;
 let _clientInitFailed = false;
 
-/** Admin Convex client for server-side persistence (null without deploy key). */
+/** Admin Convex client for server-side persistence (null without deploy key).
+ *  Keys are deployment-scoped ("prod:slug|…" / "dev:slug|…") — the key whose
+ *  embedded slug matches NEXT_PUBLIC_CONVEX_URL wins. Dev runs against the dev
+ *  deployment use CONVEX_DEPLOY_KEY_DEV; the prod key is never sent to a
+ *  deployment it doesn't belong to (that would 401 every write). */
 export function convexClient(): ConvexHttpClient | null {
   if (_client || _clientInitFailed) return _client;
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const key = process.env.CONVEX_DEPLOY_KEY;
+  const slug = url?.match(/^https:\/\/([^.]+)\.convex\.cloud/)?.[1];
+  const candidates = [
+    process.env.CONVEX_DEPLOY_KEY,
+    process.env.CONVEX_DEPLOY_KEY_DEV,
+  ].filter((k): k is string => !!k);
+  const key =
+    candidates.find((k) => {
+      const m = k.match(/^(?:prod|dev):([^|]+)\|/);
+      return m && m[1] === slug;
+    }) ?? (slug ? undefined : candidates[0]); // no slug in URL → legacy single-key setup
   if (!url || !key) {
+    if (url && candidates.length > 0) {
+      logWarn(
+        `no deploy key matches deployment "${slug}" — server-side persistence off (set CONVEX_DEPLOY_KEY_DEV for the dev deployment)`,
+      );
+    }
     _clientInitFailed = true;
     return null;
   }
