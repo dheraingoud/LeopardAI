@@ -372,7 +372,14 @@ export function nimReasoningProviderOptions(
     };
   }
   // "effort"
-  if (!level || level === "off") return {};
+  // OFF must be EXPLICIT: omitting the param leaves the model at its upstream
+  // default, and nemotron-3.5-lightning defaults to thinking ON (live probe
+  // 2026-09-05: reasoning_content populated with no params). NIM accepts
+  // chat_template_kwargs.enable_thinking:false to disable cleanly.
+  if (!level) return {};
+  if (level === "off") {
+    return { nim: { chat_template_kwargs: { enable_thinking: false } } };
+  }
   const effort = level === "on" ? "high" : level; // binary effort model ON → "high"
   return { nim: { reasoningEffort: effort } };
 }
