@@ -157,6 +157,29 @@ export const upsertAssistant = internalMutation({
   },
 });
 
+// Stuck-stop fix (2026-09-05): a detached generation that dies without its
+// final patch (lambda recycled, route restart, stop POST landing on a
+// different serverless instance than the one holding the abort registry)
+// leaves its row status:"streaming" FOREVER — the composer's serverStreaming
+// stays true and the send/stop button locks in the stop state with clicks
+// that do nothing. This mutation settles such a row (streaming → completed,
+// clears the sidebar generating flag). Idempotent: a live generation's final
+// patch writes the same value; a settled row is a no-op.
+export const settleStreaming = mutation({
+  args: { messageId: v.id("messages"), userId: v.string() },
+  returns: v.object({ settled: v.boolean() }),
+  handler: async (ctx, args) => {
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("Not found");
+    const chat = await ctx.db.get(msg.chatId);
+    if (!chat || chat.userId !== args.userId) throw new Error("Unauthorized");
+    if (msg.status !== "streaming") return { settled: false };
+    await ctx.db.patch(args.messageId, { status: "completed" });
+    await ctx.db.patch(msg.chatId, { generating: false });
+    return { settled: true };
+  },
+});
+
 export const update = mutation({
   args: {
     messageId: v.id("messages"),

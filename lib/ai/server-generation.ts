@@ -550,41 +550,85 @@ function logWarn(msg: string, err?: unknown): void {
 }
 
 /** Accumulate UI-protocol raw chunks into readable parts for progressive patches. */
+type ReasoningSegment = {
+  type: "reasoning";
+  text: string;
+  startMs: number | null;
+  endMs: number | null;
+};
+type TextSegment = { type: "text"; text: string };
+type Segment = ReasoningSegment | TextSegment | Record<string, unknown>;
+
 class PartAccumulator {
-  private text = "";
-  private reasoning = "";
-  private tools: Array<Record<string, unknown>> = [];
-  /** Reasoning wall-clock window — persisted as durationMs so the "Thought for
-   * N seconds" label survives reload (client-side cache dies with the page). */
-  private reasoningStartMs: number | null = null;
-  private reasoningEndMs: number | null = null;
+  /** Chronological segments — text/reasoning extend the TAIL segment of the
+   * same type, tools upsert in place at first-seen position. The old design
+   * bucketed by type (one merged text, one merged reasoning, tools appended
+   * last) which destroyed interleave order on multi-step turns: a
+   * reasoning→tool→reasoning→text run persisted as [reasoning, text, tool]
+   * and the tool card rendered AFTER the answer (2026-09-05). */
+  private segments: Segment[] = [];
 
   /** Approval-resume seed: the resumed run re-persists the row from scratch
    * (placeholder write), so the previously persisted tool parts must be
    * carried over or they vanish on reload. The resumed stream re-emits the
-   * same toolCallIds and merges into these entries. */
+   * same toolCallIds and merges into these entries. Seeds came first
+   * chronologically, so they lead the segment list. */
   constructor(seedTools?: Array<Record<string, unknown>>) {
-    this.tools = (seedTools ?? []).map((t) => ({ ...t }));
+    this.segments = (seedTools ?? []).map((t) => ({ ...t }));
+  }
+
+  private findTool(toolCallId: unknown): Record<string, unknown> | undefined {
+    return this.segments.find(
+      (s): s is Record<string, unknown> =>
+        (s as Record<string, unknown>).toolCallId === toolCallId,
+    );
+  }
+
+  /** Close the trailing reasoning window when a non-reasoning chunk lands —
+   * the "Thought for Ns" duration measures reasoning time, not the tail. */
+  private closeReasoningWindow(): void {
+    const last = this.segments[this.segments.length - 1];
+    if (last && last.type === "reasoning") {
+      const r = last as ReasoningSegment;
+      if (r.endMs === null) r.endMs = Date.now();
+    }
   }
 
   push(chunk: { type?: string; [k: string]: unknown }): void {
     switch (chunk.type) {
-      case "text-delta":
-        if (this.reasoningStartMs !== null && this.reasoningEndMs === null)
-          this.reasoningEndMs = Date.now();
-        this.text += String(chunk.delta ?? "");
+      case "text-delta": {
+        this.closeReasoningWindow();
+        const delta = String(chunk.delta ?? "");
+        const last = this.segments[this.segments.length - 1];
+        if (last && last.type === "text") {
+          last.text += delta;
+        } else {
+          this.segments.push({ type: "text", text: delta });
+        }
         break;
-      case "reasoning-delta":
-        if (this.reasoningStartMs === null) this.reasoningStartMs = Date.now();
-        this.reasoning += String(chunk.delta ?? "");
+      }
+      case "reasoning-delta": {
+        const delta = String(chunk.delta ?? "");
+        const last = this.segments[this.segments.length - 1];
+        if (last && last.type === "reasoning") {
+          last.text += delta;
+        } else {
+          this.segments.push({
+            type: "reasoning",
+            text: delta,
+            startMs: Date.now(),
+            endMs: null,
+          });
+        }
         break;
+      }
       case "tool-call-end": // legacy alias
       case "tool-input-start":
       case "tool-input-available": {
         // One entry per call: the stream can emit input-start AND
         // input-available for the same toolCallId — merge, never push twice
         // (observed: two "Creating document…" cards for one createDocument).
-        const existing = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        const existing = this.findTool(chunk.toolCallId);
         if (existing) {
           existing.input =
             (chunk as { args?: unknown }).args ??
@@ -592,7 +636,8 @@ class PartAccumulator {
             existing.input;
           break;
         }
-        this.tools.push({
+        this.closeReasoningWindow();
+        this.segments.push({
           // tool-<name>, not the generic "tool": DocumentCard/ArtifactPanel
           // match `tool-createDocument` exactly, and convertToModelMessages
           // only recognizes the prefixed form on the wire. The generic form
@@ -606,7 +651,7 @@ class PartAccumulator {
         break;
       }
       case "tool-approval-request": {
-        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        const t = this.findTool(chunk.toolCallId);
         if (t) {
           t.state = "approval-requested";
           // Persist the approval id: the client's pendingApproval gate reads
@@ -619,12 +664,12 @@ class PartAccumulator {
         break;
       }
       case "tool-approval-response": {
-        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        const t = this.findTool(chunk.toolCallId);
         if (t) t.state = "approval-responded";
         break;
       }
       case "tool-output-available": {
-        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        const t = this.findTool(chunk.toolCallId);
         if (t) {
           t.state = "output-available";
           t.output = (chunk as { output?: unknown }).output;
@@ -632,7 +677,7 @@ class PartAccumulator {
         break;
       }
       case "tool-output-error": {
-        const t = this.tools.find((x) => x.toolCallId === chunk.toolCallId);
+        const t = this.findTool(chunk.toolCallId);
         if (t) {
           t.state = "output-error";
           t.output = { error: String((chunk as { errorText?: unknown }).errorText ?? "tool error") };
@@ -654,20 +699,32 @@ class PartAccumulator {
       | { type: "reasoning"; text: string }
       | Record<string, unknown>
     > = [];
-    if (this.reasoning.trim()) {
-      // parts() runs progressively mid-stream — never mutate the window here;
-      // an open window (reasoning-only so far) just measures up to now.
-      const end = this.reasoningEndMs ?? Date.now();
-      const durationMs =
-        this.reasoningStartMs !== null ? end - this.reasoningStartMs : undefined;
-      out.push({
-        type: "reasoning",
-        text: this.reasoning,
-        ...(durationMs !== undefined ? { durationMs } : {}),
-      });
+    for (const s of this.segments) {
+      if (s.type === "reasoning") {
+        const r = s as ReasoningSegment & { durationMs?: number };
+        if (!r.text.trim()) continue;
+        // parts() runs progressively mid-stream — never mutate the window here;
+        // an open window (reasoning-only so far) just measures up to now.
+        // Seeded reasoning (approval-resume carryover) has startMs UNDEFINED —
+        // `!== null` passes for undefined and `Date.now() - undefined` is NaN
+        // (persisted literally as NaN → "Thought for NaN seconds" 2026-09-05).
+        const durationMs =
+          typeof r.startMs === "number"
+            ? (r.endMs ?? Date.now()) - r.startMs
+            : typeof r.durationMs === "number" && Number.isFinite(r.durationMs)
+              ? r.durationMs
+              : undefined;
+        out.push({
+          type: "reasoning",
+          text: r.text,
+          ...(durationMs !== undefined ? { durationMs } : {}),
+        });
+      } else if (s.type === "text") {
+        if ((s as TextSegment).text.trim()) out.push(s as TextSegment);
+      } else {
+        out.push(s as Record<string, unknown>);
+      }
     }
-    if (this.text.trim()) out.push({ type: "text", text: this.text });
-    out.push(...this.tools);
     return out;
   }
 }

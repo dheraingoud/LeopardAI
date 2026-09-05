@@ -32,6 +32,7 @@ import {
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
 import { getEnabledMcpServers } from "@/lib/mcp-config";
+import { useSettingsStore } from "@/hooks/use-settings-store";
 import { useSkillLibrary } from "@/hooks/use-skill-library";
 import {
   stashPendingMessage,
@@ -188,6 +189,10 @@ export function ActiveChatProvider({
     api.messages.list,
     isDraft || badId ? "skip" : { chatId: convexChatId },
   );
+  // Latest-rows ref for event handlers (stopGeneration) that mustn't re-bind
+  // on every mirror patch.
+  const convexMessagesRef = useRef(convexMessages);
+  convexMessagesRef.current = convexMessages;
   const createChat = useMutation(api.chats.create);
 
   // Φ-skill-library — seed + load curated skills into the shared store so the
@@ -200,6 +205,7 @@ export function ActiveChatProvider({
   const updateTitle = useMutation(api.chats.updateTitle);
   const updateModel = useMutation(api.chats.updateModel);
   const touchChat = useMutation(api.chats.touch);
+  const settleStreaming = useMutation(api.messages.settleStreaming);
   // Φ6: persist assembled artifact doc on stream finish (client-persist —
   // route has no ConvexHttpClient by design; mirrors messages.send pattern).
   const documentsSave = useMutation(api.documents.save);
@@ -429,6 +435,11 @@ export function ActiveChatProvider({
             // servers ride the request body; the route validates + merges them
             // with LEOPARD_MCP_SERVERS (env wins on name collision).
             mcpServers: getEnabledMcpServers(),
+            // Web fetch master toggle (composer + menu). Default ON — the
+            // route hardcodes the tool; false retracts it for this send.
+            // getState() read at send time (event handler), so the memoized
+            // transport never goes stale.
+            webFetch: useSettingsStore.getState().webFetchEnabled,
           },
         }),
       }),
@@ -661,6 +672,13 @@ export function ActiveChatProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.setMessages]);
 
+  // Approval-resume in-flight flag (declared here — the mirror/dedupe effects
+  // below read it). STATE, not a ref (2026-09-05 RCA): the release flips AFTER
+  // the resume stream drains; a ref flip is invisible to React, so dedupe never
+  // re-ran and the pre-approval + resume bubbles BOTH stayed in state
+  // (duplicated thinking/tool cards until reload).
+  const [resumeInFlight, setResumeInFlight] = useState(false);
+
   // ── Φ10 / #3: live-mirror the SERVER-written assistant rows into the view ─
   // Covers reload-mid-generation: after remount, the `streaming`/`completed`
   // row (written by the detached route task) appears in Convex; as the task
@@ -682,7 +700,7 @@ export function ActiveChatProvider({
     // the part state: after a reload mid-resume the persisted placeholder row
     // IS approval-responded, and the guard would lock forever — the row never
     // updates to output-available and the card hangs on "Writing" (X4.2 RCA).
-    if (resumeInFlightRef.current) return;
+    if (resumeInFlight) return;
     chat.setMessages((prev) => {
       let changed = false;
       let next = prev.slice();
@@ -747,7 +765,8 @@ export function ActiveChatProvider({
 
       return changed ? next : prev;
     });
-  }, [convexMessages, chat.status, chat.setMessages, serverAssistantIdRef.current]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convexMessages, chat.status, chat.setMessages, resumeInFlight, serverAssistantIdRef.current]);
 
   // Approval-resume dedupe (2026-09-04): the resume POST forks ids — the
   // pre-approval SDK bubble, the resume's fresh SDK bubble, and the persisted
@@ -764,7 +783,7 @@ export function ActiveChatProvider({
     // Approval-resume window: stand down only while a resume POST is in
     // flight (see the mirror effect above — a part-state check locks forever
     // after a mid-resume reload).
-    if (resumeInFlightRef.current) return;
+    if (resumeInFlight) return;
     const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
     chat.setMessages((prev) => {
       let lastUser = -1;
@@ -793,7 +812,7 @@ export function ActiveChatProvider({
       );
       return keep.length === prev.length ? prev : keep;
     });
-  }, [chat.messages, chat.status, chat.setMessages, convexMessages]);
+  }, [chat.messages, chat.status, chat.setMessages, convexMessages, resumeInFlight]);
 
   // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
   // status machine directly (DOM indicators lag/lie about the real state).
@@ -985,10 +1004,24 @@ export function ActiveChatProvider({
               /* server already settled — local stop still ends the mirror */
             })
           : Promise.resolve();
+      // Serverless gap: /api/chat/stop can land on an instance that doesn't
+      // hold the abort registry — the generation keeps writing and the row
+      // stays "streaming", leaving the composer stuck on stop (2026-09-05).
+      // Settle the trailing streaming row directly; if the generation is
+      // somehow still alive its next patch flips it back and the mirror
+      // resumes — the common case (dead/missed stop) recovers immediately.
+      const staleRow = [...(convexMessagesRef.current ?? [])]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.status === "streaming");
+      if (staleRow && uid) {
+        void settleStreaming({ messageId: staleRow._id, userId: uid }).catch(
+          () => {},
+        );
+      }
       chat.stop();
       return stopped;
     },
-    [chat.stop, chatId, isDraft],
+    [chat.stop, chatId, isDraft, uid, settleStreaming],
   );
 
   // ── Hung-request watchdog (X3.2): a POST that never answers (proxy swallow,
@@ -1237,7 +1270,6 @@ export function ActiveChatProvider({
   // True from the Allow/Deny click until the resume stream settles. The mirror
   // + dedupe stand down only in this window; a persisted approval-responded
   // row after a reload must NOT block them (X4.2).
-  const resumeInFlightRef = useRef(false);
   const approveAndResume = useCallback(
     (approvalId: string, approved: boolean) => {
       (
@@ -1245,7 +1277,7 @@ export function ActiveChatProvider({
           addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
         }
       ).addToolApprovalResponse?.({ id: approvalId, approved });
-      resumeInFlightRef.current = true;
+      setResumeInFlight(true);
       let tries = 0;
       const attempt = () => {
         const st = statusRef.current;
@@ -1263,7 +1295,7 @@ export function ActiveChatProvider({
             setTimeout(release, 250);
             return;
           }
-          resumeInFlightRef.current = false;
+          setResumeInFlight(false);
         };
         setTimeout(release, 250);
       };
@@ -1301,6 +1333,33 @@ export function ActiveChatProvider({
     lastMsg?.role === "assistant" &&
     (lastMsg.metadata as { serverStreaming?: boolean } | undefined)
       ?.serverStreaming === true;
+
+  // Stuck-stop reaper (2026-09-05): a detached generation that dies without
+  // its final patch (lambda recycled, route restart, or a stop POST that
+  // landed on a DIFFERENT serverless instance than the one holding the abort
+  // registry) leaves its row status:"streaming" forever — serverStreaming
+  // never clears and the composer locks in the stop state with clicks that do
+  // nothing. Message rows carry no updatedAt, so progress = convexMessages
+  // changing at all (every progressive patch refires this effect and resets
+  // the timer). 90s of silence → settle the row server-side; every client
+  // recovers on the next mirror.
+  const lastStreamingRow = serverStreaming
+    ? [...(convexMessages ?? [])]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.status === "streaming")
+    : undefined;
+  useEffect(() => {
+    if (!lastStreamingRow || !uid) return;
+    const t = setTimeout(() => {
+      void settleStreaming({
+        messageId: lastStreamingRow._id,
+        userId: uid,
+      }).catch(() => {
+        /* transient — the next mirror pass retries */
+      });
+    }, 90_000);
+    return () => clearTimeout(t);
+  }, [lastStreamingRow, uid, settleStreaming]);
   // Auto-retry once on a failed run before surfacing the error card (QA M5 —
   // lifted out of Messages so the composer can flip to the stop state during
   // the retry window). Keyed per trailing message id: a new turn gets its own
