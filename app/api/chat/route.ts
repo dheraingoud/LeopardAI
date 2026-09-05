@@ -566,7 +566,7 @@ export async function POST(request: Request) {
     if (pendingExecParts.length === 0) return;
     const manualTools: Record<string, any> = {
       ...(body.webFetch !== false ? { webFetch: webFetch({} as never) } : {}),
-      ...(process.env.ENABLE_WEB_SEARCH === "1" ? { webSearch: webSearch() } : {}),
+      ...(process.env.ENABLE_WEB_SEARCH !== "0" ? { webSearch: webSearch() } : {}),
       // createDocument is approval-gated whenever TOOL_APPROVAL_RULES is set
       // (its low-risk auto-approve only fires with rules unset). On resume the
       // SDK never re-invokes it, so without this entry the approved call never
@@ -868,16 +868,14 @@ export async function POST(request: Request) {
         BYPASS_CLERK ? (body.mcpServers as never) : undefined,
       );
       try {
-        // webFetch is a CORE tool — hardcoded ON (operator 2026-09-05: the
-        // ENABLE_WEB_FETCH env gate meant a forgotten var silently broke "go
-        // fetch this" asks). The user can retract it per-send from the
-        // composer + menu; that rides the body as `webFetch: false`.
-        // webSearch stays env-gated (ENABLE_WEB_SEARCH=1, keyless DuckDuckGo).
-        // Each enabled tool lifts supportsTools (drives the tool-usage prompt
-        // block — prompts.ts owns wording). stepCountIs(3) lets the model
-        // search→fetch→reply in one stream.
+        // webFetch + webSearch are CORE tools — hardcoded ON (operator
+        // 2026-09-05: env gates silently broke "go fetch this" asks; and a
+        // failed fetch with no search fallback made the model conclude things
+        // "don't exist"). webSearch is keyless DuckDuckGo. The user can
+        // retract fetch per-send from the composer + menu (`webFetch:false`);
+        // ENABLE_WEB_SEARCH=0 disables search explicitly if ever needed.
         const webFetchEnabled = body.webFetch !== false;
-        const webSearchEnabled = process.env.ENABLE_WEB_SEARCH === "1";
+        const webSearchEnabled = process.env.ENABLE_WEB_SEARCH !== "0";
         // LEOPARD MCP — operator-configured external tool servers (http/sse/
         // stdio). Fail-closed: LEOPARD_MCP_SERVERS unset → no MCP at all. A
         // broken server is logged + skipped; healthy ones contribute tools.
@@ -1088,10 +1086,20 @@ export async function POST(request: Request) {
         messages: attemptMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
-        // 2026-07. 16384 fits within the smallest model context and matches
-        // gateway defaults for comparable models. AI SDK v6 streams use
+        // 2026-07. Tiered by reasoning level (operator 2026-09-06): lower
+        // efforts get smaller caps so cheap turns can't balloon; high/max
+        // keep headroom for long think+answer runs. AI SDK v6 streams use
         // `maxOutputTokens` (NOT `maxTokens`).
-        maxOutputTokens: 16384,
+        maxOutputTokens:
+          body.reasoning === "max"
+            ? 24576
+            : body.reasoning === "high"
+              ? 16384
+              : body.reasoning === "medium"
+                ? 12288
+                : body.reasoning === "low"
+                  ? 8192
+                  : 4096, // off / unset — plain chat never needs more
         // Φ-docs · per-turn cost/latency/tool observability (P2.4 feeder).
         // recordInputs/outputs:false still emits the usage/latency/tool-call
         // events (it only drops payloads) — cost estimate + latency + tool list
