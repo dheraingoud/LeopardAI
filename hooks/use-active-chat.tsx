@@ -1007,16 +1007,24 @@ export function ActiveChatProvider({
       // Serverless gap: /api/chat/stop can land on an instance that doesn't
       // hold the abort registry — the generation keeps writing and the row
       // stays "streaming", leaving the composer stuck on stop (2026-09-05).
-      // Settle the trailing streaming row directly; if the generation is
-      // somehow still alive its next patch flips it back and the mirror
-      // resumes — the common case (dead/missed stop) recovers immediately.
-      const staleRow = [...(convexMessagesRef.current ?? [])]
-        .reverse()
-        .find((m) => m.role === "assistant" && m.status === "streaming");
-      if (staleRow && uid) {
-        void settleStreaming({ messageId: staleRow._id, userId: uid }).catch(
-          () => {},
-        );
+      // DEFERRED 5s (P02-GEN-005): settling instantly raced the server's own
+      // abort-finalize — the mirror swapped the full live bubble for the
+      // shorter last-persisted partial and text visibly SHRANK after stop.
+      // Now the server's finalize wins; settle only fires if the row is STILL
+      // streaming after the grace window (dead/missed stop).
+      if (uid) {
+        const userId = uid;
+        setTimeout(() => {
+          const staleRow = [...(convexMessagesRef.current ?? [])]
+            .reverse()
+            .find((m) => m.role === "assistant" && m.status === "streaming");
+          if (staleRow) {
+            void settleStreaming({
+              messageId: staleRow._id,
+              userId,
+            }).catch(() => {});
+          }
+        }, 5000);
       }
       chat.stop();
       return stopped;

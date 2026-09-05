@@ -967,13 +967,18 @@ export async function POST(request: Request) {
         // live-mirror with an unknown toolCallId → "Tool call not found for
         // approval request"). Auto-approve exactly the tools the user just
         // decided on (2026-09-01).
+        // APPROVED only (2026-09-06): the state filter alone also collected
+        // DENIED tools — a denied webFetch then auto-approved the model's
+        // silent retry in the same turn (executed with no second AskCard).
         const resumedApprovedTools = new Set(
           (approvalMsg?.parts ?? [])
             .filter(
               (p) =>
                 typeof p?.type === "string" &&
                 (p.type.startsWith("tool-") || p.type === "dynamic-tool") &&
-                (p as { state?: string }).state === "approval-responded",
+                (p as { state?: string }).state === "approval-responded" &&
+                (p as { approval?: { approved?: boolean } }).approval
+                  ?.approved !== false,
             )
             .map((p) => {
               const part = p as { toolName?: string; type?: string };
