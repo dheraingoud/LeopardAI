@@ -69,6 +69,36 @@ function isUnread(chatId: string, updatedAt: number, pathname: string): boolean 
   }
 }
 
+/**
+ * Clears a chat's `generating` flag once no assistant row is still streaming.
+ * Exists for the navigate-away case: the active chat's provider flips the flag
+ * on send/settle, but it unmounts when the user switches chats mid-stream, and
+ * in dev (no CONVEX_DEPLOY_KEY) the route's upsertAssistant patch — the prod
+ * path — never runs. One per generating row; clears once, then idles.
+ */
+function StaleGeneratingSweeper({
+  chatId,
+  userId,
+}: {
+  chatId: Id<"chats">;
+  userId: string | null;
+}) {
+  const setGenerating = useMutation(api.chats.setGenerating);
+  const messages = useQuery(api.messages.list, { chatId });
+  const clearedRef = useRef(false);
+  useEffect(() => {
+    if (!messages || !userId || clearedRef.current) return;
+    const stillStreaming = messages.some(
+      (m) => m.role === "assistant" && m.status === "streaming",
+    );
+    if (!stillStreaming) {
+      clearedRef.current = true;
+      void setGenerating({ chatId, userId, generating: false }).catch(() => {});
+    }
+  }, [messages, chatId, userId, setGenerating]);
+  return null;
+}
+
 export default function Sidebar({
   collapsed = false,
   onToggle,
@@ -303,6 +333,16 @@ export default function Sidebar({
             />
           ) : (
             <>
+              {/* Dev-only stale-flag sweeper: navigating away mid-stream unmounts
+                  the chat provider, and without a CONVEX_DEPLOY_KEY the route
+                  never clears `generating` on settle — the row would blink
+                  forever (X9.2). Watch each generating chat and clear once no
+                  assistant row is still streaming. */}
+              {(chats ?? [])
+                .filter((c) => c.generating === true)
+                .map((c) => (
+                  <StaleGeneratingSweeper key={c._id} chatId={c._id} userId={userId} />
+                ))}
               {Object.entries(grouped).map(([bucket, items]) => (
                 <ThreadList
                   key={bucket}
