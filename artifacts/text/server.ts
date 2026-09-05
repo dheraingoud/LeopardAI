@@ -21,13 +21,14 @@ import { getLanguageModel } from "@/lib/ai/providers";
  */
 export const textDocumentHandler = createDocumentHandler<"text">({
   kind: "text",
-  onCreateDocument: async ({ title, dataStream, modelId }) => {
+  onCreateDocument: async ({ title, dataStream, modelId, signal }) => {
     const { fullStream } = streamText({
       model: getLanguageModel(modelId),
       system:
         "Write about the given topic. Markdown is supported. Use headings wherever appropriate.",
       experimental_transform: smoothStream({ chunking: "word" }),
       prompt: title,
+      abortSignal: signal,
     });
 
     for await (const delta of fullStream) {
@@ -40,12 +41,13 @@ export const textDocumentHandler = createDocumentHandler<"text">({
       }
     }
   },
-  onUpdateDocument: async ({ document, description, dataStream, modelId }) => {
+  onUpdateDocument: async ({ document, description, dataStream, modelId, signal }) => {
     const { fullStream } = streamText({
       model: getLanguageModel(modelId),
       system: updateDocumentPrompt(document.content, "text"),
       experimental_transform: smoothStream({ chunking: "word" }),
       prompt: description,
+      abortSignal: signal,
     });
 
     for await (const delta of fullStream) {
