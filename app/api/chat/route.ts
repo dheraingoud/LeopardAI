@@ -823,7 +823,13 @@ export async function POST(request: Request) {
       let actualModel = modelId;
       // MCP connects ONCE per request (before the retry factory) so a retry
       // never re-spawns child processes/sessions; released after the turn.
-      const mcpHandle = await loadMcpTools();
+      const mcpHandle = await loadMcpTools(
+        // Panel → route bridge (2026-09-04): the MCP panel's localStorage
+        // servers ride the request body. DEV-ONLY: a client-supplied stdio
+        // command is arbitrary code execution on the server, so production
+        // (real Clerk auth) ignores body servers entirely.
+        BYPASS_CLERK ? (body.mcpServers as never) : undefined,
+      );
       try {
         // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
         // env so the model doesn't advertise network tools in builds that
