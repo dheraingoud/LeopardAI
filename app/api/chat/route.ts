@@ -565,7 +565,7 @@ export async function POST(request: Request) {
   ) => {
     if (pendingExecParts.length === 0) return;
     const manualTools: Record<string, any> = {
-      ...(process.env.ENABLE_WEB_FETCH === "1" ? { webFetch: webFetch({} as never) } : {}),
+      ...(body.webFetch !== false ? { webFetch: webFetch({} as never) } : {}),
       ...(process.env.ENABLE_WEB_SEARCH === "1" ? { webSearch: webSearch() } : {}),
       // createDocument is approval-gated whenever TOOL_APPROVAL_RULES is set
       // (its low-risk auto-approve only fires with rules unset). On resume the
@@ -806,15 +806,26 @@ export async function POST(request: Request) {
       // re-persisted from a fresh accumulator, so without the seed the tool card
       // vanishes on reload. Mark them approval-responded so the gate card does
       // not reappear in progressive patches before the output lands.
+      // Seed ALL persisted parts (reasoning + text + tools), not just tools:
+      // the pre-approval pass's reasoning was dropped on resume, so the
+      // re-persisted row opened with the tool card and the first "Thought"
+      // block vanished (2026-09-05 RCA). Tool entries still get state-patched
+      // below; reasoning/text pass through untouched.
       const seedToolParts = (pendingRow?.parts ?? [])
         .filter(
           (p) =>
             typeof p?.type === "string" &&
             p.type !== "tool-approval-request" && // matches startsWith("tool-")! Seeding it dangles the resumed stream ("Tool call not found for approval request").
             p.type !== "tool-approval-response" &&
-            (p.type.startsWith("tool-") || p.type === "dynamic-tool"),
+            (p.type.startsWith("tool-") ||
+              p.type === "dynamic-tool" ||
+              p.type === "reasoning" ||
+              p.type === "text"),
         )
         .map((p) => {
+          // Reasoning/text seeds pass through untouched — the state patch
+          // below is tool-only.
+          if (p.type === "reasoning" || p.type === "text") return p;
           const tcid = (p as { toolCallId?: string }).toolCallId ?? "";
           const out = resumeOutputs.get(tcid);
           // Denied calls render as DENIED (not "output-available" with an error
@@ -857,15 +868,15 @@ export async function POST(request: Request) {
         BYPASS_CLERK ? (body.mcpServers as never) : undefined,
       );
       try {
-        // Φ-enable-fetch: webFetch + webSearch tools — server-side, gated by
-        // env so the model doesn't advertise network tools in builds that
-        // don't want them. webFetch needs ENABLE_WEB_FETCH=1; webSearch needs
-        // ENABLE_WEB_SEARCH=1 (keyless DuckDuckGo backend since 2026-08-31 —
-        // no API key). Each enabled tool lifts
-        // supportsTools (drives the tool-usage prompt block — prompts.ts owns
-        // wording). stepCountIs(3) lets the model search→fetch→reply in one
-        // stream.
-        const webFetchEnabled = process.env.ENABLE_WEB_FETCH === "1";
+        // webFetch is a CORE tool — hardcoded ON (operator 2026-09-05: the
+        // ENABLE_WEB_FETCH env gate meant a forgotten var silently broke "go
+        // fetch this" asks). The user can retract it per-send from the
+        // composer + menu; that rides the body as `webFetch: false`.
+        // webSearch stays env-gated (ENABLE_WEB_SEARCH=1, keyless DuckDuckGo).
+        // Each enabled tool lifts supportsTools (drives the tool-usage prompt
+        // block — prompts.ts owns wording). stepCountIs(3) lets the model
+        // search→fetch→reply in one stream.
+        const webFetchEnabled = body.webFetch !== false;
         const webSearchEnabled = process.env.ENABLE_WEB_SEARCH === "1";
         // LEOPARD MCP — operator-configured external tool servers (http/sse/
         // stdio). Fail-closed: LEOPARD_MCP_SERVERS unset → no MCP at all. A

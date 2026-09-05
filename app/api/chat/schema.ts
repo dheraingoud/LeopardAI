@@ -56,6 +56,9 @@ export const postRequestBodySchema = z.object({
     )
     .max(8)
     .optional(),
+  // Web-fetch master toggle (composer + menu). webFetch is a core tool —
+  // available unless the user explicitly retracted it for this send.
+  webFetch: z.boolean().optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

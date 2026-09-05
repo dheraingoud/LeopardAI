@@ -723,7 +723,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   const segments = useMemo(() => {
     if (isUser) return [] as Array<
       | { kind: "text"; content: string }
-      | { kind: "reasoning"; content: string }
+      | { kind: "reasoning"; content: string; durationMs?: number }
       | {
           kind: "tool";
           toolName: string;
@@ -738,7 +738,10 @@ export const PreviewMessage = memo(function PreviewMessage({
     type Seg = (typeof out)[number];
     const out: Array<
       | { kind: "text"; content: string }
-      | { kind: "reasoning"; content: string }
+      // durationMs rides the part (server-stamped per segment) so EACH thought
+      // block shows its own time — the message-level tracker is only a live
+      // fallback (two blocks used to share it → identical "Thought for Ns").
+      | { kind: "reasoning"; content: string; durationMs?: number }
       | {
           kind: "tool";
           toolName: string;
@@ -779,7 +782,11 @@ export const PreviewMessage = memo(function PreviewMessage({
         const content = (p.text ?? "").trim();
         if (!content) continue;
         if (!cur || cur.kind !== "reasoning") {
-          cur = { kind: "reasoning", content };
+          cur = {
+            kind: "reasoning",
+            content,
+            durationMs: (p as { durationMs?: number }).durationMs,
+          };
           out.push(cur);
         } else {
           cur.content += "\n" + content;
@@ -962,6 +969,32 @@ export const PreviewMessage = memo(function PreviewMessage({
     }
     return out;
   }, [message.parts, isUser]);
+
+  // Per-segment live timing (2026-09-05): the message-level reasoningMs made
+  // EVERY "Thought" block show the same duration while streaming. Each
+  // reasoning segment gets its own start stamp; it freezes the moment a later
+  // segment exists (thinking → tool → thinking = two independent clocks) or
+  // the stream ends. Server-stamped seg.durationMs still wins once persisted.
+  const segTimingRef = useRef(new Map<string, { start: number; end?: number }>());
+  const segElapsed = useMemo(() => {
+    const map = segTimingRef.current;
+    const out = new Map<number, number>();
+    segments.forEach((seg, i) => {
+      if (seg.kind !== "reasoning") return;
+      const key = `${i}:${seg.content.slice(0, 48)}`;
+      let rec = map.get(key);
+      if (!rec) {
+        rec = { start: performance.now() };
+        map.set(key, rec);
+      }
+      const isLast = i === segments.length - 1;
+      if ((!isLast || !isStreaming) && rec.end === undefined) {
+        rec.end = performance.now();
+      }
+      if (rec.end !== undefined) out.set(i, rec.end - rec.start);
+    });
+    return out;
+  }, [segments, isStreaming]);
 
   const textSegCount = segments.filter((s) => s.kind === "text").length;
 
@@ -1228,7 +1261,7 @@ export const PreviewMessage = memo(function PreviewMessage({
                   onOpenChange={(o) =>
                     setReasoningOpen((m) => ({ ...m, [i]: o }))
                   }
-                  elapsedMs={reasoningMs}
+                  elapsedMs={seg.durationMs ?? segElapsed.get(i) ?? reasoningMs}
                   effortBadge={
                     !live &&
                     currentReasoning &&
