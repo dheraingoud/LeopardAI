@@ -180,6 +180,36 @@ export const settleStreaming = mutation({
   },
 });
 
+// Stop-before-first-token cleanup (2026-09-06): an aborted generation whose
+// accumulator holds NOTHING would otherwise persist a permanent empty
+// assistant row (bare bubble in the chat forever). Delete the placeholder
+// instead; refuse if any content landed (safety — never eats real text).
+export const deleteEmptyAssistant = internalMutation({
+  args: { chatId: v.id("chats"), userId: v.string(), id: v.string() },
+  returns: v.object({ deleted: v.boolean() }),
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    const existing = await ctx.db
+      .query("messages")
+      .withIndex("by_chat_public_id", (q) =>
+        q.eq("chatId", args.chatId).eq("id", args.id)
+      )
+      .first();
+    if (!existing) return { deleted: false };
+    const hasContent = (existing.parts ?? []).some((p) => {
+      if (!p || typeof p !== "object") return false;
+      const t = (p as { type?: string }).type;
+      if (t === "text" || t === "reasoning")
+        return (((p as { text?: string }).text ?? "").trim().length > 0);
+      return true; // any non-text part counts as content
+    });
+    if (hasContent) return { deleted: false };
+    await ctx.db.delete(existing._id);
+    await ctx.db.patch(args.chatId, { generating: false });
+    return { deleted: true };
+  },
+});
+
 export const update = mutation({
   args: {
     messageId: v.id("messages"),
