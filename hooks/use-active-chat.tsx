@@ -1296,10 +1296,22 @@ export function ActiveChatProvider({
         void chat.sendMessage().catch(() => {
           /* surfaced via chat.error → error card */
         });
-        // Release once the resume stream drains back to ready.
+        // Release once the resume stream drains back to ready. Two phases:
+        // the 250ms poll used to catch the stale "ready" between sendMessage
+        // and the status actually flipping — released instantly, the mirror
+        // ran mid-resume and the dedupe collapsed nothing (s3 allow: 2
+        // bubbles, 2026-09-06). Wait until the stream is OBSERVED live first
+        // (15s cap: a denied-only resume may never stream), then until ready.
+        let sawLive = false;
+        const t0 = Date.now();
         const release = () => {
           const s = statusRef.current;
           if (s === "streaming" || s === "submitted") {
+            sawLive = true;
+            setTimeout(release, 250);
+            return;
+          }
+          if (!sawLive && Date.now() - t0 < 15_000) {
             setTimeout(release, 250);
             return;
           }

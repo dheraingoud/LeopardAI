@@ -994,7 +994,34 @@ export async function POST(request: Request) {
             })
             .filter((n): n is string => typeof n === "string" && n.length > 0),
         );
+        // Tools the user DENIED this turn: a same-turn retry gets an instant
+        // denial — re-asking would dangle a second AskCard on the detached
+        // stream (no client resume path mid-turn) and hang till the settle
+        // timeout (s5 DENY probe 2026-09-06: no answer after deny+retry).
+        const deniedThisTurn = new Set(
+          (approvalMsg?.parts ?? [])
+            .filter(
+              (p) =>
+                typeof p?.type === "string" &&
+                (p.type.startsWith("tool-") || p.type === "dynamic-tool") &&
+                (p as { state?: string }).state === "approval-responded" &&
+                (p as { approval?: { approved?: boolean } }).approval
+                  ?.approved === false,
+            )
+            .map((p) => {
+              const part = p as { toolName?: string; type?: string };
+              if (part.toolName) return part.toolName;
+              const t = part.type ?? "";
+              return t.startsWith("tool-") &&
+                t !== "tool-approval-request" &&
+                t !== "tool-approval-response"
+                ? t.slice(5)
+                : undefined;
+            })
+            .filter((n): n is string => typeof n === "string" && n.length > 0),
+        );
         const toolApprovalDecision = (toolName: string | undefined): "approved" | "denied" | "user-approval" => {
+          if (toolName && deniedThisTurn.has(toolName)) return "denied";
           if (isApprovalResume && toolName && resumedApprovedTools.has(toolName)) {
             return "approved";
           }
