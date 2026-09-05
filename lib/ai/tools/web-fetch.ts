@@ -3,7 +3,8 @@
  *
  * Defined per AI SDK v6's tool({ inputSchema, execute }) pattern (see
  * node_modules/ai/docs/03-ai-sdk-core/15-tools-and-tool-calling.mdx). The tool
- * is exposed via /api/chat when ENABLE_WEB_FETCH=1 is set (model advertises
+ * is always exposed via /api/chat (core tool; the composer's Web-fetch toggle
+ * sends `webFetch:false` to retract it per send) — the model advertises
  * it in the next stream — the chat supports auto-tool loops
  * stopWhen: stepCountIs(3)).
  *

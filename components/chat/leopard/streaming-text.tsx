@@ -593,6 +593,19 @@ function FlowBlock({ code }: { code: string }) {
 let mermaidPromise: Promise<typeof import("mermaid")> | null = null;
 const loadMermaid = () => (mermaidPromise ??= import("mermaid"));
 
+// Mermaid appends its "Syntax error in text" bomb graphic to <body> on every
+// failed parse — one per attempt, including salvage retries (`d<id>`,
+// `d<id>-salvageN`). Remove all of them for a given render id, plus any
+// orphaned error element still floating under <body>.
+function purgeMermaidErrors(id: string) {
+  if (typeof document === "undefined") return;
+  document
+    .querySelectorAll(
+      `#${id}, #d${id}, [id^="d${id}-salvage"], body > div[aria-roledescription="error"], body > .mermaid[aria-roledescription="error"]`,
+    )
+    .forEach((n) => n.remove());
+}
+
 // Salvage pass: models often stream a valid diagram followed by a broken tail
 // line (e.g. a `class a,b,c` with no className). If the full source fails,
 // drop trailing lines until it parses — a slightly-less-decorated diagram beats
@@ -673,17 +686,15 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
           setSoftFailed(false);
         }
       } catch {
-        if (typeof document !== "undefined") {
-          for (const sel of [`#${id}`, `#d${id}`]) {
-            document.querySelectorAll(sel).forEach((n) => n.remove());
-          }
-          document
-            .querySelectorAll('.mermaid [aria-roledescription="error"], div[id^="dmmd-"]')
-            .forEach((n) => n.remove());
-        }
         // On failure keep showing the last good render (streaming partials
         // fail constantly). Only when NOTHING ever rendered do we soft-fail.
         if (active && !lastGoodRef.current && !streaming) setSoftFailed(true);
+      } finally {
+        // Purge mermaid's error bombs after EVERY attempt, success included:
+        // a failed partial appends a "Syntax error in text" graphic to <body>,
+        // and when a LATER attempt succeeds the catch path never runs — the
+        // stale bomb stayed on screen forever (operator 2026-09-05).
+        purgeMermaidErrors(id);
       }
     };
     timer = setTimeout(render, 250);

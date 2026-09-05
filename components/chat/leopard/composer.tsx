@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, FileIcon, ImageIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, FileIcon, GlobeIcon, ImageIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelector } from "./model-selector";
@@ -139,6 +139,8 @@ function ComposerAttachMenu({
   const [skillsOpen, setSkillsOpen] = useState(false);
   const mediaRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const webFetchEnabled = useSettingsStore((s) => s.webFetchEnabled);
+  const setWebFetchEnabled = useSettingsStore((s) => s.setWebFetchEnabled);
 
   const canAttachMedia = modelVision || modelImageEdit;
   const mediaAccept = modelImageEdit && !modelVision ? "image/*" : "image/*,video/*";
@@ -196,6 +198,32 @@ function ComposerAttachMenu({
           <div className="w-[232px] p-1">
             {item("Photos & videos", <ImageIcon />, () => mediaRef.current?.click(), !canAttachMedia, mediaHint)}
             {item("Attach file", <FileIcon />, () => fileRef.current?.click())}
+            <div className="mx-2 my-1 h-px dark:bg-white/[0.06] light:bg-black/[0.06]" />
+            {/* Web fetch master toggle — user-controlled; rides the request
+                body as `webFetch` (route hardcodes availability, this opts out). */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={webFetchEnabled}
+              onClick={() => setWebFetchEnabled(!webFetchEnabled)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-[13px] transition-colors dark:text-[#c9c9c9] light:text-[#404040] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] hover:dark:text-white hover:light:text-black"
+            >
+              <span className="flex size-4 shrink-0 items-center justify-center opacity-70 [&_svg]:size-4"><GlobeIcon /></span>
+              <span className="min-w-0 flex-1 truncate">Web fetch</span>
+              <span
+                className={cn(
+                  "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+                  webFetchEnabled ? "bg-[#ffb400]" : "dark:bg-white/[0.12] light:bg-black/[0.12]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-3 rounded-full bg-white transition-all",
+                    webFetchEnabled ? "left-3.5" : "left-0.5",
+                  )}
+                />
+              </span>
+            </button>
             <div className="mx-2 my-1 h-px dark:bg-white/[0.06] light:bg-black/[0.06]" />
             {item("Skills", <SparklesIcon />, () => setSkillsOpen(true))}
             {item("MCP servers", <PlugIcon />, () => setMcpOpen(true))}
