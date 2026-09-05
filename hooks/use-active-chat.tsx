@@ -31,6 +31,7 @@ import {
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
+import { getEnabledMcpServers } from "@/lib/mcp-config";
 import { useSkillLibrary } from "@/hooks/use-skill-library";
 import {
   stashPendingMessage,
@@ -419,6 +420,11 @@ export function ActiveChatProvider({
             // invocation → no skill bodies → no per-request token cost (NIM has
             // no prompt caching, so always-on injection was a pure tax).
             skills: getInvokedSkillBodies(lastUserText(messages)),
+            // MCP panel → route bridge (2026-09-04): the panel's localStorage
+            // config used to die client-side (route only read env). Enabled
+            // servers ride the request body; the route validates + merges them
+            // with LEOPARD_MCP_SERVERS (env wins on name collision).
+            mcpServers: getEnabledMcpServers(),
           },
         }),
       }),

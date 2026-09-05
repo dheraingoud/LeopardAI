@@ -39,6 +39,23 @@ export const postRequestBodySchema = z.object({
   // skills). Returned server-side only as pre-filtered instruction strings;
   // bounded in the route before reaching the prompt.
   skills: z.array(z.string()).optional(),
+  // MCP panel servers (2026-09-04 bridge): bounded; honored only in
+  // BYPASS_CLERK dev mode — a client-supplied stdio command is arbitrary code
+  // execution on the server, so production ignores this field entirely.
+  mcpServers: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(64),
+        type: z.enum(["http", "sse", "stdio"]),
+        url: z.string().max(2048).optional(),
+        headers: z.record(z.string(), z.string()).optional(),
+        command: z.string().max(512).optional(),
+        args: z.array(z.string().max(256)).max(32).optional(),
+        env: z.record(z.string(), z.string()).optional(),
+      }),
+    )
+    .max(8)
+    .optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

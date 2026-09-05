@@ -128,9 +128,23 @@ export function isMcpToolAllowed(toolName: string, allowlistEnv: string | undefi
  * SDK tool map. Best-effort per server: a failing server is skipped + logged,
  * never fatal to the generation. Returns EMPTY when unconfigured/fail-closed.
  */
-export async function loadMcpTools(): Promise<McpHandle> {
-  const servers = parseMcpServers(process.env.LEOPARD_MCP_SERVERS);
-  if (!servers) return EMPTY;
+export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
+  // Env-configured servers first; caller-supplied extras (the MCP panel's
+  // client-side config, dev-mode only — see route.ts) merge in after, env
+  // winning name collisions.
+  const envServers = parseMcpServers(process.env.LEOPARD_MCP_SERVERS) ?? [];
+  const extra = Array.isArray(extraServers)
+    ? (extraServers.filter(
+        (s): s is McpServerConfig =>
+          !!s &&
+          typeof s === "object" &&
+          typeof (s as { name?: unknown }).name === "string" &&
+          ["http", "sse", "stdio"].includes(String((s as { type?: unknown }).type)),
+      ) as McpServerConfig[])
+    : [];
+  const seen = new Set(envServers.map((s) => s.name));
+  const servers = [...envServers, ...extra.filter((s) => !seen.has(s.name))];
+  if (!servers.length) return EMPTY;
   const allowlistEnv = process.env.LEOPARD_MCP_ALLOWED_TOOLS;
 
   const clients: { name: string; client: MCPClient }[] = [];

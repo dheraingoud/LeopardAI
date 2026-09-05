@@ -60,6 +60,28 @@ export function loadMcpConfig(): McpServerConfig[] {
   return SAMPLES;
 }
 
+/** Split a stdio command line into executable + args (the AI SDK stdio
+ *  transport spawns `command` as a single path — "node script.mjs" would
+ *  ENOENT). Handles simple quoted segments. */
+function splitCommand(cmd: string): { command: string; args: string[] } {
+  const parts = cmd.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+  const unq = parts.map((p) => p.replace(/^"|"$/g, ""));
+  return { command: unq[0] ?? cmd, args: unq.slice(1) };
+}
+
+/** Enabled servers in the route's wire shape (lib/ai/mcp.ts McpServerConfig). */
+export function getEnabledMcpServers(): Array<Record<string, unknown>> {
+  return loadMcpConfig()
+    .filter((s) => s.enabled)
+    .map((s) => ({
+      name: s.name,
+      type: s.type,
+      ...(s.type === "stdio" && s.command ? splitCommand(s.command) : {}),
+      ...(s.type === "http" && s.url ? { url: s.url } : {}),
+      ...(s.headers ? { headers: s.headers } : {}),
+    }));
+}
+
 export function saveMcpConfig(servers: McpServerConfig[]): void {
   if (typeof window === "undefined") return;
   try {
