@@ -970,13 +970,30 @@ export function backgroundServe(args: {
   // abort so the user keeps partial context rather than losing the message.
   const finalizePartial = async () => {
     if (!persist) return;
+    const parts = acc.parts();
+    // Stop-before-first-token: nothing accumulated → delete the placeholder
+    // row instead of persisting a permanent EMPTY assistant bubble
+    // (2026-09-06 — the bubble rendered as a bare "leopard" label forever).
+    if (parts.length === 0) {
+      const c = convexClient();
+      if (c) {
+        await enqueueWrite(async () => {
+          await (c.mutation(internal.messages.deleteEmptyAssistant as never, {
+            chatId,
+            userId,
+            id: assistantId,
+          } as never) as Promise<unknown>).catch(() => {});
+        });
+      }
+      return;
+    }
     await enqueueWrite(() =>
       persistAssistantRow({
         chatId,
         userId,
         id: assistantId,
         model,
-        parts: acc.parts(),
+        parts,
         status: "completed",
       }),
     );
