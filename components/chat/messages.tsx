@@ -184,8 +184,11 @@ export function Messages() {
     return () => window.removeEventListener("leopard:regen-ghost", onGhost);
   }, []);
   useEffect(() => {
-    if (status === "ready" || status === "error") setGhost(null);
-  }, [status, messages]);
+    // Guard on ghost: an unconditional setGhost(null) in a [status, messages]
+    // effect re-fires on every messages identity change; paired with the
+    // provider's setMessages effects it fed the update-depth loop (2026-09-06).
+    if ((status === "ready" || status === "error") && ghost !== null) setGhost(null);
+  }, [status, messages, ghost]);
 
   // Reasoning-panel expand/collapse dispatches per-frame height deltas; hold
   // the reading anchor when NOT pinned to the bottom.
