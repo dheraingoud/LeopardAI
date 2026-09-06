@@ -701,7 +701,11 @@ export function ActiveChatProvider({
     // IS approval-responded, and the guard would lock forever — the row never
     // updates to output-available and the card hangs on "Writing" (X4.2 RCA).
     if (resumeInFlight) return;
-    chat.setMessages((prev) => {
+    // Same loop guard as the dedupe effect: never call setMessages when nothing
+    // changed — the store notify alone refires this effect (chat.messages
+    // identity churn) → infinite loop (2026-09-06).
+    {
+      const prev = chat.messages;
       let changed = false;
       let next = prev.slice();
 
@@ -763,8 +767,8 @@ export function ActiveChatProvider({
         }
       }
 
-      return changed ? next : prev;
-    });
+      if (changed) chat.setMessages(next);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.status, chat.setMessages, resumeInFlight, serverAssistantIdRef.current]);
 
@@ -785,33 +789,38 @@ export function ActiveChatProvider({
     // after a mid-resume reload).
     if (resumeInFlight) return;
     const serverIds = new Set((convexMessages ?? []).map((m) => m.id)); // eslint-disable-line react-hooks/exhaustive-deps
-    chat.setMessages((prev) => {
-      let lastUser = -1;
-      prev.forEach((m, i) => {
-        if (m.role === "user") lastUser = i;
-      });
-      const tail = prev.slice(lastUser + 1);
-      // The server row must be present IN STATE, not just in the query
-      // snapshot — dropping the SDK bubble before the mirror inserts the
-      // server row leaves an empty bubble window (observed in load probes).
-      const serverHasTurn = tail.some(
-        (m) => m.role === "assistant" && serverIds.has(m.id),
-      );
-      if (!serverHasTurn) return prev;
-      // …and the present server row must already carry the content (parts can
-      // lag a progressive patch behind).
-      const serverRow = tail.find(
-        (m) => m.role === "assistant" && serverIds.has(m.id),
-      );
-      if (!serverRow || serverRow.parts.length === 0) return prev;
-      const keep = prev.filter(
-        (m, i) =>
-          i <= lastUser ||
-          m.role !== "assistant" ||
-          serverIds.has(m.id),
-      );
-      return keep.length === prev.length ? prev : keep;
+    // Compute FIRST, call setMessages ONLY on a real change (2026-09-06 RCA):
+    // calling setMessages unconditionally — even with an updater that returns
+    // prev — notifies the chat store, the throttle mints a new messages array,
+    // chat.messages changes identity, this effect refires → infinite
+    // effect→setState→render loop ("Maximum update depth exceeded", thousands
+    // of iterations/second in approval-resume turns).
+    const prev = chat.messages;
+    let lastUser = -1;
+    prev.forEach((m, i) => {
+      if (m.role === "user") lastUser = i;
     });
+    const tail = prev.slice(lastUser + 1);
+    // The server row must be present IN STATE, not just in the query
+    // snapshot — dropping the SDK bubble before the mirror inserts the
+    // server row leaves an empty bubble window (observed in load probes).
+    const serverHasTurn = tail.some(
+      (m) => m.role === "assistant" && serverIds.has(m.id),
+    );
+    if (!serverHasTurn) return;
+    // …and the present server row must already carry the content (parts can
+    // lag a progressive patch behind).
+    const serverRow = tail.find(
+      (m) => m.role === "assistant" && serverIds.has(m.id),
+    );
+    if (!serverRow || serverRow.parts.length === 0) return;
+    const keep = prev.filter(
+      (m, i) =>
+        i <= lastUser ||
+        m.role !== "assistant" ||
+        serverIds.has(m.id),
+    );
+    if (keep.length !== prev.length) chat.setMessages(keep);
   }, [chat.messages, chat.status, chat.setMessages, convexMessages, resumeInFlight]);
 
   // Dev debug handle: e2e probes read window.__chatStatus to observe the SDK
