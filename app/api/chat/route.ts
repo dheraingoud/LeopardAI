@@ -682,6 +682,15 @@ export async function POST(request: Request) {
         return content.length === 0 ? [] : [{ ...m, content }];
       },
     ) as typeof modelMessages;
+    // NIM rejects tool_calls missing `arguments` with a 400 that kills the
+    // whole turn ("missing field `arguments`", 2026-09-07 — a persisted
+    // approval-pending tool part can carry no input). Default empty input.
+    for (const m of modelMessages as Array<{ role: string; content: unknown }>) {
+      if (m.role !== "assistant" || !Array.isArray(m.content)) continue;
+      for (const part of m.content as Array<{ type: string; input?: unknown }>) {
+        if (part.type === "tool-call" && part.input == null) part.input = {};
+      }
+    }
   }
   if (process.env.LEOPARD_CONTEXT_COMPACT === "1") {
     const contextWindow = modelConfig?.contextWindow ?? 128_000;
