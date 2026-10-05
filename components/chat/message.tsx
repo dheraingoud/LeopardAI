@@ -1336,12 +1336,25 @@ export const PreviewMessage = memo(function PreviewMessage({
                 seg.state !== "complete" &&
                 seg.state !== "ask";
               // Stale-pending settle: a tool part left in pending/streaming
-              // when the turn is NOT live (stop/error/crash/reload mid-call)
-              // must not shimmer "searching…" forever — render it failed.
-              const settledState =
-                !live && (seg.state === "pending" || seg.state === "streaming")
-                  ? "error"
-                  : seg.state;
+              // when the turn is NOT live (stop/error/crash/reload mid-call).
+              // With no output it's an INTERRUPTION, not a failure — render a
+              // neutral chip, not a red "Tool call failed" + inert Retry (audit
+              // 2026-10-06). A real error carries output.error and shows ToolError.
+              const stalePending =
+                !live && (seg.state === "pending" || seg.state === "streaming");
+              if (stalePending && seg.output == null) {
+                return (
+                  <div
+                    key={`int-${i}`}
+                    className="my-2 inline-flex items-center gap-2 rounded-lg border border-foreground/[0.08] bg-foreground/[0.03] px-3 py-1.5 text-[12px] text-foreground/50"
+                  >
+                    <span className="font-mono text-[10px] uppercase tracking-wide">interrupted</span>
+                    <span className="font-medium">{seg.toolName}</span>
+                    — the turn stopped before it finished
+                  </div>
+                );
+              }
+              const settledState = stalePending ? "error" : seg.state;
               return (
                 <ToolCard
                   key={`t-${i}`}
