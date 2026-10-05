@@ -137,6 +137,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Human-readable reason the last turn errored (drives the error-card copy).
    *  Empty when there's no error. */
   lastErrorReason: string;
+  /** Transient "reconnecting/switching model" signal while the server retries a
+   *  stalled upstream. Null when the stream is flowing normally. */
+  stallSignal: { attempt: number; maxRetries: number; delayMs: number } | null;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -533,6 +536,27 @@ export function ActiveChatProvider({
       if ((part as { type?: string }).type === "data-assistant-id") {
         serverAssistantIdRef.current = (part as { data?: string }).data ?? null;
         return;
+      }
+      // Server signalled a stall→retry/fallback (data-retry). Surface it as a
+      // transient "reconnecting" chip so a hung upstream doesn't read as a
+      // frozen "Working on it…" (audit 2026-10-06 — kimi hang gave zero signal
+      // for 40s+). Cleared on the next real content chunk / stream end.
+      // (Cast: data-retry isn't in the SDK's known data-part union.)
+      if ((part as { type?: string }).type === "data-retry") {
+        const d = (part as { data?: { attempt?: number; maxRetries?: number; delayMs?: number } }).data;
+        const next = {
+          attempt: d?.attempt ?? 1,
+          maxRetries: d?.maxRetries ?? 1,
+          delayMs: d?.delayMs ?? 0,
+        };
+        stallSignalRef.current = next;
+        setStallSignal(next);
+        return;
+      }
+      // Real content flowing again → drop the "reconnecting" stall chip.
+      if (stallSignalRef.current) {
+        stallSignalRef.current = null;
+        setStallSignal(null);
       }
 
       // Φ5: route emits { type: "data-chat-title", data: "<title>" } on the
@@ -1005,6 +1029,11 @@ export function ActiveChatProvider({
   // just fails again, which read as "working… disappears… retry fails").
   const lastErrorRef = useRef<string>("");
   const [lastErrorReason, setLastErrorReason] = useState("");
+  // Transient "reconnecting / switching model" signal from the server's
+  // stall→retry emission (data-retry). Cleared on the next content chunk.
+  const [stallSignal, setStallSignal] = useState<{ attempt: number; maxRetries: number; delayMs: number } | null>(null);
+  // Ref mirror so the memoized onData (created once) reads the live value.
+  const stallSignalRef = useRef<typeof stallSignal>(null);
 
   const stopGeneration = useCallback(() => {
       cancelRetryRef.current();
@@ -1498,12 +1527,22 @@ export function ActiveChatProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.status, lastMsgForRetry?.id, lastUserIdForRetry]);
 
+  // Clear the stall chip once the stream resolves (ready/error) — the retry
+  // either succeeded (content flows, cleared in onData) or errored out.
+  useEffect(() => {
+    if (chat.status === "ready" || chat.status === "error") {
+      stallSignalRef.current = null;
+      setStallSignal(null);
+    }
+  }, [chat.status]);
+
   const value: ActiveChatContextValue = {
     ...chat,
     sendMessage,
     serverStreaming,
     retrying,
     lastErrorReason,
+    stallSignal,
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,
