@@ -133,6 +133,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** True during the auto-retry pause after an errored run (QA M5) — lets the
    * composer show the stop state while the retry is pending/in-flight. */
   retrying: boolean;
+  /** Human-readable reason the last turn errored (drives the error-card copy).
+   *  Empty when there's no error. */
+  lastErrorReason: string;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -480,6 +483,12 @@ export function ActiveChatProvider({
       // a concise human toast. Recognized noise → targeted copy; unknown → a
       // generic retry prompt.
       console.error("[chat] stream error:", error);
+      // Record the raw message for the non-retryable check in the auto-retry
+      // effect (a dead-key 403 must not auto-retry into the same wall) and for
+      // the error-card copy.
+      const rawErr = String((error as Error)?.message ?? error ?? "");
+      lastErrorRef.current = rawErr;
+      setLastErrorReason(rawErr);
       // Orphan tool parts (terminated mid-call) poison the NEXT send with
       // "Tool result is missing for tool call". Purge ONLY on that exact
       // failure — purging eagerly can race a landing approval-request part
@@ -989,6 +998,12 @@ export function ActiveChatProvider({
   // else the regenerate fires anyway after the user hit stop (QA M5).
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelRetryRef = useRef<() => void>(() => {});
+  // Records WHY the last turn errored so the auto-retry effect can skip
+  // non-retryable failures (a 403/401 dead key will never succeed on retry —
+  // show the error card immediately instead of a doomed 1.5s auto-retry that
+  // just fails again, which read as "working… disappears… retry fails").
+  const lastErrorRef = useRef<string>("");
+  const [lastErrorReason, setLastErrorReason] = useState("");
 
   const stopGeneration = useCallback(() => {
       cancelRetryRef.current();
@@ -1052,7 +1067,11 @@ export function ActiveChatProvider({
     lastActivityRef.current = Date.now();
   }, [chat.messages, chat.status]);
   useEffect(() => {
-    const live = chat.status === "streaming" || chat.status === "submitted";
+    // Cover serverStreaming (reopened mid-generation, SDK status is "ready")
+    // — a mirrored stream that goes silent must also be recoverable, else the
+    // composer locks in the stop state until the 90s reaper (audit 2026-10-06).
+    const live =
+      chat.status === "streaming" || chat.status === "submitted" || serverStreaming;
     if (!live) return;
     const t = setInterval(() => {
       if (Date.now() - lastActivityRef.current > 75_000) {
@@ -1429,6 +1448,18 @@ export function ActiveChatProvider({
     // Key on the last USER message id, not the assistant row: regenerate
     // mints a fresh assistant id each attempt, which made the guard re-arm on
     // every failure → infinite retry loop and the error card never showed.
+    // Skip auto-retry for non-retryable failures — a 403/401 (dead/expired
+    // key), a 404 (model removed), or a 400 (bad request) will fail identically
+    // on retry. Show the error card immediately instead of a doomed retry loop.
+    // Route-gate failures carry no status digits in the thrown message (the
+    // SDK throws the JSON body, e.g. '{"error":"unauthorized"}'), so match the
+    // route's literal error codes too — otherwise a 401/400 auto-retries into
+    // the same deterministic wall (audit 2026-10-06).
+    const fatal =
+      /\b(401|403|404)\b|Authorization failed|Forbidden|API key|not configured|Bad Request|unauthorized|model_not_allowed|bad_request|daily_token_cap|not enabled/i.test(
+        lastErrorRef.current,
+      );
+    if (fatal) return;
     const key = lastUserIdForRetry ?? last?.id ?? "empty";
     if (autoRetriedRef.current === key) return;
     autoRetriedRef.current = key;
@@ -1448,6 +1479,7 @@ export function ActiveChatProvider({
     sendMessage,
     serverStreaming,
     retrying,
+    lastErrorReason,
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,

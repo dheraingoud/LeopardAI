@@ -13,7 +13,9 @@ import { McpServerPanel } from "./mcp-server-panel";
 import { SkillConfigModal } from "@/components/chat/skill-config-modal";
 import { uploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { getModelById } from "@/lib/ai/models";
+import { useModelHealth } from "@/hooks/use-model-health";
 import { getSkillsSnapshot, subscribeSkills } from "@/lib/skill-store";
 import { getSlashMatches, SlashMenu, type SlashMatch } from "../slash-menu";
 import { MentionMenu, useRecentChatTitles } from "../mention-menu";
@@ -357,20 +359,30 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const isStreaming =
     status === "submitted" || status === "streaming" || serverStreaming || retrying;
   const hasContent = input.trim().length > 0 || attachments.length > 0;
+  // Block send when the SELECTED model is probed-down — sending into a dead
+  // model produced the "bubble appears, then nothing" black hole (the picker
+  // badge alone lives inside a closed popover). The store polls /api/models/health.
+  const modelDown = useModelHealth((s) => {
+    const h = s.byId[currentModelId];
+    return s.loaded && h !== undefined && !h.ok;
+  });
   const canSend = hasContent && !isStreaming && !uploading;
   const { queued, enqueue, drain } = useMessageQueue();
 
-  // Flush queued text once the active run returns to ready.
+  // Flush queued text once the active run returns to ready. Gate on a CLEAN
+  // completion — status==='error' is not in isStreaming, so a partial stream
+  // that errors would otherwise fire queued messages into a failed turn the
+  // user never confirmed (audit 2026-10-06).
   const prevStreaming = useRef(false);
   useEffect(() => {
-    if (prevStreaming.current && !isStreaming) {
+    if (prevStreaming.current && !isStreaming && status === "ready") {
       const drained = drain();
       for (const m of drained) {
         void sendMessage({ parts: [{ type: "text", text: m.text }] } as never);
       }
     }
     prevStreaming.current = isStreaming;
-  }, [isStreaming, drain, sendMessage]);
+  }, [isStreaming, status, drain, sendMessage]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -404,6 +416,11 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
         setInput("");
         setDraft("");
       }
+      return;
+    }
+    // Dead model → don't fire into the void. Tell the user + point at the picker.
+    if (modelDown) {
+      toast.error(`${getModelById(currentModelId)?.name ?? "This model"} is unreachable right now — pick another model.`);
       return;
     }
     if (!canSend) return;

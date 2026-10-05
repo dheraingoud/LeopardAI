@@ -345,20 +345,34 @@ export function Messages() {
           />
         )}
         {isThinking && <ThinkingMessage />}
-        {status === "error" && !autoRetrying && (
-          <ErrorState
-            title="That didn't go through"
-            detail="The reply errored or stalled mid-stream. Retry re-runs the last turn — your chat is intact."
-            retrying={false}
-            onRetry={() => {
-              const last =
-                [...messages].reverse().find((m) => m.role === "assistant") ??
-                messages[messages.length - 1];
-              if (last) chat.regenerateMessage(last.id);
-            }}
-            className="mt-3"
-          />
-        )}
+        {status === "error" && !autoRetrying && (() => {
+          // Specific copy beats a generic "try again" — a dead key / dead fleet
+          // tells the user the real problem (2026-10-05 silent-403 incident).
+          const reason = chat.lastErrorReason ?? "";
+          // Route-gate failures throw the JSON body (no status digits), so match
+          // the literal error codes too — else a dead key shows generic copy.
+          const isAuth = /\b(401|403)\b|Authorization failed|Forbidden|API key|not configured|unauthorized|model_not_allowed|not enabled/i.test(reason);
+          const isRate = /\b429\b|rate.?limit|Too Many Requests|daily_token_cap/i.test(reason);
+          const detail = isAuth
+            ? "The model service rejected the request (the API key may be out of credits or expired). Fix the key, then retry — your chat is intact."
+            : isRate
+              ? "The model service is rate-limiting right now. Wait a moment, then retry — your chat is intact."
+              : "The reply errored or stalled mid-stream. Retry re-runs the last turn — your chat is intact.";
+          return (
+            <ErrorState
+              title="That didn't go through"
+              detail={detail}
+              retrying={false}
+              onRetry={() => {
+                const last =
+                  [...messages].reverse().find((m) => m.role === "assistant") ??
+                  messages[messages.length - 1];
+                if (last) chat.regenerateMessage(last.id);
+              }}
+              className="mt-3"
+            />
+          );
+        })()}
         {/* Floating-composer clearance — taller while streaming or errored so
             expanding cards + the error card never slide under the input bar. */}
         <div className={status === "streaming" || status === "submitted" || status === "error" ? "h-48" : "h-32"} />

@@ -99,8 +99,13 @@ export async function GET() {
   // a demoted/dead legacy key doesn't misreport the whole fleet as auth-down.
   const apiKey = currentNimKey();
   if (!apiKey) {
+    // Include the model ids so the client can still badge every row as down
+    // (the picker's fleet-down banner reads these; an empty list hid it).
+    const models = getActiveModels()
+      .filter((m) => m.kind !== "image" && m.kind !== "video")
+      .map((m) => m.id);
     return NextResponse.json(
-      { error: "all NIM keys are down" },
+      { error: "all NIM keys are down", models },
       { status: 503 },
     );
   }
