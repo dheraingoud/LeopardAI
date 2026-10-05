@@ -16,6 +16,7 @@
  */
 import { NextResponse } from "next/server";
 import { getActiveModels } from "@/lib/ai/models";
+import { currentNimKey, hasNimKey } from "@/lib/ai/nim-keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,11 +89,19 @@ async function probe(id: string, apiKey: string): Promise<Health> {
 }
 
 export async function GET() {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) {
+  if (!hasNimKey()) {
     return NextResponse.json(
       { error: "NVIDIA_API_KEY not configured" },
       { status: 500 },
+    );
+  }
+  // Probe with the CURRENT best key from the rotator pool (not the raw env) so
+  // a demoted/dead legacy key doesn't misreport the whole fleet as auth-down.
+  const apiKey = currentNimKey();
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "all NIM keys are down" },
+      { status: 503 },
     );
   }
   // Only text LLMs are health-probed (chat completions). Vision/image models
