@@ -84,6 +84,14 @@ function ModelSelectorTrigger() {
         <span className="truncate font-medium">
           {selectedModel?.name ?? "Select model"}
         </span>
+        {/* Surface the SELECTED model's health on the closed trigger too — a
+            model that goes dead after selection must not look fine (2026-10-05
+            send-into-void incident). */}
+        {selectedModel?.badge && (
+          <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
+            {selectedModel.badge}
+          </span>
+        )}
         {effortName && (
           <span className="text-foreground/40 min-w-7.5 truncate text-center">
             {effortName}

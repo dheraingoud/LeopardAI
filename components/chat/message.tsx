@@ -1299,6 +1299,20 @@ export const PreviewMessage = memo(function PreviewMessage({
                     : seg.orch;
                 return <AgentRunCard key={`orch-${i}`} run={orch} />;
               }
+              // Denied ≠ failed. A user-declined tool must not render as a red
+              // error card (reads like the tool ran and broke). Neutral chip.
+              if (seg.state === "denied") {
+                return (
+                  <div
+                    key={`denied-${i}`}
+                    className="my-2 inline-flex items-center gap-2 rounded-lg border border-foreground/[0.08] bg-foreground/[0.03] px-3 py-1.5 text-[12px] text-foreground/50"
+                  >
+                    <span className="font-mono text-[10px] uppercase tracking-wide">declined</span>
+                    <span className="font-medium">{seg.toolName}</span>
+                    — you blocked this action
+                  </div>
+                );
+              }
               if (seg.state === "error") {
                 const errMsg =
                   typeof seg.output === "object" && seg.output !== null

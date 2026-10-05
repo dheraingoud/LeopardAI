@@ -34,6 +34,15 @@ type HealthState = {
 async function fetchHealth(): Promise<Record<string, ModelHealth>> {
   try {
     const res = await fetch("/api/models/health", { cache: "no-store" });
+    // 503 = every key down (route short-circuits before probing). That's the
+    // exact fleet-down case the banner exists for — DON'T swallow it into {}
+    // (which read as "not loaded" and hid the banner, audit 2026-10-06).
+    if (res.status === 503) {
+      const json = (await res.json().catch(() => null)) as { models?: string[] } | null;
+      const byId: Record<string, ModelHealth> = {};
+      for (const id of json?.models ?? []) byId[id] = { id, ok: false, latencyMs: null, reason: "auth" };
+      return byId;
+    }
     if (!res.ok) return {};
     const json = (await res.json()) as { results?: ModelHealth[] };
     const byId: Record<string, ModelHealth> = {};
