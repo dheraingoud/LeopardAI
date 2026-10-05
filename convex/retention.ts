@@ -13,7 +13,7 @@
 // cron registered in `crons.ts` calls `sweep`, so arming the env var is the
 // single switch that turns the sweep on; until then the cron is harmless.
 
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, type MutationCtx } from "./_generated/server";
 import { type Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
@@ -106,4 +106,42 @@ export const status = query({
   args: {},
   returns: v.object({ days: v.number() }),
   handler: async () => ({ days: retentionDays() }),
+});
+
+// ─── Stale-generating sweep (audit 2026-10-06) ───────────────────────────────
+// The sidebar "generating" blink was only cleared by the open tab's sweeper or
+// the route (route only writes when CONVEX_DEPLOY_KEY is set = prod). A tab
+// closed mid-generation left the flag true forever in every other tab/window.
+// This cron clears it server-side regardless of open tabs: a chat is stale when
+// its newest assistant row is NOT streaming, or its newest streaming row is
+// older than the stuck-stop window (90s — matches the client reaper).
+const GENERATING_STALE_MS = 90_000;
+
+export const sweepStaleGenerating = internalMutation({
+  args: {},
+  returns: v.object({ cleared: v.number() }),
+  handler: async (ctx) => {
+    const stuck = await ctx.db
+      .query("chats")
+      .withIndex("by_generating", (q) => q.eq("generating", true))
+      .collect();
+    let cleared = 0;
+    for (const chat of stuck) {
+      const newest = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .order("desc")
+        .first();
+      const stale =
+        !newest ||
+        newest.role !== "assistant" ||
+        newest.status !== "streaming" ||
+        Date.now() - newest.createdAt > GENERATING_STALE_MS;
+      if (stale) {
+        await ctx.db.patch(chat._id, { generating: false });
+        cleared++;
+      }
+    }
+    return { cleared };
+  },
 });

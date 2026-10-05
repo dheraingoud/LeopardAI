@@ -6,12 +6,19 @@
 // when explicitly armed.
 
 import { cronJobs } from "convex/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const crons = cronJobs();
 crons.daily(
   "Retention sweep",
   { hourUTC: 4, minuteUTC: 21 }, // off-peak UTC predawn, off the top of the hour
   api.retention.sweep,
+);
+// Stale-generating sweep (audit 2026-10-06): clear orphaned sidebar "generating"
+// blinks server-side every minute, regardless of any open tab. Cheap — indexed.
+crons.interval(
+  "Stale generating sweep",
+  { minutes: 1 },
+  internal.retention.sweepStaleGenerating,
 );
 export default crons;
