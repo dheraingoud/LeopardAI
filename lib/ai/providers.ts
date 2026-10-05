@@ -37,16 +37,31 @@ function asV3(model: LanguageModel): LanguageModel {
   }) as unknown as LanguageModel;
 }
 
-// NIM direct (OpenAI-compatible). apiKey read at module load; if the env is
-// unset the provider still constructs but streamText will surface the 401,
-// which onError maps to a user-safe message. The route pre-checks for nim
-// models and returns a clear 500 before streaming when the key is missing.
-const nimApiKey = process.env.NVIDIA_API_KEY ?? "";
+// NIM direct (OpenAI-compatible). The apiKey comes from the rotator pool
+// (lib/ai/nim-keys) — NOT read once at module load. A custom fetch injects the
+// current best key per request and reports 401/403 (dead) / 429/5xx (backoff)
+// back to the pool, so a single dead key no longer takes inference down
+// (2026-10-05 incident). If no key is configured the provider still
+// constructs and streamText surfaces the 401, mapped by onError.
+import { currentNimKey, reportNimKeyFailure } from "@/lib/ai/nim-keys";
+
+const nimFetch: typeof fetch = async (input, init) => {
+  const key = currentNimKey();
+  const headers = new Headers(init?.headers);
+  if (key) headers.set("Authorization", `Bearer ${key}`);
+  const res = await fetch(input, { ...init, headers });
+  // Only report on a definitive answer (a response came back at all).
+  if (key && (res.status === 401 || res.status === 403 || res.status === 429 || res.status >= 500)) {
+    reportNimKeyFailure(key, res.status);
+  }
+  return res;
+};
 
 export const nimProvider = createOpenAICompatible({
   name: "nim",
   baseURL: NIM_BASE,
-  apiKey: nimApiKey,
+  apiKey: process.env.NVIDIA_API_KEY ?? "", // placeholder; real key injected per-request below
+  fetch: nimFetch,
   // NIM (OpenAI-compatible) only emits a usage chunk when asked. Without this
   // result.usage resolves to zeros and every usageLog row records 0 tokens
   // (found 2026-08-31: usage readout showed "0 tokens" for real turns).

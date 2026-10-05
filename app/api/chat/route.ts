@@ -24,6 +24,7 @@ import {
 import { isModelRequestAllowed } from "@/lib/ai/model-allowlist";
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
 import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
+import { hasNimKey } from "@/lib/ai/nim-keys";
 import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
@@ -472,10 +473,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // 5. NIM models need NVIDIA_API_KEY; gateway models need AI_GATEWAY_API_KEY.
-  //    Pre-check NIM (local config) so a missing key surfaces as a clear 500
-  //    instead of a 401 mid-stream.
-  if (modelConfig?.provider === "nim" && !process.env.NVIDIA_API_KEY) {
+  // 5. NIM models need a key from the rotator pool; gateway needs
+  //    AI_GATEWAY_API_KEY. Pre-check NIM (local config) so a missing key
+  //    surfaces as a clear 500 instead of a 401 mid-stream.
+  if (modelConfig?.provider === "nim" && !hasNimKey()) {
     return Response.json(
       { error: "NVIDIA_API_KEY not configured on server" },
       { status: 500 },
