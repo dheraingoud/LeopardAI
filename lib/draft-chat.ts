@@ -34,6 +34,17 @@ export function stashPendingMessage(chatId: string, parts: PendingPart[], model?
   }
 }
 
+/** Non-destructive check — is a pending draft stashed for this chat? Used by
+ *  the isLoading gate to skip the loader flash; must NOT consume the stash
+ *  (the pickup effect still needs to take it). */
+export function hasPendingMessage(chatId: string): boolean {
+  try {
+    return window.sessionStorage.getItem(key(chatId)) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function takePendingMessage(chatId: string): PendingMessage | null {
   try {
     const raw = window.sessionStorage.getItem(key(chatId));

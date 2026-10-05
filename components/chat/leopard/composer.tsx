@@ -279,6 +279,11 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   // useState initializer, which double-invokes and would eat the value).
   const inputRef = useRef(input);
   inputRef.current = input;
+  // A send clears input + draft; without this flag the unmount cleanup re-parks
+  // the pre-send text and the next composer (target chat after the draft
+  // handoff) re-injects it — the message text reappeared in the composer after
+  // it was already sent (2026-10-06).
+  const justSentRef = useRef(false);
   useEffect(() => {
     const t = takePendingComposerText();
     if (t !== null) setInput(t);
@@ -286,7 +291,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     // thread swaps bottom→center composer (and back, when the mirror heals
     // the row) — the text must survive BOTH transitions.
     return () => {
-      if (inputRef.current.trim()) {
+      if (!justSentRef.current && inputRef.current.trim()) {
         pendingComposerText = { text: inputRef.current, at: Date.now() };
       }
     };
@@ -431,6 +436,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
       mediaType: a.mediaType,
     }));
     const parts = [...fileParts, ...(text ? [{ type: "text" as const, text }] : [])];
+    justSentRef.current = true;
     setInput("");
     setAttachments([]);
     setDraft("");
