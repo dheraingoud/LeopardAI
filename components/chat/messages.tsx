@@ -345,6 +345,21 @@ export function Messages() {
           />
         )}
         {isThinking && <ThinkingMessage />}
+        {/* Stall/reconnect signal: the server is retrying a hung upstream
+            (kimi/deepseek headers-timeout pattern). Without this the user saw a
+            frozen "Working on it…" for 40s+ with no explanation (audit 2026-10-06). */}
+        {chat.stallSignal && status !== "error" && (
+          <div className="my-3 inline-flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
+            </span>
+            Reconnecting — the model stalled. Retrying
+            {chat.stallSignal.maxRetries > 1
+              ? ` (${chat.stallSignal.attempt}/${chat.stallSignal.maxRetries + chat.stallSignal.attempt - 1})`
+              : "…"}
+          </div>
+        )}
         {status === "error" && !autoRetrying && (() => {
           // Specific copy beats a generic "try again" — a dead key / dead fleet
           // tells the user the real problem (2026-10-05 silent-403 incident).
