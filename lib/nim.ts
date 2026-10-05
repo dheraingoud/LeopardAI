@@ -202,34 +202,32 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     // yields 9 non-null reasoning chunks (out of 12 raw) — adopt `enable_thinking`.
     reasoning: { enabled: true, toggleable: true, param: "enable_thinking", defaultEffort: "on" },
   },
-  "deepseek-ai/deepseek-v4-flash-0731": {
-    id: "deepseek-ai/deepseek-v4-flash-0731",
-    displayName: "DeepSeek V4 Flash 0731",
+  // deepseek-v4-flash-0731 + deepseek-v4-pro-0813 REMOVED 2026-10-05 (operator:
+  // replace with v4.1-flash). v4.1-flash verified present in /v1/models.
+  "deepseek-ai/deepseek-v4.1-flash": {
+    id: "deepseek-ai/deepseek-v4.1-flash",
+    displayName: "DeepSeek V4.1 Flash",
     speedTier: 1,
     type: "llm",
     supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
-    // 2026-08-24: hung on NIM (empty body after 45s, both modes) — unfrozen
-    // 2026-08-31 per operator; upstream serving again.
-    // Probe 2026-07-09: reasoning_effort "high"+"max" both → 200 + reasoning_content emitted.
+    // Carries the V4 reasoning routing (top-level reasoning_effort); NIM card
+    // for v4.1-flash publishes effort tiers. Inference-probe once the key is
+    // back to confirm the exact accepted levels (v4 accepted high/max only).
     reasoning: {
       enabled: true,
       toggleable: true,
       param: "effort",
       effortLevels: ["high", "max"],
-      // Latency-optimized default (2026-08-20): the "medium" intent here is
-      // "HIGH", this card's only non-extreme stop. "max" held the first token
-      // behind long deliberation on a speed-1 flash model. Users who want deep
-      // thinking still get it via the picker (max is one tick away).
       defaultEffort: "high",
     },
   },
-  // Operator request 2026-08-28: full V4 Pro alongside the (currently hanging)
-  // Flash card. Probed live same day (title-gen call returned cleanly).
-  "deepseek-ai/deepseek-v4-pro-0813": {
-    id: "deepseek-ai/deepseek-v4-pro-0813",
-    displayName: "DeepSeek V4 Pro 0813",
+  // GLM 5.3 family added 2026-10-05 (operator). Both verified in /v1/models.
+  // Reasoning routing = enable_thinking (matches the GLM 5.2 probe + gemma).
+  "z-ai/glm-5.3": {
+    id: "z-ai/glm-5.3",
+    displayName: "GLM 5.3",
     speedTier: 3,
     type: "llm",
     supportsVision: false,
@@ -238,8 +236,24 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     reasoning: {
       enabled: true,
       toggleable: true,
-      param: "effort",
-      effortLevels: ["high", "max"],
+      param: "enable_thinking",
+      effortLevels: ["low", "medium", "high", "max"],
+      defaultEffort: "high",
+    },
+  },
+  "z-ai/glm-5.3-flash": {
+    id: "z-ai/glm-5.3-flash",
+    displayName: "GLM 5.3 Flash",
+    speedTier: 1,
+    type: "llm",
+    supportsVision: false,
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "enable_thinking",
+      effortLevels: ["low", "medium", "high", "max"],
       defaultEffort: "high",
     },
   },

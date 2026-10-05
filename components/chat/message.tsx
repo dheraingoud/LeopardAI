@@ -1222,7 +1222,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               panel's collapsible header only (user directive 2026-08-26). */}
 
 {/* Φ6.1: streaming-empty fallback. Some NIM reasoning models (e.g.
-           * glm-5.2 at "max") emit ONLY `delta.content` — no `reasoning_content`
+           * glm-5.3 at "max") emit ONLY `delta.content` — no `reasoning_content`
            * — so before the first text-delta there's neither a reasoning card
            * nor any text nor a doc card. Without this gate the assistant row
            * renders just the bare "leopard" label for seconds → "prompt alive
