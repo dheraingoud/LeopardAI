@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { useModelHealth, healthLabel } from "@/hooks/use-model-health";
 import type { ReasoningLevel } from "@/lib/nim";
 
 export type EffortOption = { id: string; name: string };
@@ -33,6 +34,8 @@ export type ModelOption = {
   disabled?: boolean;
   keywords?: readonly string[];
   efforts?: readonly EffortOption[];
+  /** Health badge from the model probe (e.g. "Outage"); undefined = healthy. */
+  badge?: string;
 };
 
 // Kit ModelSelector, Leopard-wired: popover + search + list + footer effort
@@ -52,6 +55,8 @@ type ModelSelectorContextValue = {
   setQuery: (q: string) => void;
   activeId: string;
   setActiveId: (id: string) => void;
+  /** Every probed model is down (dead key / fleet outage) → banner. */
+  fleetDown: boolean;
 };
 
 const ModelSelectorContext = createContext<ModelSelectorContextValue | null>(
@@ -106,6 +111,7 @@ function ModelSelectorContent({
     setQuery,
     activeId,
     setActiveId,
+    fleetDown,
   } = useModelSelector();
 
   const matches = useMemo(() => {
@@ -176,6 +182,15 @@ function ModelSelectorContent({
         role="listbox"
         className="max-h-72 overflow-y-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
+        {fleetDown && (
+          <div
+            data-slot="model-selector-fleet-down"
+            className="mx-1 mb-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] leading-snug text-red-500 dark:text-red-400"
+          >
+            Every model is unreachable — the API key may be out of credits or
+            expired. Generation will fail until that's fixed.
+          </div>
+        )}
         {matches.length === 0 && (
           <div className="text-foreground/30 px-3 py-4 text-center text-xs">
             No models found.
@@ -211,7 +226,14 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
       )}
     >
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[13px] font-medium">{model.name}</span>
+        <span className="flex items-center gap-1.5 truncate text-[13px] font-medium">
+          {model.name}
+          {model.badge && (
+            <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
+              {model.badge}
+            </span>
+          )}
+        </span>
         {model.description && (
           <span className="text-foreground/40 truncate text-xs">
             {model.description}
@@ -274,29 +296,44 @@ function ModelSelectorImpl() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState("");
+  // Model health probe — loaded once per session (see use-model-health).
+  const { byId: health, loaded: healthLoaded, load: loadHealth } = useModelHealth();
+  useEffect(() => {
+    loadHealth();
+  }, [loadHealth]);
 
-  const models = useMemo<ModelOption[]>(
-    () =>
-      getActiveModels().map((m) => {
-        const cfg = m.reasoningConfig;
-        const efforts =
-          cfg?.enabled && cfg.toggleable && cfg.param
-            ? (cfg.effortLevels?.length
-                ? (["off", ...cfg.effortLevels] as string[])
-                : ["off", "on"]
-              ).map((id) => ({ id, name: levelName(id) }))
-            : undefined;
-        return {
-          id: m.id,
-          name: m.name,
-          description: m.description.replace(`${m.name} — `, ""),
-          disabled: m.unavailable,
-          keywords: [m.id],
-          efforts,
-        };
-      }),
-    [],
-  );
+  const models = useMemo<ModelOption[]>(() => {
+    const list = getActiveModels().map((m) => {
+      const cfg = m.reasoningConfig;
+      const efforts =
+        cfg?.enabled && cfg.toggleable && cfg.param
+          ? (cfg.effortLevels?.length
+              ? (["off", ...cfg.effortLevels] as string[])
+              : ["off", "on"]
+            ).map((id) => ({ id, name: levelName(id) }))
+          : undefined;
+      const h = health[m.id];
+      const badge = healthLabel(h);
+      return {
+        id: m.id,
+        name: m.name,
+        description: m.description.replace(`${m.name} — `, ""),
+        // Static registry unavailability OR a live probe failure greys it out.
+        disabled: m.unavailable || badge !== undefined,
+        keywords: [m.id],
+        efforts,
+        badge,
+      };
+    });
+    // Demote unhealthy models to the bottom of the picker (healthy first).
+    return list.sort((a, b) => Number(a.badge !== undefined) - Number(b.badge !== undefined));
+  }, [health, healthLoaded]);
+
+  /** True when every probed model is down — the picker shows a banner. */
+  const fleetDown =
+    healthLoaded &&
+    Object.keys(health).length > 0 &&
+    models.every((m) => m.badge !== undefined);
 
   const selectedModel = models.find((m) => m.id === currentModelId);
   const efforts = selectedModel?.efforts;
@@ -318,8 +355,10 @@ function ModelSelectorImpl() {
       setQuery,
       activeId,
       setActiveId,
+      fleetDown,
     }),
     [
+      fleetDown,
       models,
       currentModelId,
       setCurrentModel,
