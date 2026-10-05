@@ -37,6 +37,7 @@ import { useSkillLibrary } from "@/hooks/use-skill-library";
 import {
   stashPendingMessage,
   takePendingMessage,
+  hasPendingMessage,
   type PendingPart,
 } from "@/lib/draft-chat";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
@@ -1110,6 +1111,14 @@ export function ActiveChatProvider({
           ? (message.parts as PendingPart[])
           : [{ type: "text", text: String((message as { text?: string })?.text ?? "") }];
       return (async () => {
+        // Draft-handoff dead window (audit 2026-10-06): show the user's bubble
+        // + thinking on the DRAFT screen the instant they hit Enter, before the
+        // createChat round-trip + route swap. This is display-only (the draft
+        // provider never sends) — the real send happens on the target chat via
+        // the stash. A sendMessage on the draft would POST with no chat id.
+        chat.setMessages([
+          { id: "draft-pending", role: "user", parts: parts as never } as never,
+        ]);
         const id = await createChat({
           userId: u,
           title: "New Chat",
@@ -1131,6 +1140,12 @@ export function ActiveChatProvider({
     const pending = takePendingMessage(chatId);
     if (!pending || pending.parts.length === 0) return;
     pendingSentRef.current = true;
+    // Draft-handoff dead window (audit 2026-10-06): the user watched their text
+    // clear on /chat, then a full-screen "Loading chat" loader, THEN the bubble
+    // — two "did it eat my message?" windows. The SDK's sendMessage below adds
+    // the optimistic user bubble itself; the loader suppression (hasPendingDraft
+    // in isLoading) is what kills the dead window. Do NOT also setMessages here —
+    // that double-rendered the bubble (two identical user rows, 2026-10-06).
     // Honor the model picked on the draft screen: apply it to state + the ref
     // BEFORE the send, otherwise the turn fires with the default model.
     if (pending.model && pending.model !== currentModelIdRef.current) {
@@ -1367,11 +1382,20 @@ export function ActiveChatProvider({
     },
     [chat.messages, siblings],
   );
+  // A pending draft stash means the user just sent their first message — the
+  // optimistic bubble renders from the stash, so DON'T flash the full-screen
+  // "Loading chat" loader while Convex resolves (dead window, audit 2026-10-06).
+  // Read sessionStorage once (cheap, synchronous); only consulted pre-mount.
+  const hasPendingDraft = useRef(
+    !isDraft && typeof window !== "undefined" && hasPendingMessage(chatId),
+  ).current;
   const isLoading = isDraft
     ? false
     : badId
       ? false // malformed id → not-found UI, never a loader
-      : chatMeta === undefined || convexMessages === undefined;
+      : hasPendingDraft
+        ? false // pending stash → optimistic bubble, no loader flash
+        : chatMeta === undefined || convexMessages === undefined;
   // No local stream, but the newest assistant row is still server-written →
   // the user reopened mid-generation and Convex is live-patching the bubble.
   const lastMsg = chat.messages[chat.messages.length - 1];
