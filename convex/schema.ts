@@ -52,6 +52,9 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_share_id", ["shareId"])
     .index("by_public_id", ["id"])
+    // Stale-generating sweep (audit 2026-10-06) — the cron clears orphaned
+    // generating flags without scanning the whole table.
+    .index("by_generating", ["generating"])
     // Φ-docs · retention sweep — oldest-first drain for the periodic cleanup.
     .index("by_created_at", ["createdAt"]),
 
