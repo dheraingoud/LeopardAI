@@ -11,8 +11,8 @@
  * hard-403ing key that nothing surfaced).
  *
  * Runs server-side (the NIM key never reaches the browser). Concurrency-capped
- * so a login doesn't fire 9 simultaneous upstream calls. Cheap: max_tokens=3,
- * no stream read beyond the first byte.
+ * so a login doesn't fire 9 simultaneous upstream calls. Cheap: max_tokens=1,
+ * thinking explicitly off, no stream read.
  */
 import { NextResponse } from "next/server";
 import { getActiveModels } from "@/lib/ai/models";
@@ -28,7 +28,12 @@ type Health = {
   reason?: string;
 };
 
-const TIMEOUT_MS = 12_000;
+// 45s, not 12s: NIM queues requests under load and a healthy model can sit
+// 25–35s before first byte (nemotron measured 25–34s thinking-off during the
+// 2026-10-07 jitter window). 12s misreported healthy-but-queued models as
+// down — including the default model. Concurrency 4 keeps a login probe to
+// ~2 waves worst case.
+const TIMEOUT_MS = 45_000;
 const CONCURRENCY = 4;
 
 async function probe(id: string, apiKey: string): Promise<Health> {
@@ -45,8 +50,15 @@ async function probe(id: string, apiKey: string): Promise<Health> {
       body: JSON.stringify({
         model: id,
         messages: [{ role: "user", content: "hi" }],
-        max_tokens: 3,
+        // Exactly 1 token: the health criterion is usage.completion_tokens === 1
+        // (checked below), not merely "some text came back".
+        max_tokens: 1,
         stream: false,
+        // Thinking OFF — explicit. Omitting it leaves the model at its upstream
+        // default, and nemotron-3.5-lightning defaults to thinking ON (live
+        // probe 2026-09-05), which would burn reasoning tokens against the
+        // 12s timeout and misreport a healthy model as slow/timed-out.
+        chat_template_kwargs: { enable_thinking: false },
       }),
       signal: ctrl.signal,
     });
@@ -67,14 +79,29 @@ async function probe(id: string, apiKey: string): Promise<Health> {
                 : `http_${res.status}`,
       };
     }
-    // 200 but confirm there's actually a completion body
+    // 200 is not enough — the health criterion is the provider's own usage
+    // metadata: exactly 1 completion token (max_tokens=1 above). A 200 with an
+    // empty choice list, missing usage, or 0 tokens means the model served
+    // nothing and is treated as down. If NIM ever stops returning usage on
+    // non-streamed completions, fall back to requiring a non-empty message.
     const json = (await res.json().catch(() => null)) as
-      | { choices?: Array<unknown> }
+      | {
+          choices?: Array<{ message?: { content?: unknown } }>;
+          usage?: { completion_tokens?: number };
+        }
       | null;
-    if (!json?.choices?.length) {
-      return { id, ok: false, latencyMs, reason: "empty" };
+    const completionTokens = json?.usage?.completion_tokens;
+    if (typeof completionTokens === "number") {
+      if (completionTokens !== 1) {
+        return { id, ok: false, latencyMs, reason: "empty" };
+      }
+      return { id, ok: true, latencyMs };
     }
-    return { id, ok: true, latencyMs };
+    const content = json?.choices?.[0]?.message?.content;
+    if (typeof content === "string" && content.length > 0) {
+      return { id, ok: true, latencyMs };
+    }
+    return { id, ok: false, latencyMs, reason: "empty" };
   } catch (e) {
     const aborted = (e as Error)?.name === "AbortError";
     return {
