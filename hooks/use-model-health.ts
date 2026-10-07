@@ -3,10 +3,10 @@
 /**
  * Model health store — the client side of /api/models/health.
  *
- * Fetched once per app session (in-memory cache + a revalidate window), NOT on
- * every selector open. A model reported `!ok` is demoted to the bottom of the
- * picker and badged; the reason maps to a human label ("Outage", "Slow",
- * "Unavailable"). When the whole fleet is down (a dead key — the 2026-10-05
+ * Fetched on first mount and re-validated at most every 5 min, NOT on every
+ * selector open. A model reported `!ok` is demoted to the bottom of the
+ * picker and badged "Currently down". When the whole fleet is down (a dead
+ * key — the 2026-10-05
  * incident), every model reports auth-down and the picker shows a global
  * banner instead of letting the user send into a black hole.
  */
@@ -24,12 +24,18 @@ type HealthState = {
   byId: Record<string, ModelHealth>;
   /** True once a probe completed this session (even if all failed). */
   loaded: boolean;
+  /** Epoch ms of the last completed probe — drives the revalidate window. */
+  checkedAt: number;
   /** In-flight guard so parallel mounts fire one fetch. */
   _inflight: Promise<void> | null;
   load: () => void;
   /** Force a re-probe (e.g. after the user rotates a key / recovers). */
   refresh: () => void;
 };
+
+/** Re-probe at most every 5 min — a model that recovered must lose its
+ *  "Currently down" badge within a session, not just on the next login. */
+const REVALIDATE_MS = 5 * 60_000;
 
 async function fetchHealth(): Promise<Record<string, ModelHealth>> {
   try {
@@ -56,33 +62,31 @@ async function fetchHealth(): Promise<Record<string, ModelHealth>> {
 export const useModelHealth = create<HealthState>()((set, get) => ({
   byId: {},
   loaded: false,
+  checkedAt: 0,
   _inflight: null,
   load: () => {
     if (get()._inflight) return;
+    // Within the revalidate window a completed probe stands — no request
+    // storm from remounts; past it, re-check so recovered models return.
+    if (get().loaded && Date.now() - get().checkedAt < REVALIDATE_MS) return;
     const p = fetchHealth().then((byId) => {
-      set({ byId, loaded: true, _inflight: null });
+      set({ byId, loaded: true, checkedAt: Date.now(), _inflight: null });
     });
     set({ _inflight: p });
   },
   refresh: () => {
-    set({ _inflight: null, loaded: false });
+    set({ _inflight: null, loaded: false, checkedAt: 0 });
     get().load();
   },
 }));
 
-/** Human badge for a model's health. undefined = healthy/unknown. */
+/**
+ * Human badge for a model's health. undefined = healthy/unknown.
+ * Product wording is fixed: a failed probe reads "Currently down" regardless
+ * of the machine reason (auth/timeout/5xx) — users act on the state, not the
+ * cause. The raw reason stays on the object for debugging/telemetry.
+ */
 export function healthLabel(h: ModelHealth | undefined): string | undefined {
   if (!h || h.ok) return undefined;
-  switch (h.reason) {
-    case "auth":
-      return "Outage";
-    case "rate_limited":
-      return "Busy";
-    case "timeout":
-      return "Slow";
-    case "not_found":
-      return "Removed";
-    default:
-      return "Down";
-  }
+  return "Currently down";
 }

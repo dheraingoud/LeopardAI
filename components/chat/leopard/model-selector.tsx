@@ -334,7 +334,16 @@ function ModelSelectorImpl() {
       };
     });
     // Demote unhealthy models to the bottom of the picker (healthy first).
-    return list.sort((a, b) => Number(a.badge !== undefined) - Number(b.badge !== undefined));
+    // Stable secondary order = registry order (the map index) so the list
+    // never reshuffles when probes resolve in different orders.
+    return list
+      .map((m, i) => ({ m, i }))
+      .sort(
+        (a, b) =>
+          Number(a.m.badge !== undefined) - Number(b.m.badge !== undefined) ||
+          a.i - b.i,
+      )
+      .map(({ m }) => m);
   }, [health, healthLoaded]);
 
   /** True when every probed model is down — the picker shows a banner. */
