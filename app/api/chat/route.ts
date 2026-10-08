@@ -1144,11 +1144,12 @@ export async function POST(request: Request) {
         //   low       → 6144  (~1–2k think + answer room)
         //   medium    → 8192  (~4k think + answer room; product default)
         //   high      → 12288 (~8k think + answer room)
-        //   max       → 20480 (16k think + answer room; picker labels it slow)
+        //   max       → 16384 (12–16k think; picker labels it slow — at 24k a
+        //                runaway turn makes the user wait minutes for nothing)
         //   "on" (binary on/off models) → 8192 (~6k thinking budget)
         maxOutputTokens:
           body.reasoning === "max"
-            ? 20480
+            ? 16384
             : body.reasoning === "high"
               ? 12288
               : body.reasoning === "medium"
@@ -1270,6 +1271,7 @@ export async function POST(request: Request) {
         modelProvider: () => actualModel,
         retryPredicate: isFallbackableErrorText,
         sendReasoning: isReasoningModel,
+        reasoningLevel: body.reasoning,
         assistantId,
         chatId: realChatId,
         userId: userId ?? DEV_USER_ID,
