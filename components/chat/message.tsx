@@ -578,7 +578,11 @@ const isRawTasksJson = (t: string): boolean => {
 // Refusal heuristic — matches an answer that opens with a decline phrase.
 const REFUSAL_RE =
   /^\s*(?:i\s+(?:can'?t|cannot|can\s+not|won'?t|must\s+decline)|i'?m\s+sorry|sorry,?\s+i\s+(?:can'?t|cannot))/i;
-const isRefusal = (text: string) => REFUSAL_RE.test(text);
+// Strip leading image/link markdown + whitespace before testing (audit
+// 2026-10-09, deep-sweep #14): an answer opening with an embedded image hid
+// the refusal note because ^ anchored against the image tag.
+const isRefusal = (text: string) =>
+  REFUSAL_RE.test(text.replace(/^(\s*!?\[[^\]]*\]\([^)]*\)\s*)+/, ""));
 
 export const PreviewMessage = memo(function PreviewMessage({
   message,
@@ -1006,6 +1010,29 @@ export const PreviewMessage = memo(function PreviewMessage({
     return out;
   }, [message.parts, isUser, hideReasoning]);
 
+  // Multi-segment image hydration (deep-sweep #17): renderText covers the
+  // single-text-run case; multi-segment messages hydrate EACH text segment
+  // against the same IndexedDB cache (keyed by message id).
+  const [hydratedSegs, setHydratedSegs] = useState<Record<number, string>>({});
+  const textSegCountNow = segments.filter((s) => s.kind === "text").length;
+  useEffect(() => {
+    if (!needsHydrate || textSegCountNow <= 1) return;
+    let active = true;
+    (async () => {
+      const out: Record<number, string> = {};
+      await Promise.all(
+        segments.map(async (seg, i) => {
+          if (seg.kind !== "text" || !seg.content.includes("#img-")) return;
+          out[i] = await hydrateMessageImages(message.id, seg.content);
+        }),
+      );
+      if (active) setHydratedSegs(out);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [segments, message.id, needsHydrate, textSegCountNow]);
+
   // Per-segment live timing (2026-09-05): the message-level reasoningMs made
   // EVERY "Thought" block show the same duration while streaming. Each
   // reasoning segment gets its own start stamp; it freezes the moment a later
@@ -1415,9 +1442,14 @@ export const PreviewMessage = memo(function PreviewMessage({
               );
             }
             // Image placeholders hydrate against the full text concatenation;
-            // only apply that swap when there's a single text run.
+            // single-run messages use renderText directly; multi-segment
+            // messages hydrate each text segment against the same cache
+            // (audit 2026-10-09, deep-sweep #17 — image placeholders in
+            // multi-segment messages never hydrated).
             const segText =
-              textSegCount === 1 && renderText ? renderText : seg.content;
+              textSegCount === 1 && renderText
+                ? renderText
+                : (hydratedSegs[i] ?? seg.content);
             return (
               <StreamingText
                 key={`t-${i}`}

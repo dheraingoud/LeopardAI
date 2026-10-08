@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useQuery } from "convex/react";
@@ -227,7 +227,13 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
 
   // HTML/SVG code docs render in a sandboxed iframe (no scripts) under
   // WebPreview chrome; other non-text kinds keep the next-phase placeholder.
-  if (artifact.kind === "code" && isHtmlOrSvg(artifact.title, artifact.content)) {
+  // Empty content on a settled doc falls through to the text/empty branch —
+  // a blank white iframe reads as broken (audit 2026-10-09, deep-sweep #4).
+  if (
+    artifact.kind === "code" &&
+    artifact.content.trim() &&
+    isHtmlOrSvg(artifact.title, artifact.content)
+  ) {
     return (
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         <WebPreview
@@ -261,7 +267,9 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
     return (
       <div className="flex-1 flex items-center justify-center px-8 text-center">
         <div className="space-y-2">
-          <Loader2 className="h-5 w-5 mx-auto text-[#ffb400] animate-spin" />
+          {/* Static icon, not a spinner — this is a terminal placeholder, not a
+              loading state (audit 2026-10-09, deep-sweep #4b). */}
+          <FileText className="h-5 w-5 mx-auto dark:text-[#a0a0a0] light:text-[#555]" />
           <p className="text-sm font-body dark:text-[#a0a0a0] light:text-[#555]">
             {KIND_LABEL[artifact.kind]} artifacts render in the next phase.
           </p>

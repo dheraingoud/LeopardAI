@@ -150,6 +150,11 @@ export function Messages() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const firstSeenRef = useRef(new Map<string, number>());
+  // Sync-seed on render (idempotent by id — StrictMode double-pass is a no-op)
+  // AND keep fresh ids flowing via effect; renderTranscript reads the map
+  // during render, so a pure-effect version mislabels the first paint (audit
+  // 2026-10-09 note: render-body mutation was flagged impure; the id-keyed
+  // guard makes it referentially safe — first stamp wins).
   for (const m of messages) {
     if (!firstSeenRef.current.has(m.id))
       firstSeenRef.current.set(m.id, Date.now());
