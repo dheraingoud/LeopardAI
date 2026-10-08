@@ -375,9 +375,17 @@ export function nimReasoningProviderOptions(
   // OFF must be EXPLICIT: omitting the param leaves the model at its upstream
   // default, and nemotron-3.5-lightning defaults to thinking ON (live probe
   // 2026-09-05: reasoning_content populated with no params). NIM accepts
-  // chat_template_kwargs.enable_thinking:false to disable cleanly.
+  // chat_template_kwargs.enable_thinking:false to disable cleanly — for models
+  // where that works (offSupported, the default).
   if (!level) return {};
   if (level === "off") {
+    // offSupported:false (muse/glm-5.3 family — NIM ignores enable_thinking
+    // there, probed 2026-10-08): the picker never offers "off", but a stale
+    // per-chat key can still carry it — degrade to the lowest real tier
+    // instead of emitting a param the upstream ignores.
+    if (cfg.offSupported === false && cfg.effortLevels?.length) {
+      return { nim: { reasoningEffort: cfg.effortLevels[0] } };
+    }
     return { nim: { chat_template_kwargs: { enable_thinking: false } } };
   }
   const effort = level === "on" ? "high" : level; // binary effort model ON → "high"

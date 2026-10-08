@@ -90,6 +90,13 @@ export interface ReasoningConfig {
   effortLevels?: ReasoningLevel[];
   /** What the bar initializes the selector to — "off" or a default effort tier. */
   defaultEffort: ReasoningLevel;
+  /**
+   * FALSE = the model has no working "off" upstream (probed: NIM ignores
+   * enable_thinking:false / think:false / low on these models — they reason
+   * regardless). The picker then floors the slider at the lowest real tier
+   * instead of offering a lying "Off". Default true.
+   */
+  offSupported?: boolean;
 }
 
 export interface ModelCapability {
@@ -224,14 +231,10 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     },
   },
   // GLM 5.3 family added 2026-10-05 (operator). Both verified in /v1/models.
-  // Reasoning probe 2026-10-08 (user bug: "thinking off and model still
-  // thinks"): NIM IGNORES chat_template_kwargs.enable_thinking:false on the
-  // whole 5.3 family — reasoning_content arrives regardless. glm-5.3 DOES
-  // honor reasoning_effort:"low" (0 reasoning tokens on a trivial prompt) but
-  // low ≠ off; glm-5.3-flash reasons even at "low". Until NIM honors a true
-  // off, both are locked-on reasoners (no knob — an off switch that still
-  // thinks is a lie, and the toggle state persisted per-chat made the UI
-  // claim "Off" while the model thought for minutes).
+  // GLM 5.3 family (added 2026-10-05). Probe 2026-10-08: enable_thinking:false
+  // is IGNORED upstream (reasoning_content arrives regardless) — but
+  // reasoning_effort works: low→0-900 chars, high→~11, max→~209. So the knob
+  // is real effort tiers with NO off (offSupported:false floors at "low").
   "z-ai/glm-5.3": {
     id: "z-ai/glm-5.3",
     displayName: "GLM 5.3",
@@ -240,7 +243,14 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
-    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
+      offSupported: false,
+    },
   },
   "z-ai/glm-5.3-flash": {
     id: "z-ai/glm-5.3-flash",
@@ -250,7 +260,14 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 1_000_000,
-    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
+      offSupported: false,
+    },
   },
   // ─── Additions mapped from /v1/models (2026-08-17) ──────────────────────────
   // "muse glimmer", "thinkingmachines inkling", "poolside laguna", "nemotron
@@ -264,11 +281,18 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 262_144,
-    // Reasoning probe 2026-10-08: muse reasons UNCONDITIONALLY — every off
-    // variant (enable_thinking:false, think:false, reasoning_effort:"low",
-    // param omitted) still returns reasoning_content. Thinking is
-    // architectural here (like cosmos) → locked-on, no knob.
-    reasoning: { enabled: true, toggleable: false, defaultEffort: "on" },
+    // Reasoning probe 2026-10-08: muse reasons at EVERY level (low≈200,
+    // high≈458, max≈390 chars on a trivial prompt) and ignores off — thinking
+    // is architectural (like cosmos). Effort tiers kept (they modulate length
+    // some) but no off: offSupported:false floors the slider at "low".
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
+      offSupported: false,
+    },
   },
   // thinkingmachines/inkling REMOVED 2026-08-31 (operator: broken routing).
   "poolside/laguna-xs-2.1": {

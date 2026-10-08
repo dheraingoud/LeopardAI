@@ -327,10 +327,12 @@ function ModelSelectorImpl() {
   const models = useMemo<ModelOption[]>(() => {
     const list = getActiveModels().map((m) => {
       const cfg = m.reasoningConfig;
+      // offSupported:false (muse/glm-5.3 — NIM ignores the off switch, probed
+      // 2026-10-08): floor the slider at the lowest real tier, no lying "Off".
       const efforts =
         cfg?.enabled && cfg.toggleable && cfg.param
           ? (cfg.effortLevels?.length
-              ? (["off", ...cfg.effortLevels] as string[])
+              ? ((cfg.offSupported === false ? [] : ["off"]).concat(cfg.effortLevels) as string[])
               : ["off", "on"]
             ).map((id) => ({ id, name: levelName(id) }))
           : undefined;

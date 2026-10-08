@@ -268,9 +268,14 @@ export function ActiveChatProvider({
     const cfg = getModelById(mid)?.reasoningConfig;
     if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
     // Valid levels for this card (audit 2026-10-08): a stale localStorage value
-    // from an older effort set (e.g. "medium" on a low/high/max-only model)
-    // used to ride the request and NIM 400'd the turn.
-    const valid = new Set<string>(["off", "on", ...(cfg.effortLevels ?? [])]);
+    // from an older effort set (e.g. "medium" on a low/high/max-only model, or
+    // "off" on an off-unsupported card) used to ride the request and NIM either
+    // 400'd the turn or silently thought anyway.
+    const valid = new Set<string>([
+      ...(cfg.offSupported === false ? [] : ["off"]),
+      "on",
+      ...(cfg.effortLevels ?? []),
+    ]);
     const read = (key: string): ReasoningLevel | undefined => {
       const v = window.localStorage.getItem(key);
       return v && valid.has(v) ? (v as ReasoningLevel) : undefined;
