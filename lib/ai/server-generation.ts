@@ -792,6 +792,9 @@ export function backgroundServe(args: {
   /** Fixed delay before each retry (docs: "Retrying in Ns · attempt x/y"). */
   retryBackoffMs?: number;
   sendReasoning: boolean;
+  /** Reasoning effort for THIS turn — drives the stream-level thinking-token
+   *  cap (operator 2026-10-09). Undefined = off/unknown → no token cap. */
+  reasoningLevel?: string;
   assistantId: string;
   chatId: string;
   userId: string;
@@ -823,6 +826,7 @@ export function backgroundServe(args: {
     result,
     streamFactory,
     sendReasoning,
+    reasoningLevel,
     assistantId,
     chatId,
     userId,
@@ -1067,6 +1071,22 @@ export function backgroundServe(args: {
         30_000,
         Number(process.env.LEOPARD_REASONING_BUDGET_MS ?? 240_000) || 240_000,
       );
+      // Stream-level THINKING-TOKEN cap (operator 2026-10-09): NIM doesn't
+      // expose reasoning_budget per model, so count reasoning-delta chars
+      // (≈4 chars/token) and cut the attempt at the tier's cap. The retry loop
+      // treats this as content-free → escalates/retries one tier down.
+      // low ~2k · medium ~4k · high ~8k · max/on ~16k (on = binary models).
+      const REASONING_TOKEN_CAP =
+        reasoningLevel === "low"
+          ? 2_048
+          : reasoningLevel === "medium"
+            ? 4_096
+            : reasoningLevel === "high"
+              ? 8_192
+              : reasoningLevel === "max" || reasoningLevel === "on"
+                ? 16_384
+                : 0; // off/unset → no cap (no thinking expected)
+      let reasoningChars = 0;
       const it = merged[Symbol.asyncIterator]();
       try {
         for (;;) {
@@ -1099,7 +1119,25 @@ export function backgroundServe(args: {
             firstReasoningAt === null
           )
             firstReasoningAt = Date.now();
+          // Count reasoning tokens (chars/4 ≈ tokens) toward the tier cap.
+          if (ctype === "reasoning-delta") {
+            reasoningChars += String(
+              (chunk as { delta?: string }).delta ?? "",
+            ).length;
+          }
           if (ctype === "text-start" || ctype === "text-delta") sawAnswerText = true;
+          // Thinking-token cap: reasoning burned past the tier budget with no
+          // answer yet → cut the attempt (content-free → retry escalates down
+          // a tier per the operator's length-truncation rule).
+          if (
+            REASONING_TOKEN_CAP > 0 &&
+            !sawAnswerText &&
+            reasoningChars / 4 > REASONING_TOKEN_CAP
+          ) {
+            throw new Error(
+              `reasoning token budget exceeded: ~${Math.round(reasoningChars / 4)} thinking tokens (cap ${REASONING_TOKEN_CAP} for ${reasoningLevel})`,
+            );
+          }
           if (
             firstReasoningAt !== null &&
             !sawAnswerText &&
@@ -1208,7 +1246,8 @@ export function backgroundServe(args: {
         // though reasoning-deltas set `committed` — the user got zero answer;
         // escalate to the next attempt/model instead of parking on a
         // reasoning-only turn (2026-09-04 token-burn guard).
-        const budgetHit = outcome?.error?.startsWith("reasoning budget exceeded") === true;
+        const budgetHit = outcome?.error?.startsWith("reasoning") === true &&
+          outcome.error.includes("budget exceeded");
         if ((committed && !budgetHit) || attempt >= maxAttempts) break;
         if (retryPredicate && !retryPredicate(outcome?.error ?? "")) break;
 
