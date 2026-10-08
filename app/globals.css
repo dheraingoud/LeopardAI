@@ -1656,7 +1656,7 @@ pre code {
   }
 }
 
-/* ── aui shimmer (ported from @assistant-ui/tw-shimmer, text-shimmer only) ── */
+/* ── text shimmer (leopard) ── */
 @property --shimmer-track-height {
   syntax: "<length>";
   inherits: true;
@@ -1779,7 +1779,7 @@ pre code {
 }
 
 /* Φ-live: amber streaming caret — blinks at the end of the growing markdown
-   tail while a reply streams (aui StreamingText look, leopard hue). */
+   tail while a reply streams (leopard). */
 .leopard-stream-caret {
   display: inline-block;
   width: 2px;

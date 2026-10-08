@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /**
- * @-mention popover (aui-forked, leopard-styled). Offers recent chat titles
+ * @-mention popover (leopard). Offers recent chat titles
  * (max 8) from the same Convex source the sidebar uses (api.chats.list, ordered
  * desc by updatedAt). Selecting one applies `applyMention` (composer.tsx) —
  * plain-text insertion, no backend change. Pure presentational; the parent owns

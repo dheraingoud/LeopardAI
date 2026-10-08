@@ -369,6 +369,18 @@ export default function Sidebar({
                 .map((c) => (
                   <StaleGeneratingSweeper key={c._id} chatId={c._id} userId={userId} />
                 ))}
+              {/* Empty state (audit 2026-10-08: a fresh/fully-deleted account
+                  rendered a blank void under the search box). */}
+              {chats !== undefined && Object.keys(grouped).length === 0 && (
+                <div className="px-3 py-8 text-center">
+                  <p className="text-[13px] font-medium dark:text-[#a3a3a3] light:text-[#525252]">
+                    No chats yet
+                  </p>
+                  <p className="mt-1 text-[11px] dark:text-[#505050] light:text-[#9a9a9a]">
+                    Start one — your conversations show up here.
+                  </p>
+                </div>
+              )}
               {Object.entries(grouped).map(([bucket, items]) => (
                 <ThreadList
                   key={bucket}
