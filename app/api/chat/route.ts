@@ -1137,16 +1137,27 @@ export async function POST(request: Request) {
         // efforts get smaller caps so cheap turns can't balloon; high/max
         // keep headroom for long think+answer runs. AI SDK v6 streams use
         // `maxOutputTokens` (NOT `maxTokens`).
+        // Tiered by reasoning level (operator 2026-10-09): NIM has no separate
+        // thinking-token budget — reasoning burns from the SAME completion
+        // budget, so the cap IS the thinking budget plus answer room.
+        //   off/unset → 4096  (instant: no thinking)
+        //   low       → 6144  (~1–2k think + answer room)
+        //   medium    → 8192  (~4k think + answer room; product default)
+        //   high      → 12288 (~8k think + answer room)
+        //   max       → 20480 (16k think + answer room; picker labels it slow)
+        //   "on" (binary on/off models) → 8192 (~6k thinking budget)
         maxOutputTokens:
           body.reasoning === "max"
-            ? 24576
+            ? 20480
             : body.reasoning === "high"
-              ? 16384
+              ? 12288
               : body.reasoning === "medium"
-                ? 12288
+                ? 8192
                 : body.reasoning === "low"
-                  ? 8192
-                  : 4096, // off / unset — plain chat never needs more
+                  ? 6144
+                  : body.reasoning === "on"
+                    ? 8192 // binary on/off models — ~6k thinking budget
+                    : 4096, // off / unset — plain chat never needs more
         // Φ-docs · per-turn cost/latency/tool observability (P2.4 feeder).
         // recordInputs/outputs:false still emits the usage/latency/tool-call
         // events (it only drops payloads) — cost estimate + latency + tool list
