@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { PreviewMessage, ThinkingMessage } from "./message";
+import { MessageRenderBoundary } from "./message-error-boundary";
 import { EmptyState, EmptyStateGreeting } from "./leopard/empty-state";
 import { ErrorState } from "./leopard/error-state";
 import { Composer } from "./leopard/composer";
@@ -112,8 +113,10 @@ function renderTranscript(
     if (message.role === "user") flush();
     if (pairNodes.length === 0) pairKey = message.id;
     pairNodes.push(
+      // Per-message error boundary (audit 2026-10-09): a throwing renderer
+      // (mermaid/KaTeX/chart edge case) must not unmount the whole transcript.
+      <MessageRenderBoundary key={`${message.id}-${index}`}>
       <PreviewMessage
-        key={`${message.id}-${index}`}
         message={message}
         isLast={index === messages.length - 1}
         status={status}
@@ -133,7 +136,8 @@ function renderTranscript(
                 (p as { toolName?: string }).toolName === "spawn_agents"),
           )
         }
-      />,
+      />
+      </MessageRenderBoundary>,
     );
   });
   flush();
@@ -345,6 +349,30 @@ export function Messages() {
           />
         )}
         {isThinking && <ThinkingMessage />}
+        {/* Truncation banner (audit 2026-10-09): the route stamps
+            data-truncated when finish_reason==="length" (maxOutputTokens hit).
+            Without it a mid-sentence cut-off read as a clean completion. */}
+        {(() => {
+          const last = messages[messages.length - 1];
+          const truncated =
+            status !== "streaming" &&
+            status !== "submitted" &&
+            last?.role === "assistant" &&
+            last.parts.some((p) => (p as { type?: string }).type === "data-truncated");
+          if (!truncated) return null;
+          return (
+            <div className="my-3 inline-flex items-center gap-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.08] px-3 py-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+              <span>The reply hit the length limit and was cut off.</span>
+              <button
+                type="button"
+                className="rounded-md border border-amber-500/30 px-2 py-0.5 font-medium hover:bg-amber-500/10"
+                onClick={() => chat.regenerateMessage(last.id)}
+              >
+                Continue
+              </button>
+            </div>
+          );
+        })()}
         {/* Stall/reconnect signal: the server is retrying a hung upstream
             (kimi/deepseek headers-timeout pattern). Without this the user saw a
             frozen "Working on it…" for 40s+ with no explanation (audit 2026-10-06). */}

@@ -1016,6 +1016,10 @@ export function backgroundServe(args: {
   // output preservation).
   let committed = false;
   let lastResult: any = null;
+  // Set when ANY attempt's finish chunk reports finishReason:"length" (hit
+  // maxOutputTokens). Hoisted to generation scope — driveAttempt is per-attempt,
+  // but the flag rides the final persist below. Reset per attempt start.
+  let truncatedByLength = false;
 
   /** Consume ONE streamText result to its end, forwarding every chunk. Returns
    * `error` if the stream's terminal state was a failure. Safe to re-invoke on a
@@ -1087,6 +1091,9 @@ export function backgroundServe(args: {
                 ? 16_384
                 : 0; // off/unset → no cap (no thinking expected)
       let reasoningChars = 0;
+      // Per-attempt reset; the finish-chunk check below sets the
+      // generation-scoped flag (truncatedByLength, declared above).
+      truncatedByLength = false;
       const it = merged[Symbol.asyncIterator]();
       try {
         for (;;) {
@@ -1119,6 +1126,17 @@ export function backgroundServe(args: {
             firstReasoningAt === null
           )
             firstReasoningAt = Date.now();
+          // finish_reason=length (audit 2026-10-09): the model hit the
+          // maxOutputTokens cap and the answer ended mid-sentence — but the
+          // stream closed cleanly, so nothing flagged it. Remember it; the
+          // final persist stamps a data-truncated part the client turns into
+          // a "cut off" banner + retry affordance.
+          if (
+            ctype === "finish" &&
+            (chunk as { finishReason?: string }).finishReason === "length"
+          ) {
+            truncatedByLength = true;
+          }
           // Count reasoning tokens (chars/4 ≈ tokens) toward the tier cap.
           if (ctype === "reasoning-delta") {
             reasoningChars += String(
@@ -1276,9 +1294,19 @@ export function backgroundServe(args: {
         const sdkParts = Array.isArray(await lastResult.parts)
           ? await lastResult.parts
           : null;
-        const finalParts = normalizeUIMessageParts(
+        let finalParts = normalizeUIMessageParts(
           sdkParts ?? accParts,
         ) as unknown[];
+        // finish_reason=length marker rides the FINAL parts (not just the
+        // accumulator) so it survives the sdkParts branch too.
+        if (truncatedByLength) {
+          // NOT transient — must persist so a reload still shows the cut-off
+          // banner (data-* parts are accepted by the client's chunk schema).
+          finalParts = [
+            ...finalParts,
+            { type: "data-truncated", data: { reason: "length" } } as never,
+          ];
+        }
 
         // SDK response parts drop our durationMs stamp — re-attach so the
         // "Thought for N" label survives reload (operator 2026-09-04).
