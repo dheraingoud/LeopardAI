@@ -32,7 +32,14 @@ export function parseChartSpec(code: string): ChartSpec | null {
           typeof (p as ChartSeriesPoint).value === "number" &&
           Number.isFinite((p as ChartSeriesPoint).value),
       )
-      .slice(0, 12);
+      // Cap for layout, but AGGREGATE the tail into "other" instead of
+      // silently dropping it (audit 2026-10-09, deep-sweep #7).
+      .reduce<ChartSeriesPoint[]>((acc, p, i) => {
+        if (i < 11) acc.push(p);
+        else if (acc.length === 11) acc.push({ label: "Other", value: p.value });
+        else acc[11].value += p.value;
+        return acc;
+      }, []);
     if (series.length === 0) return null;
     return {
       title: typeof raw.title === "string" ? raw.title : undefined,
@@ -52,7 +59,9 @@ export function BarChart({
   series: readonly ChartSeriesPoint[];
   className?: string;
 }) {
-  const max = Math.max(...series.map((p) => p.value), 0);
+  // Scale by max |value| so an all-negative series still draws bars (audit
+  // 2026-10-09: Math.max(…,0) gave max=0 → every bar zero-width).
+  const max = Math.max(...series.map((p) => Math.abs(p.value)), 0);
   return (
     <figure
       data-slot="bar-chart"
@@ -65,7 +74,7 @@ export function BarChart({
       )}
       <div className="flex flex-col gap-2">
         {series.map((p, i) => {
-          const top = p.value === max && max > 0;
+          const top = Math.abs(p.value) === max && max > 0;
           return (
             <div key={`${p.label}-${i}`} className="flex items-center gap-3">
               <span className="w-24 shrink-0 truncate text-[13px] text-foreground/70">
@@ -80,7 +89,7 @@ export function BarChart({
                       : "bg-foreground/25",
                   )}
                   style={{
-                    width: `${max > 0 ? Math.max((p.value / max) * 100, 2) : 0}%`,
+                    width: `${max > 0 ? Math.max((Math.abs(p.value) / max) * 100, 2) : 0}%`,
                     animationDelay: `${i * 60}ms`,
                   }}
                 />

@@ -213,14 +213,26 @@ export function Messages() {
     ghost !== null && !messages.some((m) => m.id === ghost.id);
 
   // Kit scroll-anchor: count messages that arrived while unpinned; the pill
-  // jumps to bottom + repins.
+  // jumps to bottom + repins. Streaming growth counts too (audit 2026-10-09,
+  // deep-sweep #10): a long streamed answer used to grow the transcript with
+  // the pill hidden because message COUNT never changed.
   const [unseen, setUnseen] = useState(0);
   const prevCountRef = useRef(messages.length);
+  const prevStreamLenRef = useRef(0);
   useEffect(() => {
     const prev = prevCountRef.current;
     prevCountRef.current = messages.length;
-    if (!stickToBottomRef.current && messages.length > prev) {
+    const last = messages[messages.length - 1];
+    const streamLen = last?.role === "assistant"
+      ? last.parts.reduce((n, p) => n + ((p as { text?: string }).text?.length ?? 0), 0)
+      : 0;
+    const grew = streamLen - prevStreamLenRef.current;
+    prevStreamLenRef.current = streamLen;
+    if (stickToBottomRef.current) return;
+    if (messages.length > prev) {
       setUnseen((u) => u + (messages.length - prev));
+    } else if (grew > 400) {
+      setUnseen((u) => u + 1); // one tick per sizable streamed chunk
     }
   }, [messages]);
 
@@ -349,6 +361,22 @@ export function Messages() {
           />
         )}
         {isThinking && <ThinkingMessage />}
+        {/* Context-compaction notice (audit 2026-10-09, deep-sweep #13): the
+            route folds old history into a summary when compaction is on —
+            without a chip the context silently shrank with zero signal. */}
+        {chat.compactionNotice && (
+          <div className="my-3 inline-flex items-center gap-3 rounded-lg border border-foreground/[0.1] bg-foreground/[0.04] px-3 py-1.5 text-[12px] text-foreground/60">
+            <span>Earlier messages were summarized to fit the context window.</span>
+            <button
+              type="button"
+              className="rounded-md px-1.5 py-0.5 font-medium hover:bg-foreground/[0.08]"
+              onClick={() => chat.dismissCompactionNotice()}
+              aria-label="Dismiss compaction notice"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {/* Truncation banner (audit 2026-10-09): the route stamps
             data-truncated when finish_reason==="length" (maxOutputTokens hit).
             Without it a mid-sentence cut-off read as a clean completion. */}

@@ -634,6 +634,8 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Φ11 forks: inline user edit / regen model menu / thumbs-down dialog.
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
+  // Tool-error cards dismissed via Skip (segment index) — hidden, not deleted.
+  const [dismissedToolErr, setDismissedToolErr] = useState<ReadonlySet<number>>(new Set());
   const [regenOpen, setRegenOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackReasons, setFeedbackReasons] = useState<string[]>([]);
@@ -849,12 +851,18 @@ export const PreviewMessage = memo(function PreviewMessage({
         // `state:"ask"` segment the raw-type branch produces (which carries
         // approvalId for the Allow/Deny → addToolApprovalResponse call).
         const toolName = p.toolName ?? (p.type?.startsWith("tool-") ? p.type.slice(5) : undefined) ?? "tool";
+        // createDocument renders ONCE via DocumentCard (docParts path) —
+        // skipping it here kills the ToolCard+DocumentCard double-render
+        // (audit 2026-10-09, deep-sweep #3).
+        if (toolName === "createDocument") continue;
         const isApproval = p.state === "approval-requested";
         const approvalId = isApproval
           ? (p as unknown as { approval?: { id?: string } }).approval?.id
           : undefined;
         // Map raw v7 tool-part states onto the card's vocabulary — live parts
-        // carry e.g. "input-available" which is NOT a resting state.
+        // carry e.g. "input-available" which is NOT a resting state. UNKNOWN
+        // states fall to "unknown" → the stale-pending gate renders a neutral
+        // interrupted chip (never a green success card) — audit 2026-10-09 #12.
         const mapToolState = (s?: string): string =>
           s === "input-streaming"
             ? "streaming"
@@ -866,7 +874,9 @@ export const PreviewMessage = memo(function PreviewMessage({
                   ? "error"
                   : s === "output-denied"
                     ? "denied"
-                    : (s ?? "complete");
+                    : (s === "pending" || s === "streaming" || s === "ask" || s === "complete"
+                        ? s
+                        : "unknown");
         const last = out[out.length - 1] as Seg | undefined;
         if (
           last &&
@@ -1346,6 +1356,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                   typeof seg.output === "object" && seg.output !== null
                     ? ((seg.output as { error?: string }).error ?? "Tool call failed")
                     : "Tool call failed";
+                // Dismissed tool errors hide (Skip); Retry re-runs the turn
+                // (audit 2026-10-09: both buttons used to render disabled
+                // dead-ends — no handlers were ever passed).
+                if (dismissedToolErr.has(i)) return null;
                 return (
                   <ToolError
                     key={`te-${i}`}
@@ -1355,6 +1369,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                     attempt={1}
                     maxAttempts={1}
                     retrying={false}
+                    onRetry={() => chat.regenerateMessage(message.id)}
+                    onSkip={() =>
+                      setDismissedToolErr((s) => new Set(s).add(i))
+                    }
                   />
                 );
               }
@@ -1369,7 +1387,10 @@ export const PreviewMessage = memo(function PreviewMessage({
               // neutral chip, not a red "Tool call failed" + inert Retry (audit
               // 2026-10-06). A real error carries output.error and shows ToolError.
               const stalePending =
-                !live && (seg.state === "pending" || seg.state === "streaming");
+                !live &&
+                (seg.state === "pending" ||
+                  seg.state === "streaming" ||
+                  seg.state === "unknown");
               if (stalePending && seg.output == null) {
                 return (
                   <div

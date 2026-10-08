@@ -140,6 +140,9 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Transient "reconnecting/switching model" signal while the server retries a
    *  stalled upstream. Null when the stream is flowing normally. */
   stallSignal: { attempt: number; maxRetries: number; delayMs: number } | null;
+  /** Set when the route compacted old history into a summary this turn. */
+  compactionNotice: boolean;
+  dismissCompactionNotice: () => void;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -564,6 +567,14 @@ export function ActiveChatProvider({
         };
         stallSignalRef.current = next;
         setStallSignal(next);
+        return;
+      }
+      // data-compaction (audit 2026-10-09, deep-sweep #13): the route folds old
+      // history into a summary when LEOPARD_CONTEXT_COMPACT=1; the client had
+      // NO case for it → context silently shrank with zero user signal. Show a
+      // dismissible notice chip (mirrors the stall-chip pattern).
+      if ((part as { type?: string }).type === "data-compaction") {
+        setCompactionNotice(true);
         return;
       }
       // Real content flowing again → drop the "reconnecting" stall chip.
@@ -1060,6 +1071,9 @@ export function ActiveChatProvider({
   const [stallSignal, setStallSignal] = useState<{ attempt: number; maxRetries: number; delayMs: number } | null>(null);
   // Ref mirror so the memoized onData (created once) reads the live value.
   const stallSignalRef = useRef<typeof stallSignal>(null);
+  // Context-compaction notice (data-compaction) — true until dismissed or the
+  // next user send.
+  const [compactionNotice, setCompactionNotice] = useState(false);
 
   const stopGeneration = useCallback(() => {
       cancelRetryRef.current();
@@ -1112,6 +1126,24 @@ export function ActiveChatProvider({
     [chat.stop, chatId, isDraft, uid, settleStreaming],
   );
 
+  // Settle-aware wait (audit 2026-10-09, deep-sweep #4): edit/regen used to
+  // sleep a fixed 400ms after /stop, but the route's abort-finalize upsert can
+  // land LATER than that — the mirror then resurrected the aborted row under
+  // the resent turn. Poll the rows until no assistant row is still streaming
+  // (or 5s cap, matching the settleStreaming grace), THEN delete.
+  const waitForStreamingSettle = useCallback(async () => {
+    for (let i = 0; i < 25; i++) {
+      const stale = (convexMessagesRef.current ?? []).some(
+        (m) => m.role === "assistant" && m.status === "streaming",
+      );
+      if (!stale) return;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    // Cap hit: proceed anyway — the settled-by-settleStreaming fallback in
+    // stopGeneration (5s) will land about now; a longer wait risks the user
+    // perceiving a frozen edit/regen.
+  }, []);
+
   // ── Hung-request watchdog (X3.2): a POST that never answers (proxy swallow,
   // dead upstream before first byte) leaves the SDK stuck in "submitted"/
   // "streaming" forever — spinner with no way back short of reload. The server
@@ -1162,6 +1194,8 @@ export function ActiveChatProvider({
   // (persistence, server title, live-mirror all behave as usual).
   const sendMessage = useCallback<ActiveChatContextValue["sendMessage"]>(
     (message, options) => {
+      // A new turn supersedes the compaction notice from the previous one.
+      setCompactionNotice(false);
       if (!isDraft) return chat.sendMessage(message, options);
       const u = uidRef.current;
       if (!u) return Promise.resolve(undefined as never);
@@ -1269,7 +1303,7 @@ export function ActiveChatProvider({
           : undefined;
       const cleanup = target
         ? stopped
-            .then(() => new Promise((r2) => setTimeout(r2, 400)))
+            .then(() => waitForStreamingSettle())
             .then(() =>
               deleteAfterTimestamp({
                 chatId: convexChatId,
@@ -1305,7 +1339,7 @@ export function ActiveChatProvider({
         }
       });
     },
-    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
+    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration, waitForStreamingSettle],
   );
 
   // ── Edit (user message) with server-row cleanup ───────────────────────────
@@ -1332,9 +1366,10 @@ export function ActiveChatProvider({
           // — the route then re-persists them (duplicate bubbles, 2026-09-01).
           // Also: the abort's finalize-partial write lands just AFTER /stop
           // responds — deleting before it lets that upsert resurrect the old
-          // assistant row. Stop, breathe 400ms, THEN delete.
+          // assistant row. Stop, wait until no row is still streaming (5s cap),
+          // THEN delete (settle-aware — fixed 400ms raced, audit 2026-10-09).
           deleted = stopped
-            .then(() => new Promise((r) => setTimeout(r, 400)))
+            .then(() => waitForStreamingSettle())
             .then(() =>
               deleteAfterTimestamp({
                 chatId: convexChatId,
@@ -1353,7 +1388,7 @@ export function ActiveChatProvider({
       });
       return deleted;
     },
-    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration],
+    [isDraft, convexMessages, convexChatId, deleteAfterTimestamp, chat, stopGeneration, waitForStreamingSettle],
   );
 
   // Edit → auto-resend (operator 2026-09-01: "save and proceed" that doesn't
@@ -1602,6 +1637,8 @@ export function ActiveChatProvider({
     retrying,
     lastErrorReason,
     stallSignal,
+    compactionNotice,
+    dismissCompactionNotice: () => setCompactionNotice(false),
     chatMeta: chatMeta ?? null,
     isLoading,
     currentModelId,
