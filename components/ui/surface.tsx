@@ -5,7 +5,7 @@ import type { ComponentProps, RefObject } from "react";
 
 /**
  * Surface → SOLID SURFACE (2026-08-26): the liquid-glass system was
- * retired app-wide (user directive — "remove glass entirely, adopt the aui
+ * retired app-wide (user directive — "remove glass entirely, adopt the flat
  * fork end to end"). The component name/props stay so existing call sites
  * (artifact panel, modals, badges) keep compiling; it now renders an opaque
  * field surface — no backdrop blur, no refraction SVG, no specular rim.

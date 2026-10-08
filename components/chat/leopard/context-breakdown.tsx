@@ -124,7 +124,7 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
 
       <PopoverContent side="top" align="end" sideOffset={8} className="w-[300px]">
         {/* Popover chrome (surfaces) owns the card shell — inner content is
-            surface-less so the two don't double up (aui-true, 2026-08-31). */}
+            surface-less so the two don't double up (2026-08-31). */}
         <div data-slot="context-breakdown" className="flex w-full flex-col gap-3 px-2 py-1.5">
           <div className="flex items-baseline justify-between">
             <span className="text-[13.5px] font-medium dark:text-[#e5e5e5] light:text-[#262626]">Context</span>

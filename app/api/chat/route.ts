@@ -294,7 +294,12 @@ async function streamImageGeneration({
   const lastUser = lastUserMessage(messages);
   const prompt = lastUser ? getTextFromUIMessage(lastUser) : "";
   if (!prompt) {
-    return Response.json({ error: "empty_prompt" }, { status: 400 });
+    // User-readable, not a bare code (audit 2026-10-08: "empty_prompt" reached
+    // the error card verbatim).
+    return Response.json(
+      { error: "empty_prompt", message: "Describe the image you want — a prompt is required." },
+      { status: 400 },
+    );
   }
 
   // Φ9 qwen-image-edit: pull the first image attachment off the last user

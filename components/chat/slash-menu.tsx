@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { skillSlug, type SkillConfig } from "@/lib/skill-config";
 
 /**
- * Slash-command popover (aui-forked, leopard-styled). Lists ENABLED skills as
+ * Slash-command popover (leopard). Lists ENABLED skills as
  * `/slug` command cards. Inserting a match places `/<slug> ` in the textarea —
  * the token the server parses via `getInvokedSkillBodies` (lib/skill-config).
  * Pure presentational: the parent owns input, open state, active index, and

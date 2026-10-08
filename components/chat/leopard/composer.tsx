@@ -93,16 +93,21 @@ function ComposerActions({ className, ...props }: ComponentProps<"div">) {
 function ComposerSend({
   streaming,
   idle,
+  modelDown,
   className,
   ...props
 }: Omit<ComponentProps<"button">, "children"> & {
   streaming: boolean;
   idle: boolean;
+  /** Down-model gate stays clickable (the submit gate toasts the reason) but
+   *  reads disabled — aria-disabled + dimmed, not the disabled attribute. */
+  modelDown?: boolean;
 }) {
   return (
     <button
       type={streaming ? "button" : "submit"}
-      disabled={!streaming && idle}
+      disabled={!streaming && idle && !modelDown}
+      aria-disabled={!streaming && idle && modelDown ? true : undefined}
       aria-label={streaming ? "Stop generating" : "Send message"}
       data-slot="composer-send"
       className={cn(
@@ -148,7 +153,7 @@ function ComposerAttachMenu({
   const mediaAccept = modelImageEdit && !modelVision ? "image/*" : "image/*,video/*";
   const mediaHint = modelVision ? undefined : modelImageEdit ? "image only" : "needs VLM";
 
-  // aui-style menu rows: left icon + sentence-case label + right hint chip.
+  // menu rows: left icon + sentence-case label + right hint chip.
   const item = (
     label: string,
     icon: ReactNode,
@@ -598,7 +603,16 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                     title="Stop"
                   />
                 ) : (
-                  <ComposerSend streaming={false} idle={!canSend} title="Send" />
+                  // modelDown keeps the button CLICKABLE (the handleSubmit gate
+                  // fires the explaining toast) but dims it + title says why —
+                  // audit 2026-10-08: a fully enabled-looking send into a dead
+                  // model read as a bug before the toast landed.
+                  <ComposerSend
+                    streaming={false}
+                    idle={!canSend || modelDown}
+                    modelDown={modelDown}
+                    title={modelDown ? "Model is currently down — pick another" : "Send"}
+                  />
                 )}
               </ComposerActions>
             </div>
