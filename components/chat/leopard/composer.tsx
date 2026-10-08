@@ -372,7 +372,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     return s.loaded && h !== undefined && !h.ok;
   });
   const canSend = hasContent && !isStreaming && !uploading;
-  const { queued, enqueue, drain } = useMessageQueue();
+  const { queued, enqueue, drain, remove: removeQueued } = useMessageQueue();
 
   // Flush queued text once the active run returns to ready. Gate on a CLEAN
   // completion — status==='error' is not in isStreaming, so a partial stream
@@ -397,15 +397,20 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     if (kind === "media" && !modelVision && !modelImageEdit) return;
     setUploading(true);
     try {
+      // QA m4: skip exact duplicates — against queued attachments AND within
+      // this batch (the state check alone races: same-batch appends aren't
+      // visible until the next render).
+      const seen = new Set(attachments.map((a) => a.name));
       for (const f of Array.from(files)) {
         if (kind === "media" && modelImageEdit && !modelVision && !f.type.startsWith("image/")) continue;
-        // QA m4: skip exact duplicates (same name + size already queued).
-        if (attachments.some((a) => a.name === f.name)) continue;
+        if (seen.has(f.name)) continue;
+        seen.add(f.name);
         const up = await uploadFile(f);
         setAttachments((a) => [...a, { url: up.url, name: up.name, mediaType: up.mediaType }]);
       }
     } catch (e) {
       console.error("upload failed", e);
+      toast.error("Attachment upload failed — the file wasn't added. Try again.");
     } finally {
       setUploading(false);
     }
@@ -511,6 +516,14 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 <span className="font-mono text-[9px] uppercase tracking-tight dark:text-[#ffb400]/70 light:text-[#d49600]/80">
                   queued
                 </span>
+                <button
+                  type="button"
+                  aria-label="Remove from queue"
+                  className="ml-0.5 rounded p-0.5 text-[11px] leading-none dark:text-[#a3a3a3]/60 dark:hover:text-[#e5e5e5] light:text-[#525252]/60 light:hover:text-[#262626]"
+                  onClick={() => removeQueued(q.id)}
+                >
+                  ×
+                </button>
               </span>
             ))}
           </div>

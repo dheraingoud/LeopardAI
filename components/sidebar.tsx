@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import {
@@ -179,11 +180,19 @@ export default function Sidebar({
 
   const handleRename = async (chatId: string) => {
     if (editTitle.trim() && userId) {
-      await renameChat({
-        chatId: chatId as Id<"chats">,
-        userId,
-        title: editTitle.trim(),
-      });
+      try {
+        await renameChat({
+          chatId: chatId as Id<"chats">,
+          userId,
+          title: editTitle.trim(),
+        });
+      } catch (e) {
+        // Keep the editor open so the typed title isn't silently lost (audit
+        // 2026-10-08: a failed rename used to discard the new title).
+        toast.error("Rename didn't save — try again.");
+        console.error("[sidebar] rename failed", e);
+        return;
+      }
     }
     setEditingId(null);
   };
@@ -208,7 +217,15 @@ export default function Sidebar({
     // The abort's finalize-partial write lands just after /stop responds —
     // give it a beat so the row delete below isn't followed by a zombie upsert.
     await new Promise((r) => setTimeout(r, 300));
-    await deleteChat({ chatId: chatId as Id<"chats">, userId });
+    try {
+      await deleteChat({ chatId: chatId as Id<"chats">, userId });
+    } catch (e) {
+      // Keep the confirm dialog open + say why (audit 2026-10-08: a failed
+      // delete used to leave the dialog open with no error signal).
+      toast.error("Couldn't delete the chat — try again.");
+      console.error("[sidebar] delete failed", e);
+      return;
+    }
     if (pathname === `/chat/${chatId}`) {
       router.push("/chat");
     }

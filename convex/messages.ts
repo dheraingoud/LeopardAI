@@ -129,11 +129,16 @@ export const upsertAssistant = internalMutation({
       if (args.status !== undefined) patch.status = args.status;
       if (args.model !== undefined) patch.model = args.model;
       await ctx.db.patch(existing._id, patch);
+      // Sidebar freshness (audit 2026-10-08): text turns never touched the chat
+      // row's updatedAt, so list ordering + unread went stale mid-conversation.
+      // Throttle to completed/streaming-flip patches (not every debounced
+      // streaming patch) to keep write volume flat.
       // Sidebar "generating" blink (2026-09-04): mirror the lifecycle onto the
       // chat row so the list shows a live dot without a per-chat query.
       if (args.status !== undefined) {
         await ctx.db.patch(args.chatId, {
           generating: args.status === "streaming",
+          updatedAt: Date.now(),
         });
       }
       return { _id: existing._id, id: args.id, createdAt: existing.createdAt, updated: true };
@@ -151,6 +156,7 @@ export const upsertAssistant = internalMutation({
     if (args.status !== undefined) {
       await ctx.db.patch(args.chatId, {
         generating: args.status === "streaming",
+        updatedAt: Date.now(),
       });
     }
     return { _id: inserted, id: args.id, createdAt: undefined, updated: false };

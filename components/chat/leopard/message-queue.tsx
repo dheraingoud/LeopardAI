@@ -34,7 +34,14 @@ export function useMessageQueue() {
     return drained;
   }, []);
 
-  return { queued, enqueue, drain };
+  // Remove one held message (audit 2026-10-08: queued chips had no cancel —
+  // on a failed turn the queue was a dead-end the user couldn't edit).
+  const remove = useCallback((id: string) => {
+    listRef.current = listRef.current.filter((m) => m.id !== id);
+    setQueued(listRef.current);
+  }, []);
+
+  return { queued, enqueue, drain, remove };
 }
 
 export function MessageQueue({

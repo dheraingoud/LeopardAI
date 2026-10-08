@@ -267,13 +267,21 @@ export function ActiveChatProvider({
   const resolveReasoningFor = (mid: string, cid?: string): ReasoningLevel | undefined => {
     const cfg = getModelById(mid)?.reasoningConfig;
     if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
+    // Valid levels for this card (audit 2026-10-08): a stale localStorage value
+    // from an older effort set (e.g. "medium" on a low/high/max-only model)
+    // used to ride the request and NIM 400'd the turn.
+    const valid = new Set<string>(["off", "on", ...(cfg.effortLevels ?? [])]);
+    const read = (key: string): ReasoningLevel | undefined => {
+      const v = window.localStorage.getItem(key);
+      return v && valid.has(v) ? (v as ReasoningLevel) : undefined;
+    };
     try {
       if (cid && cid !== "draft") {
-        const chatSaved = window.localStorage.getItem(reasoningKey(mid, cid));
-        if (chatSaved) return chatSaved as ReasoningLevel;
+        const chatSaved = read(reasoningKey(mid, cid));
+        if (chatSaved) return chatSaved;
       }
-      const saved = window.localStorage.getItem(reasoningKey(mid));
-      if (saved) return saved as ReasoningLevel;
+      const saved = read(reasoningKey(mid));
+      if (saved) return saved;
     } catch {
       /* ignore quota / private mode */
     }
@@ -1152,13 +1160,29 @@ export function ActiveChatProvider({
         chat.setMessages([
           { id: "draft-pending", role: "user", parts: parts as never } as never,
         ]);
-        const id = await createChat({
-          userId: u,
-          title: "New Chat",
-          model: currentModelIdRef.current,
-        });
-        stashPendingMessage(id, parts, currentModelIdRef.current);
-        router.replace(`/chat/${id}`);
+        try {
+          const id = await createChat({
+            userId: u,
+            title: "New Chat",
+            model: currentModelIdRef.current,
+          });
+          stashPendingMessage(id, parts, currentModelIdRef.current);
+          router.replace(`/chat/${id}`);
+        } catch (e) {
+          // createChat failed (offline / Convex error): the optimistic bubble
+          // would otherwise sit forever with no chat, no stream, no error card
+          // (the SDK error path never engages — no POST ever fires). Roll the
+          // bubble back, return the text to the composer, and say why (audit
+          // 2026-10-08 — silent message loss).
+          chat.setMessages([]);
+          const text = parts
+            .filter((p): p is PendingPart & { type: "text" } => (p as { type?: string }).type === "text")
+            .map((p) => p.text)
+            .join("\n");
+          if (text) window.dispatchEvent(new CustomEvent("composer:set-text", { detail: { text } }));
+          toast.error("Couldn't start the chat — check your connection and send again. Your message is back in the box.");
+          console.error("[draft-send] createChat failed", e);
+        }
         return undefined as never;
       })();
     },
@@ -1333,7 +1357,14 @@ export function ActiveChatProvider({
           const st = statusRef.current;
           if (st === "streaming" || st === "submitted") {
             if (++tries < 50) setTimeout(attempt, 100);
-            else editWindowRef.current = false; // give up — mirror back on
+            else {
+              // Give-up path (audit 2026-10-08): the edit already truncated the
+              // thread — silently returning loses the user's replacement text
+              // with zero signal. Put the text back in the composer and say so.
+              editWindowRef.current = false; // mirror back on
+              window.dispatchEvent(new CustomEvent("composer:set-text", { detail: { text } }));
+              toast.error("Couldn't resend — the current reply wouldn't stop. Your edited text is back in the box.");
+            }
             return;
           }
           void sendMessage({ text });
