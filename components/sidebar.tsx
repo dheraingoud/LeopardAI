@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getDefaultChatModel } from "@/lib/ai/models";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /** Group chats by relative date buckets */
@@ -136,7 +135,6 @@ export default function Sidebar({
 
   // Convex data
   const chats = useQuery(api.chats.list, userId ? { userId } : "skip");
-  const createChat = useMutation(api.chats.create);
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
 
