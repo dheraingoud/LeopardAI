@@ -16,6 +16,8 @@ export type ModelHealth = {
   id: string;
   ok: boolean;
   latencyMs: number | null;
+  /** Latency tier when ok (slow ≠ down — big models have slow TTFT). */
+  speed?: "fast" | "slow" | "very_slow";
   reason?: string;
 };
 
@@ -81,12 +83,21 @@ export const useModelHealth = create<HealthState>()((set, get) => ({
 }));
 
 /**
- * Human badge for a model's health. undefined = healthy/unknown.
+ * Down badge for a model's health. undefined = healthy/unknown.
  * Product wording is fixed: a failed probe reads "Currently down" regardless
  * of the machine reason (auth/timeout/5xx) — users act on the state, not the
- * cause. The raw reason stays on the object for debugging/telemetry.
+ * cause. Slow-but-serving models are ok:true and get a SPEED badge instead
+ * (see speedLabel) — latency is not an outage.
  */
 export function healthLabel(h: ModelHealth | undefined): string | undefined {
   if (!h || h.ok) return undefined;
   return "Currently down";
+}
+
+/** Speed badge for a healthy model — undefined for fast (the default reading). */
+export function speedLabel(h: ModelHealth | undefined): string | undefined {
+  if (!h?.ok) return undefined;
+  if (h.speed === "slow") return "Slow";
+  if (h.speed === "very_slow") return "Very slow";
+  return undefined;
 }

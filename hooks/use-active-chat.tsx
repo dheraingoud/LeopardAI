@@ -1091,8 +1091,12 @@ export function ActiveChatProvider({
   // "streaming" forever — spinner with no way back short of reload. The server
   // has its own stall watchdog for streams it OWNS; this covers the case where
   // no response ever reaches the client. If status stays non-ready AND no
-  // message content changes for 75s, abort: stopGeneration returns the UI to
+  // message content changes for 150s, abort: stopGeneration returns the UI to
   // "ready" (and halts any detached server generation via the chatId fallback).
+  // 150s, not 75s: the server's own stall→fallback chain needs 45s (stall-open)
+  // + 2.5s backoff + up to ~90s for a slow fallback model (nemotron thinking-on
+  // took 18–34s in the 2026-10-07 window; big models slower) — 75s killed a
+  // healthy fallback mid-flight and showed "Stopped" over a still-working turn.
   useEffect(() => {
     lastActivityRef.current = Date.now();
   }, [chat.messages, chat.status]);
@@ -1104,8 +1108,8 @@ export function ActiveChatProvider({
       chat.status === "streaming" || chat.status === "submitted" || serverStreaming;
     if (!live) return;
     const t = setInterval(() => {
-      if (Date.now() - lastActivityRef.current > 75_000) {
-        console.warn("[chat] hung request — no activity for 75s, aborting");
+      if (Date.now() - lastActivityRef.current > 150_000) {
+        console.warn("[chat] hung request — no activity for 150s, aborting");
         stopGeneration();
       }
     }, 5_000);
