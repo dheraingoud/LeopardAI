@@ -135,7 +135,17 @@ export function getMessageText(message: ChatMessage): string {
 // Session-scoped cache of frozen reasoning durations, keyed by reasoning-text
 // prefix — survives the optimistic→persisted message-id remount so the settled
 // panel keeps "Thought for Ns" (see Message's reasoning tracker).
+// Bounded (audit 2026-10-08): unbounded growth over a long session. FIFO-evict
+// past 200 entries (Map preserves insertion order).
 const reasoningElapsedCache = new Map<string, number>();
+function cacheReasoningElapsed(key: string, ms: number): void {
+  if (reasoningElapsedCache.has(key)) reasoningElapsedCache.delete(key);
+  reasoningElapsedCache.set(key, ms);
+  if (reasoningElapsedCache.size > 200) {
+    const oldest = reasoningElapsedCache.keys().next().value;
+    if (oldest !== undefined) reasoningElapsedCache.delete(oldest);
+  }
+}
 
 function getMessageReasoning(message: ChatMessage): string {
   return message.parts
@@ -682,7 +692,7 @@ export const PreviewMessage = memo(function PreviewMessage({
     }
     if (reasoningStartRef.current !== null && (text || !isStreaming)) {
       const ms = Math.round(performance.now() - reasoningStartRef.current);
-      reasoningElapsedCache.set(reasoning.slice(0, 64), ms);
+      cacheReasoningElapsed(reasoning.slice(0, 64), ms);
       setReasoningMs(ms);
       reasoningStartRef.current = null;
     }
@@ -779,6 +789,10 @@ export const PreviewMessage = memo(function PreviewMessage({
         approvalId?: string;
       };
       if (p.type === "reasoning") {
+        // hideReasoning suppresses the whole segment stream (audit 2026-10-08:
+        // the prop only gated the legacy `reasoning` string, so approval-resume
+        // turns rendered the seeded AND the live thought panels side by side).
+        if (hideReasoning) continue;
         const content = (p.text ?? "").trim();
         if (!content) continue;
         if (!cur || cur.kind !== "reasoning") {
@@ -968,7 +982,7 @@ export const PreviewMessage = memo(function PreviewMessage({
       }
     }
     return out;
-  }, [message.parts, isUser]);
+  }, [message.parts, isUser, hideReasoning]);
 
   // Per-segment live timing (2026-09-05): the message-level reasoningMs made
   // EVERY "Thought" block show the same duration while streaming. Each
@@ -1263,9 +1277,11 @@ export const PreviewMessage = memo(function PreviewMessage({
                   }
                   elapsedMs={seg.durationMs ?? segElapsed.get(i) ?? reasoningMs}
                   effortBadge={
-                    !live &&
-                    currentReasoning &&
-                    currentReasoning !== "off"
+                    // Badge only the LIVE turn (audit 2026-10-08): historical
+                    // rows rendered today's currentReasoning — a later model
+                    // switch silently relabeled old thoughts. The message's own
+                    // level isn't persisted, so "no badge" beats "wrong badge".
+                    live && currentReasoning && currentReasoning !== "off"
                       ? EFFORT_LABEL[currentReasoning]
                       : undefined
                   }
