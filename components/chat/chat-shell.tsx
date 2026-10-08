@@ -147,15 +147,37 @@ export function ChatShell() {
     ];
     for (const m of msgs) {
       const role = m.role === "user" ? "**You**" : "**Leopard**";
-      // Attachments ride as file parts — export them as markers (base64 blobs
-      // don't belong in markdown) so the transcript isn't silently lossy.
-      const fileNotes = (m.parts ?? [])
-        .filter((p) => p.type === "file")
-        .map((p) => {
-          const f = p as { filename?: string; mediaType?: string };
-          return `[attachment: ${f.filename ?? "file"}${f.mediaType ? ` (${f.mediaType})` : ""}]`;
-        });
-      lines.push(`### ${role}`, "", ...fileNotes, getMessageText(m), "", "---", "");
+      lines.push(`### ${role}`, "");
+      // Export every part in stream order (audit 2026-10-08: text-only export
+      // silently dropped reasoning, tool calls, and artifact documents).
+      for (const p of (m.parts ?? []) as Array<{
+        type: string;
+        text?: string;
+        filename?: string;
+        mediaType?: string;
+        toolName?: string;
+        state?: string;
+        title?: string;
+        content?: string;
+        output?: unknown;
+      }>) {
+        if (p.type === "file") {
+          lines.push(`[attachment: ${p.filename ?? "file"}${p.mediaType ? ` (${p.mediaType})` : ""}]`, "");
+        } else if (p.type === "reasoning" && p.text?.trim()) {
+          lines.push(`<details><summary>Thought process</summary>`, "", p.text.trim(), "", `</details>`, "");
+        } else if (p.type === "text" && p.text) {
+          lines.push(p.text, "");
+        } else if (p.type.startsWith("tool-") || p.type === "dynamic-tool") {
+          const name = p.toolName ?? p.type.replace(/^tool-/, "");
+          const out = p.output as { content?: string; title?: string } | string | undefined;
+          const docText =
+            typeof out === "object" && out?.content
+              ? `\n\n\`\`\`\n${String(out.content).slice(0, 8000)}\n\`\`\``
+              : "";
+          lines.push(`> 🔧 **${name}** (${p.state ?? "done"})${docText}`, "");
+        }
+      }
+      lines.push("---", "");
     }
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);

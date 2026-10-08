@@ -1243,15 +1243,20 @@ export function backgroundServe(args: {
 
         // SDK response parts drop our durationMs stamp — re-attach so the
         // "Thought for N" label survives reload (operator 2026-09-04).
-        const accReasoning = accParts.find(
-          (p) => p.type === "reasoning" && (p as { durationMs?: number }).durationMs,
-        ) as { durationMs?: number } | undefined;
-        if (accReasoning?.durationMs !== undefined) {
-          const target = (finalParts as Array<{ type?: string; durationMs?: number }>)
-            .find((p) => p.type === "reasoning");
-          if (target && target.durationMs === undefined) {
-            target.durationMs = accReasoning.durationMs;
-          }
+        // Multi-segment fix (audit 2026-10-08): a turn that thinks twice (tool
+        // call between reasoning blocks) has N reasoning parts — re-attach
+        // each by index, not just the first.
+        {
+          const accReasoning = accParts.filter(
+            (p) => p.type === "reasoning" && (p as { durationMs?: number }).durationMs !== undefined,
+          ) as Array<{ durationMs?: number }>;
+          const finalReasoning = (finalParts as Array<{ type?: string; durationMs?: number }>)
+            .filter((p) => p.type === "reasoning");
+          finalReasoning.forEach((t, i) => {
+            if (t.durationMs === undefined && accReasoning[i]?.durationMs !== undefined) {
+              t.durationMs = accReasoning[i].durationMs;
+            }
+          });
         }
         await enqueueWrite(() =>
           persistAssistantRow({
