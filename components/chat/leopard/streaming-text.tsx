@@ -171,9 +171,17 @@ const MarkdownBlock = memo(function MarkdownBlock({
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={streaming ? [] : [rehypeKatex]}
+        // throwOnError:false (audit 2026-10-09): a malformed $$ block used to
+        // throw mid-render and take the message down; now KaTeX renders the
+        // source with an error class instead.
+        rehypePlugins={streaming ? [] : [[rehypeKatex, { throwOnError: false }]]}
         skipHtml={false}
-        urlTransform={(u) => u}
+        // Block dangerous protocols (audit 2026-10-09: pass-through allowed
+        // javascript:/data: hrefs from model output — a prompt-injected link
+        // would execute). Allow http/https/mailto only.
+        urlTransform={(u) =>
+          /^(https?:|mailto:)/i.test(u) ? u : ""
+        }
         components={components}
       >
         {streaming ? content.replace(/\$\$([^$]+)\$\$/g, "$1") : content}
@@ -292,6 +300,23 @@ function PreBlock({
     // 2026-09-04). DOMPurify tolerates partial markup; a broken partial just
     // renders whatever parses, same as mermaid's live pass.
     return <LiveSvgBlock code={text} streaming={streaming} />;
+  }
+
+  // math/latex/tex fences render as display math (audit 2026-10-09: they used
+  // to fall through to the code card and show raw LaTeX source). Wrap in $$
+  // so remark-math picks it up; throwOnError:false keeps a bad formula from
+  // throwing mid-render.
+  if (lang === "math" || lang === "latex" || lang === "tex") {
+    return (
+      <div className="my-3 overflow-x-auto rounded-lg border border-foreground/[0.07] bg-foreground/[0.02] px-4 py-3">
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
+          rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+        >
+          {`$$\n${text.trim()}\n$$`}
+        </ReactMarkdown>
+      </div>
+    );
   }
 
   return (
@@ -678,12 +703,24 @@ function MermaidBlock({ code, streaming }: { code: string; streaming: boolean })
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const render = async () => {
+      // Empty/whitespace fence (audit 2026-10-09): mermaid.render can RESOLVE
+      // with an empty svg string for empty input — falsy, so the card sat on
+      // "rendering diagram…" forever. Treat empty input as an immediate
+      // soft-fail (view-source fallback) once settled.
+      if (!code.trim()) {
+        if (!streaming) setSoftFailed(true);
+        return;
+      }
       try {
         const out = await renderMermaid(id, code, dark);
         if (active) {
-          setSvg(out);
-          lastGoodRef.current = out;
-          setSoftFailed(false);
+          if (out && out.trim()) {
+            setSvg(out);
+            lastGoodRef.current = out;
+            setSoftFailed(false);
+          } else if (!streaming && !lastGoodRef.current) {
+            setSoftFailed(true);
+          }
         }
       } catch {
         // On failure keep showing the last good render (streaming partials

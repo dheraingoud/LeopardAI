@@ -287,7 +287,12 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
   return (
     <div className="flex-1 overflow-y-auto px-5 py-6 min-h-0">
       <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={(u) => u}>
+        {/* Same allow-list as the transcript (audit 2026-10-09): no
+            javascript:/data: hrefs from model output. */}
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          urlTransform={(u) => (/^(https?:|mailto:)/i.test(u) ? u : "")}
+        >
           {artifact.content}
         </ReactMarkdown>
         {isStreaming && (
