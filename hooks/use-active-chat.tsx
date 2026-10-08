@@ -966,8 +966,21 @@ export function ActiveChatProvider({
     // single markdown-image text part and does NOT backgroundServe, so the server
     // never writes those rows.
     const last = chat.messages[chat.messages.length - 1];
+    // Gate on CONTENT, not the CURRENT model (audit 2026-10-09): an image-gen
+    // reply persisted while the image model was selected, then the user
+    // switched to a text model and reloaded — isImageModel(current) was false
+    // and the reply was never sanitized/persisted, so the image vanished.
     const lastIsImageGen =
-      !!last && last.role === "assistant" && isImageModel(currentModelIdRef.current);
+      !!last &&
+      last.role === "assistant" &&
+      (isImageModel(currentModelIdRef.current) ||
+        last.parts.some(
+          (p) =>
+            p.type === "text" &&
+            /!\[[^\]]*\]\((?:data:image\/|https?:\/\/|blob:)/.test(
+              (p as { text?: string }).text ?? "",
+            ),
+        ));
 
     if (
       lastIsImageGen &&
@@ -1573,6 +1586,12 @@ export function ActiveChatProvider({
     if (chat.status === "ready" || chat.status === "error") {
       stallSignalRef.current = null;
       setStallSignal(null);
+      // Stale artifact settle (audit 2026-10-09): a stop/reload before
+      // data-finish left artifact.status "streaming" forever — the panel spun
+      // "generating…" on a dead turn. Chat settled ⇒ the artifact is done.
+      setArtifactState((a) =>
+        a && a.status === "streaming" ? { ...a, status: "idle" } : a,
+      );
     }
   }, [chat.status]);
 

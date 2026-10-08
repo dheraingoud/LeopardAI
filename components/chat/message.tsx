@@ -284,7 +284,7 @@ function extensionOf(filename: string): string {
  * the tool minted + the client persisted under), so nothing is double-stored.
  * The title region still opens the side ArtifactPanel (existing behavior).
  */
-function DocumentCard({ part }: { part: DocToolPart }) {
+function DocumentCard({ part, live }: { part: DocToolPart; live: boolean }) {
   const { setArtifact } = useActiveChat();
   const [previewOpen, setPreviewOpen] = useState(false);
   // Hooks run unconditionally (React rules): the getLatest query belongs above
@@ -296,8 +296,20 @@ function DocumentCard({ part }: { part: DocToolPart }) {
   const fetched = useQuery(api.documents.getLatest, docId ? { id: docId } : "skip");
   const content = fetched?.content ?? "";
 
-  // Streaming / not-yet-complete → kit ArtifactCard in its generating state.
+  // Streaming / not-yet-complete → generating card ONLY while the turn is
+  // live (audit 2026-10-09: a reload/stop mid-document left the persisted
+  // input-streaming part rendering "Writing…" forever). Settled + no output =
+  // interrupted → neutral chip, same contract as the stale-pending tool path.
   if (part.state !== "output-available" || !part.output) {
+    if (!live) {
+      return (
+        <div className="my-2 inline-flex items-center gap-2 rounded-lg border border-foreground/[0.08] bg-foreground/[0.03] px-3 py-1.5 text-[12px] text-foreground/50">
+          <span className="font-mono text-[10px] uppercase tracking-wide">interrupted</span>
+          <span className="font-medium">{part.input?.title ?? "document"}</span>
+          — the turn stopped before it finished
+        </div>
+      );
+    }
     return (
       <ArtifactCard
         className="mt-3"
@@ -1403,7 +1415,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           {docParts.length > 0 && (
             <div className="mt-1">
               {docParts.map((p, i) => (
-                <DocumentCard key={`doc-${i}`} part={p} />
+                <DocumentCard key={`doc-${i}`} part={p} live={isStreaming} />
               ))}
             </div>
           )}
