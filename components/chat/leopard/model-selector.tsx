@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { useModelHealth, healthLabel } from "@/hooks/use-model-health";
+import { useModelHealth, healthLabel, speedLabel } from "@/hooks/use-model-health";
 import type { ReasoningLevel } from "@/lib/nim";
 
 export type EffortOption = { id: string; name: string };
@@ -34,8 +34,12 @@ export type ModelOption = {
   disabled?: boolean;
   keywords?: readonly string[];
   efforts?: readonly EffortOption[];
-  /** Health badge from the model probe (e.g. "Outage"); undefined = healthy. */
+  /** Down badge from the model probe ("Currently down"); undefined = healthy. */
   badge?: string;
+  /** Speed badge for a healthy-but-slow model ("Slow"/"Very slow"). */
+  speedBadge?: string;
+  /** Internal sort rank — fast 0 … down 3. Not rendered. */
+  _rank?: number;
 };
 
 // Kit ModelSelector, Leopard-wired: popover + search + list + footer effort
@@ -90,6 +94,11 @@ function ModelSelectorTrigger() {
         {selectedModel?.badge && (
           <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
             {selectedModel.badge}
+          </span>
+        )}
+        {selectedModel?.speedBadge && !selectedModel?.badge && (
+          <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            {selectedModel.speedBadge}
           </span>
         )}
         {effortName && (
@@ -241,6 +250,11 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
               {model.badge}
             </span>
           )}
+          {model.speedBadge && !model.badge && (
+            <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {model.speedBadge}
+            </span>
+          )}
         </span>
         {model.description && (
           <span className="text-foreground/40 truncate text-xs">
@@ -322,27 +336,27 @@ function ModelSelectorImpl() {
           : undefined;
       const h = health[m.id];
       const badge = healthLabel(h);
+      const speedBadge = speedLabel(h);
       return {
         id: m.id,
         name: m.name,
         description: m.description.replace(`${m.name} — `, ""),
         // Static registry unavailability OR a live probe failure greys it out.
+        // A SLOW model stays selectable — slow ≠ down (2026-10-08 user call).
         disabled: m.unavailable || badge !== undefined,
         keywords: [m.id],
         efforts,
         badge,
+        speedBadge,
+        // Sort rank: fast(0)/slow(1)/very_slow(2) within healthy; down last(3).
+        _rank: badge !== undefined ? 3 : h?.speed === "very_slow" ? 2 : h?.speed === "slow" ? 1 : 0,
       };
     });
-    // Demote unhealthy models to the bottom of the picker (healthy first).
-    // Stable secondary order = registry order (the map index) so the list
-    // never reshuffles when probes resolve in different orders.
+    // Order: fastest healthy first, slow tiers next, down models last.
+    // Tiebreak = registry index → deterministic, no reshuffle as probes land.
     return list
       .map((m, i) => ({ m, i }))
-      .sort(
-        (a, b) =>
-          Number(a.m.badge !== undefined) - Number(b.m.badge !== undefined) ||
-          a.i - b.i,
-      )
+      .sort((a, b) => a.m._rank - b.m._rank || a.i - b.i)
       .map(({ m }) => m);
   }, [health, healthLoaded]);
 

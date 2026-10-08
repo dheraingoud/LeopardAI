@@ -3,12 +3,14 @@
  * selector's outage badges.
  *
  * For each active text model, fire a minimal 1-token chat completion and time
- * it. A model is `ok` only if a real token comes back inside the per-model
- * timeout; 401/403/404/429/5xx/timeout all map to a short machine `reason` the
- * client turns into a badge ("outage", "slow", …). This is what lets the UI
- * demote a hung/dead model instead of letting the user send into a black hole
- * (the 2026-10-05 "message disappears, retry fails" report traced to a
- * hard-403ing key that nothing surfaced).
+ * it. A model is `ok` when a real token comes back inside the window — the
+ * response LATENCY is classified (`fast`/`slow`/`very_slow`) and surfaced as a
+ * speed badge, never as a down state: big models have slow TTFT under queueing
+ * and slow ≠ down. Only NO response (timeout/401/403/404/429/5xx/empty) marks
+ * a model `!ok` → the picker's "Currently down" badge + demotion. This is what
+ * lets the UI demote a hung/dead model instead of letting the user send into a
+ * black hole (the 2026-10-05 "message disappears, retry fails" report traced
+ * to a hard-403ing key that nothing surfaced).
  *
  * Runs server-side (the NIM key never reaches the browser). Concurrency-capped
  * so a login doesn't fire 9 simultaneous upstream calls. Cheap: max_tokens=1,
@@ -21,20 +23,36 @@ import { currentNimKey, hasNimKey } from "@/lib/ai/nim-keys";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type SpeedClass = "fast" | "slow" | "very_slow";
+
 type Health = {
   id: string;
+  /** ok = the model served a real token inside the window. Slow-but-serving
+   *  is ok:true — latency is surfaced via `speed`, never as a down badge. */
   ok: boolean;
   latencyMs: number | null;
+  /** Latency tier for healthy models; undefined when down. */
+  speed?: SpeedClass;
   reason?: string;
 };
 
-// 45s, not 12s: NIM queues requests under load and a healthy model can sit
-// 25–35s before first byte (nemotron measured 25–34s thinking-off during the
-// 2026-10-07 jitter window). 12s misreported healthy-but-queued models as
-// down — including the default model. Concurrency 4 keeps a login probe to
-// ~2 waves worst case.
-const TIMEOUT_MS = 45_000;
-const CONCURRENCY = 4;
+// 120s, not 45s: big models (kimi-k3, glm-5.3) have legitimately slow TTFT
+// under NIM queueing — 45s misread a slow-but-up fleet as down (user report
+// 2026-10-08: "larger models have more latency in ttft.. doesnt mean its
+// down"). Only NO response at all (timeout/auth/5xx) marks a model down.
+const TIMEOUT_MS = 120_000;
+// 2 workers, not 4: concurrent probes throttle each other at the NIM queue
+// (at 4, even the 7s-solo nemotron timed out at 120s during the 2026-10-08
+// jitter window). 9 models × 2-wide ≈ 5 waves — acceptable for a background
+// probe that never blocks the UI.
+const CONCURRENCY = 2;
+
+/** Latency tiers for the picker's speed badge. */
+function classifySpeed(latencyMs: number): SpeedClass {
+  if (latencyMs < 5_000) return "fast";
+  if (latencyMs < 20_000) return "slow";
+  return "very_slow";
+}
 
 async function probe(id: string, apiKey: string): Promise<Health> {
   const ctrl = new AbortController();
@@ -95,11 +113,11 @@ async function probe(id: string, apiKey: string): Promise<Health> {
       if (completionTokens !== 1) {
         return { id, ok: false, latencyMs, reason: "empty" };
       }
-      return { id, ok: true, latencyMs };
+      return { id, ok: true, latencyMs, speed: classifySpeed(latencyMs) };
     }
     const content = json?.choices?.[0]?.message?.content;
     if (typeof content === "string" && content.length > 0) {
-      return { id, ok: true, latencyMs };
+      return { id, ok: true, latencyMs, speed: classifySpeed(latencyMs) };
     }
     return { id, ok: false, latencyMs, reason: "empty" };
   } catch (e) {
