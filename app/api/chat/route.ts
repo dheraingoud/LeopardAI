@@ -816,6 +816,20 @@ export async function POST(request: Request) {
       console.log(
         `[approval-resume] detected: ${isApprovalResume} rowId: ${pendingRow?.id ?? "null"} seedParts: ${pendingRow?.parts?.length ?? 0}`,
       );
+      // Anchor-miss on a resume must NOT mint a fresh assistant id — that's the
+      // fork that rendered the same answer 3× on a multi-approval turn
+      // (2026-10-09 live repro: 3× gated webFetch → 6 assistant rows). Inside
+      // execute() we can't return an HTTP error — emit an error chunk and end
+      // the stream cleanly instead; the client shows the error card and can
+      // retry. Never persist a detached row for a resume.
+      if (isApprovalResume && !pendingRow) {
+        dataStream.write({
+          type: "error",
+          errorText:
+            "Couldn't find the pending approval to resume — reload the chat and approve again.",
+        } as never);
+        return;
+      }
       const assistantId = pendingRow?.id ?? generateId();
       // Carry the persisted tool parts into the resumed generation: the row is
       // re-persisted from a fresh accumulator, so without the seed the tool card
