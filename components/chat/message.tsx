@@ -834,6 +834,7 @@ export const PreviewMessage = memo(function PreviewMessage({
         }
       } else if (
         p.type === "tool" ||
+        p.type === "dynamic-tool" || // MCP/dynamic tools — replayed as-is (audit 2026-10-09: they rendered NOTHING on reload — silent content loss)
         (p.type.startsWith("tool-") &&
           p.type !== "tool-approval-request" &&
           p.type !== "tool-approval-response")
