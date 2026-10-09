@@ -991,13 +991,20 @@ export function backgroundServe(args: {
       }
       return;
     }
+    // Same stale-approval burial as the main completed write (below): a
+    // finalized-partial row must not keep approval-requested either, or the
+    // dock resurrects on reload.
     await enqueueWrite(() =>
       persistAssistantRow({
         chatId,
         userId,
         id: assistantId,
         model,
-        parts,
+        parts: parts.map((p) =>
+          (p as { state?: string }).state === "approval-requested"
+            ? { ...(p as object), state: "interrupted" }
+            : p,
+        ),
         status: "completed",
       }),
     );
@@ -1325,13 +1332,24 @@ export function backgroundServe(args: {
             }
           });
         }
+        // Stale-approval burial (audit 2026-10-09): a completed row must never
+        // persist a tool part still in approval-requested — the client's
+        // ApprovalDock scans for that state and resurrects the Allow/Deny card
+        // on every reload even though the turn is over (live repro: the 3×
+        // gated webFetch chat showed the card after the final answer). Flip
+        // any leftover to "interrupted" (renders as the neutral chip).
+        const buriedParts = finalParts.map((p) =>
+          (p as { state?: string }).state === "approval-requested"
+            ? { ...(p as object), state: "interrupted" }
+            : p,
+        );
         await enqueueWrite(() =>
           persistAssistantRow({
             chatId,
             userId,
             id: assistantId,
             model,
-            parts: finalParts,
+            parts: buriedParts,
             status: "completed",
           }),
         );
