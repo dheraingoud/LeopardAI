@@ -645,7 +645,15 @@ async function renderMermaid(
   code: string,
   dark: boolean,
 ): Promise<string> {
-  const mermaid = (await loadMermaid()).default;
+  // Import + render can BOTH hang/fail (a 404 on the mermaid chunk after a
+  // dev build swap left cards on "rendering diagram…" forever, audit
+  // 2026-10-09 RCA). Bound the whole thing; failure → softfail path.
+  const mermaid = (await Promise.race([
+    loadMermaid(),
+    new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error("mermaid import/render timeout")), 10_000),
+    ),
+  ])).default;
   mermaid.initialize({
     startOnLoad: false,
     theme: "base",
