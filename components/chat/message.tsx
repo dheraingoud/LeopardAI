@@ -1329,7 +1329,7 @@ export const PreviewMessage = memo(function PreviewMessage({
            * but nothing shows". Show the working dots exactly in that window;
            * the moment the first text/reasoning/doc lands, the gate closes. */}
                     {isStreaming && !reasoning && !renderText && docParts.length === 0 && (
-            <ThinkingIndicator className="max-w-none my-2" label="Working on it…" />
+            <ThinkingIndicator className="max-w-none my-2" label="Working" />
           )}
 
           {/* Refusal heuristic: a settled assistant answer opening with a
@@ -1664,7 +1664,7 @@ export function ThinkingMessage() {
       className="max-w-3xl mx-auto"
     >
       <div className="flex items-start gap-3 py-5">
-        <ThinkingIndicator className="max-w-none" label="Working on it…" />
+        <ThinkingIndicator className="max-w-none" label="Working" />
      </div>
    </motion.div>
   );
