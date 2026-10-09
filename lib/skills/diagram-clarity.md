@@ -42,3 +42,12 @@ flowchart TD
   Start --> Process `data`
   Process --> |not ready| End
 ```
+---
+
+**Bar charts of numeric data — use ```chart, NEVER a mermaid barChart/xychart.** When the user asks for a bar chart / data comparison / "chart of X by Y", emit ONE ```chart fence with a JSON spec (this is leopard's native chart renderer — mermaid has no reliable bar-chart syntax and will fail to render):
+
+```chart
+{"title":"Fruits by Count","series":[{"label":"Apple","value":12},{"label":"Banana","value":7},{"label":"Orange","value":15}]}
+```
+
+Rules: `series` = array of {label: string, value: number}. Values must be finite numbers. Keep it under 12 points. NO ```mermaid barChart / xychart-beta — those do not render.

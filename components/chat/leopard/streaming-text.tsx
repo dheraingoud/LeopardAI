@@ -30,7 +30,7 @@ import { MathBlock } from "./math-block";
 import { FlowGraph, type FlowEdge, type FlowNode } from "./flow-graph";
 import { TerminalBlock } from "./terminal-block";
 import { CitationLink } from "./inline-citation";
-import { BarChart, parseChartSpec } from "./chart";
+import { BarChart, parseChartSpec, salvageMermaidBarChart } from "./chart";
 import { DataTable, parseCsvTable } from "./data-table";
 import { SpecSheet, parseSpecSheet } from "./spec-sheet";
 import { CodeDiff, parseDiff, type DiffLine } from "./code-diff";
@@ -214,6 +214,11 @@ function PreBlock({
   const longBlock = lineCount > 16;
 
   if (lang === "mermaid" || lang === "diagram") {
+    // Salvage mermaid-ish bar charts (barChart / xychart-beta) into the native
+    // BarChart — models invent that syntax for "chart of X by Y" and mermaid
+    // can't render it (soft-failed to view-source, audit 2026-10-09 RCA).
+    const salvaged = salvageMermaidBarChart(text);
+    if (salvaged) return <BarChart title={salvaged.title} series={salvaged.series} />;
     // Warm the shared import the moment the fence is SEEN (during streaming),
     // not 250ms later when the debounce fires — first paint lands sooner.
     void loadMermaid();
