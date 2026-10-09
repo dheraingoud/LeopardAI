@@ -321,7 +321,10 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     () => getSlashMatches(slashValue, skills),
     [slashValue, skills],
   );
-  const slashOpen = dismissed !== "slash" && slashMatches.length > 0;
+  // Keep the menu open while a slash query is typed, even on zero matches —
+  // vanishing on no-match read as a broken palette (audit 2026-10-09: "/diag"
+  // closed the menu entirely). Empty state renders inside the menu.
+  const slashOpen = dismissed !== "slash" && slashValue.length > 0;
 
   const mentionPeople = useMemo(
     () => chatTitles.map((t) => ({ name: t, role: "agent" as const })),
@@ -399,7 +402,12 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   }, []);
 
   const addFiles = async (files: FileList, kind: "media" | "file") => {
-    if (kind === "media" && !modelVision && !modelImageEdit) return;
+    if (kind === "media" && !modelVision && !modelImageEdit) {
+      // Paste/drop of an image on a text-only model used to vanish silently —
+      // say why (operator 2026-10-09).
+      toast.error(`${getModelById(currentModelId)?.name ?? "This model"} can't read images — pick a vision model to attach one.`);
+      return;
+    }
     setUploading(true);
     try {
       // QA m4: skip exact duplicates — against queued attachments AND within
@@ -474,6 +482,13 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const menuOpen = slashOpen || mentionOpen;
     const count = slashOpen ? slashMatches.length : mentionMatches.length;
+    // Escape dismisses even an EMPTY menu (the no-match empty state can stay
+    // open now — audit 2026-10-09); nav/select still need count > 0.
+    if (menuOpen && e.key === "Escape") {
+      e.preventDefault();
+      setDismissed(slashOpen ? "slash" : "mention");
+      return;
+    }
     if (menuOpen && count > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -483,11 +498,6 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveIndex((i) => (i - 1 + count) % count);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setDismissed(slashOpen ? "slash" : "mention");
         return;
       }
       if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing)) {
@@ -571,6 +581,22 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               value={input}
               onChange={(e) => { setInput(e.target.value); setDraft(e.target.value); }}
               onKeyDown={handleKeyDown}
+              // Ctrl/Cmd+V image paste (operator 2026-10-09): image payloads on
+              // the clipboard become attachments (vision-gated via addFiles),
+              // same as ChatGPT paste-to-attach.
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                const files = Array.from(items)
+                  .filter((it) => it.kind === "file")
+                  .map((it) => it.getAsFile())
+                  .filter((f): f is File => !!f);
+                if (files.length === 0) return; // text paste — default behavior
+                e.preventDefault();
+                const dt = new DataTransfer();
+                for (const f of files) dt.items.add(f);
+                void addFiles(dt.files, "media");
+              }}
               placeholder="Ask anything"
               aria-label="Message"
               rows={1}

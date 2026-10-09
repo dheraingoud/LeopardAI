@@ -49,6 +49,15 @@ export function CommandPalette({
     matches.filter((command) => command.group === group),
   );
 
+  // Default the highlight to the first match so Enter works without an arrow
+  // press first (audit 2026-10-09: Ctrl+K → type → Enter did nothing because
+  // activeId started empty).
+  useEffect(() => {
+    if (ordered.length > 0 && !ordered.some((c) => c.id === activeId)) {
+      onActiveChange?.(ordered[0].id);
+    }
+  }, [ordered, activeId, onActiveChange]);
+
   const move = (delta: number) => {
     if (ordered.length === 0) return;
     const at = ordered.findIndex((command) => command.id === activeId);
@@ -95,6 +104,10 @@ export function CommandPalette({
       <div className="flex items-center gap-2.5 px-3.5 py-3">
         <SearchIcon className="text-foreground/30 size-3.5 shrink-0" />
         <input
+          // autoFocus (audit 2026-10-09): Ctrl+K opened the palette with focus
+          // still on the page, so typed text went nowhere and Enter did
+          // nothing — the palette read as dead. Focus the field on mount.
+          autoFocus
           value={query}
           onChange={(event) => onQueryChange?.(event.target.value)}
           onKeyDown={onKeyDown}

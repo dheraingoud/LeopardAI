@@ -35,6 +35,7 @@ export function CommandPaletteHost() {
         e.preventDefault();
         setOpen((o) => !o);
         setQuery("");
+        setActiveId(""); // reset highlight so Enter lands on the first match
       } else if (e.key === "Escape") {
         setOpen(false);
       }
