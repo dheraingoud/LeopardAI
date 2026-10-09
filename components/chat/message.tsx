@@ -34,6 +34,7 @@ import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
 import { GuardrailNotice } from "./leopard/guardrail-notice";
 import { ToolError } from "./leopard/tool-error";
+import { ToolRunGroup } from "./leopard/tool-run-group";
 import { AgentRunCard, type AgentRunState } from "./leopard/agent-run-card";
 import { MessageActions } from "./leopard/message-actions";
 import { ArtifactCard } from "./leopard/artifact-card";
@@ -1062,6 +1063,41 @@ export const PreviewMessage = memo(function PreviewMessage({
 
   const textSegCount = segments.filter((s) => s.kind === "text").length;
 
+  // Tool-run grouping (2026-10-09): runs of 2+ consecutive SETTLED tool
+  // segments (never approvals / spawn_agents / createDocument / the live tail)
+  // collapse into one ToolRunGroup. toolGroupMemberOf: index → leader index.
+  const [groupOpen, setGroupOpen] = useState<Record<number, boolean>>({});
+  const { toolGroups, toolGroupMemberOf } = useMemo(() => {
+    const groups = new Map<number, Array<{ seg: (typeof segments)[number]; i: number }>>();
+    const memberOf = new Map<number, number>();
+    let run: Array<{ seg: (typeof segments)[number]; i: number }> = [];
+    const flush = () => {
+      if (run.length >= 2) {
+        const leader = run[0].i;
+        groups.set(leader, run);
+        for (const m of run) memberOf.set(m.i, leader);
+      }
+      run = [];
+    };
+    segments.forEach((seg, i) => {
+      const groupable =
+        seg.kind === "tool" &&
+        seg.toolName !== "spawn_agents" &&
+        seg.toolName !== "createDocument" &&
+        seg.state !== "ask" &&
+        // Only fully settled tools group — a pending/streaming/error-with-live
+        // card keeps its own surface (retry affordances etc).
+        seg.state !== "pending" &&
+        seg.state !== "streaming" &&
+        seg.state !== "unknown" &&
+        !(isStreaming && i === segments.length - 1);
+      if (groupable) run.push({ seg, i });
+      else flush();
+    });
+    flush();
+    return { toolGroups: groups, toolGroupMemberOf: memberOf };
+  }, [segments, isStreaming]);
+
   // Kit Sources row: domains+titles from any webSearch/webFetch tool segment.
   const toolSources = useMemo(() => {
     const out: SourceItem[] = [];
@@ -1310,6 +1346,35 @@ export const PreviewMessage = memo(function PreviewMessage({
 
           {segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
+            // Tool-run grouping (2026-10-09): 2+ consecutive settled tool
+            // segments (not approvals/spawn_agents/createDocument, never the
+            // live tail) collapse into one expandable ToolRunGroup card
+            // instead of a wall of individual cards. Members return null; the
+            // group leader renders the card.
+            const memberOf = toolGroupMemberOf.get(i);
+            if (memberOf !== undefined && memberOf !== i) return null;
+            if (memberOf === i) {
+              const items = toolGroups.get(i)!;
+              const tools = items.map(({ seg: s, i: idx }) => ({
+                id: (s.kind === "tool" && s.toolCallId) || `g${i}-${idx}`,
+                name: s.kind === "tool" ? s.toolName : "tool",
+                target: s.kind === "tool" ? toolTarget(s.toolName, s.input) : "",
+                state: (s.kind === "tool" && s.state === "error"
+                  ? "failed"
+                  : "done") as "done" | "failed",
+              }));
+              const failed = tools.filter((t) => t.state === "failed").length;
+              const names = [...new Set(tools.map((t) => t.name))].join(", ");
+              return (
+                <ToolRunGroup
+                  key={`tg-${i}`}
+                  label={`${names} — ${failed > 0 ? `${failed} of ${tools.length} failed` : `${tools.length} complete`}`}
+                  tools={tools}
+                  open={groupOpen[i] ?? false}
+                  onOpenChange={(o) => setGroupOpen((m) => ({ ...m, [i]: o }))}
+                />
+              );
+            }
             if (seg.kind === "reasoning") {
               // Skip empty persisted reasoning (a stalled turn can persist an
               // empty thought part) — a bare "Thought process" row is noise.
