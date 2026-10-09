@@ -122,6 +122,14 @@ export async function hydrateMessageImages(
     hydrated = hydrated.replace(pattern, `![Generated image](${entry.url})`);
   }
 
+  // Unresolvable placeholders (cache miss — cleared storage, different
+  // browser) must not render as raw #img-UUID markdown (audit 2026-10-09
+  // misfire hunt). Swap for a plain note.
+  hydrated = hydrated.replace(
+    /!\[[^\]]*\]\(#img-[A-Za-z0-9-]+\)\s*(<!--\s*img:[A-Za-z0-9-]+\s*-->)?/g,
+    "*[image unavailable — generated in an earlier session]*",
+  );
+
   return hydrated;
 }
 
