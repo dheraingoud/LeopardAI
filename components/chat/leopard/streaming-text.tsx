@@ -35,6 +35,7 @@ import { SpecSheet, parseSpecSheet } from "./spec-sheet";
 import { CodeDiff, parseDiff, type DiffLine } from "./code-diff";
 import { ReviewableDiff, type DiffHunk, type HunkDecision } from "./reviewable-diff";
 import { useShikiHtml } from "./primitives/shiki-highlighter";
+import remend from "remend";
 
 function sanitizeSvg(code: string): string {
   if (typeof window === "undefined") return "";
@@ -92,7 +93,15 @@ export const StreamingText = memo(function StreamingText({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sanitized, streaming]);
   // Fence-aware block split: only the growing tail block re-parses per commit.
-  const blocks = useMemo(() => splitMarkdownBlocks(throttled), [throttled]);
+  // While streaming, repair dangling openers in the tail (remend, ported from
+  // assistant-ui streamdown 2026-10-09): mid-stream `**bold` / open backtick /
+  // unclosed link used to render raw or mangle everything after it until the
+  // block settled. Settled text is never repaired — the model's final output
+  // must render as written.
+  const blocks = useMemo(
+    () => splitMarkdownBlocks(streaming ? remend(throttled) : throttled),
+    [throttled, streaming],
+  );
   return (
     <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">
       {blocks.map((b, i) => (

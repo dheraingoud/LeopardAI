@@ -46,14 +46,37 @@ function blurb(body: string | undefined): string {
   return sentence.length > 110 ? `${sentence.slice(0, 107)}…` : sentence;
 }
 
+/** Render `text` with the leading `query` match highlighted (amber, like the
+ *  active row's slash icon). Case-insensitive prefix match; falls back to a
+ *  substring match so "/diag" still lights up "diagram" mid-word. */
+function HighlightedSlug({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  const at = lower.startsWith(q) ? 0 : lower.indexOf(q);
+  if (at < 0) return <>{text}</>;
+  const end = at + q.length;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="dark:text-[#ffb400] light:text-[#d49600]">
+        {text.slice(at, end)}
+      </span>
+      {text.slice(end)}
+    </>
+  );
+}
+
 export function SlashMenu({
   matches,
   activeIndex,
   onSelect,
+  query = "",
 }: {
   matches: readonly SlashMatch[];
   activeIndex: number;
   onSelect: (match: SlashMatch) => void;
+  query?: string;
 }) {
   return (
     <div
@@ -95,7 +118,9 @@ export function SlashMenu({
                   : "text-foreground/35",
               )}
             />
-            <span className="font-medium">/{match.slug}</span>
+            <span className="font-medium">
+              <HighlightedSlug text={`/${match.slug}`} query={query} />
+            </span>
             {desc && (
               <span className="text-foreground/45 flex-1 truncate text-start text-xs">
                 {desc}

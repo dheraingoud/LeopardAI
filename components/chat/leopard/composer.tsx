@@ -565,6 +565,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               matches={slashMatches}
               activeIndex={activeIndex % slashMatches.length}
               onSelect={selectSlash}
+              query={slashValue.slice(1)}
             />
           )}
           {mentionOpen && (
