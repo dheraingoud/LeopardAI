@@ -216,4 +216,18 @@ export default defineSchema({
     .index("by_user_ts", ["userId", "ts"])
     .index("by_chat_ts", ["chatId", "ts"])
     .index("by_assistant", ["assistantId"]),
+
+  // Model health cache (2026-10-09, operator: probing every model on every
+  // login cost real upstream spend + stalled the picker for minutes). A Convex
+  // cron probes the fleet server-side on a slow cadence and stores the latest
+  // result here; the client reads THIS (no per-login burst). Rows upsert by
+  // model id; stale rows are simply overwritten on the next sweep.
+  modelHealth: defineTable({
+    modelId: v.string(),
+    ok: v.boolean(),
+    latencyMs: v.optional(v.number()),
+    reason: v.optional(v.string()),
+    speed: v.optional(v.string()), // "fast" | "slow" | "very_slow"
+    checkedAt: v.number(),
+  }).index("by_model", ["modelId"]),
 });

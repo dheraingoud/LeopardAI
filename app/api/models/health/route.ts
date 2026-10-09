@@ -19,6 +19,11 @@
 import { NextResponse } from "next/server";
 import { getActiveModels } from "@/lib/ai/models";
 import { currentNimKey, hasNimKey } from "@/lib/ai/nim-keys";
+import { convexClient } from "@/lib/ai/server-generation";
+import { api } from "@/convex/_generated/api";
+
+/** Convex-cached health is served for 35 min (the cron sweeps every 30). */
+const CACHE_FRESH_MS = 35 * 60_000;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -133,19 +138,55 @@ async function probe(id: string, apiKey: string): Promise<Health> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!hasNimKey()) {
     return NextResponse.json(
       { error: "NVIDIA_API_KEY not configured" },
       { status: 500 },
     );
   }
+
+  // Cache-first (operator 2026-10-09): the Convex cron probes the fleet on a
+  // slow cadence; a client read serves the cached rows and costs NOTHING
+  // upstream. A live probe only runs when the cache is missing/stale or the
+  // cron itself calls with ?record=1.
+  const recordMode = new URL(request.url).searchParams.get("record") === "1";
+  const db = convexClient();
+  if (!recordMode && db) {
+    try {
+      const rows = (await db.query(api.health.latest, {})) as Array<{
+        modelId: string;
+        ok: boolean;
+        latencyMs?: number;
+        reason?: string;
+        speed?: string;
+        checkedAt: number;
+      }>;
+      if (rows.length > 0) {
+        const freshest = Math.max(...rows.map((r) => r.checkedAt));
+        if (Date.now() - freshest < CACHE_FRESH_MS) {
+          return NextResponse.json({
+            checkedAt: freshest,
+            cached: true,
+            results: rows.map((r) => ({
+              id: r.modelId,
+              ok: r.ok,
+              latencyMs: r.latencyMs ?? null,
+              reason: r.reason,
+              speed: r.speed,
+            })),
+          });
+        }
+      }
+    } catch {
+      /* cache read failed — fall through to a live probe */
+    }
+  }
+
   // Probe with the CURRENT best key from the rotator pool (not the raw env) so
   // a demoted/dead legacy key doesn't misreport the whole fleet as auth-down.
   const apiKey = currentNimKey();
   if (!apiKey) {
-    // Include the model ids so the client can still badge every row as down
-    // (the picker's fleet-down banner reads these; an empty list hid it).
     const models = getActiveModels()
       .filter((m) => m.kind !== "image" && m.kind !== "video")
       .map((m) => m.id);
@@ -154,8 +195,6 @@ export async function GET() {
       { status: 503 },
     );
   }
-  // Only text LLMs are health-probed (chat completions). Vision/image models
-  // share the same upstream; if the key is down everything reports auth anyway.
   const models = getActiveModels().filter((m) => m.kind !== "image" && m.kind !== "video");
 
   const results: Health[] = [];
@@ -169,5 +208,24 @@ export async function GET() {
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, models.length) }, worker));
 
-  return NextResponse.json({ checkedAt: Date.now(), results });
+  // Persist to the Convex cache (live probe = cron tick OR a stale-cache
+  // fallback) so the NEXT client read is free.
+  if (db) {
+    const checkedAt = Date.now();
+    for (const r of results) {
+      void db
+        // server-generation's upsertAssistant). Cast to the public-mutation
+        .mutation(api.health.record, {
+          modelId: r.id,
+          ok: r.ok,
+          latencyMs: r.latencyMs ?? undefined,
+          reason: r.reason,
+          speed: r.speed,
+          checkedAt,
+        })
+        .catch(() => {});
+    }
+  }
+
+  return NextResponse.json({ checkedAt: Date.now(), cached: false, results });
 }
