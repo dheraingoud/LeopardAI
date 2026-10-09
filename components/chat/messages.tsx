@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { PreviewMessage, ThinkingMessage } from "./message";
+import { PreviewMessage, ThinkingMessage, getMessageText } from "./message";
 import { MessageRenderBoundary } from "./message-error-boundary";
+import { TurnRail } from "./leopard/turn-rail";
 import { EmptyState, EmptyStateGreeting } from "./leopard/empty-state";
 import { ErrorState } from "./leopard/error-state";
 import { Composer } from "./leopard/composer";
@@ -337,6 +338,29 @@ export function Messages() {
 
   const isThinking = status === "submitted";
 
+  // Turn rail (2026-10-09, ported conversation-map): a tick rail on the
+  // transcript edge for jumping between user turns. Only worth rendering on
+  // threads long enough to scroll meaningfully (≥3 user turns).
+  const userTurns = messages.filter((m) => m.role === "user");
+  const railEntries = userTurns.map((m, i) => ({
+    id: m.id,
+    title: `Turn ${i + 1}`,
+    preview: getMessageText(m).slice(0, 140),
+  }));
+  // Scroll by user-turn index: the i-th user message maps to the i-th
+  // message-pair (pairs lead with the user bubble; regen-only assistant rows
+  // are rare enough that an off-by-one still lands in view).
+  const scrollToTurn = (id: string) => {
+    const idx = userTurns.findIndex((m) => m.id === id);
+    if (idx < 0) return;
+    const pairs = scrollRef.current?.querySelectorAll('[data-slot="message-pair"]');
+    const target = pairs?.[Math.min(idx, (pairs?.length ?? 1) - 1)];
+    (target as HTMLElement | undefined)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <div className="relative flex-1 min-h-0 flex flex-col">
       <div
@@ -344,6 +368,17 @@ export function Messages() {
         onScroll={handleScroll}
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
       >
+        {railEntries.length >= 3 && (
+          <div className="pointer-events-none absolute right-1 top-0 bottom-0 z-10 hidden sm:flex">
+            <div className="pointer-events-auto sticky top-1/2 -translate-y-1/2 self-start">
+              <TurnRail
+                entries={railEntries}
+                onSelect={scrollToTurn}
+                className="h-40"
+              />
+            </div>
+          </div>
+        )}
         <div ref={contentRef} className="max-w-3xl mx-auto py-6">
         {/* serverStreaming (reopened mid-generation): the live mirror patches
             the last bubble's parts; render it as streaming so the caret +
