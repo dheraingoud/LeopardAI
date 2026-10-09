@@ -207,7 +207,15 @@ function PreBlock({
   const child = Array.isArray(children) ? children[0] : children;
   const cls: string = (child as any)?.props?.className ?? "";
   const langMatch = /language-([\w-]+)/.exec(cls);
-  const lang = langMatch ? langMatch[1] : "";
+  const langRaw = langMatch ? langMatch[1] : "";
+  // Alias model-invented fence names to the structured renderers (misfire
+  // hunt 2026-10-09: ```barchart and ```csv rendered as raw source).
+  const lang =
+    langRaw === "barchart" || langRaw === "bar-chart"
+      ? "chart"
+      : langRaw === "csv"
+        ? "table"
+        : langRaw;
   const text = extractText((child as any)?.props?.children);
   const lineCount = (text.match(/\n/g)?.length ?? 0) + 1;
   const longBlock = lineCount > 16;
