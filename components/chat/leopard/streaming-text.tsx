@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
 import DOMPurify from "dompurify";
-import { MathBlock } from "./math-block";
 import { FlowGraph, type FlowEdge, type FlowNode } from "./flow-graph";
 import { TerminalBlock } from "./terminal-block";
 import { CitationLink } from "./inline-citation";
@@ -232,13 +231,21 @@ function PreBlock({
     return <FlowBlock code={text} />;
   }
 
+  // math/latex/tex fences render as display math (audit 2026-10-09): the
+  // pre-existing MathBlock branch rendered RAW LaTeX in a <code> tag (the
+  // user's "raw source" screenshot); the KaTeX branch below was unreachable
+  // behind it. This is the single live branch — $$ wrap so remark-math picks
+  // it up, throwOnError:false so a bad formula degrades instead of throwing.
   if (lang === "math" || lang === "latex" || lang === "tex") {
     return (
-      <MathBlock
-        label={lang}
-        steps={[{ expression: <code>{text}</code> }]}
-        visibleSteps={1}
-      />
+      <div className="my-3 overflow-x-auto rounded-lg border border-foreground/[0.07] bg-foreground/[0.02] px-4 py-3">
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
+          rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
+        >
+          {`$$\n${text.trim()}\n$$`}
+        </ReactMarkdown>
+      </div>
     );
   }
 
@@ -305,23 +312,6 @@ function PreBlock({
     // 2026-09-04). DOMPurify tolerates partial markup; a broken partial just
     // renders whatever parses, same as mermaid's live pass.
     return <LiveSvgBlock code={text} streaming={streaming} />;
-  }
-
-  // math/latex/tex fences render as display math (audit 2026-10-09: they used
-  // to fall through to the code card and show raw LaTeX source). Wrap in $$
-  // so remark-math picks it up; throwOnError:false keeps a bad formula from
-  // throwing mid-render.
-  if (lang === "math" || lang === "latex" || lang === "tex") {
-    return (
-      <div className="my-3 overflow-x-auto rounded-lg border border-foreground/[0.07] bg-foreground/[0.02] px-4 py-3">
-        <ReactMarkdown
-          remarkPlugins={[remarkMath]}
-          rehypePlugins={[[rehypeKatex, { throwOnError: false }]]}
-        >
-          {`$$\n${text.trim()}\n$$`}
-        </ReactMarkdown>
-      </div>
-    );
   }
 
   return (
