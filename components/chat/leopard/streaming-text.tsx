@@ -36,6 +36,7 @@ import { CodeDiff, parseDiff, type DiffLine } from "./code-diff";
 import { ReviewableDiff, type DiffHunk, type HunkDecision } from "./reviewable-diff";
 import { useShikiHtml } from "./primitives/shiki-highlighter";
 import remend from "remend";
+import { useSmoothReveal } from "./use-smooth-reveal";
 
 function sanitizeSvg(code: string): string {
   if (typeof window === "undefined") return "";
@@ -64,34 +65,14 @@ export const StreamingText = memo(function StreamingText({
   streaming?: boolean;
 }) {
   const sanitized = sanitizeText(content).replace(/\s+height=["']auto["']/g, "");
-  // Throttle re-parse to ~48ms commits while streaming — a full ReactMarkdown
-  // pass per token is O(n²) and was the "UI trails the model" hot path.
-  const [throttled, setThrottled] = useState(sanitized);
-  const lastCommit = useRef(0);
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sanitizedRef = useRef(sanitized);
-  sanitizedRef.current = sanitized;
-  useEffect(() => {
-    if (!streaming) {
-      if (pending.current) clearTimeout(pending.current);
-      pending.current = null;
-      setThrottled(sanitized);
-      return;
-    }
-    const now = Date.now();
-    const since = now - lastCommit.current;
-    if (since >= 48) {
-      lastCommit.current = now;
-      setThrottled(sanitized);
-    } else if (!pending.current) {
-      pending.current = setTimeout(() => {
-        lastCommit.current = Date.now();
-        setThrottled(sanitizedRef.current);
-        pending.current = null;
-      }, 48 - since);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sanitized, streaming]);
+  // Typewriter reveal (useSmoothReveal, ported from assistant-ui 2026-10-10):
+  // fast NIM token bursts popped whole word-chunks in; the reveal drains the
+  // backlog at a bounded rate (250ms drain, 5ms/char floor) so text flows
+  // instead of jumping. It commits per animation frame and replaces the old
+  // 48ms throttle (the reveal's bounded drain IS the throttle — a full
+  // ReactMarkdown pass per frame is bounded by maxCharIntervalMs, not by
+  // token arrival). Settled text bypasses the reveal entirely.
+  const revealed = useSmoothReveal(sanitized, !!streaming);
   // Fence-aware block split: only the growing tail block re-parses per commit.
   // While streaming, repair dangling openers in the tail (remend, ported from
   // assistant-ui streamdown 2026-10-09): mid-stream `**bold` / open backtick /
@@ -99,8 +80,8 @@ export const StreamingText = memo(function StreamingText({
   // block settled. Settled text is never repaired — the model's final output
   // must render as written.
   const blocks = useMemo(
-    () => splitMarkdownBlocks(streaming ? remend(throttled) : throttled),
-    [throttled, streaming],
+    () => splitMarkdownBlocks(streaming ? remend(revealed) : sanitized),
+    [revealed, sanitized, streaming],
   );
   return (
     <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">
