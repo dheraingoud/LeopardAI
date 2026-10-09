@@ -1656,6 +1656,61 @@ pre code {
   }
 }
 
+/* ── text glimmer (leopard) — base text stays its normal color; a soft amber
+   band sweeps right→left ON TOP (operator 2026-10-09: the first pass made the
+   glyphs transparent except where the band was — unreadable). The ::before
+   clone carries the gradient text; the base span stays solid underneath. ── */
+.text-glimmer {
+  position: relative;
+  display: inline-block;
+}
+
+.text-glimmer::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 180, 0, 0.95) 12%,
+    transparent 24%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: text-glimmer-rtl 2.4s linear infinite;
+}
+
+.light .text-glimmer::before {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 150, 0, 0.9) 12%,
+    transparent 24%,
+    transparent 100%
+  );
+}
+
+@keyframes text-glimmer-rtl {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-glimmer::before {
+    animation: none;
+    content: none;
+  }
+}
+
 /* ── text shimmer (leopard) ── */
 @property --shimmer-track-height {
   syntax: "<length>";

@@ -2,7 +2,7 @@
 
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
-import { mono, ShimmerLabel } from "./surfaces";
+import { mono } from "./surfaces";
 
 export function ThinkingIndicator({
   label,
@@ -23,13 +23,15 @@ export function ThinkingIndicator({
 
       {...props}
     >
-      {/* No blinking dot — the shimmer IS the live signal (operator 2026-09-01). */}
-      <ShimmerLabel
+      {/* Glimmer sweep IS the live signal (operator 2026-10-09: "Working"
+          gets the conic amber sweep instead of the shimmer/dots). */}
+      <span
         key={label}
-        className="fade-in slide-in-from-bottom-1 animate-in relative inline-block font-sans text-[13px] font-medium leading-none tracking-[-0.01em] duration-300"
+        data-text={label}
+        className="text-glimmer fade-in slide-in-from-bottom-1 animate-in relative inline-block font-sans text-[13px] font-medium leading-none tracking-[-0.01em] duration-300"
       >
         {label}
-      </ShimmerLabel>
+      </span>
       {elapsed !== undefined && (
         <span className={cn(mono, "text-foreground/30 tabular-nums")}>
           {elapsed}

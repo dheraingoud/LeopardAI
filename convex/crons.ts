@@ -21,4 +21,13 @@ crons.interval(
   { minutes: 1 },
   internal.retention.sweepStaleGenerating,
 );
+// Model health sweep (2026-10-09): probe the fleet server-side every 30 min and
+// cache to modelHealth — replaces the per-login 9-model burst (real upstream
+// cost + a multi-minute picker stall). The action calls the app's own
+// /api/models/health (which owns the NIM key) and records results.
+crons.interval(
+  "Model health sweep",
+  { minutes: 30 },
+  internal.health.sweep,
+);
 export default crons;
