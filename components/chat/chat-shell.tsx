@@ -99,6 +99,12 @@ export function ChatShell() {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (m.role !== "assistant") break;
+      // A settled turn can't have a live prompt (audit 2026-10-09: a completed
+      // row with a leftover approval-requested part — pre-burial data, or a
+      // stop mid-prompt — resurrected the dock on every reload). The dock
+      // only renders while the chat is actively generating (incl. a reopened
+      // serverStreaming turn).
+      if (status !== "submitted" && status !== "streaming" && !serverStreaming) break;
       for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
         const t = typeof p.type === "string" ? p.type : "";
         const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
@@ -122,7 +128,7 @@ export function ChatShell() {
       }
     }
     return null;
-  }, [messages]);
+  }, [messages, status, serverStreaming]);
 
   // QA loop-10: exporting right as a turn settles could capture the Convex
   // placeholder (empty assistant row) — the detached route finalizes the row a

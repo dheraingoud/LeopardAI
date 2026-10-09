@@ -1627,6 +1627,39 @@ export function ActiveChatProvider({
       setArtifactState((a) =>
         a && a.status === "streaming" ? { ...a, status: "idle" } : a,
       );
+      // Stale approval purge (audit 2026-10-09): a settled turn whose trailing
+      // assistant row still carries approval-requested parts resurrects the
+      // Allow/Deny dock on every reload (observed live: the 3× webFetch chat
+      // showed the card after completion). Turn over ⇒ the prompt is dead;
+      // flip the parts to a terminal state so the dock stays buried.
+      const last = chat.messages[chat.messages.length - 1];
+      if (last?.role === "assistant") {
+        const stale = (last.parts ?? []).some(
+          (p) =>
+            (p as { state?: string }).state === "approval-requested",
+        );
+        if (stale) {
+          // Flip to a terminal non-resume state (NOT approval-responded — that
+          // would make the NEXT send read as a resume to hasApprovalDecision).
+          // "interrupted" maps through mapToolState → "unknown" → the neutral
+          // interrupted chip (not a red error card) in the transcript; the
+          // dock's scan requires "approval-requested" → card stays buried.
+          chat.setMessages((prev) =>
+            prev.map((m) =>
+              m.id !== last.id
+                ? m
+                : {
+                    ...m,
+                    parts: (m.parts ?? []).map((p) =>
+                      (p as { state?: string }).state === "approval-requested"
+                        ? { ...(p as object), state: "interrupted" }
+                        : p,
+                    ) as never,
+                  },
+            ) as never,
+          );
+        }
+      }
     }
   }, [chat.status]);
 
