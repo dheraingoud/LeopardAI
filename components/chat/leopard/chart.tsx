@@ -18,6 +18,52 @@ export interface ChartSpec {
   series: ChartSeriesPoint[];
 }
 
+/**
+ * Salvage a mermaid-ish barChart fence into a ChartSpec (audit 2026-10-09):
+ * models invent `barChart` / `xychart-beta` mermaid syntax — mermaid can't
+ * render it and the diagram soft-failed. Parse the common shapes:
+ *   barChart
+ *     title Fruits by Count
+ *     Apple: 12
+ *     Banana: 7
+ * Returns null when the shape isn't a salvageable bar chart.
+ */
+export function salvageMermaidBarChart(code: string): ChartSpec | null {
+  const lines = code
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return null;
+  if (!/^(barChart|xychart-beta)\b/i.test(lines[0])) return null;
+
+  let title: string | undefined;
+  const series: ChartSeriesPoint[] = [];
+  for (const line of lines.slice(1)) {
+    const t = /^title\s+(.+)$/i.exec(line);
+    if (t) {
+      title = t[1].trim();
+      continue;
+    }
+    if (/^(xAxis|yAxis)\b/i.test(line)) continue; // axis labels — drop
+    const kv = /^(.+?)\s*:\s*(-?\d+(?:\.\d+)?)$/.exec(line);
+    if (kv) {
+      series.push({ label: kv[1].trim(), value: Number(kv[2]) });
+      continue;
+    }
+    // xychart shape: `bar [1, 2, 3]` — values without labels.
+    const arr = /^(?:bar|line)\s*\[([\d.,\s-]+)\]$/i.exec(line);
+    if (arr) {
+      arr[1]
+        .split(",")
+        .map((v) => Number(v.trim()))
+        .filter((v) => Number.isFinite(v))
+        .forEach((v, i) => series.push({ label: `Series ${i + 1}`, value: v }));
+    }
+  }
+  if (series.length === 0) return null;
+  return { title, series };
+}
+
 export function parseChartSpec(code: string): ChartSpec | null {
   try {
     const raw = JSON.parse(code) as Partial<ChartSpec>;
