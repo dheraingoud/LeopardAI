@@ -104,10 +104,15 @@ export function ThreadList({
                 className="size-1.5 shrink-0 animate-pulse rounded-full bg-[#ffb400]"
               />
             ) : thread.unread ? (
+              // Audit 2026-10-10: unread used to be a bare dot — same shape +
+              // stillness as generating's amber pulse read identically for
+              // color-blind users. Ringed outline reads as "marker", not
+              // "activity".
               <span
                 role="status"
                 title="Unread"
-                className="size-1.5 shrink-0 rounded-full dark:bg-white/50 light:bg-black/40"
+                aria-label="Unread"
+                className="size-1.5 shrink-0 rounded-full border dark:border-white/70 light:border-black/60 dark:bg-transparent light:bg-transparent"
               />
             ) : null}
             {thread.time && (
