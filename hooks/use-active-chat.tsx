@@ -1191,9 +1191,16 @@ export function ActiveChatProvider({
     // silent — the watchdog used to kill it at 150s mid-decision and bury the
     // Allow/Deny card the user was reading. A pending decision is not a hang.
     if (approvalPendingOnStreamingRow) return;
+    // 240s (was 150s) — Z5 (2026-10-10): the server idle ceiling is 300s
+    // idle-based, so a client that kills at 150s aborts a healthy long-silent
+    // phase (a slow tool exec, a multi-agent stretch) on a mirrored turn. The
+    // client now outlasts the stall chain (45s stall-open + backoff + a slow
+    // fallback ≈ 137s) and the approval ceiling is the backstop for a held
+    // decision; a truly dead upstream settles server-side first. The 90s
+    // reaper still covers the settled-row case.
     const t = setInterval(() => {
-      if (Date.now() - lastActivityRef.current > 150_000) {
-        console.warn("[chat] hung request — no activity for 150s, aborting");
+      if (Date.now() - lastActivityRef.current > 240_000) {
+        console.warn("[chat] hung request — no activity for 240s, aborting");
         stopGeneration();
       }
     }, 5_000);

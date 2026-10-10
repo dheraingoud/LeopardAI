@@ -178,7 +178,15 @@ export function Messages() {
         last?.role === "assistant" && !hasVisibleText(last) ? last.id : null,
       );
     }
-  }, [status, messages]);
+    // Z4 (2026-10-10): the banner set at the ready transition, but a later
+    // mirror patch can fill the bubble (the server's abort-finalize lands
+    // after the local ready) — the banner then said "Stopped" over a bubble
+    // with real content. Clear it the moment the tracked bubble gains text.
+    if (stoppedId) {
+      const tracked = messages.find((m) => m.id === stoppedId);
+      if (tracked && hasVisibleText(tracked)) setStoppedId(null);
+    }
+  }, [status, messages, stoppedId]);
 
   // Φ-regen-ghost: while a regenerate runs, the SDK has dropped the old
   // assistant row from state — show the snapshot (dimmed) in its place so the
