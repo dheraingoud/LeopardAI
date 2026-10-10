@@ -135,6 +135,13 @@ export function CommandPalette({
         </span>
       </div>
 
+      {/* Result-count live region (audit 2026-10-10): ATs got no signal on
+          how many commands matched the query — announce the count. */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {ordered.length === 0
+          ? "No commands match"
+          : `${ordered.length} command${ordered.length === 1 ? "" : "s"} available`}
+      </div>
       <div
         id={listId}
         role="listbox"
