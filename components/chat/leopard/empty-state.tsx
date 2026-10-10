@@ -21,9 +21,11 @@ export function EmptyState({ className, ...props }: ComponentProps<"div">) {
 export function EmptyStateGreeting({
   className,
   ...props
-}: ComponentProps<"h2">) {
+}: ComponentProps<"h1">) {
   return (
-    <h2
+    // a11y (audit 2026-10-10): /chat's empty state is the page's only heading
+    // — it must be h1, not h2 (a skipped level breaks heading navigation).
+    <h1
       data-slot="empty-state-greeting"
       className={cn(
         "fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-center text-2xl font-medium tracking-tight duration-500 motion-reduce:animate-none",
