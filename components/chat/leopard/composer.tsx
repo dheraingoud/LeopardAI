@@ -39,7 +39,7 @@ export interface ComposerCommand {
   description: string;
 }
 
-// Whitespace class for the slash trigger scan (aui detectTrigger) — module
+// Whitespace class for the slash trigger scan — module
 // scope: a fresh RegExp literal per render would retrigger the deps lint.
 const SLASH_WS_RE = /\s/;
 
@@ -289,7 +289,7 @@ const takePendingComposerText = (): string | null => {
 
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
   const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming, retrying, messages } = useActiveChat();
-  // Composer input history (aui useComposerInputHistory port): ArrowUp recalls
+  // Composer input history: ArrowUp recalls
   // the previous sent message, ArrowDown walks back to the live draft.
   const { tryRecall } = useInputHistory(messages);
   const [input, setInput] = useState("");
@@ -332,9 +332,9 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState<"slash" | "mention" | null>(null);
 
-  // Slash/@ trigger detection (aui detectTrigger port 2026-10-10): the slash
+  // Slash/@ trigger detection: the slash
   // menu used to open ONLY with `/` at position 0 — typing "explain /brain"
-  // mid-message never opened it. aui's rule: scan back from the caret to the
+  // mid-message never opened it. The rule: scan back from the caret to the
   // nearest whitespace; a `/` starting a whitespace-delimited token is a
   // trigger wherever it sits. `\w`-only after the trigger keeps URLs
   // (example.com/a) non-triggers.
@@ -415,7 +415,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const canSend = hasContent && !isStreaming && !uploading;
   const { queued, enqueue, drain, remove: removeQueued } = useMessageQueue();
 
-  // Steer (aui QueueItemSteer port 2026-10-10): stop the current run, pull the
+  // Steer: stop the current run, pull the
   // chosen item out of the queue, send it immediately. The stopped turn keeps
   // whatever it streamed (server-side abort semantics); the remaining queue
   // still auto-flushes when the stopped run settles to ready.
@@ -515,7 +515,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     void sendMessage({ parts } as never);
   };
 
-  // Drag-and-drop attach (aui ComposerAttachmentDropzone port 2026-10-10):
+  // Drag-and-drop attach:
   // an unprevented file drop navigates the tab to the file, so file drags are
   // claimed via preventDefault on dragenter/dragover even when they'll be
   // rejected; the overlay + dropEffect only light up when the model can read
@@ -647,7 +647,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 <span className="font-mono text-[9px] uppercase tracking-tight dark:text-[#ffb400]/70 light:text-[#d49600]/80">
                   queued
                 </span>
-                {/* Steer (aui QueueItemSteer port): stop the current run and
+                {/* Steer: stop the current run and
                     send this item now. */}
                 <button
                   type="button"

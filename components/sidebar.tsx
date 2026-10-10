@@ -36,7 +36,7 @@ function groupChats<T extends { _id: string; title: string; updatedAt: number; p
   const now = Date.now();
   const DAY = 86_400_000;
   const groups: Record<string, T[]> = {};
-  // aui pin port (2026-10-10): pinned chats form their own first bucket,
+  // Pinned chats form their own first bucket,
   // still newest-first inside it; everything else buckets by recency.
   const sorted = [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
   const pinned = sorted.filter((c) => c.pinned === true);
@@ -138,7 +138,7 @@ export default function Sidebar({
   // unauth'd browser can list/create chats (matches the chat route + new-chat page).
   const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
 
-  // Convex data — paginated (aui ThreadListLoadMore port 2026-10-10): the
+  // Convex data — paginated: the
   // unpaginated `.collect()` re-read every row on every mount; 40-row pages
   // + a "Load more" control keep the sidebar O(first-page) at any history
   // size. Settings/export still read the full `chats.list`.
@@ -181,7 +181,7 @@ export default function Sidebar({
 
   const filtered = useMemo(() => {
     if (!chats) return [];
-    // aui archive port (2026-10-10): archived rows hide from the sidebar
+    // Archived rows hide from the sidebar
     // (a direct link to an archived chat still loads) — toggled back on by
     // the "archived" footer chip below.
     const visible = chats.filter((c) => showArchived || c.archived !== true);
@@ -458,10 +458,10 @@ export default function Sidebar({
                   onEditCancel={() => setEditingId(null)}
                 />
               ))}
-              {/* Load more (aui ThreadListLoadMore port 2026-10-10): pages in
+              {/* Load more: pages in
                   40-row chunks; hidden while searching (search filters the
                   already-loaded page only) or when the page is complete. */}
-              {/* Load more (aui ThreadListLoadMore port 2026-10-10): pages in
+              {/* Load more: pages in
                   40-row chunks; hidden while searching (search filters the
                   already-loaded page only) or when the page is complete. */}
               {(chatsHasMore || chatsLoadingMore) && !searchQuery.trim() && (

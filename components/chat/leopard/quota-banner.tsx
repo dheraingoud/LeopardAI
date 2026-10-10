@@ -38,7 +38,7 @@ export function QuotaBanner({
   return (
     <div
       data-slot="quota-banner"
-      // aui ErrorPrimitiveRoot port (2026-10-10): a near-limit banner is a
+          // A near-limit banner is a
       // status the user must notice — role=alert announces it.
       role="alert"
       className={cn(

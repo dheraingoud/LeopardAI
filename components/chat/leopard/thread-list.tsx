@@ -14,10 +14,10 @@ export interface ThreadListItem {
   generating?: boolean;
   /** Latest activity newer than the user's last open → ringed unread dot. */
   unread?: boolean;
-  /** aui pin port (2026-10-10): pinned rows sort above recency in a
+  /** Pinned rows sort above recency in a
    *  "Pinned" bucket + show a pin glyph on hover. */
   pinned?: boolean;
-  /** aui archive port (2026-10-10): archived rows hide unless the sidebar's
+  /** Archived rows hide unless the sidebar's
    *  "show archived" chip is on; the row's archive button then unarchives. */
   archived?: boolean;
 }
@@ -50,9 +50,9 @@ export const ThreadList = memo(function ThreadList({
   onSelect?: (id: string) => void;
   onRename?: (id: string) => void;
   onDelete?: (id: string) => void;
-  /** Pin/unpin (aui ThreadListItem port 2026-10-10). */
+  /** Pin/unpin. */
   onPin?: (id: string) => void;
-  /** Archive (aui ThreadListItemArchive port 2026-10-10): hides from the
+  /** Archive: hides from the
    *  sidebar; the chat stays in the DB and a direct link still loads it. */
   onArchive?: (id: string) => void;
   editingId?: string | null;
@@ -139,7 +139,7 @@ export const ThreadList = memo(function ThreadList({
                 {thread.time}
               </span>
             )}
-            {/* Pin (aui ThreadListItem port 2026-10-10): pinned rows show the
+            {/* Pin: pinned rows show the
                 pin at rest (not just on hover) so the affordance reads. */}
             {thread.pinned && (
               <button

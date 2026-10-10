@@ -66,7 +66,7 @@ export const StreamingText = memo(function StreamingText({
   streaming?: boolean;
 }) {
   const sanitized = sanitizeText(content).replace(/\s+height=["']auto["']/g, "");
-  // Typewriter reveal (useSmoothReveal, ported from assistant-ui 2026-10-10):
+  // Typewriter reveal (useSmoothReveal):
   // fast NIM token bursts popped whole word-chunks in; the reveal drains the
   // backlog at a bounded rate (250ms drain, 5ms/char floor) so text flows
   // instead of jumping. It commits per animation frame and replaces the old
@@ -76,7 +76,7 @@ export const StreamingText = memo(function StreamingText({
   const revealed = useSmoothReveal(sanitized, !!streaming);
   // Fence-aware block split: only the growing tail block re-parses per commit.
   // While streaming, repair dangling openers in the tail (remend, ported from
-  // assistant-ui streamdown 2026-10-09): mid-stream `**bold` / open backtick /
+  // mid-stream `**bold` / open backtick /
   // unclosed link used to render raw or mangle everything after it until the
   // block settled. Settled text is never repaired — the model's final output
   // must render as written.
@@ -148,7 +148,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
       pre: (props: any) => <PreBlock {...props} streaming={streaming} />,
       code: InlineCode,
       a: (props: any) => <CitationLink {...props} />,
-      // Image lightbox (aui image-gallery port): markdown images were bare
+      // Image lightbox: markdown images were bare
       // <img> with no zoom/download. Click opens the full-size overlay.
       img: (props: any) => <MarkdownImage {...props} />,
     }),
@@ -183,7 +183,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
   );
 });
 
-// Markdown image (aui image-gallery port): an <img> from model output gets
+// Markdown image: an <img> from model output gets
 // the lightbox (full-size preview + download) instead of an inert inline
 // render. Wrapped in a button so keyboard users can open it.
 function MarkdownImage({ src, alt, ...rest }: any) {

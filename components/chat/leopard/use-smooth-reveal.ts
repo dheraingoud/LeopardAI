@@ -1,15 +1,15 @@
 "use client";
 
-// Leopard's port of assistant-ui's useSmooth (packages/react/src/utils/smooth,
+// Leopard's typewriter-reveal hook (smooth text drain).
 // 2026-10-10): typewriter-style reveal that drains a backlog of streamed
 // characters at a bounded rate instead of popping whole token bursts in.
-// leopard-specific simplifications: no aui store plumbing — plain
+// leopard-specific: no store plumbing — plain
 // (target, running) inputs; commit throttling stays in StreamingText's 48ms
 // throttle (we only hand it a shorter prefix), so minCommitMs is dropped.
 //
-// Tuning (aui defaults): drainMs 250 — target time to drain the backlog;
+// Tuning: drainMs 250 — target time to drain the backlog;
 // maxCharIntervalMs 5 — slowest reveal rate when the backlog is short.
-// Reduced-motion reveals everything immediately (same precedence as aui).
+// Reduced-motion reveals everything immediately.
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 

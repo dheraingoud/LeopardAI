@@ -58,7 +58,7 @@ export function MessageQueue({
   running: string;
   queued: readonly QueuedMessage[];
   onCancel?: (id: string) => void;
-  /** Steer (aui QueueItemSteer port 2026-10-10): stop the current run and
+  /** Steer: stop the current run and
    *  send this held message immediately. */
   onSteer?: (id: string) => void;
 }) {
