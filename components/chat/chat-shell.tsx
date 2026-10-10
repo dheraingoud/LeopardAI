@@ -53,6 +53,26 @@ export function ChatShell() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         setFindOpen(true);
+        return;
+      }
+      // Cmd/Ctrl+Shift+C — copy the latest assistant response (Claude/ChatGPT
+      // idiom; audit 2026-10-10: no keyboard-only path to it otherwise). Skip
+      // while a real copy selection exists or focus is in a field (the field's
+      // own copy gesture wins).
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed) return; // user's explicit selection wins
+        // Composer focus is the common case (send leaves focus there) — the
+        // field's own copy gesture only matters when it has a selection,
+        // which the collapsed check above already covered.
+        const last = [...messagesRef.current]
+          .reverse()
+          .find((m) => m.role === "assistant" && getMessageText(m).trim());
+        if (!last) return;
+        e.preventDefault();
+        navigator.clipboard.writeText(getMessageText(last)).then(() => {
+          toast.success("Copied last response");
+        });
       }
     };
     window.addEventListener("keydown", onKey);

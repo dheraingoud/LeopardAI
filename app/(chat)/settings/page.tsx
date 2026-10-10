@@ -383,7 +383,21 @@ export default function SettingsPage() {
               <>
                 <Section title="Data & export" hint="yours, portable">
                   <Row label="Conversations" description="Total in your account">
-                    <span className={cn(mono, muted)}>{chats?.length || 0} chats</span>
+                    {chats === undefined ? (
+                      // Skeleton (audit 2026-10-10): useQuery resolves
+                      // asynchronously — `chats?.length || 0` flashed "0 chats"
+                      // before the rows landed, then popped.
+                      <span
+                        className={cn(
+                          mono,
+                          muted,
+                          "inline-block h-4 w-12 animate-pulse rounded dark:bg-white/[0.06] light:bg-black/[0.06] align-middle",
+                        )}
+                        aria-label="Loading"
+                      />
+                    ) : (
+                      <span className={cn(mono, muted)}>{chats.length} chats</span>
+                    )}
                   </Row>
                   <Row label="Export all" description="Every conversation as Markdown" last>
                     <ActionButton onClick={handleExportAll} disabled={!chats || chats.length === 0}>
