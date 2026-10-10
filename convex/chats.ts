@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { query, mutation } from "./_generated/server";
 import { requireChatOwner } from "./_auth";
 
@@ -13,6 +14,36 @@ export const list = query({
       .order("desc")
       .collect();
   },
+});
+
+/** Paginated variant (aui ThreadListLoadMore port 2026-10-10): the sidebar
+ *  used to `.collect()` the whole chats table — 124+ dev rows and unbounded
+ *  growth meant every mount re-read every row. `paginate` pages in 40-row
+ *  chunks; the sidebar shows "Load more" while `status === "CanLoadMore"`.
+ *  The full `list` stays for settings/export (genuinely needs all). */
+export const listPage = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("chats")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+  },
+  returns: v.object({
+    page: v.array(v.any()),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+    pageStatus: v.optional(v.union(
+      v.literal("SplitRecommended"),
+      v.literal("SplitRequired"),
+      v.null(),
+    )),
+  }),
 });
 
 export const get = query({
