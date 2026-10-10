@@ -675,6 +675,15 @@ export async function POST(request: Request) {
         }
       }
     }
+    // GAP C (2026-10-10): a STILL-PENDING approval-requested call must survive
+    // the purge — its approval-request part is the gate, and stripping the
+    // tool-call means the resumed model never sees the second gated call (the
+    // user answered card #1; card #2 was silently dropped). Only truly dead
+    // calls (no result AND no pending approval) are orphans. approvalToCall
+    // holds every approval-requested callId (whether or not a response landed),
+    // so reverse it into a set.
+    const gatedCallIds = new Set(approvalToCall.values());
+    for (const id of gatedCallIds) answered.add(id);
     modelMessages = (modelMessages as Array<{ role: string; content: unknown }>).flatMap(
       (m) => {
         if (m.role !== "assistant" || typeof m.content === "string") return [m];
@@ -863,6 +872,16 @@ export async function POST(request: Request) {
           if (deniedToolCallIds.has(tcid)) {
             return { ...p, state: "output-denied", output: out };
           }
+          // GAP C (2026-10-10): a tool the user answered executes/denies above.
+          // A tool whose approval is STILL pending (the model gated TWO calls;
+          // the user only answered the first) must NOT be flipped to
+          // approval-responded — that buried card #2 under card #1's resume and
+          // left a perpetual "calling…" ghost on the completed turn. Pass the
+          // untouched part through so the resumed stream can surface its own
+          // AskCard for the still-unanswered call.
+          if ((p as { state?: string }).state === "approval-requested") {
+            return p;
+          }
           // Tools already executed above land as output-available (card +
           // model both read the result); the rest stay approval-responded.
           return out !== undefined
@@ -1013,7 +1032,14 @@ export async function POST(request: Request) {
         // APPROVED only (2026-09-06): the state filter alone also collected
         // DENIED tools — a denied webFetch then auto-approved the model's
         // silent retry in the same turn (executed with no second AskCard).
-        const resumedApprovedTools = new Set(
+        // Resume auto-approve is keyed by TOOLCALLID, not name (2026-10-10
+        // GAP A): a name-keyed set silently auto-approved a brand-new same-
+        // name gated call on the resume turn (e.g. user allowed webFetch of
+        // example.com, the model's retry of webFetch example.org ran with no
+        // card). The SDK re-invokes the EXACT paused call by id; only that id
+        // earns auto-approval. A same-name NEW call falls through to the
+        // normal rule resolution (and shows its own AskCard).
+        const resumedApprovedCallIds = new Set(
           (approvalMsg?.parts ?? [])
             .filter(
               (p) =>
@@ -1023,19 +1049,8 @@ export async function POST(request: Request) {
                 (p as { approval?: { approved?: boolean } }).approval
                   ?.approved !== false,
             )
-            .map((p) => {
-              const part = p as { toolName?: string; type?: string };
-              // wire parts may lack toolName — derive from the type suffix
-              // ("tool-spawn_agents" → "spawn_agents").
-              if (part.toolName) return part.toolName;
-              const t = part.type ?? "";
-              return t.startsWith("tool-") &&
-                t !== "tool-approval-request" &&
-                t !== "tool-approval-response"
-                ? t.slice(5)
-                : undefined;
-            })
-            .filter((n): n is string => typeof n === "string" && n.length > 0),
+            .map((p) => (p as { toolCallId?: string }).toolCallId)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
         );
         // Tools the user DENIED this turn: a same-turn retry gets an instant
         // denial — re-asking would dangle a second AskCard on the detached
@@ -1063,9 +1078,14 @@ export async function POST(request: Request) {
             })
             .filter((n): n is string => typeof n === "string" && n.length > 0),
         );
-        const toolApprovalDecision = (toolName: string | undefined): "approved" | "denied" | "user-approval" => {
+        const toolApprovalDecision = (toolName: string | undefined, toolCallId?: string): "approved" | "denied" | "user-approval" => {
           if (toolName && deniedThisTurn.has(toolName)) return "denied";
-          if (isApprovalResume && toolName && resumedApprovedTools.has(toolName)) {
+          // GAP A (2026-10-10): auto-approve ONLY the exact call the user just
+          // allowed (keyed by toolCallId) — a same-name NEW call on the resume
+          // turn (the model's silent retry of a different URL) must NOT inherit
+          // the approval; it falls through to the normal rules + shows its own
+          // AskCard.
+          if (isApprovalResume && toolCallId && resumedApprovedCallIds.has(toolCallId)) {
             return "approved";
           }
           const d = resolveApproval(
@@ -1259,8 +1279,8 @@ export async function POST(request: Request) {
           toolApproval: async ({
             toolCall,
           }: {
-            toolCall?: { toolName?: string };
-          }) => toolApprovalDecision(toolCall?.toolName),
+            toolCall?: { toolName?: string; toolCallId?: string };
+          }) => toolApprovalDecision(toolCall?.toolName, toolCall?.toolCallId),
         }),
         });
         };
