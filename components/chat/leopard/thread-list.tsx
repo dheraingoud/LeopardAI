@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "./surfaces";
 
@@ -11,8 +11,11 @@ export interface ThreadListItem {
   time?: string;
   /** Detached generation live on the server → blinking amber dot. */
   generating?: boolean;
-  /** Latest activity newer than the user's last open → solid unread dot. */
+  /** Latest activity newer than the user's last open → ringed unread dot. */
   unread?: boolean;
+  /** aui pin port (2026-10-10): pinned rows sort above recency in a
+   *  "Pinned" bucket + show a pin glyph on hover. */
+  pinned?: boolean;
 }
 
 // Leopard fork of the kit ThreadList, extended to the production sidebar API:
@@ -24,6 +27,7 @@ export function ThreadList({
   onSelect,
   onRename,
   onDelete,
+  onPin,
   editingId,
   editValue,
   onEditChange,
@@ -33,7 +37,7 @@ export function ThreadList({
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "label" | "threads" | "activeId" | "onSelect" | "onRename" | "onDelete"
+  "children" | "label" | "threads" | "activeId" | "onSelect" | "onRename" | "onDelete" | "onPin"
 > & {
   label: string;
   threads: readonly ThreadListItem[];
@@ -41,6 +45,8 @@ export function ThreadList({
   onSelect?: (id: string) => void;
   onRename?: (id: string) => void;
   onDelete?: (id: string) => void;
+  /** Pin/unpin (aui ThreadListItem port 2026-10-10). */
+  onPin?: (id: string) => void;
   editingId?: string | null;
   editValue?: string;
   onEditChange?: (value: string) => void;
@@ -125,7 +131,37 @@ export function ThreadList({
                 {thread.time}
               </span>
             )}
+            {/* Pin (aui ThreadListItem port 2026-10-10): pinned rows show the
+                pin at rest (not just on hover) so the affordance reads. */}
+            {thread.pinned && (
+              <button
+                type="button"
+                aria-label="Unpin chat"
+                title="Unpin"
+                className="shrink-0 rounded-full p-1 text-[#ffb400] dark:text-[#ffb400] light:text-[#d49600]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin?.(thread.id);
+                }}
+              >
+                <PinIcon className="size-3 fill-current" />
+              </button>
+            )}
             <span className="hidden items-center gap-0.5 group-hover:flex">
+              {!thread.pinned && (
+                <button
+                  type="button"
+                  aria-label="Pin chat"
+                  title="Pin"
+                  className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPin?.(thread.id);
+                  }}
+                >
+                  <PinIcon className="size-3" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label="Rename chat"
