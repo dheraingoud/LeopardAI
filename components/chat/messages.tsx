@@ -569,6 +569,14 @@ function Greeting() {
           <div className="mt-8 w-full max-w-3xl">
             <Composer placement="center" />
           </div>
+          {/* Keyboard hint (audit 2026-10-10): ⌘K + / exist but had no
+              in-app discoverability — the greeting is the natural spot. */}
+          <p className="mt-6 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
+            <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">⌘K</kbd>{" "}
+            palette · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">/</kbd>{" "}
+            skills · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">@</kbd>{" "}
+            recent chats
+          </p>
         </EmptyState>
       </motion.div>
     </div>
