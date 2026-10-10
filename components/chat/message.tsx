@@ -1291,7 +1291,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               type="button"
               onClick={handleCopyUser}
               aria-label="Copy message"
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#e5e5e5] hover:light:text-[#1f1607] hover:dark:bg-white/[0.04] hover:light:bg-black/[0.03] transition-colors"
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#e5e5e5] hover:light:text-[#1f1607] hover:dark:bg-white/[0.04] hover:light:bg-black/[0.03] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40"
             >
               {copiedUser ? (
                 <>
@@ -1307,7 +1307,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               type="button"
               onClick={startEdit}
               aria-label="Edit and resend"
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] transition-colors"
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono dark:text-[#353535] light:text-[#262626] hover:dark:text-[#ffb400] hover:light:text-[#d49600] hover:dark:bg-[#ffb400]/[0.06] hover:light:bg-[#ffb400]/[0.08] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40"
             >
               <PencilLine className="h-3 w-3" /> Edit
            </button>
