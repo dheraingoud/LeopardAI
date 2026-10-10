@@ -382,6 +382,18 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const canSend = hasContent && !isStreaming && !uploading;
   const { queued, enqueue, drain, remove: removeQueued } = useMessageQueue();
 
+  // Steer (aui QueueItemSteer port 2026-10-10): stop the current run, pull the
+  // chosen item out of the queue, send it immediately. The stopped turn keeps
+  // whatever it streamed (server-side abort semantics); the remaining queue
+  // still auto-flushes when the stopped run settles to ready.
+  const steerQueued = (id: string) => {
+    const item = queued.find((m) => m.id === id);
+    if (!item) return;
+    removeQueued(id);
+    stopGeneration();
+    void sendMessage({ parts: [{ type: "text", text: item.text }] } as never);
+  };
+
   // Flush queued text once the active run returns to ready. Gate on a CLEAN
   // completion — status==='error' is not in isStreaming, so a partial stream
   // that errors would otherwise fire queued messages into a failed turn the
@@ -531,6 +543,17 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 <span className="font-mono text-[9px] uppercase tracking-tight dark:text-[#ffb400]/70 light:text-[#d49600]/80">
                   queued
                 </span>
+                {/* Steer (aui QueueItemSteer port): stop the current run and
+                    send this item now. */}
+                <button
+                  type="button"
+                  aria-label={`Stop the current reply and send "${q.text}" now`}
+                  title="Run now"
+                  className="rounded p-0.5 text-[11px] leading-none dark:text-[#ffb400]/80 light:text-[#d49600]/90 hover:dark:text-[#ffb400] hover:light:text-[#d49600]"
+                  onClick={() => steerQueued(q.id)}
+                >
+                  ↗
+                </button>
                 <button
                   type="button"
                   aria-label="Remove from queue"

@@ -4,7 +4,7 @@
 
 import type { ComponentProps } from "react";
 import { useCallback, useRef, useState } from "react";
-import { ArrowUpIcon, XIcon } from "lucide-react";
+import { ForwardIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, ghostButton, mono, paper } from "./surfaces";
 
@@ -48,15 +48,19 @@ export function MessageQueue({
   running,
   queued,
   onCancel,
+  onSteer,
   className,
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "running" | "queued" | "onCancel"
+  "children" | "running" | "queued" | "onCancel" | "onSteer"
 > & {
   running: string;
   queued: readonly QueuedMessage[];
   onCancel?: (id: string) => void;
+  /** Steer (aui QueueItemSteer port 2026-10-10): stop the current run and
+   *  send this held message immediately. */
+  onSteer?: (id: string) => void;
 }) {
   return (
     <div
@@ -103,7 +107,21 @@ export function MessageQueue({
             <span className="text-foreground/60 min-w-0 flex-1 truncate text-[13.5px]">
               {message.text}
             </span>
-            <ArrowUpIcon className="text-foreground/25 size-3 shrink-0" />
+            {onSteer && (
+              <button
+                type="button"
+                aria-label={`Stop the current reply and send "${message.text}" now`}
+                title="Run now"
+                onClick={() => onSteer(message.id)}
+                className={cn(
+                  ghostButton,
+                  "size-6 shrink-0",
+                  "dark:text-[#ffb400]/80 light:text-[#d49600]/90 hover:dark:text-[#ffb400] hover:light:text-[#d49600]",
+                )}
+              >
+                <ForwardIcon className="size-3.5" />
+              </button>
+            )}
             <button
               type="button"
               aria-label={`Remove "${message.text}" from the queue`}
