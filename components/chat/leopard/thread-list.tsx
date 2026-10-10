@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import { memo } from "react";
 import { ArchiveIcon, PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "./surfaces";
@@ -20,7 +21,7 @@ export interface ThreadListItem {
 
 // Leopard fork of the kit ThreadList, extended to the production sidebar API:
 // grouped sections, active row, hover rename/delete affordances.
-export function ThreadList({
+export const ThreadList = memo(function ThreadList({
   label,
   threads,
   activeId,
@@ -206,4 +207,4 @@ export function ThreadList({
       })}
     </div>
   );
-}
+});
