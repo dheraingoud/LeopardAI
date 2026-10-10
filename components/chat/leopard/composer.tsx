@@ -473,6 +473,42 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     void sendMessage({ parts } as never);
   };
 
+  // Drag-and-drop attach (aui ComposerAttachmentDropzone port 2026-10-10):
+  // an unprevented file drop navigates the tab to the file, so file drags are
+  // claimed via preventDefault on dragenter/dragover even when they'll be
+  // rejected; the overlay + dropEffect only light up when the model can read
+  // the payload (vision for media, always for plain files).
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepth = useRef(0);
+  const onDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    const next = e.relatedTarget as Node | null;
+    if (next && e.currentTarget.contains(next)) return;
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+  const onDropFiles = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    if (!e.dataTransfer.types.includes("Files")) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const allImages = files.every((f) => f.type.startsWith("image/"));
+    void addFiles(e.dataTransfer.files, allImages ? "media" : "file");
+  };
+
   const insertAndRefocus = (next: string) => {
     setInput(next);
     queueMicrotask(() => {
@@ -582,7 +618,25 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             )}
           </div>
         )}
-        <form onSubmit={handleSubmit} className="relative">
+        <form
+          onSubmit={handleSubmit}
+          className="relative"
+          onDragEnter={onDragEnter}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDropFiles}
+        >
+          {dragActive && (
+            <div
+              data-slot="composer-dropzone"
+              aria-hidden
+              className="absolute inset-0 z-20 flex items-center justify-center rounded-[22px] border-2 border-dashed dark:border-[#ffb400]/50 light:border-[#d49600]/60 dark:bg-[#ffb400]/[0.04] light:bg-[#d49600]/[0.04] pointer-events-none"
+            >
+              <span className="font-mono text-[12px] dark:text-[#ffb400] light:text-[#d49600]">
+                drop files to attach
+              </span>
+            </div>
+          )}
           {slashOpen && (
             <SlashMenu
               matches={slashMatches}
