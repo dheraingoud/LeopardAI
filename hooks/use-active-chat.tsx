@@ -1164,6 +1164,22 @@ export function ActiveChatProvider({
   useEffect(() => {
     lastActivityRef.current = Date.now();
   }, [chat.messages, chat.status]);
+  // Approval-pending detection (shared by the watchdog + the 90s reaper, both
+  // below). Hoisted above the watchdog (2026-10-10 Z1) — it used to live with
+  // the reaper, so the 150s watchdog never got the carve-out and killed a
+  // pending decision mid-read. A held approval is LEGITIMATELY silent (the SDK
+  // stream ended on the approval gate; the server holds the turn open until
+  // the user decides, up to the 10-min ceiling). True when any streaming
+  // assistant row still holds an approval-requested part.
+  const approvalPendingOnStreamingRow = (convexMessages ?? []).some(
+    (m) =>
+      m.role === "assistant" &&
+      m.status === "streaming" &&
+      (m.parts ?? []).some(
+        (p) => (p as { state?: string })?.state === "approval-requested",
+      ),
+  );
+
   useEffect(() => {
     // Cover serverStreaming (reopened mid-generation, SDK status is "ready")
     // — a mirrored stream that goes silent must also be recoverable, else the
@@ -1171,6 +1187,10 @@ export function ActiveChatProvider({
     const live =
       chat.status === "streaming" || chat.status === "submitted" || serverStreaming;
     if (!live) return;
+    // Approval-pause carve-out (2026-10-10): a held approval is LEGITIMATELY
+    // silent — the watchdog used to kill it at 150s mid-decision and bury the
+    // Allow/Deny card the user was reading. A pending decision is not a hang.
+    if (approvalPendingOnStreamingRow) return;
     const t = setInterval(() => {
       if (Date.now() - lastActivityRef.current > 150_000) {
         console.warn("[chat] hung request — no activity for 150s, aborting");
@@ -1178,7 +1198,7 @@ export function ActiveChatProvider({
       }
     }, 5_000);
     return () => clearInterval(t);
-  }, [chat.status, stopGeneration]);
+  }, [chat.status, stopGeneration, approvalPendingOnStreamingRow]);
 
   // ── Reasoning change (local state + localStorage) ──────────────────────────
   // useCallback (perf 2026-10-10): see setCurrentModel.
@@ -1562,15 +1582,7 @@ export function ActiveChatProvider({
   // the Instagram-CDN webFetch chat). While the trailing assistant row holds
   // an approval-requested part, the reaper stands down; the SERVER's
   // approval ceiling (10 min) is the abandonment backstop instead.
-  const approvalPendingOnStreamingRow = serverStreaming
-    ? (convexMessages ?? [])
-        .filter((m) => m.role === "assistant" && m.status === "streaming")
-        .some((m) =>
-          (m.parts ?? []).some(
-            (p) => (p as { state?: string })?.state === "approval-requested",
-          ),
-        )
-    : false;
+  // (approvalPendingOnStreamingRow is hoisted above the 150s watchdog — Z1.)
   const lastStreamingRow = serverStreaming
     ? [...(convexMessages ?? [])]
         .reverse()
