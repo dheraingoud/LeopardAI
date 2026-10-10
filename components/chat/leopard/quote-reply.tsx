@@ -51,9 +51,12 @@ export function QuoteReply({
     <button
       type="button"
       style={{ left: pos.x, top: pos.y }}
+      // a11y (audit 2026-10-10): the pill is a floating action — needs a name
+      // for ATs + focus affordance (it was unlabeled + unringed).
+      aria-label="Quote selection"
       className={cn(
         floating,
-        "fade-in zoom-in-95 animate-in fixed z-50 flex -translate-x-1/2 -translate-y-[calc(100%+8px)] items-center gap-1.5 rounded-full py-1.5 pl-2.5 pr-3 duration-150",
+        "fade-in zoom-in-95 animate-in fixed z-50 flex -translate-x-1/2 -translate-y-[calc(100%+8px)] items-center gap-1.5 rounded-full py-1.5 pl-2.5 pr-3 duration-150 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/50",
       )}
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => {
