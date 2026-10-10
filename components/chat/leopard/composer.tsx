@@ -47,16 +47,21 @@ export interface ComposerPerson {
   role: "agent" | "human";
 }
 
-/** People matching a trailing @mention, or none when the caret is not in one. */
+/** People matching a trailing @mention, or none when the caret is not in one.
+ *  The query may contain spaces (chat titles like "Rain essay") — the capture
+ *  allows spaces but trims trailing ones; a double space ends the query. */
 export function useMentionMatches(
   value: string,
   people: readonly ComposerPerson[] | undefined,
 ): ComposerPerson[] {
   return useMemo(() => {
     if (!people) return [];
-    const match = /@([\w]*)$/.exec(value);
+    const match = /@([\w ]*?)$/.exec(value);
     if (!match) return [];
-    const query = match[1]?.toLowerCase() ?? "";
+    // Double space (or two-space gap before other text) closes the mention —
+    // "@rain  x" typed past the mention no longer edits it.
+    if (/  /.test(match[1] ?? "")) return [];
+    const query = (match[1] ?? "").trim().toLowerCase();
     return people.filter((person) =>
       person.name.toLowerCase().startsWith(query),
     );
@@ -65,7 +70,7 @@ export function useMentionMatches(
 
 /** Replaces the trailing @mention with the chosen name. */
 export function applyMention(value: string, name: string): string {
-  return value.replace(/@[\w]*$/, `@${name} `);
+  return value.replace(/@[\w ]*?$/, `@${name} `);
 }
 
 function ComposerBar({ className, ...props }: ComponentProps<"div">) {
