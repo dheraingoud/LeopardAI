@@ -913,12 +913,34 @@ export function backgroundServe(args: {
   // finalize path buries the approval-requested part as "interrupted" (the
   // screenshot bug: two webFetch rows flipped to INTERRUPTED before the user
   // could click). While any approval is pending, the idle settle timer is
-  // DISARMED: the resume POST re-arms it (prelude emits chunks → touchSettle),
-  // and the orphan-approval scan (top of file) sweeps approvals whose browser
-  // never came back.
+  // DISARMED in favor of a LONG approval ceiling below: the resume POST re-arms
+  // the idle timer (prelude emits chunks → touchSettle), and the ceiling is the
+  // abandonment backstop for a browser that never comes back.
   let pendingApprovals = 0;
   const armSettleTimer = () => {
-    if (pendingApprovals > 0) return; // user is deciding — idle is EXPECTED
+    if (pendingApprovals > 0) {
+      // Approval ceiling: 10 minutes of undisturbed decision silence = the
+      // user walked away (or the browser is gone). Abort + bury so the turn
+      // ends cleanly instead of holding an upstream slot forever. The resume
+      // path (abortAndSettle) and the client reaper carve-out keep sub-10min
+      // pauses perfectly safe. Env: LEOPARD_APPROVAL_TIMEOUT_MS.
+      const approvalCeiling = Math.max(
+        30_000,
+        Number(process.env.LEOPARD_APPROVAL_TIMEOUT_MS ?? 600_000) || 600_000,
+      );
+      settleTimer = setTimeout(() => {
+        if (!settled && !ctrl.signal.aborted && pendingApprovals > 0) {
+          logWarn(
+            `generation ${assistantId} approval pending for ${approvalCeiling}ms — abandoning`,
+          );
+          pendingApprovals = 0; // let finalizePartial bury approval-requested
+          try {
+            ctrl.abort();
+          } catch {}
+        }
+      }, approvalCeiling);
+      return;
+    }
     settleTimer = setTimeout(() => {
       if (!settled && !ctrl.signal.aborted) {
         logWarn(
@@ -1352,6 +1374,50 @@ export function backgroundServe(args: {
 
       if (ctrl.signal.aborted) {
         generationAborted = true;
+        await finalizePartial();
+        return;
+      }
+
+      // Approval gate (2026-10-10, root cause #2 — smoking gun in the logs:
+      // finishReason "tool-calls" + POST 200 in 3.3s on a gated webFetch): the
+      // SDK's step loop does NOT pause on an unresolved user-approval — it
+      // ENDS the stream (a blocked call has neither output nor denial → the
+      // do-while at dist/index.js:5980 exits). A turn "finishing" with a
+      // dangling approval is a PAUSED turn: the user's decision + resume POST
+      // drive what happens next. Hold the generation open here instead of
+      // letting the completed persist bury the decision. The resume POST
+      // aborts THIS generation via abortAndSettle and runs a fresh one with
+      // the decision folded in; the approval ceiling (10 min) is the
+      // abandonment backstop. Persist a STREAMING row (not completed) so the
+      // client keeps the Allow/Deny card up + Working alive while deciding.
+      const heldApprovalParts = acc
+        .parts()
+        .filter((p) => (p as { state?: string }).state === "approval-requested");
+      if (heldApprovalParts.length > 0) {
+        await enqueueWrite(() =>
+          persistAssistantRow({
+            chatId,
+            userId,
+            id: assistantId,
+            model,
+            parts: acc.parts(),
+            status: "streaming",
+          }),
+        );
+        // Wait for: resume POST (aborts this gen via abortAndSettle → ctrl
+        // fires here) or the 10-min approval ceiling (same abort). Any abort
+        // in this state ends the hold: zero the counter so finalizePartial
+        // buries the orphan approval → "interrupted". A resume re-persists
+        // the row right after with the decision folded in.
+        await new Promise<void>((resolve) => {
+          const onAbort = () => {
+            ctrl.signal.removeEventListener("abort", onAbort);
+            resolve();
+          };
+          if (ctrl.signal.aborted) resolve();
+          else ctrl.signal.addEventListener("abort", onAbort);
+        });
+        pendingApprovals = 0;
         await finalizePartial();
         return;
       }

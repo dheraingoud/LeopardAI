@@ -1455,6 +1455,18 @@ export function ActiveChatProvider({
           addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
         }
       ).addToolApprovalResponse?.({ id: approvalId, approved });
+      // Approval-gate hold (2026-10-10): the SDK stream ENDS on an unresolved
+      // approval and the SERVER holds the turn open — the SSE stays open until
+      // the resume POST's abortAndSettle aborts it. The old poll waited for
+      // status to leave "streaming" before sending, but nothing closes the SSE
+      // until the resume itself → 18s giveup → the resume never fired and the
+      // turn went zombie (live repro: Deny → "Fetching…" + Stop forever → 150s
+      // watchdog). Cancel the CLIENT-side request only (SDK stop, NOT the
+      // /api/chat/stop POST — that would abort the server gen + settle the row
+      // before the resume's seed poll could anchor). Status flips ready → the
+      // poll sends immediately; the route's abortAndSettle then closes the
+      // held generation.
+      chat.stop();
       setResumeInFlight(true);
       let tries = 0;
       const attempt = () => {
@@ -1542,6 +1554,23 @@ export function ActiveChatProvider({
   // changing at all (every progressive patch refires this effect and resets
   // the timer). 90s of silence → settle the row server-side; every client
   // recovers on the next mirror.
+  // Approval-pause carve-out (2026-10-10): an approval-gated generation is
+  // LEGITIMATELY silent — the SDK stream is paused awaiting the user's
+  // Allow/Deny, so no chunks → no progressive patches → the reaper read the
+  // pause as a dead generation, settled the row at 90s, buried the card, and
+  // the turn went zombie ("Working" forever, LLM never called — live repro:
+  // the Instagram-CDN webFetch chat). While the trailing assistant row holds
+  // an approval-requested part, the reaper stands down; the SERVER's
+  // approval ceiling (10 min) is the abandonment backstop instead.
+  const approvalPendingOnStreamingRow = serverStreaming
+    ? (convexMessages ?? [])
+        .filter((m) => m.role === "assistant" && m.status === "streaming")
+        .some((m) =>
+          (m.parts ?? []).some(
+            (p) => (p as { state?: string })?.state === "approval-requested",
+          ),
+        )
+    : false;
   const lastStreamingRow = serverStreaming
     ? [...(convexMessages ?? [])]
         .reverse()
@@ -1549,6 +1578,7 @@ export function ActiveChatProvider({
     : undefined;
   useEffect(() => {
     if (!lastStreamingRow || !uid) return;
+    if (approvalPendingOnStreamingRow) return; // user is deciding — not stuck
     const t = setTimeout(() => {
       void settleStreaming({
         messageId: lastStreamingRow._id,
@@ -1558,7 +1588,7 @@ export function ActiveChatProvider({
       });
     }, 90_000);
     return () => clearTimeout(t);
-  }, [lastStreamingRow, uid, settleStreaming]);
+  }, [lastStreamingRow, uid, settleStreaming, approvalPendingOnStreamingRow]);
   // Auto-retry once on a failed run before surfacing the error card (QA M5 —
   // lifted out of Messages so the composer can flip to the stop state during
   // the retry window). Keyed per trailing message id: a new turn gets its own
@@ -1642,8 +1672,20 @@ export function ActiveChatProvider({
       // Allow/Deny dock on every reload (observed live: the 3× webFetch chat
       // showed the card after completion). Turn over ⇒ the prompt is dead;
       // flip the parts to a terminal state so the dock stays buried.
+      // Approval-gate carve-out (2026-10-10): the SDK stream ENDS (finishReason
+      // "tool-calls") while the SERVER holds the turn open awaiting the user's
+      // decision — the approval-gate hold path keeps the row status:"streaming".
+      // Purging in that window killed the Allow/Deny card before the user could
+      // click (the exact "it automatically stops before I allow/deny" bug).
+      // The purge only runs once the persisted row has settled (completed) —
+      // i.e. the server gave up too (ceiling / stop / real completion).
       const last = chat.messages[chat.messages.length - 1];
-      if (last?.role === "assistant") {
+      const rowStillStreaming = (convexMessages ?? []).some(
+        (m) =>
+          (m.id === last?.id || m.id === serverAssistantIdRef.current) &&
+          m.status === "streaming",
+      );
+      if (last?.role === "assistant" && !rowStillStreaming) {
         const stale = (last.parts ?? []).some(
           (p) =>
             (p as { state?: string }).state === "approval-requested",
@@ -1671,7 +1713,7 @@ export function ActiveChatProvider({
         }
       }
     }
-  }, [chat.status]);
+  }, [chat.status, convexMessages]);
 
   // Memoized context value (perf 2026-10-10): without useMemo every provider
   // re-render handed subscribers a fresh object — a composer keystroke

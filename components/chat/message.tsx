@@ -869,6 +869,12 @@ export const PreviewMessage = memo(function PreviewMessage({
         // carry e.g. "input-available" which is NOT a resting state. UNKNOWN
         // states fall to "unknown" → the stale-pending gate renders a neutral
         // interrupted chip (never a green success card) — audit 2026-10-09 #12.
+        // "interrupted" is DISTINCT (operator 2026-10-10): it only ever comes
+        // from an approval-gated tool whose decision never happened (burial /
+        // orphan sweep / stale purge) — the tool NEVER RAN. Rendering the
+        // alarm "INTERRUPTED — the turn stopped before it finished" pill for it
+        // was noise the operator explicitly rejected ("we don't have to show
+        // the user all that"); it now renders as nothing.
         const mapToolState = (s?: string): string =>
           s === "input-streaming"
             ? "streaming"
@@ -880,9 +886,11 @@ export const PreviewMessage = memo(function PreviewMessage({
                   ? "error"
                   : s === "output-denied"
                     ? "denied"
-                    : (s === "pending" || s === "streaming" || s === "ask" || s === "complete"
-                        ? s
-                        : "unknown");
+                    : s === "interrupted"
+                      ? "skipped"
+                      : (s === "pending" || s === "streaming" || s === "ask" || s === "complete"
+                          ? s
+                          : "unknown");
         const last = out[out.length - 1] as Seg | undefined;
         if (
           last &&
@@ -1085,6 +1093,9 @@ export const PreviewMessage = memo(function PreviewMessage({
         seg.toolName !== "spawn_agents" &&
         seg.toolName !== "createDocument" &&
         seg.state !== "ask" &&
+        // Never-ran approval-gated tools render as nothing — never group them
+        // into a "2 complete" run (operator 2026-10-10).
+        seg.state !== "skipped" &&
         // Only fully settled tools group — a pending/streaming/error-with-live
         // card keeps its own surface (retry affordances etc).
         seg.state !== "pending" &&
@@ -1428,6 +1439,11 @@ export const PreviewMessage = memo(function PreviewMessage({
               // nothing until the decision morphs this segment into the
               // running/result card.
               if (seg.state === "ask") return null;
+              // Approval-gated tool whose decision never happened (turn ended
+              // first) — operator 2026-10-10: the INTERRUPTED alarm pill for a
+              // tool that NEVER RAN is noise. Render nothing; the answer text
+              // (or its absence) tells the story.
+              if (seg.state === "skipped") return null;
               // Φ-multi-agent: spawn_agents → inline orchestration card
               // (live data-orchestration snapshots + settled tool output).
               if (seg.toolName === "spawn_agents" && seg.orch && !hideSpawnCard) {
