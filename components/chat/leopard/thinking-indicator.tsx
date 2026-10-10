@@ -16,6 +16,10 @@ export function ThinkingIndicator({
   return (
     <div
       data-slot="thinking-indicator"
+      // a11y (audit 2026-10-10): "Working" is a status, not a static label —
+      // announce it to ATs without stealing focus.
+      role="status"
+      aria-live="polite"
       className={cn(
         "text-foreground/55 flex items-center gap-2.5 text-sm",
         className,
