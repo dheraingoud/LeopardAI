@@ -263,10 +263,14 @@ export function ActiveChatProvider({
   // the DRAFT (/chat pre-first-send) reads/writes the per-model default key,
   // which is also the fallback the first time a real chat is seen. undefined
   // for models with no reasoning knob (route then omits the param).
-  const reasoningKey = (mid: string, cid?: string) =>
-    cid && cid !== "draft"
-      ? `leopard:reasoning:${cid}:${mid}`
-      : `leopard:reasoning:${mid}`;
+  // useCallback (perf 2026-10-10): setReasoning's deps include this.
+  const reasoningKey = useCallback(
+    (mid: string, cid?: string) =>
+      cid && cid !== "draft"
+        ? `leopard:reasoning:${cid}:${mid}`
+        : `leopard:reasoning:${mid}`,
+    [],
+  );
   const resolveReasoningFor = (mid: string, cid?: string): ReasoningLevel | undefined => {
     const cfg = getModelById(mid)?.reasoningConfig;
     if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
@@ -1037,7 +1041,9 @@ export function ActiveChatProvider({
   }, [chat.messages, chat.status, convexChatId, messagesSend, touchChat]);
 
   // ── Model change (local state + persist) ───────────────────────────────────
-  const setCurrentModel = (id: string) => {
+  // useCallback (perf 2026-10-10): the context value memoizes on these —
+  // fresh identities would invalidate it every keystroke.
+  const setCurrentModel = useCallback((id: string) => {
     setCurrentModelIdState(id);
     try {
       window.localStorage.setItem("leopard:last-model", id);
@@ -1047,7 +1053,7 @@ export function ActiveChatProvider({
     if (isDraft) return; // no row yet — the draft send persists the picked model
     const u = uidRef.current;
     if (u) void updateModel({ chatId: convexChatId, userId: u, model: id });
-  };
+  }, [isDraft, convexChatId, updateModel]);
 
   // ── Stop: cancel a server-owned generation, then stop the local stream ─────
   // Φ10/#3 review M1 — a bare chat.stop() only aborts the browser's fetch; the
@@ -1175,16 +1181,20 @@ export function ActiveChatProvider({
   }, [chat.status, stopGeneration]);
 
   // ── Reasoning change (local state + localStorage) ──────────────────────────
-  const setReasoning = (level: ReasoningLevel) => {
-    setCurrentReasoning(level);
-    try {
-      // Per-chat key for real chats; the model-level key only moves from the
-      // draft screen (it's the default for not-yet-seen chats).
-      window.localStorage.setItem(reasoningKey(currentModelId, chatId), level);
-    } catch {
-      /* ignore quota / private mode */
-    }
-  };
+  // useCallback (perf 2026-10-10): see setCurrentModel.
+  const setReasoning = useCallback(
+    (level: ReasoningLevel) => {
+      setCurrentReasoning(level);
+      try {
+        // Per-chat key for real chats; the model-level key only moves from the
+        // draft screen (it's the default for not-yet-seen chats).
+        window.localStorage.setItem(reasoningKey(currentModelId, chatId), level);
+      } catch {
+        /* ignore quota / private mode */
+      }
+    },
+    [currentModelId, chatId, reasoningKey],
+  );
 
   // ── Deferred-create: draft send mints the row, then routes ─────────────────
   // /chat mounts this provider with chatId="draft" and NO Convex row (kills the
@@ -1663,31 +1673,61 @@ export function ActiveChatProvider({
     }
   }, [chat.status]);
 
-  const value: ActiveChatContextValue = {
-    ...chat,
-    sendMessage,
-    serverStreaming,
-    retrying,
-    lastErrorReason,
-    stallSignal,
-    compactionNotice,
-    dismissCompactionNotice: () => setCompactionNotice(false),
-    chatMeta: chatMeta ?? null,
-    isLoading,
-    currentModelId,
-    setCurrentModel,
-    currentReasoning,
-    setReasoning,
-    artifact,
-    setArtifact,
-    stopGeneration,
-    isDraft,
-    regenerateMessage,
-    editMessage,
-    editAndResend,
-    approveAndResume,
-    getSiblings,
-  };
+  // Memoized context value (perf 2026-10-10): without useMemo every provider
+  // re-render handed subscribers a fresh object — a composer keystroke
+  // re-rendered the whole chat tree. chat spreads (its identity changes with
+  // the SDK stream anyway); the action fns are useCallback'd above.
+  const value: ActiveChatContextValue = useMemo(
+    () => ({
+      ...chat,
+      sendMessage,
+      serverStreaming,
+      retrying,
+      lastErrorReason,
+      stallSignal,
+      compactionNotice,
+      dismissCompactionNotice: () => setCompactionNotice(false),
+      chatMeta: chatMeta ?? null,
+      isLoading,
+      currentModelId,
+      setCurrentModel,
+      currentReasoning,
+      setReasoning,
+      artifact,
+      setArtifact,
+      stopGeneration,
+      isDraft,
+      regenerateMessage,
+      editMessage,
+      editAndResend,
+      approveAndResume,
+      getSiblings,
+    }),
+    [
+      chat,
+      sendMessage,
+      serverStreaming,
+      retrying,
+      lastErrorReason,
+      stallSignal,
+      compactionNotice,
+      chatMeta,
+      isLoading,
+      currentModelId,
+      setCurrentModel,
+      currentReasoning,
+      setReasoning,
+      artifact,
+      setArtifact,
+      stopGeneration,
+      isDraft,
+      regenerateMessage,
+      editMessage,
+      editAndResend,
+      approveAndResume,
+      getSiblings,
+    ],
+  );
 
   return (
     <ActiveChatContext.Provider value={value}>
