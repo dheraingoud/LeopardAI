@@ -67,7 +67,9 @@ export function MentionMenu({
           const active = i === activeIndex;
           return (
             <button
-              key={title}
+              // key on index+title (audit 2026-10-10): two chats sharing a
+              // title produced duplicate keys + wrong selection.
+              key={`${i}-${title}`}
               type="button"
               role="option"
               aria-selected={active}
