@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
@@ -23,6 +23,9 @@ export function CommandPaletteHost() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState("");
+  // a11y (audit 2026-10-10): Escape/Cmd-K closed the palette with focus
+  // landing on <body> — keyboard users had to re-tab to their element.
+  const lastFocusRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
   const { toggleTheme } = useLeopardTheme();
   const { user } = useUser();
@@ -33,6 +36,13 @@ export function CommandPaletteHost() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        if (!open) {
+          // Snapshot the focused element so close returns focus to it.
+          lastFocusRef.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
+        }
         setOpen((o) => !o);
         setQuery("");
         setActiveId(""); // reset highlight so Enter lands on the first match
@@ -42,7 +52,18 @@ export function CommandPaletteHost() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [open]);
+
+  // Restore focus on close (see lastFocusRef note above).
+  useEffect(() => {
+    if (open) return;
+    const prev = lastFocusRef.current;
+    if (prev && document.contains(prev)) {
+      // Defer one frame — the palette's own input still holds focus during
+      // this render, and a synchronous focus() loses to the unmount.
+      requestAnimationFrame(() => prev.focus());
+    }
+  }, [open]);
 
   const commands = useMemo<PaletteCommand[]>(() => {
     const base: PaletteCommand[] = [
