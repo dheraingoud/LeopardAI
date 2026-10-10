@@ -38,6 +38,10 @@ export interface ComposerCommand {
   description: string;
 }
 
+// Whitespace class for the slash trigger scan (aui detectTrigger) — module
+// scope: a fresh RegExp literal per render would retrigger the deps lint.
+const SLASH_WS_RE = /\s/;
+
 export interface ComposerPerson {
   name: string;
   role: "agent" | "human";
@@ -316,7 +320,24 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState<"slash" | "mention" | null>(null);
 
-  const slashValue = /^\/\w*$/.test(input) ? input : "";
+  // Slash/@ trigger detection (aui detectTrigger port 2026-10-10): the slash
+  // menu used to open ONLY with `/` at position 0 — typing "explain /brain"
+  // mid-message never opened it. aui's rule: scan back from the caret to the
+  // nearest whitespace; a `/` starting a whitespace-delimited token is a
+  // trigger wherever it sits. `\w`-only after the trigger keeps URLs
+  // (example.com/a) non-triggers.
+  const slashValue = useMemo(() => {
+    const up = input; // textarea has no caret tracking; treat end-of-input as the caret
+    for (let i = up.length - 1; i >= 0; i--) {
+      const ch = up[i];
+      if (SLASH_WS_RE.test(ch)) return "";
+      if (up.startsWith("/", i)) {
+        if (i > 0 && !SLASH_WS_RE.test(up[i - 1])) continue;
+        return /^\/\w*$/.test(up.slice(i)) ? up.slice(i) : "";
+      }
+    }
+    return "";
+  }, [input]);
   const slashMatches = useMemo(
     () => getSlashMatches(slashValue, skills),
     [slashValue, skills],
