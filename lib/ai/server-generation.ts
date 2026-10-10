@@ -128,10 +128,17 @@ export function createGenerationController(assistantId: string, chatId?: string)
   return c;
 }
 
-function unregisterGeneration(assistantId: string): void {
+// GAP D (2026-10-10): a second resume POST for the same assistantId overwrites
+// the registry entry; the first generation's `finally` then unregisters the
+// NEW gen's handle, so a later abortAndSettle can't await its settle and the
+// stale-finalize race reopens. Remove the handle ONLY when it's still the one
+// this generation registered.
+function unregisterGeneration(assistantId: string, handle?: ServerGenerationHandle): void {
   _abortControllers.delete(assistantId);
   _generationChat.delete(assistantId);
-  _handles.delete(assistantId);
+  if (!handle || _handles.get(assistantId) === handle) {
+    _handles.delete(assistantId);
+  }
 }
 
 // ── Convex admin client ─────────────────────────────────────────────────────
@@ -1269,6 +1276,13 @@ export function backgroundServe(args: {
     return { error: attemptError };
   };
 
+  // GAP D (2026-10-10): a second resume POST for the same assistantId
+  // overwrites the registry; this gen's `finally` must not clobber the NEW
+  // gen's registration. The handle is definite-assigned after construction
+  // (the done IIFE's finally always settles AFTER the synchronous body that
+  // assigns it), so a `!` assertion is sound.
+  let handle!: ServerGenerationHandle;
+
   const done = (async () => {
     try {
       // Approval-resume tool execution (and any other pre-stream work) — runs
@@ -1509,14 +1523,14 @@ export function backgroundServe(args: {
     } finally {
       clearTimeout(settleTimer);
       settled = true;
-      unregisterGeneration(assistantId);
+      unregisterGeneration(assistantId, handle);
       bus.emit("end");
     }
   })();
 
   void persistAssistantRow; // referenced (keeps tree-shakers honest)
 
-  const handle: ServerGenerationHandle = {
+  handle = {
     assistantId,
     subscribe: (cb) => {
       for (const c of replay) {
