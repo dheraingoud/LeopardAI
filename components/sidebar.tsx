@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -133,8 +133,21 @@ export default function Sidebar({
   // unauth'd browser can list/create chats (matches the chat route + new-chat page).
   const userId = user?.id ?? (BYPASS_CLERK ? DEV_USER_ID : null);
 
-  // Convex data
-  const chats = useQuery(api.chats.list, userId ? { userId } : "skip");
+  // Convex data — paginated (aui ThreadListLoadMore port 2026-10-10): the
+  // unpaginated `.collect()` re-read every row on every mount; 40-row pages
+  // + a "Load more" control keep the sidebar O(first-page) at any history
+  // size. Settings/export still read the full `chats.list`.
+  const {
+    results: chatsPage,
+    status: chatsStatus,
+    loadMore: loadMoreChats,
+  } = usePaginatedQuery(
+    api.chats.listPage,
+    userId ? { userId } : "skip",
+    { initialNumItems: 40 },
+  );
+  const chats = chatsPage;
+  const chatsHasMore = chatsStatus === "CanLoadMore";
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
 
@@ -405,6 +418,20 @@ export default function Sidebar({
                   onEditCancel={() => setEditingId(null)}
                 />
               ))}
+              {/* Load more (aui ThreadListLoadMore port 2026-10-10): pages in
+                  40-row chunks; hidden while searching (search filters the
+                  already-loaded page only) or when the page is complete. */}
+              {chatsHasMore && !searchQuery.trim() && (
+                <div className="px-1 pb-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => loadMoreChats(40)}
+                    className="w-full rounded-xl border px-3 py-2 text-[12px] font-medium dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] transition-colors"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
