@@ -24,6 +24,10 @@ export function ApprovalCard({
   return (
     <div
       data-slot="approval-card"
+      // aui ErrorPrimitiveRoot port (2026-10-10): a pending approval is a
+      // blocking decision — role=alertdialog makes ATs announce it.
+      role="alertdialog"
+      aria-label="Approval requested"
       className={cn(paper, "flex w-full flex-col gap-3.5 rounded-2xl p-4", className)}
       {...props}
     >
