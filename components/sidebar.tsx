@@ -347,7 +347,9 @@ export default function Sidebar({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-[#525252] light:text-[#8c8c8c]" />
           <Input
+            type="search"
             placeholder="Search chats…"
+            aria-label="Search chats"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
