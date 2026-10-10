@@ -61,10 +61,13 @@ function parseCsvLine(line: string): string[] {
 export function DataTable({
   header,
   rows,
+  title,
   className,
 }: {
   header: readonly string[];
   rows: readonly (readonly string[])[];
+  /** Accessible table name — announced by ATs before the grid. */
+  title?: string;
   className?: string;
 }) {
   return (
@@ -77,6 +80,9 @@ export function DataTable({
       )}
     >
       <table className="w-full border-collapse">
+        {/* a11y (audit 2026-10-10): a bare <table> announces as "table" with
+            no name — caption gives it one. */}
+        {title && <caption className="sr-only">{title}</caption>}
         <thead>
           <tr>
             {header.map((col, i) => (

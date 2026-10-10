@@ -274,7 +274,14 @@ function PreBlock({
       if (spec) return <BarChart title={spec.title} series={spec.series} />;
     } else if (lang === "table") {
       const table = parseCsvTable(text);
-      if (table) return <DataTable header={table.header} rows={table.rows} />;
+      if (table)
+        return (
+          <DataTable
+            header={table.header}
+            rows={table.rows}
+            title="Data table"
+          />
+        );
     } else {
       const spec = parseSpecSheet(text);
       if (spec) return <SpecSheet title={spec.title} fields={spec.fields} />;
