@@ -33,6 +33,10 @@ export function RetrievalChunks({
   return (
     <div
       data-slot="retrieval-chunks"
+      // a11y (audit 2026-10-10): retrieval results announce as a status; the
+      // chunk list reads as a labeled list.
+      role="status"
+      aria-live="polite"
       className={cn("flex w-full max-w-sm flex-col gap-2.5", className)}
 
       {...props}
