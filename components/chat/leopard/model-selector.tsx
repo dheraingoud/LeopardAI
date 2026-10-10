@@ -97,9 +97,16 @@ function ModelSelectorTrigger() {
           </span>
         )}
         {selectedModel?.speedBadge && !selectedModel?.badge && (
-          <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-            {selectedModel.speedBadge}
-          </span>
+          selectedModel.speedBadge === "probing" ? (
+            <span
+              aria-label="Checking model"
+              className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
+            />
+          ) : (
+            <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {selectedModel.speedBadge}
+            </span>
+          )
         )}
         {effortName && (
           <span className="text-foreground/40 min-w-7.5 truncate text-center">
@@ -251,9 +258,16 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
             </span>
           )}
           {model.speedBadge && !model.badge && (
-            <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              {model.speedBadge}
-            </span>
+            model.speedBadge === "probing" ? (
+              <span
+                aria-label="Checking model"
+                className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
+              />
+            ) : (
+              <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                {model.speedBadge}
+              </span>
+            )
           )}
         </span>
         {model.description && (
@@ -337,8 +351,12 @@ function ModelSelectorImpl() {
             ).map((id) => ({ id, name: levelName(id) }))
           : undefined;
       const h = health[m.id];
-      const badge = healthLabel(h);
-      const speedBadge = speedLabel(h);
+      // Probe in flight (audit 2026-10-10): a down model rendering as healthy
+      // for the ~300-800ms probe window then flipping was a visible
+      // correctness pop. While unloaded the badge slot shows a pulse dot.
+      const probing = !healthLoaded;
+      const badge = probing ? undefined : healthLabel(h);
+      const speedBadge = probing ? "probing" : speedLabel(h);
       return {
         id: m.id,
         name: m.name,
