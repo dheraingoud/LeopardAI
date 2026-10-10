@@ -11,10 +11,11 @@ import {
   type ComponentPropsWithoutRef,
   type ReactNode,
 } from "react";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import { RadioGroup } from "@base-ui/react/radio-group";
 import { Radio } from "@base-ui/react/radio";
 import { cn } from "@/lib/utils";
+import { ghostButton } from "./surfaces";
 import {
   Popover,
   PopoverContent,
@@ -137,6 +138,11 @@ function ModelSelectorContent({
     setActiveId,
     fleetDown,
   } = useModelSelector();
+  // Probe footer (audit 2026-10-10): age + manual refresh under the list.
+  const { loaded: healthLoaded, checkedAt: healthCheckedAt, refresh: refreshHealth } = useModelHealth();
+  // Render-time Date.now() trips the purity rule — snapshot once per open
+  // (the popover mounts fresh each time).
+  const [checkedNowMs] = useState(() => Date.now());
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -212,7 +218,7 @@ function ModelSelectorContent({
             className="mx-1 mb-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] leading-snug text-red-500 dark:text-red-400"
           >
             Every model is unreachable — the API key may be out of credits or
-            expired. Generation will fail until that's fixed.
+            expired. Generation will fail until that&apos;s fixed.
           </div>
         )}
         {matches.length === 0 && (
@@ -225,6 +231,32 @@ function ModelSelectorContent({
         ))}
       </div>
       <ModelSelectorEffort />
+      {/* Probe age + manual refresh (audit 2026-10-10): badges used to sit
+          stale for the 5-min revalidate with no user path to a fresh check. */}
+      {healthLoaded && (
+        <div className="flex items-center justify-between gap-2 border-t border-foreground/[0.07] px-3 py-1.5">
+          <span className="font-mono text-[10px] text-foreground/35">
+            {healthCheckedAt > 0
+              ? `checked ${formatAgo(checkedNowMs - healthCheckedAt)}`
+              : "checking…"}
+          </span>
+          <button
+            type="button"
+            aria-label="Refresh model health"
+            title="Re-check model availability"
+            onClick={(e) => {
+              e.stopPropagation();
+              refreshHealth();
+            }}
+            className={cn(
+              ghostButton,
+              "size-5 shrink-0",
+            )}
+          >
+            <RefreshCwIcon className="size-3" />
+          </button>
+        </div>
+      )}
     </PopoverContent>
   );
 }
@@ -319,6 +351,16 @@ function ModelSelectorEffort({ label = "Thinking" }: { label?: ReactNode }) {
 
 function levelName(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+/** "just now" / "Ns ago" / "Nm ago" — probe freshness hint in the picker
+ *  footer (audit 2026-10-10). */
+function formatAgo(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 3) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  return `${m}m ago`;
 }
 
 // Leopard-wired root: registry models + useActiveChat state.
