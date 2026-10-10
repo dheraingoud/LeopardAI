@@ -52,6 +52,16 @@ export function RegenerateMenu({
 
       {open && (
         <div
+          // a11y (audit 2026-10-10): the menu was a bare div — no menu role,
+          // no item roles, no Escape-to-close. WAI-ARIA menu pattern.
+          role="menu"
+          aria-label="Regenerate options"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              onOpenChange?.(false);
+            }
+          }}
           className={cn(
             floating,
             "fade-in zoom-in-95 slide-in-from-top-1 animate-in absolute left-0 top-full z-20 mt-1 flex w-60 flex-col gap-0.5 rounded-2xl p-1.5 duration-200",
@@ -59,11 +69,12 @@ export function RegenerateMenu({
         >
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               onOpenChange?.(false);
               onRetry?.();
             }}
-            className="flex items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04]"
+            className="flex items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04] outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40"
           >
             <span className="min-w-0 flex-1 truncate text-[13px] dark:text-[#e5e5e5] light:text-[#262626]">
               Retry
@@ -77,8 +88,9 @@ export function RegenerateMenu({
             <button
               key={option.id}
               type="button"
+              role="menuitem"
               onClick={() => onPick?.(option.id)}
-              className="flex items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04]"
+              className="flex items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:dark:bg-white/[0.05] hover:light:bg-black/[0.04] outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40"
             >
               <span className="min-w-0 flex-1 truncate text-[13px] dark:text-[#cfcfcf] light:text-[#404040]">
                 {option.label}
