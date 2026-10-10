@@ -318,6 +318,7 @@ export function ChatShell() {
             onClick={() => setFindOpen((o) => !o)}
             className="h-7 w-7 flex items-center justify-center rounded-full text-[#737373] hover:text-[#ffb400] hover:bg-[#ffb400]/[0.06] transition-colors"
             title="Find in conversation"
+            aria-label="Find in conversation"
             aria-expanded={findOpen}
           >
             <Search className="h-3.5 w-3.5" />
