@@ -24,7 +24,7 @@ export function ApprovalCard({
   return (
     <div
       data-slot="approval-card"
-      // aui ErrorPrimitiveRoot port (2026-10-10): a pending approval is a
+          // A pending approval is a blocking decision — the alertdialog
       // blocking decision — role=alertdialog makes ATs announce it. Focused
       // on mount so the Esc/Enter shortcuts below have a target.
       role="alertdialog"

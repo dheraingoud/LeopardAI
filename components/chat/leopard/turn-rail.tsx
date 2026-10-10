@@ -13,7 +13,7 @@ import { floating } from "./surfaces";
 
 /**
  * TurnRail — the tick rail pinned to the transcript edge for jumping between
- * turns (ported from the assistant-ui elements ConversationMap, 2026-10-09;
+ * turns;
  * renamed + leopard surfaces, no upstream coupling). One tick per user turn;
  * hover previews the prompt; ArrowUp/Down/Home/End navigate; click scrolls
  * the turn into view.

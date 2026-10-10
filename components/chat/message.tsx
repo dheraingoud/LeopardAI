@@ -750,12 +750,12 @@ export const PreviewMessage = memo(function PreviewMessage({
   }, [message.id, text, needsHydrate]);
   const renderText = needsHydrate && hydrated !== null ? hydrated : text;
 
-  // Per-message "More" kebab (aui ActionBarMore port, 2026-10-10): the
+  // Per-message "More" kebab: the
   // ellipsis button existed on MessageActions but was never wired — no way to
   // export a single answer or copy raw markdown. A DropdownMenu with export
   // .md / copy markdown / copy plain text.
   const [moreOpen, setMoreOpen] = useState(false);
-  // Image lightbox (aui image-gallery port): full-size preview for attached
+  // Image lightbox: full-size preview for attached
   // or generated images — they render bare <img> otherwise (unreadable crop
   // on mobile, no download).
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
@@ -1174,7 +1174,7 @@ export const PreviewMessage = memo(function PreviewMessage({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // More-menu actions (aui ActionBarMore port): per-message export + copy.
+  // More-menu actions: per-message export + copy.
   // Copy here copies the RENDERED markdown source (renderText) — the copy
   // button copies the same; plain-text strips the markdown fences/decorations
   // so a paste into a doc is clean.
@@ -1356,7 +1356,7 @@ export const PreviewMessage = memo(function PreviewMessage({
                 </div>
               )}
               {text.trim() && (() => {
-                // Quote fidelity (aui quote.aui port, 2026-10-10): the Quote
+                // Quote fidelity: the Quote
                 // reply pill prepends `> quoted` markdown; render leading
                 // `> ` lines as a real blockquote above the user's own words
                 // instead of dumping the raw `>` into the bubble.
@@ -1802,7 +1802,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           )
         }
       />
-      {/* Image lightbox (aui image-gallery port): the attached-image click
+      {/* Image lightbox: the attached-image click
           opens the full-size preview. Assistant markdown images self-render
           theirs (streaming-text MarkdownImage). */}
       {lightbox && (

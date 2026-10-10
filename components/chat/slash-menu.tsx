@@ -6,10 +6,10 @@ import { field, floating, mono } from "./leopard/surfaces";
 import { skillSlug, type SkillConfig } from "@/lib/skill-config";
 
 /**
- * Slash-command menu — Leopard's port of the assistant-ui composer command
+ * Slash-command menu — Leopard's composer command
  * menu (ComposerMenu / ComposerCommandItem shape, 2026-10-09): a floating card
  * above the composer, one row per `/command` (icon + /name + blurb + ↵ on the
- * active row), keyboard-driven. No header/legend — the aui look is quieter.
+ * active row), keyboard-driven. No header/legend — the look is quieter.
  * The parent owns input/open/activeIndex/keyboard handling; selecting a row
  * places `/<slug> ` in the textarea (parsed server-side by getInvokedSkillBodies).
  */

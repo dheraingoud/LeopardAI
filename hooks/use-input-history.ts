@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import type { ChatMessage } from "@/lib/types";
 
-// Composer input history (aui unstable_useComposerInputHistory port,
+// Composer input history:
 // 2026-10-10): ArrowUp recalls the previously sent message, ArrowDown walks
 // back to the live draft. Terminal idiom — fits the operator's keyboard-first
 // workflow (Cmd+K / Cmd+/ / Cmd+Shift+C already exist). Disabled while the

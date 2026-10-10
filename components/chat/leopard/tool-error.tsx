@@ -40,7 +40,7 @@ export function ToolError({
   return (
     <div
       data-slot="tool-error"
-      // aui ErrorPrimitiveRoot port (2026-10-10): role=alert so screen readers
+      // role=alert so screen readers
       // announce the failure; a plain div rendered silent.
       role="alert"
       className={cn(

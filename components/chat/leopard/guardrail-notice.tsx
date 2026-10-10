@@ -26,7 +26,7 @@ export function GuardrailNotice({
   return (
     <div
       data-slot="guardrail-notice"
-      // aui ErrorPrimitiveRoot port (2026-10-10): guardrail notices are
+          // Guardrail notices are blocking — role=alert so screen readers
       // policy interventions — role=alert so ATs announce them.
       role="alert"
       className={cn(

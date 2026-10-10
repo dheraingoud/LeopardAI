@@ -7,7 +7,7 @@ import { mono, paper } from "./surfaces";
 
 /**
  * ToolRunGroup — collapsible card for a burst of same-turn tool calls
- * (ported from the assistant-ui elements ToolGroup, 2026-10-09; renamed +
+ * Collapsible card for a burst of same-turn tool calls;
  * Leopard surfaces, no upstream coupling). A long tool streak (3 fetches in a
  * row) used to render as a wall of separate ToolCards; grouped they read as
  * one collapsible run with a live done/total counter.

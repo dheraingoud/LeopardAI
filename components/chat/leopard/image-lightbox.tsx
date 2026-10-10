@@ -6,7 +6,7 @@ import { DownloadIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ghostButton, floating } from "./surfaces";
 
-// Image lightbox (aui image-gallery port, 2026-10-10): attachment + generated
+// Image lightbox: attachment + generated
 // images rendered bare <img> with no zoom and no download — on mobile the
 // max-h-64 crop made them unreadable. Click opens a full-viewport overlay;
 // Esc / backdrop / ✕ close; Download saves the file.
