@@ -745,6 +745,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               }}
               placeholder="Ask anything"
               aria-label="Message"
+              aria-describedby="composer-disclaimer"
               rows={1}
               minRows={1}
               maxRows={8}
@@ -790,7 +791,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             </div>
           </ComposerBar>
         </form>
-        <p className="mt-2 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
+        <p id="composer-disclaimer" className="mt-2 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
           Leopard can make mistakes. Verify important info.
         </p>
       </div>
