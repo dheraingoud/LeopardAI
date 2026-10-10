@@ -153,6 +153,7 @@ export default function Sidebar({
   );
   const chats = chatsPage;
   const chatsHasMore = chatsStatus === "CanLoadMore";
+  const chatsLoadingMore = chatsStatus === "LoadingMore";
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
   const setPinned = useMutation(api.chats.setPinned);
@@ -460,14 +461,21 @@ export default function Sidebar({
               {/* Load more (aui ThreadListLoadMore port 2026-10-10): pages in
                   40-row chunks; hidden while searching (search filters the
                   already-loaded page only) or when the page is complete. */}
-              {chatsHasMore && !searchQuery.trim() && (
+              {/* Load more (aui ThreadListLoadMore port 2026-10-10): pages in
+                  40-row chunks; hidden while searching (search filters the
+                  already-loaded page only) or when the page is complete. */}
+              {(chatsHasMore || chatsLoadingMore) && !searchQuery.trim() && (
                 <div className="px-1 pb-2 pt-1">
                   <button
                     type="button"
                     onClick={() => loadMoreChats(40)}
-                    className="w-full rounded-xl border px-3 py-2 text-[12px] font-medium dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] transition-colors"
+                    // a11y (audit 2026-10-10): the button's busy state had no
+                    // AT signal — a click that pends invisibly reads as dead.
+                    aria-busy={chatsLoadingMore}
+                    disabled={chatsLoadingMore}
+                    className="w-full rounded-xl border px-3 py-2 text-[12px] font-medium dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] transition-colors disabled:opacity-50"
                   >
-                    Load more
+                    {chatsLoadingMore ? "Loading…" : "Load more"}
                   </button>
                 </div>
               )}
