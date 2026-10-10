@@ -25,10 +25,13 @@ export function ApprovalCard({
     <div
       data-slot="approval-card"
       // aui ErrorPrimitiveRoot port (2026-10-10): a pending approval is a
-      // blocking decision — role=alertdialog makes ATs announce it.
+      // blocking decision — role=alertdialog makes ATs announce it. Focused
+      // on mount so the Esc/Enter shortcuts below have a target.
       role="alertdialog"
       aria-label="Approval requested"
-      className={cn(paper, "flex w-full flex-col gap-3.5 rounded-2xl p-4", className)}
+      tabIndex={-1}
+      ref={(el) => el?.focus()}
+      className={cn(paper, "flex w-full flex-col gap-3.5 rounded-2xl p-4 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40", className)}
       {...props}
     >
       <div className="flex items-center gap-3">
@@ -57,7 +60,26 @@ export function ApprovalCard({
         </div>
       ) : null}
 
-      <div className="flex h-8 items-center justify-end gap-2">
+      {/* Keyboard shortcuts (audit 2026-10-10): a blocking approval with no
+          Esc/Enter path forced a mouse round-trip. Esc = deny, Enter = allow
+          (both guarded against typing into an input). */}
+      <div
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            onDeny?.();
+          } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            const el = document.activeElement;
+            const inField =
+              el instanceof HTMLElement &&
+              (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable);
+            if (inField) return;
+            e.preventDefault();
+            onAllow?.();
+          }
+        }}
+        className="flex h-8 items-center justify-end gap-2"
+      >
         <button
           type="button"
           onClick={onDeny}
