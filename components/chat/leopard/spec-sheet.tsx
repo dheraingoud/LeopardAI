@@ -52,6 +52,10 @@ export function SpecSheet({
   return (
     <div
       data-slot="spec-sheet"
+      // a11y (audit 2026-10-10): a label/value sheet reads as a description
+      // list — role=list + a labelled container so ATs announce structure.
+      role="list"
+      aria-label={title ?? "Details"}
       className={cn(
         paper,
         "my-3 flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4",
@@ -63,6 +67,7 @@ export function SpecSheet({
         {fields.map((f, i) => (
           <div
             key={`${f.label}-${i}`}
+            role="listitem"
             className="border-foreground/[0.06] flex items-baseline gap-3 border-t py-1.5 first:border-t-0 first:pt-0"
           >
             <span className={cn(mono, "w-24 shrink-0 text-foreground/35")}>
