@@ -273,7 +273,7 @@ export default function Sidebar({
           <button
             className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
             onClick={handleNewChat}
-            title="New chat"
+            aria-label="New chat" title="New chat"
           >
             <Plus className="h-5 w-5" />
           </button>
@@ -318,7 +318,7 @@ export default function Sidebar({
           <button
             className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] hover-lift transition-colors"
             onClick={handleNewChat}
-            title="New chat"
+            aria-label="New chat" title="New chat"
           >
             <Plus className="h-5 w-5" />
           </button>
@@ -326,7 +326,7 @@ export default function Sidebar({
             <button
               className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onToggle}
-              title="Collapse sidebar"
+              aria-label="Collapse sidebar" title="Collapse sidebar"
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
@@ -518,13 +518,14 @@ export default function Sidebar({
         className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
         onClick={toggleTheme}
         title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       >
         {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
           <button
             className="h-7 w-7 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
             onClick={() => signOut()}
-            title="Sign out"
+            aria-label="Sign out" title="Sign out"
           >
             <LogOut className="h-4 w-4" />
           </button>
