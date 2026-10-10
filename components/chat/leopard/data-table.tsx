@@ -82,6 +82,9 @@ export function DataTable({
             {header.map((col, i) => (
               <th
                 key={i}
+                // a11y (audit 2026-10-10): column headers need scope="col" so
+                // screen readers announce the column under each cell.
+                scope="col"
                 className={cn(
                   mono,
                   "border-foreground/[0.07] border-b px-4 py-2.5 text-start font-normal text-foreground/45",
