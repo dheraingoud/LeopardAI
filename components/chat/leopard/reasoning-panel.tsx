@@ -111,7 +111,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
       onOpenChange={handleOpenChange}
       className={cn("my-3 w-full max-w-sm", className)}
     >
-      <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 py-1 font-sans text-[13px] font-medium tracking-[-0.01em] text-foreground/60 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98]">
+      <CollapsibleTrigger className="group/trigger flex items-center gap-1.5 rounded-md py-1 px-1 -ml-1 font-sans text-[13px] font-medium tracking-[-0.01em] text-foreground/60 transition-[color,scale] outline-none hover:text-foreground/90 active:scale-[0.98] focus-visible:ring-1 focus-visible:ring-[#ffb400]/40 focus-visible:text-foreground/90">
         {/* No blinking dot — the shimmer IS the live signal (operator 2026-09-01). */}
         <SwapLabel active={streaming ? 0 : 1} className="text-start">
           <>

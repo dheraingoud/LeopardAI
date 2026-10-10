@@ -37,7 +37,7 @@ export function Sources({
       <CollapsibleTrigger
         className={cn(
           fieldInteractive,
-          "group/trigger text-foreground/60 hover:text-foreground/90 inline-flex w-fit items-center gap-1.5 rounded-full px-3.5 py-2 text-xs outline-none",
+          "group/trigger text-foreground/60 hover:text-foreground/90 inline-flex w-fit items-center gap-1.5 rounded-full px-3.5 py-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40 focus-visible:text-foreground/90",
         )}
       >
         <span>Sources</span>
