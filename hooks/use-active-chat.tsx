@@ -1645,6 +1645,14 @@ export function ActiveChatProvider({
             (p as { state?: string }).state === "output-available"),
       );
     if (hasContent) return;
+    // GAP G (2026-10-10): a network blip mid-approval flips the SDK stream to
+    // "error" while the SERVER still holds the turn open for the user's
+    // decision (the row stays streaming with approval-requested). Auto-retrying
+    // here regenerates the turn from scratch — aborting the hold and replaying
+    // the whole thing under the user. The card must stay up for them to
+    // decide; don't retry. The 10-min server ceiling is the abandonment
+    // backstop; the error surface resolves on the next real interaction.
+    if (approvalPendingOnStreamingRow) return;
     // Key on the last USER message id, not the assistant row: regenerate
     // mints a fresh assistant id each attempt, which made the guard re-arm on
     // every failure → infinite retry loop and the error card never showed.
