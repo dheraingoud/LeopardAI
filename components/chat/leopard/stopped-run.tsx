@@ -23,6 +23,9 @@ export function StoppedRun({
   return (
     <div
       data-slot="stopped-run"
+      // aui ErrorPrimitiveRoot port (2026-10-10): role=status announces the
+      // stop to ATs without stealing focus (a plain div rendered silent).
+      role="status"
       className={cn("flex items-center gap-2", className)}
       {...props}
     >

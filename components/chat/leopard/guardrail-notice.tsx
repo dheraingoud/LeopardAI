@@ -26,6 +26,9 @@ export function GuardrailNotice({
   return (
     <div
       data-slot="guardrail-notice"
+      // aui ErrorPrimitiveRoot port (2026-10-10): guardrail notices are
+      // policy interventions — role=alert so ATs announce them.
+      role="alert"
       className={cn(
         paper,
         // Vercel black like the error card (operator 2026-09-04).
