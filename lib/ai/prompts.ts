@@ -178,6 +178,11 @@ ${locationLine(requestHints ?? {})}`.trim();
     prompt = `${prompt}\n\nMULTI-AGENT TEAMS (spawn_agents): when a request genuinely splits into parts (e.g. research several angles, draft + verify, gather + compare), call spawn_agents ONCE with 2-4 named subagents — name each by its role (e.g. "source scout", "fact checker"). In your reply text BEFORE the call, give one short line per agent: its role and why it's needed for THIS request. Subagents have web search/fetch and see prior agents' outputs, so order chains research → write → verify. They are temporary and invisible to the user: when their outputs come back, YOU write the complete final answer — all prose, code blocks, and artifacts come from you, never relayed raw from a subagent. Never spawn agents for a simple or single-part question.`;
   }
 
+  // askUser: structured clarifying questions with clickable options.
+  if (availableTools?.includes("askUser")) {
+    prompt = `${prompt}\n\nCLARIFYING QUESTIONS (askUser): when the answer materially depends on a choice the user must make and guessing would risk a wrong or wasted turn, call askUser with a one-sentence question and 2-4 short mutually exclusive options. The user picks one (or types their own). Use it ONLY for real forks — scope, format, target, priority — never for small talk, never when a reasonable default exists, and never more than once per turn.`;
+  }
+
   // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the
   // route provided them; pinned facts come first. These are first-party, not
   // untrusted web content — no hostile-handling caveat needed.

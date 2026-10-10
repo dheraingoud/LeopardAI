@@ -1111,6 +1111,8 @@ export const PreviewMessage = memo(function PreviewMessage({
         seg.kind === "tool" &&
         seg.toolName !== "spawn_agents" &&
         seg.toolName !== "createDocument" &&
+        // askUser renders its own question→answer chip — never group it.
+        seg.toolName !== "askUser" &&
         seg.state !== "ask" &&
         // Never-ran approval-gated tools render as nothing — never group them
         // into a "2 complete" run (operator 2026-10-10).
@@ -1531,6 +1533,29 @@ export const PreviewMessage = memo(function PreviewMessage({
               // tool that NEVER RAN is noise. Render nothing; the answer text
               // (or its absence) tells the story.
               if (seg.state === "skipped") return null;
+              // askUser (structured clarifying question): the settled part
+              // renders as a compact question → answer chip, not a generic tool
+              // card. The question is the input, the user's pick the output.
+              if (seg.toolName === "askUser") {
+                const q = (seg.input as { question?: string } | undefined)?.question;
+                const answer = (seg.output as { answer?: string } | undefined)?.answer;
+                return (
+                  <div
+                    key={`ask-${i}`}
+                    className="my-2 flex max-w-md flex-col gap-1 rounded-xl border dark:border-white/[0.08] light:border-black/[0.08] dark:bg-white/[0.03] light:bg-black/[0.025] px-3.5 py-2.5"
+                  >
+                    {q && (
+                      <span className="text-[12.5px] dark:text-[#a3a3a3] light:text-[#525252]">
+                        {q}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5 text-[13px] font-medium dark:text-[#e8e8e8] light:text-[#262626]">
+                      <span className="dark:text-[#ffb400] light:text-[#d49600]">→</span>
+                      {answer ?? "…"}
+                    </span>
+                  </div>
+                );
+              }
               // Φ-multi-agent: spawn_agents → inline orchestration card
               // (live data-orchestration snapshots + settled tool output).
               if (seg.toolName === "spawn_agents" && seg.orch && !hideSpawnCard) {
