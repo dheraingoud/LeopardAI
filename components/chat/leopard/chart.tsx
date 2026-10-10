@@ -118,15 +118,21 @@ export function BarChart({
           {title}
         </figcaption>
       )}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" role="list" aria-label={title ?? "Chart"}>
         {series.map((p, i) => {
           const top = Math.abs(p.value) === max && max > 0;
           return (
-            <div key={`${p.label}-${i}`} className="flex items-center gap-3">
+            <div key={`${p.label}-${i}`} className="flex items-center gap-3" role="listitem">
               <span className="w-24 shrink-0 truncate text-[13px] text-foreground/70">
                 {p.label}
               </span>
-              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-foreground/[0.06]">
+              {/* a11y (audit 2026-10-10): the bar is visual-only — announce the
+                  value with role=img + a labeled bar. */}
+              <div
+                className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-foreground/[0.06]"
+                role="img"
+                aria-label={`${p.label}: ${formatValue(p.value)}`}
+              >
                 <div
                   className={cn(
                     "fade-in animate-in slide-in-from-left-2 fill-mode-both h-full rounded-full duration-500",
@@ -146,6 +152,7 @@ export function BarChart({
                   "w-16 shrink-0 text-end tabular-nums",
                   top ? "text-foreground/90" : "text-foreground/55",
                 )}
+                aria-hidden="true"
               >
                 {formatValue(p.value)}
               </span>
