@@ -1011,6 +1011,19 @@ pre code {
   .glass-breath {
     animation: none;
   }
+  /* Catch-all (audit 2026-10-10): several surfaces (trace-waterfall,
+     agent-status, thinking-indicator, chart, file-tree, todo-list, timeline,
+     regenerate-menu) use animate-in/animate-pulse without a motion-reduce
+     peer. Tailwind's motion-reduce:animate-none requires a per-class guard;
+     this covers every tw-animate-css utility in one shot. */
+  .animate-in,
+  .animate-pulse,
+  .animate-ping,
+  .animate-spin,
+  .animate-bounce {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ─── StreamItDown: shiki dual-theme token swap + code-block chrome ─── */

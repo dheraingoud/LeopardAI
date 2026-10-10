@@ -316,6 +316,9 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     if (draft) setInput((cur) => cur || draft);
   }, [draft]);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  // Filenames whose upload failed — rendered as dismissible error chips
+  // alongside the live ones (cleared on the next successful add).
+  const [failedUploads, setFailedUploads] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -458,10 +461,19 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
         seen.add(f.name);
         const up = await uploadFile(f);
         setAttachments((a) => [...a, { url: up.url, name: up.name, mediaType: up.mediaType }]);
+        setFailedUploads((prev) => prev.filter((n) => n !== f.name));
       }
     } catch (e) {
       console.error("upload failed", e);
       toast.error("Attachment upload failed — the file wasn't added. Try again.");
+      // In-place error state (audit 2026-10-10): a toast alone auto-dismisses
+      // — the user who missed it had no trace of what happened. A failed chip
+      // stays in the row until retried or dismissed.
+      const failedNames = Array.from(files).map((f) => f.name);
+      setFailedUploads((prev) => [
+        ...prev.filter((n) => !failedNames.includes(n)),
+        ...failedNames,
+      ]);
     } finally {
       setUploading(false);
     }
@@ -563,6 +575,13 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
       setDismissed(slashOpen ? "slash" : "mention");
       return;
     }
+    // Escape with NO menu open → blur the composer (VS Code / Linear idiom —
+    // audit 2026-10-10: Escape-after-send had no defined behavior).
+    if (e.key === "Escape") {
+      e.preventDefault();
+      textareaRef.current?.blur();
+      return;
+    }
     if (menuOpen && count > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -628,7 +647,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             ))}
           </div>
         )}
-        {(attachments.length > 0 || uploading) && (
+        {(attachments.length > 0 || uploading || failedUploads.length > 0) && (
           <div data-slot="composer-attachments" className="mb-3 flex flex-wrap items-center gap-2">
             {attachments.map((a, i) => (
               <MessageAttachmentChip
@@ -636,6 +655,29 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 attachment={a}
                 onRemove={() => setAttachments((arr) => arr.filter((_, idx) => idx !== i))}
               />
+            ))}
+            {failedUploads.map((name) => (
+              <span
+                key={`failed-${name}`}
+                className="flex items-center gap-1.5 rounded-lg border py-1 px-2 dark:border-red-500/40 light:border-red-500/40 dark:bg-red-500/[0.06] light:bg-red-500/[0.05]"
+              >
+                <span className="max-w-32 truncate text-[11px] dark:text-red-300/90 light:text-red-700">
+                  {name}
+                </span>
+                <span className="font-mono text-[9px] uppercase tracking-tight dark:text-red-400/80 light:text-red-600/90">
+                  failed
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Dismiss failed upload ${name}`}
+                  className="ml-0.5 rounded p-0.5 text-[11px] leading-none dark:text-red-300/60 dark:hover:text-red-200 light:text-red-700/60 light:hover:text-red-800"
+                  onClick={() =>
+                    setFailedUploads((prev) => prev.filter((n) => n !== name))
+                  }
+                >
+                  ×
+                </button>
+              </span>
             ))}
             {uploading && (
               <span className="self-center font-mono text-[10px] dark:text-[#ffb400]/70 light:text-[#d49600]/80">
