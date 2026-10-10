@@ -22,6 +22,7 @@ import { MentionMenu, useRecentChatTitles } from "../mention-menu";
 import { MessageAttachmentChip, type PendingAttachment } from "./message-attachment";
 import { useMessageQueue } from "./message-queue";
 import { useDraftRestore } from "./draft-restore";
+import { useInputHistory } from "@/hooks/use-input-history";
 import {
   Popover,
   PopoverContent,
@@ -287,7 +288,10 @@ const takePendingComposerText = (): string | null => {
 };
 
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
-  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming, retrying } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming, retrying, messages } = useActiveChat();
+  // Composer input history (aui useComposerInputHistory port): ArrowUp recalls
+  // the previous sent message, ArrowDown walks back to the live draft.
+  const { tryRecall } = useInputHistory(messages);
   const [input, setInput] = useState("");
   // Consume parked edit-text on mount (strict-mode safe: effects, not the
   // useState initializer, which double-invokes and would eat the value).
@@ -598,6 +602,25 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
         if (slashOpen) selectSlash(slashMatches[activeIndex % count]);
         else selectMention(mentionMatches[activeIndex % count].name);
         return;
+      }
+    }
+    // Input history (no menu open): ArrowUp recalls the previous sent message
+    // from the first caret line; ArrowDown walks back toward the live draft
+    // from the last line. Caret-mid-textarea motion is untouched.
+    if (!menuOpen && (e.key === "ArrowUp" || e.key === "ArrowDown") && !e.nativeEvent.isComposing) {
+      const el = e.currentTarget;
+      const beforeCaret = el.value.slice(0, el.selectionStart);
+      const afterCaret = el.value.slice(el.selectionEnd);
+      const atFirstLine = !beforeCaret.includes("\n");
+      const atLastLine = !afterCaret.includes("\n");
+      const recalled = tryRecall(e.key, el.value, atFirstLine, atLastLine);
+      if (recalled !== undefined) {
+        e.preventDefault();
+        setInput(recalled);
+        // Move the caret to the end of the recalled text.
+        queueMicrotask(() => {
+          textareaRef.current?.setSelectionRange(recalled.length, recalled.length);
+        });
       }
     }
     const sendKey = sendWithEnter ? !e.shiftKey : e.shiftKey;
