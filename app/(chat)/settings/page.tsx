@@ -534,6 +534,7 @@ function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveMode
               setMid(next);
               setLevel(window.localStorage.getItem(`leopard:reasoning:${next}`) ?? "");
             }}
+            aria-label="Model for reasoning default"
             className={cn(fieldInteractive, hairline, "h-8 rounded-md border bg-transparent px-2 text-xs dark:text-[#d4d4d4] light:text-[#404040] outline-none")}
           >
             {reasoningModels.map((m) => (
