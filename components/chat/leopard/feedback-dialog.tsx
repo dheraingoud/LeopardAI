@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { useEffect, type ComponentProps } from "react";
 import { CheckIcon, ThumbsDownIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, inkButton, mono, paper } from "./surfaces";
@@ -37,6 +37,19 @@ export function FeedbackDialog({
   onSubmit?: () => void;
   onCancel?: () => void;
 }) {
+  // a11y (audit 2026-10-10): Escape on the dialog used to do nothing — the
+  // Cancel button was the only close path. Modal dialogs dismiss on Esc.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onCancel?.();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onCancel]);
+
   return (
     <div
       data-slot="feedback-dialog"
