@@ -197,10 +197,22 @@ export default function SettingsPage() {
     if (!chats || chats.length === 0) return;
     let md = `# Leopard conversations\n\n`;
     try {
-      for (const chat of chats) {
+      // Parallel fetch (audit 2026-10-10): the serial loop round-tripped
+      // per chat — 124 chats took ~minutes. allSettled so one dead row
+      // doesn't kill the export; failures fold into the markdown as a note.
+      const results = await Promise.allSettled(
+        chats.map((chat) => convex.query(api.messages.list, { chatId: chat._id })),
+      );
+      let skipped = 0;
+      chats.forEach((chat, i) => {
+        const res = results[i];
         md += `\n## ${chat.title ?? "Untitled"}\n\n`;
-        const msgs = await convex.query(api.messages.list, { chatId: chat._id });
-        for (const m of msgs) {
+        if (res.status === "rejected") {
+          skipped += 1;
+          md += `_Failed to load messages._\n\n`;
+          return;
+        }
+        for (const m of res.value) {
           const role = m.role === "assistant" ? "Leopard" : "You";
           const text =
             m.content ??
@@ -210,7 +222,7 @@ export default function SettingsPage() {
               .join("");
           md += `**${role}:**\n\n${text}\n\n`;
         }
-      }
+      });
       const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -218,7 +230,11 @@ export default function SettingsPage() {
       a.download = "leopard-chats.md";
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Exported all conversations");
+      if (skipped > 0) {
+        toast.warning(`Exported — ${skipped} conversation${skipped === 1 ? "" : "s"} failed to load and were skipped.`);
+      } else {
+        toast.success("Exported all conversations");
+      }
     } catch {
       toast.error("Export failed");
     }
