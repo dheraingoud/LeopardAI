@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { useModelHealth, healthLabel, speedLabel } from "@/hooks/use-model-health";
+import { useModelHealth, healthLabel } from "@/hooks/use-model-health";
 import type { ReasoningLevel } from "@/lib/nim";
 
 export type EffortOption = { id: string; name: string };
@@ -37,10 +37,8 @@ export type ModelOption = {
   efforts?: readonly EffortOption[];
   /** Down badge from the model probe ("Currently down"); undefined = healthy. */
   badge?: string;
-  /** Speed badge for a healthy-but-slow model ("Slow"/"Very slow"). */
-  speedBadge?: string;
-  /** Internal sort rank — fast 0 … down 3. Not rendered. */
-  _rank?: number;
+  /** Probing state while the health check is in flight — pulse dot. */
+  probing?: boolean;
 };
 
 // Kit ModelSelector, Leopard-wired: popover + search + list + footer effort
@@ -97,17 +95,11 @@ function ModelSelectorTrigger() {
             {selectedModel.badge}
           </span>
         )}
-        {selectedModel?.speedBadge && !selectedModel?.badge && (
-          selectedModel.speedBadge === "probing" ? (
-            <span
-              aria-label="Checking model"
-              className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
-            />
-          ) : (
-            <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              {selectedModel.speedBadge}
-            </span>
-          )
+        {selectedModel?.probing && !selectedModel?.badge && (
+          <span
+            aria-label="Checking model"
+            className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
+          />
         )}
         {effortName && (
           <span className="text-foreground/40 min-w-7.5 truncate text-center">
@@ -289,17 +281,11 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
               {model.badge}
             </span>
           )}
-          {model.speedBadge && !model.badge && (
-            model.speedBadge === "probing" ? (
-              <span
-                aria-label="Checking model"
-                className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
-              />
-            ) : (
-              <span className="shrink-0 rounded bg-amber-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                {model.speedBadge}
-              </span>
-            )
+          {model.probing && !model.badge && (
+            <span
+              aria-label="Checking model"
+              className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
+            />
           )}
         </span>
         {model.description && (
@@ -398,7 +384,6 @@ function ModelSelectorImpl() {
       // correctness pop. While unloaded the badge slot shows a pulse dot.
       const probing = !healthLoaded;
       const badge = probing ? undefined : healthLabel(h);
-      const speedBadge = probing ? "probing" : speedLabel(h);
       return {
         id: m.id,
         name: m.name,
@@ -409,16 +394,14 @@ function ModelSelectorImpl() {
         keywords: [m.id],
         efforts,
         badge,
-        speedBadge,
-        // Sort rank: fast(0)/slow(1)/very_slow(2) within healthy; down last(3).
-        _rank: badge !== undefined ? 3 : h?.speed === "very_slow" ? 2 : h?.speed === "slow" ? 1 : 0,
+        probing,
       };
     });
-    // Order: fastest healthy first, slow tiers next, down models last.
-    // Tiebreak = registry index → deterministic, no reshuffle as probes land.
+    // Order: healthy first, down last. Tiebreak = registry index →
+    // deterministic, no reshuffle as probes land.
     return list
       .map((m, i) => ({ m, i }))
-      .sort((a, b) => a.m._rank - b.m._rank || a.i - b.i)
+      .sort((a, b) => Number(a.m.badge !== undefined) - Number(b.m.badge !== undefined) || a.i - b.i)
       .map(({ m }) => m);
   }, [health, healthLoaded]);
 
