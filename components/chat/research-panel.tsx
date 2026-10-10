@@ -213,6 +213,7 @@ export function ResearchPanel() {
       <button
         type="button"
         aria-expanded={open}
+        aria-label="Deep research panel"
         onClick={() => setOpen((o) => !o)}
         title="Deep research panel"
         className={cn(
@@ -232,7 +233,13 @@ export function ResearchPanel() {
       </button>
 
       {open && (
-        <div className="absolute bottom-9 right-0 z-40 w-[28rem] max-w-[92vw]">
+        <div
+          className="absolute bottom-9 right-0 z-40 w-[28rem] max-w-[92vw]"
+          // a11y (audit 2026-10-10): the popover is a dialog — give it a role
+          // + label so ATs announce it on open.
+          role="dialog"
+          aria-label="Deep research"
+        >
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111113]/90 shadow-xl shadow-black/40 backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
               <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-cyan-200/70">
