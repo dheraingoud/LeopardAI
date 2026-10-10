@@ -1229,6 +1229,10 @@ export const PreviewMessage = memo(function PreviewMessage({
         // (tabIndex 0) gives focus-within a real trigger point; the visible
         // ring stays subtle (data-attribute so it matches the action reveal).
         tabIndex={0}
+        // a11y (audit 2026-10-10): a message is an article — ATs navigate by
+        // landmark/heading, and a bare div reads as anonymous text.
+        role="article"
+        aria-label="You"
         className="group flex justify-end py-3 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/25 rounded-lg"
       >
         <div className="max-w-[68ch] ml-auto flex flex-col items-end">
@@ -1325,6 +1329,10 @@ export const PreviewMessage = memo(function PreviewMessage({
       // See the user-branch note — keyboard users need the row focusable so
       // the action bar's focus-within reveal has a trigger point.
       tabIndex={0}
+      // a11y (audit 2026-10-10): a message is an article — ATs navigate by
+      // landmark; a bare div reads as anonymous text.
+      role="article"
+      aria-label="Assistant"
       className="group py-4 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/25 rounded-lg"
     >
       <div ref={quoteRootRef}>
