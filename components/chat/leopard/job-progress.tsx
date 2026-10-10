@@ -54,6 +54,10 @@ export function JobProgress({
   return (
     <div
       data-slot="job-progress"
+      // a11y (audit 2026-10-10): a running job announces as a status; the
+      // progress bar reads to ATs as a progressbar with the current value.
+      role="status"
+      aria-live="polite"
       className={cn(
         paper,
         "flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4",
