@@ -229,11 +229,38 @@ export default function SettingsPage() {
         </motion.header>
 
         <div className="grid gap-8 md:grid-cols-[168px_minmax(0,1fr)]">
-          <nav className="flex gap-1 overflow-x-auto md:sticky md:top-6 md:flex-col md:self-start">
+          <nav
+            role="tablist"
+            aria-label="Settings sections"
+            aria-orientation="vertical"
+            className="flex gap-1 overflow-x-auto md:sticky md:top-6 md:flex-col md:self-start"
+            onKeyDown={(e) => {
+              // Arrow-key nav (audit 2026-10-10): tablist semantics need
+              // ArrowUp/Down to step between sections; Home/End jump to
+              // first/last. Roving tabindex keeps one focus stop.
+              const ids = SECTIONS.map((s) => s.id);
+              const at = ids.indexOf(section);
+              let next: number | null = null;
+              if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (at + 1) % ids.length;
+              else if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = (at - 1 + ids.length) % ids.length;
+              else if (e.key === "Home") next = 0;
+              else if (e.key === "End") next = ids.length - 1;
+              if (next !== null) {
+                e.preventDefault();
+                setSection(ids[next]);
+                (e.currentTarget.querySelector(`[data-section="${ids[next]}"]`) as HTMLButtonElement | null)?.focus();
+              }
+            }}
+          >
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
                 type="button"
+                role="tab"
+                data-section={s.id}
+                tabIndex={section === s.id ? 0 : -1}
+                aria-selected={section === s.id}
+                aria-controls={`settings-panel-${s.id}`}
                 onClick={() => setSection(s.id)}
                 aria-current={section === s.id}
                 className={cn(
@@ -253,6 +280,9 @@ export default function SettingsPage() {
 
           <motion.div
             key={section}
+            id={`settings-panel-${section}`}
+            role="tabpanel"
+            aria-labelledby={undefined}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
