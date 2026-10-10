@@ -149,6 +149,7 @@ export const setPinned = mutation({
     await requireChatOwner(ctx, args.chatId, args.userId);
     await ctx.db.patch(args.chatId, { pinned: args.pinned });
   },
+  returns: v.null(),
 });
 
 // Archive toggle (aui ThreadListItem archive port 2026-10-10): archived rows
@@ -160,6 +161,7 @@ export const setArchived = mutation({
     await requireChatOwner(ctx, args.chatId, args.userId);
     await ctx.db.patch(args.chatId, { archived: args.archived });
   },
+  returns: v.null(),
 });
 
 // Sidebar live indicator (2026-09-04): client flips this on send / off on
