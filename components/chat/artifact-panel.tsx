@@ -150,6 +150,10 @@ export function ArtifactPanel() {
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.985, opacity: 0, y: 8 }}
             transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            // a11y (audit 2026-10-10): the side panel is a complementary
+            // region — screen readers navigate by landmark; an anonymous
+            // aside reads as content inline with the transcript.
+            aria-label={`Artifact: ${artifact.title}`}
             className={`flex h-full flex-col overflow-hidden rounded-[20px] border dark:border-white/15 light:border-black/10 ${
               reduced
                 ? "dark:bg-[#0a0a0a]/90 light:bg-[#faf8f1]/92 backdrop-blur-2xl"
@@ -274,7 +278,7 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
             {KIND_LABEL[artifact.kind]} artifacts render in the next phase.
           </p>
           <p className="text-xs font-mono dark:text-[#505050] light:text-[#8a8a8a]">
-            kind="{artifact.kind}" streamed but no editor ported yet.
+            kind=&quot;{artifact.kind}&quot; streamed but no editor ported yet.
           </p>
         </div>
       </div>
