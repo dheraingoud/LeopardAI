@@ -30,6 +30,10 @@ export function BackgroundInbox({
   return (
     <div
       data-slot="background-inbox"
+      // a11y (audit 2026-10-10): background runs arriving from off-screen
+      // deserve a status announcement without stealing focus.
+      role="status"
+      aria-live="polite"
       className={cn(
         paper,
         "flex w-full max-w-sm flex-col gap-1 rounded-2xl p-3",
