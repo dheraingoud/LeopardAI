@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import {
   Collapsible,
@@ -23,7 +23,7 @@ export interface LeopardReasoningPanelProps {
   className?: string;
 }
 
-export function ReasoningPanel({
+export const ReasoningPanel = memo(function ReasoningPanel({
   content,
   streaming,
   open,
@@ -165,4 +165,4 @@ export function ReasoningPanel({
       </CollapsibleContent>
     </Collapsible>
   );
-}
+});

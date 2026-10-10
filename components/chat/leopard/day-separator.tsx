@@ -1,12 +1,12 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { memo, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { mono } from "./surfaces";
 
 // Centered hairline + mono label row. messages.tsx inserts one between
 // messages when the calendar day changes (first-seen client timestamp).
-export function DaySeparator({
+export const DaySeparator = memo(function DaySeparator({
   label,
   className,
   ...props
@@ -24,4 +24,4 @@ export function DaySeparator({
       <span className="h-px flex-1 dark:bg-white/[0.07] light:bg-black/[0.07]" />
     </div>
   );
-}
+});
