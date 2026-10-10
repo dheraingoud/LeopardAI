@@ -1223,7 +1223,13 @@ export const PreviewMessage = memo(function PreviewMessage({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="group flex justify-end py-3"
+        // a11y (audit 2026-10-10): the action bar reveals on .group:hover /
+        // focus-within — a keyboard user tabbing INTO the message's Copy/Edit
+        // used to land on invisible controls. Making the row focusable
+        // (tabIndex 0) gives focus-within a real trigger point; the visible
+        // ring stays subtle (data-attribute so it matches the action reveal).
+        tabIndex={0}
+        className="group flex justify-end py-3 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/25 rounded-lg"
       >
         <div className="max-w-[68ch] ml-auto flex flex-col items-end">
           {/* Flat message pair: the user's turn is plain right-aligned text;
@@ -1316,7 +1322,10 @@ export const PreviewMessage = memo(function PreviewMessage({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="group py-4"
+      // See the user-branch note — keyboard users need the row focusable so
+      // the action bar's focus-within reveal has a trigger point.
+      tabIndex={0}
+      className="group py-4 outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/25 rounded-lg"
     >
       <div ref={quoteRootRef}>
           {/* No header timer row — elapsed time belongs on the thinking
