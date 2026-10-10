@@ -1722,6 +1722,23 @@ pre code {
     animation: none;
     content: none;
   }
+  /* Operator 2026-10-10: with OS reduced-motion the sweep died entirely and
+     "Working" read as static dead text. A slow opacity breathe is
+     vestibular-safe (WCAG 2.3.3 — opacity-only, no spatial movement) and keeps
+     the live signal. !important outranks the .animate-in catch-all on the same
+     element (that sets animation:none !important). */
+  .text-glimmer {
+    animation: glimmer-breathe 2.4s ease-in-out infinite !important;
+  }
+  @keyframes glimmer-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
 }
 
 /* ── text shimmer (leopard) ── */

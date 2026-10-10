@@ -180,9 +180,54 @@ export const settleStreaming = mutation({
     const chat = await ctx.db.get(msg.chatId);
     if (!chat || chat.userId !== args.userId) throw new Error("Unauthorized");
     if (msg.status !== "streaming") return { settled: false };
-    await ctx.db.patch(args.messageId, { status: "completed" });
+    // Approval-pause burial (2026-10-10): a settled row must never carry a
+    // still-pending approval-requested tool part — the client's ApprovalDock
+    // scans that state and would resurrect the Allow/Deny card on a DEAD turn
+    // (live repro: the Instagram-CDN chat settled by the 90s stuck-stop reaper
+    // while webFetch awaited a decision; the card vanished, the part flipped to
+    // the INTERRUPTED chip, and the turn showed "Working" forever with no LLM
+    // running). A settled turn means the prompt is dead — flip the orphan to a
+    // terminal state.
+    const parts = (msg.parts ?? []).map((p) =>
+      p && (p as { state?: string }).state === "approval-requested"
+        ? { ...(p as object), state: "interrupted" }
+        : p,
+    );
+    await ctx.db.patch(args.messageId, { status: "completed", parts });
     await ctx.db.patch(msg.chatId, { generating: false });
     return { settled: true };
+  },
+});
+
+// Orphan-approval hygiene sweep (2026-10-10): rows that settled BEFORE the
+// settleStreaming burial existed carry approval-requested parts on completed
+// turns (the Instagram-CDN zombie). One-off/insurance sweep — flips any
+// approval-requested part on a NON-streaming row to "interrupted" so the
+// client renders it as nothing (never a resurrected Allow/Deny card).
+export const buryOrphanApprovals = internalMutation({
+  args: { chatId: v.id("chats") },
+  returns: v.object({ swept: v.number() }),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .collect();
+    let swept = 0;
+    for (const row of rows) {
+      if (row.status === "streaming") continue; // live decision — hands off
+      const parts = row.parts ?? [];
+      if (!parts.some((p) => (p as { state?: string })?.state === "approval-requested"))
+        continue;
+      await ctx.db.patch(row._id, {
+        parts: parts.map((p) =>
+          p && (p as { state?: string }).state === "approval-requested"
+            ? { ...(p as object), state: "interrupted" }
+            : p,
+        ),
+      });
+      swept += 1;
+    }
+    return { swept };
   },
 });
 
