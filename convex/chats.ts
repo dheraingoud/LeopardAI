@@ -140,6 +140,17 @@ export const updateTitle = mutation({
   },
 });
 
+// Pin toggle (aui ThreadListItem pin port 2026-10-10): pinned chats sort
+// above recency in the sidebar. Does NOT touch updatedAt — pinning must not
+// reorder the unpinned tail or mark the chat unread.
+export const setPinned = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), pinned: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    await ctx.db.patch(args.chatId, { pinned: args.pinned });
+  },
+});
+
 // Sidebar live indicator (2026-09-04): client flips this on send / off on
 // settle (dev has no CONVEX_DEPLOY_KEY so the route's upsertAssistant patch
 // only runs in prod). Does NOT touch updatedAt — a status flip must not

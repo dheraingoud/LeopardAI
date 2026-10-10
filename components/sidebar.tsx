@@ -30,14 +30,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /** Group chats by relative date buckets */
-function groupChats<T extends { _id: string; title: string; updatedAt: number }>(
+function groupChats<T extends { _id: string; title: string; updatedAt: number; pinned?: boolean }>(
   chats: T[]
 ) {
   const now = Date.now();
   const DAY = 86_400_000;
   const groups: Record<string, T[]> = {};
+  // aui pin port (2026-10-10): pinned chats form their own first bucket,
+  // still newest-first inside it; everything else buckets by recency.
   const sorted = [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
+  const pinned = sorted.filter((c) => c.pinned === true);
+  if (pinned.length > 0) groups["Pinned"] = pinned;
   for (const chat of sorted) {
+    if (chat.pinned === true) continue;
     const diff = now - chat.updatedAt;
     let bucket: string;
     if (diff < DAY) bucket = "Today";
@@ -150,6 +155,7 @@ export default function Sidebar({
   const chatsHasMore = chatsStatus === "CanLoadMore";
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
+  const setPinned = useMutation(api.chats.setPinned);
 
   const sidebarOpen = !collapsed;
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,7 +180,7 @@ export default function Sidebar({
     return chats.filter((c) => c.title.toLowerCase().includes(q));
   }, [chats, searchQuery]);
 
-  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean }[]), [filtered]);
+  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean }[]), [filtered]);
 
 
   // Deferred-create: just open the draft surface; the row is minted on the
@@ -401,6 +407,7 @@ export default function Sidebar({
                     id: c._id,
                     title: c.title,
                     generating: c.generating === true,
+                    pinned: c.pinned === true,
                     unread: isUnread(c._id, c.updatedAt, pathname),
                   }))}
                   activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : undefined}
@@ -409,6 +416,16 @@ export default function Sidebar({
                     const chat = items.find((c) => c._id === id);
                     setEditTitle(chat?.title ?? "");
                     setEditingId(id);
+                  }}
+                  onPin={(id) => {
+                    const chat = items.find((c) => c._id === id);
+                    if (chat && userId) {
+                      void setPinned({
+                        chatId: id as Id<"chats">,
+                        userId,
+                        pinned: !(chat.pinned === true),
+                      });
+                    }
                   }}
                   onDelete={(id) => setPendingDelete(id)}
                   editingId={editingId}
