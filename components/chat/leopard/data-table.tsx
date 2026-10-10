@@ -102,6 +102,18 @@ export function DataTable({
           </tr>
         </thead>
         <tbody>
+          {rows.length === 0 && (
+            // a11y (audit 2026-10-10): an empty table body announced as
+            // nothing; a zero-row grid needs a readable empty state.
+            <tr>
+              <td
+                colSpan={header.length}
+                className="px-4 py-6 text-center text-[12px] text-foreground/40"
+              >
+                No rows
+              </td>
+            </tr>
+          )}
           {rows.map((row, r) => (
             <tr
               key={r}
