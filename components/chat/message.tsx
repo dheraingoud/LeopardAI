@@ -79,6 +79,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ghostButton } from "./leopard/surfaces";
+import { ImageLightbox } from "./leopard/image-lightbox";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -754,6 +755,10 @@ export const PreviewMessage = memo(function PreviewMessage({
   // export a single answer or copy raw markdown. A DropdownMenu with export
   // .md / copy markdown / copy plain text.
   const [moreOpen, setMoreOpen] = useState(false);
+  // Image lightbox (aui image-gallery port): full-size preview for attached
+  // or generated images — they render bare <img> otherwise (unreadable crop
+  // on mobile, no download).
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   // Φ9 interleaved thinking — walk the parts in stream order and collapse
   // consecutive runs into alternating text / reasoning segments. This keeps
@@ -1323,12 +1328,21 @@ export const PreviewMessage = memo(function PreviewMessage({
                 <div className="mb-2 flex max-w-[70%] flex-col items-end gap-1.5">
                   {userFileParts.map((f, i) =>
                     f.mediaType?.startsWith("image/") ? (
-                      <img
+                      <button
                         key={i}
-                        src={f.url}
-                        alt={f.filename ?? "attachment"}
-                        className="max-h-64 max-w-full rounded-2xl object-cover dark:border dark:border-white/[0.08]"
-                      />
+                        type="button"
+                        aria-label={`View ${f.filename ?? "image"} full size`}
+                        onClick={() =>
+                          setLightbox({ src: f.url, alt: f.filename ?? "attachment" })
+                        }
+                        className="block cursor-zoom-in rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[#ffb400]/60"
+                      >
+                        <img
+                          src={f.url}
+                          alt={f.filename ?? "attachment"}
+                          className="max-h-64 max-w-full rounded-2xl object-cover dark:border dark:border-white/[0.08]"
+                        />
+                      </button>
                     ) : (
                       <div
                         key={i}
@@ -1788,6 +1802,16 @@ export const PreviewMessage = memo(function PreviewMessage({
           )
         }
       />
+      {/* Image lightbox (aui image-gallery port): the attached-image click
+          opens the full-size preview. Assistant markdown images self-render
+          theirs (streaming-text MarkdownImage). */}
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          alt={lightbox.alt}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </motion.div>
   );
 });

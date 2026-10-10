@@ -25,6 +25,7 @@ import { Check, ChevronDown, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
+import { ImageLightbox } from "./image-lightbox";
 import DOMPurify from "dompurify";
 import { FlowGraph, type FlowEdge, type FlowNode } from "./flow-graph";
 import { TerminalBlock } from "./terminal-block";
@@ -147,6 +148,9 @@ const MarkdownBlock = memo(function MarkdownBlock({
       pre: (props: any) => <PreBlock {...props} streaming={streaming} />,
       code: InlineCode,
       a: (props: any) => <CitationLink {...props} />,
+      // Image lightbox (aui image-gallery port): markdown images were bare
+      // <img> with no zoom/download. Click opens the full-size overlay.
+      img: (props: any) => <MarkdownImage {...props} />,
     }),
     [streaming],
   );
@@ -178,6 +182,38 @@ const MarkdownBlock = memo(function MarkdownBlock({
     </div>
   );
 });
+
+// Markdown image (aui image-gallery port): an <img> from model output gets
+// the lightbox (full-size preview + download) instead of an inert inline
+// render. Wrapped in a button so keyboard users can open it.
+function MarkdownImage({ src, alt, ...rest }: any) {
+  const [open, setOpen] = useState(false);
+  if (typeof src !== "string") return null;
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`View ${alt || "image"} full size`}
+        onClick={() => setOpen(true)}
+        className="my-2 block max-w-full cursor-zoom-in rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#ffb400]/60"
+      >
+        <img
+          src={src}
+          alt={alt ?? ""}
+          className="max-h-72 max-w-full rounded-xl object-cover dark:border dark:border-white/[0.08]"
+          {...rest}
+        />
+      </button>
+      {open && (
+        <ImageLightbox
+          src={src}
+          alt={alt ?? "image"}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
 
 function InlineCode({ className, children, ...rest }: any) {
   return (
