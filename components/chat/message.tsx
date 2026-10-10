@@ -19,6 +19,7 @@ import {
   ThumbsDown,
   Download,
   Eye,
+  EllipsisIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "convex/react";
@@ -71,6 +72,13 @@ import { ReadAloudButton } from "./leopard/read-aloud";
 import { QuoteReply } from "./leopard/quote-reply";
 import { FeedbackDialog } from "./leopard/feedback-dialog";
 import { MessageBranches } from "./leopard/message-branches";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ghostButton } from "./leopard/surfaces";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -741,6 +749,12 @@ export const PreviewMessage = memo(function PreviewMessage({
   }, [message.id, text, needsHydrate]);
   const renderText = needsHydrate && hydrated !== null ? hydrated : text;
 
+  // Per-message "More" kebab (aui ActionBarMore port, 2026-10-10): the
+  // ellipsis button existed on MessageActions but was never wired — no way to
+  // export a single answer or copy raw markdown. A DropdownMenu with export
+  // .md / copy markdown / copy plain text.
+  const [moreOpen, setMoreOpen] = useState(false);
+
   // Φ9 interleaved thinking — walk the parts in stream order and collapse
   // consecutive runs into alternating text / reasoning segments. This keeps
   // thought blocks inline at the position where the model actually reasoned
@@ -1155,6 +1169,39 @@ export const PreviewMessage = memo(function PreviewMessage({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // More-menu actions (aui ActionBarMore port): per-message export + copy.
+  // Copy here copies the RENDERED markdown source (renderText) — the copy
+  // button copies the same; plain-text strips the markdown fences/decorations
+  // so a paste into a doc is clean.
+  const handleCopyMarkdown = () => {
+    navigator.clipboard.writeText(renderText).catch(() => {});
+    toast.success("Copied as Markdown");
+  };
+  const handleCopyPlain = () => {
+    const plain = renderText
+      .replace(/```[\w-]*\n?/g, "")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\*([^*]+)\*/g, "$1");
+    navigator.clipboard.writeText(plain).catch(() => {});
+    toast.success("Copied as plain text");
+  };
+  const handleExportMd = () => {
+    const blob = new Blob([renderText], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "leopard-response.md";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("Exported as .md");
+  };
+
   // ── Φ7 action buttons ───────────────────────────────────────────────────
   const handleCopyUser = () => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -1294,11 +1341,37 @@ export const PreviewMessage = memo(function PreviewMessage({
                   )}
                 </div>
               )}
-              {text.trim() && (
-                <div className="max-w-[70%] rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
-                  <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]"><UserText text={text} /></p>
-                </div>
-              )}
+              {text.trim() && (() => {
+                // Quote fidelity (aui quote.aui port, 2026-10-10): the Quote
+                // reply pill prepends `> quoted` markdown; render leading
+                // `> ` lines as a real blockquote above the user's own words
+                // instead of dumping the raw `>` into the bubble.
+                const lines = text.split("\n");
+                let i = 0;
+                const quoteLines: string[] = [];
+                while (i < lines.length && lines[i].trimStart().startsWith("> ")) {
+                  quoteLines.push(lines[i].trimStart().slice(2));
+                  i += 1;
+                }
+                // Skip a single blank separator line after the quote block.
+                if (i < lines.length && lines[i].trim() === "" && quoteLines.length > 0) i += 1;
+                const quote = quoteLines.join("\n").trim();
+                const rest = lines.slice(i).join("\n");
+                return (
+                  <div className="flex max-w-[70%] flex-col items-end gap-1.5">
+                    {quote && (
+                      <blockquote className="max-w-full rounded-[14px] border-l-2 dark:border-[#ffb400]/40 light:border-[#d49600]/50 dark:bg-[#ffb400]/[0.06] light:bg-black/[0.04] px-3 py-1.5 text-[13.5px] leading-[1.55] dark:text-[#a3a3a3] light:text-[#525252]">
+                        {quote}
+                      </blockquote>
+                    )}
+                    {rest.trim() && (
+                      <div className="rounded-[20px] dark:bg-white/[0.07] light:bg-black/[0.05] px-4 py-2.5">
+                        <p className="text-[15px] leading-[1.65] whitespace-pre-wrap break-words dark:text-[#e8e8e8] light:text-[#262626]"><UserText text={rest} /></p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
           <div className="flex items-center justify-end gap-1 mt-2 action-reveal">
@@ -1622,6 +1695,35 @@ export const PreviewMessage = memo(function PreviewMessage({
                       onRetry={handleRegenerate}
                       onPick={pickRegenModel}
                     />
+                  }
+                  moreMenu={
+                    <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+                      <DropdownMenuTrigger
+                        render={
+                          <button
+                            type="button"
+                            aria-label="More response actions"
+                            className={cn(
+                              ghostButton,
+                              "size-7",
+                            )}
+                          />
+                        }
+                      >
+                        <EllipsisIcon className="size-3.5" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-48">
+                        <DropdownMenuItem onClick={handleExportMd}>
+                          Export as .md
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleCopyMarkdown}>
+                          Copy as Markdown
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleCopyPlain}>
+                          Copy as plain text
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   }
                 />
                 <ReadAloudButton text={renderText} />

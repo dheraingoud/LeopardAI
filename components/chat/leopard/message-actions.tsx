@@ -26,6 +26,10 @@ export interface MessageActionsProps extends Omit<
   onRegenerate: () => void;
   /** When provided, replaces the default regen button (e.g. RegenerateMenu). */
   regenerateMenu?: ReactNode;
+  /** When provided, replaces the default ellipsis button with a custom menu
+   * (e.g. a DropdownMenu whose trigger is the ellipsis) — mirrors
+   * regenerateMenu. */
+  moreMenu?: ReactNode;
   /** Optional — the ellipsis button renders only when provided. */
   onMore?: () => void;
 }
@@ -38,6 +42,7 @@ export function MessageActions({
   onReactionChange,
   onRegenerate,
   regenerateMenu,
+  moreMenu,
   onMore,
   className,
   ...props
@@ -117,16 +122,17 @@ export function MessageActions({
           />
         </button>
       )}
-      {onMore && (
-        <button
-          type="button"
-          aria-label="More response actions"
-          onClick={onMore}
-          className={buttonClassName}
-        >
-          <EllipsisIcon className="size-3.5" />
-        </button>
-      )}
+      {moreMenu ??
+        (onMore && (
+          <button
+            type="button"
+            aria-label="More response actions"
+            onClick={onMore}
+            className={buttonClassName}
+          >
+            <EllipsisIcon className="size-3.5" />
+          </button>
+        ))}
     </div>
   );
 }
