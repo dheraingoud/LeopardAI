@@ -172,10 +172,22 @@ export default function SettingsPage() {
     setConfirmDeleteAll(false);
     setDeleting(true);
     try {
-      for (const chat of chats) await deleteChat({ chatId: chat._id, userId });
-      toast.success("All conversations deleted");
-    } catch {
-      toast.error("Failed to delete conversations");
+      // Parallel + allSettled (audit 2026-10-10): the serial loop blocked the
+      // UI for N round-trips and bailed the whole batch on the first 500 —
+      // partial deletes left a phantom list. allSettled reports per-row.
+      const results = await Promise.allSettled(
+        chats.map((chat) => deleteChat({ chatId: chat._id, userId })),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed === 0) {
+        toast.success("All conversations deleted");
+      } else if (failed === results.length) {
+        toast.error("Failed to delete conversations");
+      } else {
+        toast.warning(
+          `Deleted ${results.length - failed} of ${results.length} — ${failed} failed. Try again.`,
+        );
+      }
     } finally {
       setDeleting(false);
     }
