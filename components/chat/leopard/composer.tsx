@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, FileIcon, GlobeIcon, ImageIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
+import { ArrowUpIcon, FileIcon, GlobeIcon, ImageIcon, MicIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelector } from "./model-selector";
@@ -23,6 +23,7 @@ import { MessageAttachmentChip, type PendingAttachment } from "./message-attachm
 import { useMessageQueue } from "./message-queue";
 import { useDraftRestore } from "./draft-restore";
 import { useInputHistory } from "@/hooks/use-input-history";
+import { useDictation } from "@/hooks/use-dictation";
 import {
   Popover,
   PopoverContent,
@@ -293,6 +294,30 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   // the previous sent message, ArrowDown walks back to the live draft.
   const { tryRecall } = useInputHistory(messages);
   const [input, setInput] = useState("");
+  // Dictation (speech input): the mic streams partial + final transcripts into
+  // the composer — partial previews the in-progress tail, final commits it.
+  // The base is the text present when dictation STARTS, so typed + dictated
+  // content coexist. Unsupported browsers hide the button.
+  const dictationBaseRef = useRef("");
+  const inputAtStartRef = useRef("");
+  const dictation = useDictation({
+    onResult: (transcript, isFinal) => {
+      if (isFinal) {
+        dictationBaseRef.current = `${dictationBaseRef.current}${transcript} `;
+        setInput(`${inputAtStartRef.current}${dictationBaseRef.current}`.trimEnd());
+      } else {
+        setInput(`${inputAtStartRef.current}${dictationBaseRef.current}${transcript}`.trimEnd());
+      }
+    },
+  });
+  const toggleDictation = () => {
+    if (!dictation.listening) {
+      // Snapshot the typed text so speech appends, not overwrites.
+      inputAtStartRef.current = input ? `${input.trimEnd()} ` : "";
+      dictationBaseRef.current = "";
+    }
+    dictation.toggle();
+  };
   // Consume parked edit-text on mount (strict-mode safe: effects, not the
   // useState initializer, which double-invokes and would eat the value).
   const inputRef = useRef(input);
@@ -791,6 +816,30 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 />
                 <MemoryChips />
                 <ResearchPanel />
+                {/* Dictation: speech input streams into the composer. Hidden
+                    where the SpeechRecognition API is unsupported. */}
+                {dictation.supported && !isStreaming && (
+                  <button
+                    type="button"
+                    title={dictation.listening ? "Stop dictation" : "Dictate"}
+                    aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
+                    aria-pressed={dictation.listening}
+                    onClick={toggleDictation}
+                    className={cn(
+                      ghostButton,
+                      "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11",
+                      dictation.listening &&
+                        "dark:text-[#ffb400] light:text-[#d49600] dark:bg-[#ffb400]/[0.12] light:bg-[#d49600]/[0.14]",
+                    )}
+                  >
+                    <MicIcon
+                      className={cn(
+                        "size-4",
+                        dictation.listening && "animate-pulse motion-reduce:animate-none",
+                      )}
+                    />
+                  </button>
+                )}
                 {isStreaming ? (
                   <ComposerSend
                     streaming
