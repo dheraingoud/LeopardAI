@@ -30,6 +30,7 @@ import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { createDocument } from "@/lib/ai/tools/create-document";
+import { askUser } from "@/lib/ai/tools/ask-user";
 import { loadMcpTools } from "@/lib/ai/mcp";
 import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
 import { resolveOutputStyleDirective } from "@/lib/ai/output-styles";
@@ -604,6 +605,18 @@ export async function POST(request: Request) {
     };
     for (const p of pendingExecParts) {
       const toolName = p.toolName ?? String(p.type).slice(5);
+      // askUser: the "output" is the user's chosen option, which the client
+      // already set on the part before resuming — don't re-run the stub
+      // execute (it returns {answered:false}). Fold the choice in as the
+      // result so the model sees it.
+      if (toolName === "askUser") {
+        const out = (p as { output?: unknown }).output ?? {
+          answer: (p as { approval?: { reason?: string } }).approval?.reason,
+        };
+        resumeOutputs.set(p.toolCallId, out);
+        emitChunk({ type: "tool-output-available", toolCallId: p.toolCallId, output: out });
+        continue;
+      }
       const def = manualTools[toolName];
       if (!def?.execute) {
         continue;
@@ -969,6 +982,10 @@ export async function POST(request: Request) {
         const tools = {
           ...(webFetchEnabled ? { webFetch: webFetch({ dataStream }) } : {}),
           ...(webSearchEnabled ? { webSearch: webSearch() } : {}),
+          // askUser: the model's structured clarifying-question tool — approval
+          // -gated (the card shows options; the choice rides the resume as the
+          // output). Always available; the prompt limits it to real forks.
+          askUser: askUser(),
           ...(memEnabled ? memoryTools({ userId: memUserId }) : {}),
           ...(researchEnabled ? researchTools({ userId: memUserId, modelId }) : {}),
           ...(multiAgentsEnabled

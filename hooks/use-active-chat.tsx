@@ -122,8 +122,10 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   /** Edit + immediately resend (truncates, waits for the send gate, sends). */
   editAndResend: (messageId: string, text: string) => void;
   /** Approve/deny a tool call and fire the resume POST once the SDK gate
-   * opens (provider-lived; survives the dock unmounting on approval). */
-  approveAndResume: (approvalId: string, approved: boolean) => void;
+   * opens (provider-lived; survives the dock unmounting on approval). The
+   * optional `reason` carries a structured answer — the askUser card puts the
+   * chosen option there so the resumed model reads it. */
+  approveAndResume: (approvalId: string, approved: boolean, reason?: string) => void;
   /** True when the latest assistant row is still being written by the
    * detached server task and no local stream owns it — i.e. the user reopened
    * the chat mid-generation and is watching the live mirror fill in. */
@@ -1476,12 +1478,12 @@ export function ActiveChatProvider({
   // + dedupe stand down only in this window; a persisted approval-responded
   // row after a reload must NOT block them (X4.2).
   const approveAndResume = useCallback(
-    (approvalId: string, approved: boolean) => {
+    (approvalId: string, approved: boolean, reason?: string) => {
       (
         chat as unknown as {
-          addToolApprovalResponse?: (r: { id: string; approved: boolean }) => void;
+          addToolApprovalResponse?: (r: { id: string; approved: boolean; reason?: string }) => void;
         }
-      ).addToolApprovalResponse?.({ id: approvalId, approved });
+      ).addToolApprovalResponse?.({ id: approvalId, approved, ...(reason !== undefined ? { reason } : {}) });
       // Approval-gate hold (2026-10-10): the SDK stream ENDS on an unresolved
       // approval and the SERVER holds the turn open — the SSE stays open until
       // the resume POST's abortAndSettle aborts it. The old poll waited for
