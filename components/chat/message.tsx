@@ -1232,6 +1232,7 @@ export const PreviewMessage = memo(function PreviewMessage({
             <EditMessage
               className="w-full"
               value={editDraft}
+              originalValue={getMessageText(message)}
               discardedReplies={Math.max(
                 0,
                 chat.messages.length -

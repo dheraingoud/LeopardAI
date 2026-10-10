@@ -9,6 +9,7 @@ import { field, inkButton, mono, paper } from "./surfaces";
 // many later replies the resend discards. Cmd/Ctrl+Enter saves, Esc cancels.
 export function EditMessage({
   value,
+  originalValue,
   discardedReplies,
   onValueChange,
   onSave,
@@ -19,6 +20,9 @@ export function EditMessage({
   onModelChange,
 }: {
   value: string;
+  /** Original text — enables the "unsaved changes" indicator when the draft
+   *  diverges (undefined = treat as always-clean, no indicator). */
+  originalValue?: string;
   discardedReplies: number;
   onValueChange?: (value: string) => void;
   onSave?: () => void;
@@ -67,6 +71,21 @@ export function EditMessage({
           </span>
         </div>
       )}
+
+      {/* Keyboard legend (audit 2026-10-10): the shortcuts existed but were
+          invisible — no discoverability without reading source. "unsaved
+          changes" fires only after the draft actually diverges. */}
+      <div className="flex items-center justify-between gap-2 px-1 -mt-1">
+        <span className={cn(mono, "text-foreground/35 flex items-center gap-1.5 text-[10px]")}>
+          <kbd className="rounded bg-foreground/[0.06] px-1">⌘/Ctrl↵</kbd> save
+          <kbd className="rounded bg-foreground/[0.06] px-1">Esc</kbd> cancel
+        </span>
+        {originalValue !== undefined && value !== originalValue && (
+          <span className={cn(mono, "dark:text-[#ffb400]/80 light:text-[#d49600]/90 text-[10px]")}>
+            unsaved changes
+          </span>
+        )}
+      </div>
 
       <div className="flex items-center justify-end gap-2">
         {models && models.length > 1 && (
