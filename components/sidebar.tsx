@@ -157,6 +157,10 @@ export default function Sidebar({
   const renameChat = useMutation(api.chats.updateTitle);
   const setPinned = useMutation(api.chats.setPinned);
   const setArchived = useMutation(api.chats.setArchived);
+  // Count archived rows so the hidden-set is discoverable (audit 2026-10-10):
+  // archiving with no way back from the sidebar reads as deletion.
+  const archivedCount = (chats ?? []).filter((c) => c.archived === true).length;
+  const [showArchived, setShowArchived] = useState(false);
 
   const sidebarOpen = !collapsed;
   const [searchQuery, setSearchQuery] = useState("");
@@ -177,14 +181,15 @@ export default function Sidebar({
   const filtered = useMemo(() => {
     if (!chats) return [];
     // aui archive port (2026-10-10): archived rows hide from the sidebar
-    // (a direct link to an archived chat still loads).
-    const visible = chats.filter((c) => c.archived !== true);
+    // (a direct link to an archived chat still loads) — toggled back on by
+    // the "archived" footer chip below.
+    const visible = chats.filter((c) => showArchived || c.archived !== true);
     if (!searchQuery.trim()) return visible;
     const q = searchQuery.toLowerCase();
     return visible.filter((c) => c.title.toLowerCase().includes(q));
-  }, [chats, searchQuery]);
+  }, [chats, searchQuery, showArchived]);
 
-  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean }[]), [filtered]);
+  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean; archived?: boolean }[]), [filtered]);
 
 
   // Deferred-create: just open the draft surface; the row is minted on the
@@ -412,6 +417,7 @@ export default function Sidebar({
                     title: c.title,
                     generating: c.generating === true,
                     pinned: c.pinned === true,
+                    archived: c.archived === true,
                     unread: isUnread(c._id, c.updatedAt, pathname),
                   }))}
                   activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : undefined}
@@ -432,8 +438,13 @@ export default function Sidebar({
                     }
                   }}
                   onArchive={(id) => {
-                    if (userId) {
-                      void setArchived({ chatId: id as Id<"chats">, userId, archived: true });
+                    const chat = items.find((c) => c._id === id);
+                    if (chat && userId) {
+                      void setArchived({
+                        chatId: id as Id<"chats">,
+                        userId,
+                        archived: !(chat.archived === true),
+                      });
                     }
                   }}
                   onDelete={(id) => setPendingDelete(id)}
@@ -455,6 +466,22 @@ export default function Sidebar({
                     className="w-full rounded-xl border px-3 py-2 text-[12px] font-medium dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] transition-colors"
                   >
                     Load more
+                  </button>
+                </div>
+              )}
+              {/* Archived toggle (audit 2026-10-10): archive hides rows with
+                  no way back from the sidebar — reads as deletion. A footer
+                  chip flips archived rows back into view (unarchive from
+                  there via the same button, now relabeled). */}
+              {archivedCount > 0 && (
+                <div className="px-1 pb-1">
+                  <button
+                    type="button"
+                    aria-pressed={showArchived}
+                    onClick={() => setShowArchived((s) => !s)}
+                    className="w-full rounded-xl px-3 py-1.5 text-left font-mono text-[10px] uppercase tracking-wide dark:text-[#737373] light:text-[#737373] dark:hover:bg-white/[0.03] light:hover:bg-black/[0.03] transition-colors"
+                  >
+                    {showArchived ? "Hide" : "Show"} {archivedCount} archived
                   </button>
                 </div>
               )}

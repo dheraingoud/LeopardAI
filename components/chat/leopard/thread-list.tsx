@@ -17,6 +17,9 @@ export interface ThreadListItem {
   /** aui pin port (2026-10-10): pinned rows sort above recency in a
    *  "Pinned" bucket + show a pin glyph on hover. */
   pinned?: boolean;
+  /** aui archive port (2026-10-10): archived rows hide unless the sidebar's
+   *  "show archived" chip is on; the row's archive button then unarchives. */
+  archived?: boolean;
 }
 
 // Leopard fork of the kit ThreadList, extended to the production sidebar API:
@@ -180,8 +183,8 @@ export const ThreadList = memo(function ThreadList({
               </button>
               <button
                 type="button"
-                aria-label="Archive chat"
-                title="Archive"
+                aria-label={thread.archived ? "Unarchive chat" : "Archive chat"}
+                title={thread.archived ? "Unarchive" : "Archive"}
                 className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
                 onClick={(e) => {
                   e.stopPropagation();
