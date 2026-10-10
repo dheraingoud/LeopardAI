@@ -151,6 +151,17 @@ export const setPinned = mutation({
   },
 });
 
+// Archive toggle (aui ThreadListItem archive port 2026-10-10): archived rows
+// hide from the sidebar (listPage filters) but stay in the table — unarchive
+// or a direct link brings them back. Does NOT touch updatedAt.
+export const setArchived = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), archived: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    await ctx.db.patch(args.chatId, { archived: args.archived });
+  },
+});
+
 // Sidebar live indicator (2026-09-04): client flips this on send / off on
 // settle (dev has no CONVEX_DEPLOY_KEY so the route's upsertAssistant patch
 // only runs in prod). Does NOT touch updatedAt — a status flip must not

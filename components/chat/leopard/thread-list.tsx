@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
+import { ArchiveIcon, PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "./surfaces";
 
@@ -28,6 +28,7 @@ export function ThreadList({
   onRename,
   onDelete,
   onPin,
+  onArchive,
   editingId,
   editValue,
   onEditChange,
@@ -37,7 +38,7 @@ export function ThreadList({
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "label" | "threads" | "activeId" | "onSelect" | "onRename" | "onDelete" | "onPin"
+  "children" | "label" | "threads" | "activeId" | "onSelect" | "onRename" | "onDelete" | "onPin" | "onArchive"
 > & {
   label: string;
   threads: readonly ThreadListItem[];
@@ -47,6 +48,9 @@ export function ThreadList({
   onDelete?: (id: string) => void;
   /** Pin/unpin (aui ThreadListItem port 2026-10-10). */
   onPin?: (id: string) => void;
+  /** Archive (aui ThreadListItemArchive port 2026-10-10): hides from the
+   *  sidebar; the chat stays in the DB and a direct link still loads it. */
+  onArchive?: (id: string) => void;
   editingId?: string | null;
   editValue?: string;
   onEditChange?: (value: string) => void;
@@ -172,6 +176,18 @@ export function ThreadList({
                 }}
               >
                 <PencilIcon className="size-3" />
+              </button>
+              <button
+                type="button"
+                aria-label="Archive chat"
+                title="Archive"
+                className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArchive?.(thread.id);
+                }}
+              >
+                <ArchiveIcon className="size-3" />
               </button>
               <button
                 type="button"

@@ -156,6 +156,7 @@ export default function Sidebar({
   const deleteChat = useMutation(api.chats.remove);
   const renameChat = useMutation(api.chats.updateTitle);
   const setPinned = useMutation(api.chats.setPinned);
+  const setArchived = useMutation(api.chats.setArchived);
 
   const sidebarOpen = !collapsed;
   const [searchQuery, setSearchQuery] = useState("");
@@ -175,9 +176,12 @@ export default function Sidebar({
 
   const filtered = useMemo(() => {
     if (!chats) return [];
-    if (!searchQuery.trim()) return chats;
+    // aui archive port (2026-10-10): archived rows hide from the sidebar
+    // (a direct link to an archived chat still loads).
+    const visible = chats.filter((c) => c.archived !== true);
+    if (!searchQuery.trim()) return visible;
     const q = searchQuery.toLowerCase();
-    return chats.filter((c) => c.title.toLowerCase().includes(q));
+    return visible.filter((c) => c.title.toLowerCase().includes(q));
   }, [chats, searchQuery]);
 
   const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean }[]), [filtered]);
@@ -425,6 +429,11 @@ export default function Sidebar({
                         userId,
                         pinned: !(chat.pinned === true),
                       });
+                    }
+                  }}
+                  onArchive={(id) => {
+                    if (userId) {
+                      void setArchived({ chatId: id as Id<"chats">, userId, archived: true });
                     }
                   }}
                   onDelete={(id) => setPendingDelete(id)}
