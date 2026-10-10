@@ -366,6 +366,12 @@ export function Messages() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        // a11y (audit 2026-10-10): the transcript is the main content region —
+        // role=log + aria-live=polite announces new messages to ATs; the
+        // scrollable container needs a name.
+        role="log"
+        aria-live="polite"
+        aria-label="Conversation"
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6"
       >
         {railEntries.length >= 3 && (
