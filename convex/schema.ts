@@ -49,6 +49,10 @@ export default defineSchema({
     // aui ThreadListItem pin port (2026-10-10): pinned chats sort above
     // recency in the sidebar. Optional so existing rows validate unchanged.
     pinned: v.optional(v.boolean()),
+    // aui ThreadListItem archive port (2026-10-10): archived rows hide from
+    // the sidebar (listPage filters them) but stay in the table — unarchive
+    // or a direct link brings them back.
+    archived: v.optional(v.boolean()),
     // True while a detached generation for this chat is live (sidebar blink).
     generating: v.optional(v.boolean()),
   })
