@@ -6,6 +6,7 @@ import { ConvexClientProvider } from "./ConvexClientProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToaster } from "@/components/theme-toaster";
 import { DynamicClerkProvider } from "@/components/dynamic-clerk-provider";
+import { MotionConfigProvider } from "@/components/motion-config-provider";
 import {
   Bricolage_Grotesque,
   Geist,
@@ -115,10 +116,12 @@ export default function RootLayout({
         <ThemeProvider>
           <DynamicClerkProvider>
             <ConvexClientProvider>
-              <TooltipProvider delay={200}>
-                {children}
-                <ExternalLinksNewTab />
-              </TooltipProvider>
+              <MotionConfigProvider>
+                <TooltipProvider delay={200}>
+                  {children}
+                  <ExternalLinksNewTab />
+                </TooltipProvider>
+              </MotionConfigProvider>
             </ConvexClientProvider>
             <ThemeToaster />
           </DynamicClerkProvider>
