@@ -71,6 +71,12 @@ const _abortControllers = new Map<string, AbortController>();
 // assistantId → chatId, so deleting a chat can abort its in-flight generation
 // (operator 2026-09-04: deleted chats kept generating against a ghost row).
 const _generationChat = new Map<string, string>();
+// assistantId → live handle, so an approval-resume can ABORT the paused
+// pre-approval generation AND await its final write before the resumed
+// generation's first write lands (2026-10-10 race fix — without the await the
+// old finalizePartial could supersede the resume's progressive patch on the
+// shared row, resurrecting the stale approval-requested state).
+const _handles = new Map<string, ServerGenerationHandle>();
 
 /** Abort a live generation by its assistant message id. Returns false if none. */
 export function abortGeneration(assistantId: string): boolean {
@@ -84,6 +90,21 @@ export function abortGeneration(assistantId: string): boolean {
     /* already aborted */
   }
   return true;
+}
+
+/** Abort a live generation AND wait for its final persist to land. Used by the
+ *  approval-resume path: the paused pre-approval generation shares the resumed
+ *  row, so its finalizePartial must be fully flushed before the resume writes. */
+export async function abortAndSettle(assistantId: string): Promise<void> {
+  const h = _handles.get(assistantId);
+  abortGeneration(assistantId);
+  if (h) {
+    try {
+      await h.done;
+    } catch {
+      /* settle errors are non-fatal here */
+    }
+  }
 }
 
 /** Abort EVERY live generation for a chat (chat delete path). Count aborted. */
@@ -110,6 +131,7 @@ export function createGenerationController(assistantId: string, chatId?: string)
 function unregisterGeneration(assistantId: string): void {
   _abortControllers.delete(assistantId);
   _generationChat.delete(assistantId);
+  _handles.delete(assistantId);
 }
 
 // ── Convex admin client ─────────────────────────────────────────────────────
@@ -885,7 +907,18 @@ export function backgroundServe(args: {
   // composer at exactly 300s). Declared before `emit` — emit touches it, and
   // the first emit (data-assistant-id) happens immediately below.
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  // Approval-pause (2026-10-10 root-cause fix): a `tool-approval-request` PAUSES
+  // the SDK stream until the user's Allow/Deny — NO chunks flow, for as long as
+  // the user thinks. An idle ceiling then force-aborts mid-decision and the
+  // finalize path buries the approval-requested part as "interrupted" (the
+  // screenshot bug: two webFetch rows flipped to INTERRUPTED before the user
+  // could click). While any approval is pending, the idle settle timer is
+  // DISARMED: the resume POST re-arms it (prelude emits chunks → touchSettle),
+  // and the orphan-approval scan (top of file) sweeps approvals whose browser
+  // never came back.
+  let pendingApprovals = 0;
   const armSettleTimer = () => {
+    if (pendingApprovals > 0) return; // user is deciding — idle is EXPECTED
     settleTimer = setTimeout(() => {
       if (!settled && !ctrl.signal.aborted) {
         logWarn(
@@ -905,6 +938,14 @@ export function backgroundServe(args: {
   armSettleTimer();
 
   const emit = (chunk: UIMessageStreamChunk) => {
+    const ctype = (chunk as { type?: string }).type;
+    if (ctype === "tool-approval-request") {
+      pendingApprovals += 1;
+      clearTimeout(settleTimer); // disarm — the user may think for minutes
+    } else if (ctype === "tool-approval-response") {
+      pendingApprovals = Math.max(0, pendingApprovals - 1);
+      if (pendingApprovals === 0) touchSettleTimer(); // re-arm the idle ceiling
+    }
     touchSettleTimer();
     // tool-approval-request is a LIVE-ONLY gate signal: the decision is folded
     // into the tool part's state, so replaying the request to a reloaded
@@ -994,6 +1035,11 @@ export function backgroundServe(args: {
     // Same stale-approval burial as the main completed write (below): a
     // finalized-partial row must not keep approval-requested either, or the
     // dock resurrects on reload.
+    // Approval-pause guard (2026-10-10): when a decision is STILL pending
+    // (pendingApprovals > 0) the finalize is firing from an abort while the
+    // user is mid-decision — burying would flip the live card to INTERRUPTED
+    // before they click. Persist approval-requested as-is and let the
+    // approval-resume (or the orphan scan) settle the state.
     await enqueueWrite(() =>
       persistAssistantRow({
         chatId,
@@ -1001,7 +1047,8 @@ export function backgroundServe(args: {
         id: assistantId,
         model,
         parts: parts.map((p) =>
-          (p as { state?: string }).state === "approval-requested"
+          (p as { state?: string }).state === "approval-requested" &&
+          pendingApprovals === 0
             ? { ...(p as object), state: "interrupted" }
             : p,
         ),
@@ -1106,14 +1153,25 @@ export function backgroundServe(args: {
         for (;;) {
           let stall: ReturnType<typeof setTimeout> | undefined;
           const budget = sawChunk ? STALL_MS : STALL_OPEN_MS;
+          // Approval-pause (2026-10-10 root-cause fix): a `tool-approval-request`
+          // PAUSES the SDK stream until the user clicks Allow/Deny — zero chunks
+          // flow for as long as the user thinks. The stall race used to fire at
+          // 45s mid-decision, the retry loop broke on `committed` (tool-input
+          // chunks), and the finalize path buried the part as "interrupted"
+          // before the user could click. While an approval is pending there is
+          // NO stall budget: the resume POST drives the next chunks.
           const next = await Promise.race([
             it.next(),
-            new Promise<never>((_, rej) => {
-              stall = setTimeout(
-                () => rej(new Error(`stall: no chunk for ${budget}ms`)),
-                budget,
-              );
-            }),
+            ...(pendingApprovals > 0
+              ? []
+              : [
+                  new Promise<never>((_, rej) => {
+                    stall = setTimeout(
+                      () => rej(new Error(`stall: no chunk for ${budget}ms`)),
+                      budget,
+                    );
+                  }),
+                ]),
           ]).finally(() => {
             if (stall) clearTimeout(stall);
           });
@@ -1153,10 +1211,12 @@ export function backgroundServe(args: {
           if (ctype === "text-start" || ctype === "text-delta") sawAnswerText = true;
           // Thinking-token cap: reasoning burned past the tier budget with no
           // answer yet → cut the attempt (content-free → retry escalates down
-          // a tier per the operator's length-truncation rule).
+          // a tier per the operator's length-truncation rule). Frozen while an
+          // approval is pending — the pause isn't thinking (2026-10-10).
           if (
             REASONING_TOKEN_CAP > 0 &&
             !sawAnswerText &&
+            pendingApprovals === 0 &&
             reasoningChars / 4 > REASONING_TOKEN_CAP
           ) {
             throw new Error(
@@ -1166,6 +1226,7 @@ export function backgroundServe(args: {
           if (
             firstReasoningAt !== null &&
             !sawAnswerText &&
+            pendingApprovals === 0 &&
             Date.now() - firstReasoningAt > REASONING_BUDGET_MS
           ) {
             throw new Error(
@@ -1338,8 +1399,13 @@ export function backgroundServe(args: {
         // on every reload even though the turn is over (live repro: the 3×
         // gated webFetch chat showed the card after the final answer). Flip
         // any leftover to "interrupted" (renders as the neutral chip).
+        // Approval-pause guard (2026-10-10): a decision STILL pending means the
+        // finalize is firing from an abort while the user is mid-decision —
+        // burying would flip the live card to INTERRUPTED before they click.
+        // Leave approval-requested intact for the resume/orphan-scan path.
         const buriedParts = finalParts.map((p) =>
-          (p as { state?: string }).state === "approval-requested"
+          (p as { state?: string }).state === "approval-requested" &&
+          pendingApprovals === 0
             ? { ...(p as object), state: "interrupted" }
             : p,
         );
@@ -1382,10 +1448,9 @@ export function backgroundServe(args: {
     }
   })();
 
-  void done;
   void persistAssistantRow; // referenced (keeps tree-shakers honest)
 
-  return {
+  const handle: ServerGenerationHandle = {
     assistantId,
     subscribe: (cb) => {
       for (const c of replay) {
@@ -1404,4 +1469,9 @@ export function backgroundServe(args: {
     done,
     isAborted: () => generationAborted,
   };
+  // Register AFTER construction so abortAndSettle (approval-resume) can find +
+  // await this generation's final write. Cleared by unregisterGeneration on
+  // settle (done().finally).
+  _handles.set(assistantId, handle);
+  return handle;
 }

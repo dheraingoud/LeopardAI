@@ -37,6 +37,7 @@ import { estimateConversationTokens, getContextBudget, type TokenMessage } from 
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import {
+  abortAndSettle,
   backgroundServe,
   createGenerationController,
   isOverDailyTokenCap,
@@ -868,6 +869,19 @@ export async function POST(request: Request) {
             ? { ...p, state: "output-available", output: out }
             : { ...p, state: "approval-responded" };
         });
+      // Approval-pause cleanup (2026-10-10): the PRE-approval generation is still
+      // parked inside its paused SDK stream (approval-requested → no chunks → the
+      // settle timer is disarmed while a decision is pending, so it would sit
+      // FOREVER holding an upstream slot). The resume POST is the user's decision
+      // — the old stream is dead weight. Abort it AND await its final write
+      // before the resumed generation's first write lands: without the await the
+      // old finalizePartial could supersede the resume's progressive patch on the
+      // shared row and resurrect the stale approval-requested state.
+      if (isApprovalResume) {
+        try {
+          await abortAndSettle(assistantId);
+        } catch {}
+      }
       const genCtrl = createGenerationController(assistantId, realChatId);
       generationSignal = genCtrl.signal;
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
