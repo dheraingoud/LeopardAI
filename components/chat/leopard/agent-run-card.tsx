@@ -105,11 +105,13 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
         />
       </button>
 
-      {/* Collapsed body: stacked per-agent progress bars. */}
-      <div className="flex flex-col gap-1.5">
-        {run.agents.map((a) => (
+      {/* Collapsed body: stacked per-agent progress bars. Bars are decorative
+          (the status line announces the count) — aria-hidden; key by index so
+          duplicate agent names don't collide. */}
+      <div className="flex flex-col gap-1.5" aria-hidden>
+        {run.agents.map((a, i) => (
           <div
-            key={a.name}
+            key={`${a.name}-${i}`}
             className="bg-foreground/[0.06] h-[3px] w-full overflow-hidden rounded-full"
           >
             <div
@@ -127,8 +129,8 @@ export function AgentRunCard({ run, className }: { run: AgentRunState; className
           DAG moved to chat as a `flow` fence renderer (operator 2026-09-02). */}
       {expanded && (
         <div className="border-foreground/[0.07] fade-in slide-in-from-top-1 animate-in flex flex-col gap-0.5 border-t pt-2 duration-300">
-          {run.agents.map((a) => (
-            <div key={a.name} className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5">
+          {run.agents.map((a, i) => (
+            <div key={`${a.name}-${i}`} className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5">
               <span
                 className={cn(
                   "size-1.5 shrink-0 rounded-full",

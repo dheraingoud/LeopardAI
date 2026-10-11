@@ -216,8 +216,8 @@ function PanelHeader({
       />
       <button
         onClick={onClose}
-        className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors shrink-0"
-        title="Close panel"
+        aria-label="Close panel"
+        className="h-8 w-8 flex items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#ffb400]/60"
       >
         <X className="h-4 w-4" />
       </button>
@@ -257,7 +257,7 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
             title={artifact.title || "preview"}
             sandbox=""
             srcDoc={artifact.content}
-            className="h-[420px] w-full bg-white"
+            className="h-full min-h-[420px] w-full bg-white"
           />
         </WebPreview>
       </div>

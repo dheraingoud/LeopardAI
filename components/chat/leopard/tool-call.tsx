@@ -62,14 +62,16 @@ export function ToolCall({
           </ShimmerLabel>
           <>{label}</>
         </SwapLabel>
-        <span
-          className={cn(
-            mono,
-            "bg-foreground/[0.06] text-foreground/70 rounded-md px-1.5 py-0.5",
-          )}
-        >
-          {query}
-        </span>
+        {query ? (
+          <span
+            className={cn(
+              mono,
+              "bg-foreground/[0.06] text-foreground/70 max-w-[28ch] truncate rounded-md px-1.5 py-0.5",
+            )}
+          >
+            {query}
+          </span>
+        ) : null}
         {elapsed !== undefined && !running && (
           <span className={cn(mono, "text-foreground/30 tabular-nums")}>
             {elapsed}
