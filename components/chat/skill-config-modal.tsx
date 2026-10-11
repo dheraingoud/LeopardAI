@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Plus, Trash2, Sparkles, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -99,7 +100,8 @@ export function SkillConfigModal({ open, onClose }: Props) {
     reader.readAsText(f, "utf-8");
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -259,7 +261,8 @@ export function SkillConfigModal({ open, onClose }: Props) {
           />
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
