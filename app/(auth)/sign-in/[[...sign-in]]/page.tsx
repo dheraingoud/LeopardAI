@@ -8,11 +8,20 @@ export default function SignInPage() {
           elements: {
             rootBox: "mx-auto",
             card: "glass-intense !shadow-none",
-            headerTitle: "font-signature !text-3xl !text-[#ffb400] text-glow-amber",
-            headerSubtitle: "!dark:text-[#525252] light:text-[#8c8c8c] !font-mono !text-sm",
+            headerTitle:
+              "font-signature !text-[26px] !text-[#ffb400] text-glow-amber !whitespace-nowrap",
+            headerSubtitle:
+              "!text-[#737373] !font-mono !text-[13px]",
             socialButtonsBlockButton:
-              "!dark:bg-white/[0.03] light:bg-black/[0.02] !dark:border-white/[0.08] light:border-black/[0.08] hover:!dark:bg-white/[0.06] light:bg-black/[0.04] !dark:text-[#d4d4d4] light:text-[#404040] !font-mono !text-sm",
+              "dark:!bg-white/[0.04] light:!bg-black/[0.03] dark:!border-white/[0.08] light:!border-black/[0.1] dark:hover:!bg-white/[0.07] light:hover:!bg-black/[0.05] dark:!text-[#d4d4d4] light:!text-[#404040] !font-mono !text-sm",
+            formFieldLabel: "!font-mono !text-xs dark:!text-[#8a8a8a] light:!text-[#6b6b6b]",
+            formFieldInput:
+              "dark:!bg-white/[0.04] light:!bg-black/[0.03] dark:!border-white/[0.1] light:!border-black/[0.12] !font-mono focus-visible:!ring-[#ffb400]/40",
+            formButtonPrimary:
+              "!bg-[#ffb400] !text-black hover:!bg-[#e6a300] !font-body !text-sm active:!scale-[0.98] !transition-all",
             footer: "!hidden",
+            dividerLine: "dark:!bg-white/[0.06] light:!bg-black/[0.08]",
+            dividerText: "!font-mono dark:!text-[#525252] light:!text-[#8a8a8a]",
           },
         }}
         routing="path"
