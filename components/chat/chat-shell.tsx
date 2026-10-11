@@ -34,7 +34,7 @@ import { HeaderQuotaBanner } from "./leopard/quota-banner";
  * createDocument tool call streams in — see use-active-chat.onData).
  */
 export function ChatShell() {
-  const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming } = useActiveChat();
+  const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming, pendingServerApproval } = useActiveChat();
   const { user } = useUser();
   const router = useRouter();
   // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
@@ -116,7 +116,8 @@ export function ChatShell() {
   // box). Scans the trailing assistant message for a tool part in state
   // "approval-requested" (live SDK parts are `tool-<name>` typed).
   const pendingApproval = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
+    const generating = status === "submitted" || status === "streaming" || serverStreaming;
+    for (let i = messages.length - 1; i >= 0 && generating; i--) {
       const m = messages[i];
       if (m.role !== "assistant") break;
       // A settled turn can't have a live prompt (audit 2026-10-09: a completed
@@ -124,7 +125,6 @@ export function ChatShell() {
       // stop mid-prompt — resurrected the dock on every reload). The dock
       // only renders while the chat is actively generating (incl. a reopened
       // serverStreaming turn).
-      if (status !== "submitted" && status !== "streaming" && !serverStreaming) break;
       for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
         const t = typeof p.type === "string" ? p.type : "";
         const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
@@ -147,8 +147,11 @@ export function ChatShell() {
         }
       }
     }
-    return null;
-  }, [messages, status, serverStreaming]);
+    // Fallback: the SDK ends its stream on an unresolved gate (status flips
+    // ready while the server holds the turn) — the trailing bubble may settle
+    // before the mirror lands, so read the pending approval off the server row.
+    return pendingServerApproval;
+  }, [messages, status, serverStreaming, pendingServerApproval]);
 
   // QA loop-10: exporting right as a turn settles could capture the Convex
   // placeholder (empty assistant row) — the detached route finalizes the row a

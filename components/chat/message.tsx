@@ -917,6 +917,8 @@ export const PreviewMessage = memo(function PreviewMessage({
             ? "streaming"
             : s === "input-available" || s === "approval-responded"
               ? "pending"
+              : s === "approval-requested"
+                ? "ask"
               : s === "output-available"
                 ? "complete"
                 : s === "output-error"

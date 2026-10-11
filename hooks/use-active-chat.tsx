@@ -130,6 +130,11 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
    * detached server task and no local stream owns it — i.e. the user reopened
    * the chat mid-generation and is watching the live mirror fill in. */
   serverStreaming: boolean;
+  /** A pending approval read from the SERVER row (streaming + approval-requested
+   * part) — the fallback when the SDK bubble already settled (the SDK ends its
+   * stream on an unresolved gate, so its status flips ready while the server
+   * still holds the turn). */
+  pendingServerApproval: { approvalId: string; toolName: string; input?: unknown } | null;
   /** Prior response texts for the turn this assistant message answers
    * (session-scoped regen history; the server rows are deleted on regen). */
   getSiblings: (messageId: string) => string[];
@@ -1182,6 +1187,31 @@ export function ActiveChatProvider({
       ),
   );
 
+  // The pending approval straight from the server row — covers the case where
+  // the SDK stream already ended on the gate (status ready, bubble settled)
+  // while the server still holds the turn for the decision.
+  const pendingServerApproval = (() => {
+    for (let i = (convexMessages ?? []).length - 1; i >= 0; i--) {
+      const m = convexMessages![i];
+      if (m.role !== "assistant") break;
+      if (m.status !== "streaming") break;
+      for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
+        const t = typeof p.type === "string" ? p.type : "";
+        const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
+        if (isTool && p.state === "approval-requested") {
+          const approval = p.approval as { id?: string } | undefined;
+          if (!approval?.id) continue;
+          const toolName =
+            (p.toolName as string) ??
+            (t.startsWith("tool-") && t !== "tool" ? t.slice(5) : undefined) ??
+            "tool";
+          return { approvalId: approval.id, toolName, input: p.input };
+        }
+      }
+    }
+    return null;
+  })();
+
   useEffect(() => {
     // Cover serverStreaming (reopened mid-generation, SDK status is "ready")
     // — a mirrored stream that goes silent must also be recoverable, else the
@@ -1484,6 +1514,38 @@ export function ActiveChatProvider({
           addToolApprovalResponse?: (r: { id: string; approved: boolean; reason?: string }) => void;
         }
       ).addToolApprovalResponse?.({ id: approvalId, approved, ...(reason !== undefined ? { reason } : {}) });
+      // The SDK responder no-ops when the gated part isn't approval-requested
+      // in its LAST message (e.g. the SDK stream ended on a LATER retry's gate
+      // and the mirror's row is what renders). Patch the decision into whatever
+      // assistant message carries the part so the resume wire always has it.
+      {
+        const msgs = chat.messages;
+        const marked = msgs.some((m) =>
+          m.role === "assistant" &&
+          (m.parts ?? []).some(
+            (p) =>
+              (p as { state?: string }).state === "approval-responded" &&
+              (p as { approval?: { id?: string } }).approval?.id === approvalId,
+          ),
+        );
+        if (!marked) {
+          chat.setMessages(
+            msgs.map((m) =>
+              m.role !== "assistant"
+                ? m
+                : {
+                    ...m,
+                    parts: (m.parts ?? []).map((p) => {
+                      const rec = p as { state?: string; approval?: { id?: string } };
+                      return rec.state === "approval-requested" && rec.approval?.id === approvalId
+                        ? ({ ...p, state: "approval-responded", approval: { ...rec.approval, approved, ...(reason !== undefined ? { reason } : {}) } } as typeof p)
+                        : p;
+                    }),
+                  },
+            ),
+          );
+        }
+      }
       // Approval-gate hold (2026-10-10): the SDK stream ENDS on an unresolved
       // approval and the SERVER holds the turn open — the SSE stays open until
       // the resume POST's abortAndSettle aborts it. The old poll waited for
@@ -1753,6 +1815,7 @@ export function ActiveChatProvider({
       ...chat,
       sendMessage,
       serverStreaming,
+      pendingServerApproval,
       retrying,
       lastErrorReason,
       stallSignal,
@@ -1797,6 +1860,8 @@ export function ActiveChatProvider({
       editAndResend,
       approveAndResume,
       getSiblings,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      pendingServerApproval?.approvalId,
     ],
   );
 
