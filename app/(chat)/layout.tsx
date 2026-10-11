@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import Sidebar from "@/components/sidebar";
 import { CommandPaletteHost } from "@/components/chat/leopard/command-palette-host";
+import { ShortcutsOverlay } from "@/components/chat/leopard/shortcuts-overlay";
 import { SidebarProvider } from "@/hooks/sidebar-context";
 import { Menu } from "lucide-react";
 
@@ -61,6 +62,7 @@ export default function ChatLayout({
     >
       <div className="flex h-screen w-screen bg-background overflow-hidden relative">
         <CommandPaletteHost />
+        <ShortcutsOverlay />
         {/* Mobile overlay */}
         {isMobile && !collapsed && (
           <div
