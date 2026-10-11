@@ -31,10 +31,14 @@ export function ReasoningEffort({
   modelId,
   value,
   onChange,
+  className,
 }: {
   modelId: string;
   value: ReasoningLevel | undefined;
   onChange: (level: ReasoningLevel) => void;
+  /** Override the outer padding — the settings Section supplies its own
+   *  inset, so it passes a flush value to kill the double-inset. */
+  className?: string;
 }) {
   const cfg = getModelById(modelId)?.reasoningConfig;
 
@@ -46,7 +50,7 @@ export function ReasoningEffort({
   if (stops && stops.length > 0) {
     const idx = active && stops.includes(value) ? stops.indexOf(value) : -1;
     return (
-      <div data-slot="reasoning-effort" className="px-4 pb-3 pt-3">
+      <div data-slot="reasoning-effort" className={cn("px-4 pb-3 pt-3", className)}>
         <div className="mb-2.5 flex items-center justify-between">
           <span className={cn(mono, "dark:text-[#a3a3a3] light:text-[#525252]")}>
             Reasoning effort
