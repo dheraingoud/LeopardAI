@@ -838,6 +838,30 @@ export async function POST(request: Request) {
       // approval-carrying assistant row makes this request a resume.
       const approvalMsg = hasApprovalDecision(lastWire) ? lastWire : undefined;
       const isApprovalResume = !!approvalMsg;
+      // Tools the user DENIED this turn — hoisted to the execute scope so the
+      // backgroundServe call can hand them to the hold path (auto-denied
+      // retries must not park the turn as approval-requested).
+      const deniedThisTurn: Set<string> = new Set(
+        ((approvalMsg?.parts ?? []) as Array<Record<string, unknown>>)
+          .filter(
+            (p) =>
+              typeof p?.type === "string" &&
+              (p.type.startsWith("tool-") || p.type === "dynamic-tool") &&
+              (p as { state?: string }).state === "approval-responded" &&
+              (p as { approval?: { approved?: boolean } }).approval?.approved === false,
+          )
+          .map((p) => {
+            const part = p as { toolName?: string; type?: string };
+            if (part.toolName) return part.toolName;
+            const t = part.type ?? "";
+            return t.startsWith("tool-") &&
+              t !== "tool-approval-request" &&
+              t !== "tool-approval-response"
+              ? t.slice(5)
+              : undefined;
+          })
+          .filter((n): n is string => typeof n === "string" && n.length > 0),
+      );
       // The wire id is the CLIENT's message id, which can diverge from the
       // persisted row's id (server assigns assistant ids mid-stream). Anchor the
       // resumed generation to the actual persisted row holding the pending
@@ -1089,32 +1113,8 @@ export async function POST(request: Request) {
             .map((p) => (p as { toolCallId?: string }).toolCallId)
             .filter((id): id is string => typeof id === "string" && id.length > 0),
         );
-        // Tools the user DENIED this turn: a same-turn retry gets an instant
-        // denial — re-asking would dangle a second AskCard on the detached
-        // stream (no client resume path mid-turn) and hang till the settle
-        // timeout (s5 DENY probe 2026-09-06: no answer after deny+retry).
-        const deniedThisTurn = new Set(
-          (approvalMsg?.parts ?? [])
-            .filter(
-              (p) =>
-                typeof p?.type === "string" &&
-                (p.type.startsWith("tool-") || p.type === "dynamic-tool") &&
-                (p as { state?: string }).state === "approval-responded" &&
-                (p as { approval?: { approved?: boolean } }).approval
-                  ?.approved === false,
-            )
-            .map((p) => {
-              const part = p as { toolName?: string; type?: string };
-              if (part.toolName) return part.toolName;
-              const t = part.type ?? "";
-              return t.startsWith("tool-") &&
-                t !== "tool-approval-request" &&
-                t !== "tool-approval-response"
-                ? t.slice(5)
-                : undefined;
-            })
-            .filter((n): n is string => typeof n === "string" && n.length > 0),
-        );
+        // deniedThisTurn is hoisted to the execute scope (the hold path needs
+        // it too) — see the approvalMsg declaration above.
         const toolApprovalDecision = (toolName: string | undefined, toolCallId?: string): "approved" | "denied" | "user-approval" => {
           if (toolName && deniedThisTurn.has(toolName)) return "denied";
           // GAP A (2026-10-10): auto-approve ONLY the exact call the user just
@@ -1362,6 +1362,7 @@ export async function POST(request: Request) {
         userId: userId ?? DEV_USER_ID,
         model: modelId,
         seedToolParts,
+        autoDeniedToolNames: deniedThisTurn,
         abortController: genCtrl,
         settleTimeoutMs: maxDuration * 1000,
         // Φ-approval-resume: run the approved tools AFTER the SSE opened and
