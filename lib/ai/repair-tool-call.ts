@@ -20,6 +20,29 @@ const KINDS = new Set(["research", "write", "verify", "general"]);
 export const repairToolCall: ToolCallRepairFunction<any> = async ({
   toolCall,
 }) => {
+  // webFetch: a model retry can blow the max_bytes cap (observed 2026-10-11:
+  // a failed fetch retried with max_bytes=200000 vs the schema's 120000 →
+  // AI_InvalidToolInputError surfaced raw in the bubble). Clamp instead of
+  // erroring the turn.
+  if (toolCall.toolName === "webFetch") {
+    try {
+      const input =
+        typeof toolCall.input === "string"
+          ? JSON.parse(toolCall.input)
+          : (toolCall.input ?? {});
+      const mb = (input as { max_bytes?: unknown }).max_bytes;
+      if (typeof mb === "number" && mb > 120_000) {
+        return {
+          ...toolCall,
+          input: JSON.stringify({ ...input, max_bytes: 120_000 }),
+        };
+      }
+      // Unparseable / no over-cap value → nothing to repair.
+    } catch {
+      return null;
+    }
+    return null;
+  }
   if (toolCall.toolName !== "spawn_agents") return null;
   const raw =
     typeof toolCall.input === "string"

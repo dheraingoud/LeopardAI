@@ -778,6 +778,18 @@ const errMsg = (err: unknown): string => {
   return String(err);
 };
 
+// Human-readable version of a stream error for the bubble (2026-10-11, T7):
+// the SDK's validation errors (AI_InvalidToolInputError etc.) are verbose
+// multi-paragraph dumps — surface a clean line, the raw goes to the log.
+const errTextForUser = (err: unknown): string => {
+  const raw = errMsg(err);
+  if (/InvalidToolInputError|tool input.*(invalid|valid)/i.test(raw))
+    return "A tool call had invalid arguments and was skipped. Try again.";
+  if (/TypeValidationError|tool call not found|approval request/i.test(raw))
+    return "The reply hit a protocol error. Try again.";
+  return raw;
+};
+
 const REPLAY_CAP = 5000;
 
 /** Sleep that ends EARLY when the generation aborts — a stop clicked during
@@ -1119,13 +1131,13 @@ export function backgroundServe(args: {
           // status:"error" and trigger the destructive auto-regenerate, which
           // deletes the good row and replaces it with a second generation.
           // Log it; don't emit it.
-          if (!committed) emit({ type: "error", errorText: errMsg(err) });
+          if (!committed) emit({ type: "error", errorText: errTextForUser(err) });
           else logWarn("post-commit upstream error suppressed", err);
           // MUST return a string: undefined here serializes as a bare
           // {"type":"error"} chunk, which the client's uiMessageChunkSchema
           // rejects with AI_TypeValidationError and the whole stream dies
           // (2026-09-04 approval-resume crash).
-          return attemptError ?? "Unknown error";
+          return errTextForUser(err);
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
       // Φ-stall watchdog: an upstream that opens fine but then hangs (observed:
