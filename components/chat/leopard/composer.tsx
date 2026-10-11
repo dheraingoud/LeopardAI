@@ -602,6 +602,11 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     if (menuOpen && e.key === "Escape") {
       e.preventDefault();
       setDismissed(slashOpen ? "slash" : "mention");
+      // A bare trigger fragment ("/" or "/bra" with nothing after it as real
+      // content) is menu scaffolding, not a draft — leaving it meant the next
+      // session's draft-restore prefixed the user's message with a stray "/"
+      // (2026-10-12 live: "/In one short paragraph…" sent).
+      if (slashOpen && /^\/\w*$/.test(input)) setInput("");
       return;
     }
     // Escape with NO menu open → blur the composer (VS Code / Linear idiom —
