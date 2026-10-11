@@ -267,7 +267,7 @@ export function McpServerPanel({ open, onClose }: { open: boolean; onClose: () =
             aria-label="MCP servers"
             className={cn(
               paper,
-              "relative flex max-h-[70vh] w-[70vw] max-w-[960px] flex-col overflow-hidden rounded-2xl",
+              "relative flex max-h-[85dvh] w-[calc(100vw-2rem)] sm:max-h-[70vh] sm:w-[70vw] max-w-[960px] flex-col overflow-hidden rounded-2xl",
               "dark:shadow-[0_24px_80px_rgba(0,0,0,0.6)] light:shadow-[0_24px_80px_rgba(0,0,0,0.25)]",
             )}
             initial={{ opacity: 0, y: 14, scale: 0.98 }}
