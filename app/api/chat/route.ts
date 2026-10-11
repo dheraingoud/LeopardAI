@@ -672,11 +672,31 @@ export async function POST(request: Request) {
         // refusal as an error output so history stays valid.
         if (p.toolCallId && p.state === "output-denied")
           return { ...p, state: "output-error", output: "The user declined this action. Do not retry it." };
+        // Stale-state repair: approval-responded + output means the tool DID
+        // run (the persist raced the state flip) — convert must see
+        // output-available or it emits a tool-call with no tool-result and
+        // MissingToolResultsError bricks every later prompt (2026-10-12 live).
+        if (p.toolCallId && p.state === "approval-responded" && p.output !== undefined)
+          return { ...p, state: "output-available" };
+        // Abandoned decision: approval-responded with no output means the turn
+        // crashed between the user's answer and the tool run. It survives
+        // ignoreIncompleteToolCalls (that filter keeps approval-responded) and
+        // then throws MissingToolResultsError — bricking every later prompt in
+        // the chat (2026-10-11 live). Close it as an error instead.
+        if (p.toolCallId && p.state === "approval-responded" && p.output === undefined)
+          return { ...p, state: "output-error", output: "This action did not complete (the turn was interrupted)." };
         return p;
       });
     return { ...m, parts };
   }) as typeof messages;
-  modelMessages = await convertToModelMessages(messagesForConvert);
+  // A crashed/abandoned turn can leave approval-requested tool parts in the
+  // wire history (no decision, no result). Without ignoreIncompleteToolCalls
+  // the SDK throws MissingToolResultsError mid-convert and EVERY later prompt
+  // in the chat 400s forever (the bricked-chat loop, 2026-10-11). Dropping
+  // the incomplete call is safe: the orphan purge below handles the rest.
+  modelMessages = await convertToModelMessages(messagesForConvert, {
+    ignoreIncompleteToolCalls: true,
+  });
   // Orphan tool-call purge: terminated turns can persist an assistant
   // tool-call whose result never arrived; re-sending it 400s with "Tool
   // result is missing for tool call …" and the chat is bricked (2026-09-01).
