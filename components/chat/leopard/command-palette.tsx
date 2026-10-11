@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, type ComponentProps } from "react";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, floating, mono } from "./surfaces";
 
@@ -10,6 +10,7 @@ export interface PaletteCommand {
   label: string;
   group: string;
   keys: readonly string[];
+  icon?: LucideIcon;
 }
 
 export function CommandPalette({
@@ -180,6 +181,17 @@ export function CommandPalette({
                       : "hover:bg-foreground/[0.03]",
                   )}
                 >
+                  {command.icon && (
+                    <command.icon
+                      strokeWidth={1.75}
+                      className={cn(
+                        "size-3.5 shrink-0 transition-colors",
+                        command.id === activeId
+                          ? "dark:text-[#ffb400] light:text-[#d49600]"
+                          : "text-foreground/35",
+                      )}
+                    />
+                  )}
                   <span className="min-w-0 flex-1 truncate text-[13px]">
                     {command.label}
                   </span>
