@@ -3,9 +3,9 @@
 import { useRef } from "react";
 import type { ChatMessage } from "@/lib/types";
 
-// Composer input history:
-// 2026-10-10): ArrowUp recalls the previously sent message, ArrowDown walks
-// back to the live draft. Terminal idiom — fits the operator's keyboard-first
+// Composer input history: ArrowUp recalls the previously sent message,
+// ArrowDown walks back to the live draft. Terminal idiom — fits the
+// operator's keyboard-first
 // workflow (Cmd+K / Cmd+/ / Cmd+Shift+C already exist). Disabled while the
 // slash/mention menu is open (arrows already navigate it) and only at the
 // text extremes: ArrowUp only from the FIRST line, ArrowDown only from the
