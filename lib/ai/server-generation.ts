@@ -723,6 +723,15 @@ class PartAccumulator {
         }
         break;
       }
+      case "tool-output-denied": {
+        // Server-side denial (the same-turn retry guard answers "denied"
+        // without a client round-trip). Without this the part stayed
+        // approval-requested in the accumulator — the hold path then parked a
+        // FINISHED turn waiting on a decision that already happened.
+        const t = this.findTool(chunk.toolCallId);
+        if (t) t.state = "output-denied";
+        break;
+      }
       default:
         break;
     }
@@ -870,6 +879,11 @@ export function backgroundServe(args: {
    * tool-output-available) go to the bus AND the accumulator, so the card
    * updates in real time and the outputs persist. */
   prelude?: (emit: (chunk: UIMessageStreamChunk) => void) => Promise<void>;
+  /** Tool names the user already denied THIS turn — the SDK can't deny a NEW
+   *  mid-turn call (its callback only revalidates approvals), so a same-name
+   *  retry would gate again as approval-requested and park the turn. At
+   *  settle, those pending parts flip to output-denied and don't hold. */
+  autoDeniedToolNames?: Set<string>;
   /** The controller driving this generation (see createGenerationController). */
   abortController: AbortController;
   /** Hard ceiling before a stuck generation is force-persisted + aborted. */
@@ -995,7 +1009,9 @@ export function backgroundServe(args: {
     if (ctype === "tool-approval-request") {
       pendingApprovals += 1;
       clearTimeout(settleTimer); // disarm — the user may think for minutes
-    } else if (ctype === "tool-approval-response") {
+    } else if (ctype === "tool-approval-response" || ctype === "tool-output-denied") {
+      // tool-output-denied also resolves a gate — the server-side deny (same-
+      // turn retry guard) emits it with no client approval-response chunk.
       pendingApprovals = Math.max(0, pendingApprovals - 1);
       if (pendingApprovals === 0) touchSettleTimer(); // re-arm the idle ceiling
     }
@@ -1436,6 +1452,21 @@ export function backgroundServe(args: {
       // the decision folded in; the approval ceiling (10 min) is the
       // abandonment backstop. Persist a STREAMING row (not completed) so the
       // client keeps the Allow/Deny card up + Working alive while deciding.
+      // Same-turn auto-denied retries: the SDK has no "deny a NEW call"
+      // channel (the callback only revalidates approved ones) — a retry of a
+      // tool the user JUST denied gates again as approval-requested and would
+      // park the turn on a second card. Flip those to output-denied at settle
+      // and don't hold on them.
+      const autoDenied = args.autoDeniedToolNames ?? new Set<string>();
+      if (autoDenied.size > 0) {
+        for (const p of acc.parts()) {
+          const rec = p as { state?: string; toolName?: string; type?: string };
+          const name = rec.toolName ?? (rec.type?.startsWith("tool-") ? rec.type.slice(5) : undefined);
+          if (rec.state === "approval-requested" && name && autoDenied.has(name)) {
+            rec.state = "output-denied";
+          }
+        }
+      }
       const heldApprovalParts = acc
         .parts()
         .filter((p) => (p as { state?: string }).state === "approval-requested");
