@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
 import { ImageLightbox } from "./image-lightbox";
+import { CodeRunOutput, RunButton } from "./code-runner";
+import { useRunCode } from "@/hooks/use-run-code";
 import DOMPurify from "dompurify";
 import { FlowGraph, type FlowEdge, type FlowNode } from "./flow-graph";
 import { TerminalBlock } from "./terminal-block";
@@ -226,12 +228,24 @@ function InlineCode({ className, children, ...rest }: any) {
 function PreBlock({
   children,
   streaming,
+  node,
 }: {
   children?: ReactNode;
   streaming: boolean;
+  // react-markdown v10 hands the hast node — its children[0].properties
+  // .className carries `language-x` even when the rendered child drops it
+  // (shiki's highlighted output strips the language class from <code>, which
+  // used to zero the badge + the runnable check on settle).
+  node?: any;
 }) {
   const child = Array.isArray(children) ? children[0] : children;
-  const cls: string = (child as any)?.props?.className ?? "";
+  const clsFromChild: string = (child as any)?.props?.className ?? "";
+  const clsFromNode: string = (() => {
+    const codeNode = node?.children?.[0];
+    const cls = codeNode?.properties?.className;
+    return Array.isArray(cls) ? cls.join(" ") : (typeof cls === "string" ? cls : "");
+  })();
+  const cls = clsFromChild || clsFromNode;
   const langMatch = /language-([\w-]+)/.exec(cls);
   const langRaw = langMatch ? langMatch[1] : "";
   // Alias model-invented fence names to the structured renderers (misfire
@@ -362,6 +376,10 @@ function PreBlock({
   );
 }
 
+// Runnable code blocks: js/ts fences get a Run button (sandboxed-iframe eval,
+// console captured). The output pane slides in below the code.
+const RUNNABLE = new Set(["js", "javascript", "mjs", "cjs", "ts", "typescript"]);
+
 function PreShell({
   lang,
   copyText,
@@ -376,6 +394,8 @@ function PreShell({
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const runnable = RUNNABLE.has(lang.toLowerCase());
+  const { state: runState, run, reset: resetRun } = useRunCode();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(copyText).then(() => {
@@ -390,6 +410,7 @@ function PreShell({
       <div className="cb-header">
         <span className="cb-badge">{lang || "text"}</span>
         <div className="cb-btns">
+          {runnable && <RunButton running={runState.running} onRun={() => run(copyText)} />}
           <button
             type="button"
             onClick={handleCopy}
@@ -437,6 +458,9 @@ function PreShell({
       >
         {children}
       </div>
+      {runnable && (
+        <CodeRunOutput state={runState} onDismiss={resetRun} />
+      )}
     </div>
   );
 }
@@ -451,11 +475,16 @@ function CodeBody({
   streaming: boolean;
 }) {
   const html = useShikiHtml(lang, text, streaming);
+  // ONE wrapper element across the plain→shiki settle: the old pre↔div swap
+  // unmounted the block's chrome (collapse/copy/run state reset on settle).
+  // Keep a stable <div> and only swap the inner content.
   if (!html) {
     return (
-      <pre className="cb-plain">
-        <code>{text}</code>
-      </pre>
+      <div className="cb-plain">
+        <pre>
+          <code>{text}</code>
+        </pre>
+      </div>
     );
   }
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
