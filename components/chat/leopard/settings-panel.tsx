@@ -58,7 +58,7 @@ export function SettingsPanel({
       data-slot="settings-panel"
       className={cn(
         paper,
-        "flex w-full max-w-sm flex-col gap-4 rounded-[20px] p-4",
+        "flex w-full max-w-sm flex-col gap-4 rounded-xl p-5",
         className,
       )}
       {...props}
@@ -68,7 +68,7 @@ export function SettingsPanel({
           <span className={cn(mono, "dark:text-[#525252] light:text-[#a3a3a3]")}>
             model
           </span>
-          <div className={cn(field, "flex gap-0.5 rounded-full p-0.5")}>
+          <div className={cn(field, "flex flex-wrap gap-1 rounded-xl p-1")}>
             {models.map((option) => (
               <button
                 key={option}
@@ -76,7 +76,7 @@ export function SettingsPanel({
                 aria-pressed={option === model}
                 onClick={() => onModelChange?.(option)}
                 className={cn(
-                  "flex-1 rounded-full py-1 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.97]",
+                  "flex-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-[background-color,color,scale] duration-150 active:scale-[0.97]",
                   option === model
                     ? "bg-[#ffb400] light:bg-[#d49600] text-black"
                     : "dark:text-[#737373] light:text-[#8c8c8c] dark:hover:text-[#d4d4d4] light:hover:text-[#404040]",

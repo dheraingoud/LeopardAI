@@ -301,7 +301,6 @@ export default function SettingsPage() {
               >
                 <s.icon className="size-3.5 shrink-0" />
                 {s.label}
-                {s.id === "danger" && section !== "danger" && <span className="ml-auto size-1.5 rounded-full bg-red-500/50" />}
               </button>
             ))}
           </nav>
@@ -370,9 +369,7 @@ export default function SettingsPage() {
                           className={cn(
                             mono,
                             "shrink-0 rounded-full px-1.5 py-px",
-                            m.speedTier === "fast"
-                              ? "bg-emerald-500/10 text-emerald-400"
-                              : "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#d49600]",
+                            "dark:bg-[#ffb400]/10 light:bg-[#d49600]/10 dark:text-[#ffb400] light:text-[#a87700]",
                           )}
                         >
                           {m.speedTier}
@@ -457,9 +454,9 @@ export default function SettingsPage() {
                       <span className={cn(mono, muted)}>{chats.length} chats</span>
                     )}
                   </Row>
-                  <Row label="Export all" description="Every conversation as Markdown" last>
+                  <Row label="Export" description="Every conversation as Markdown" last>
                     <ActionButton onClick={handleExportAll} disabled={!chats || chats.length === 0}>
-                      <Download className="size-3.5" /> Export
+                      <Download className="size-3.5" /> Export all
                     </ActionButton>
                   </Row>
                 </Section>
@@ -489,7 +486,7 @@ export default function SettingsPage() {
 
             {section === "danger" && (
               <Section title="Danger zone" hint="no undo past this line" danger>
-                <Row label="Delete all conversations" description={`${chats?.length || 0} chats — permanent`}>
+                <Row label="Delete all conversations" description={chats === undefined ? "…" : `${chats.length} chats — permanent`}>
                   <ActionButton danger onClick={() => setConfirmDeleteAll(true)} disabled={deleting}>
                     <Trash2 className="size-3.5" /> {deleting ? "Deleting…" : "Delete all"}
                   </ActionButton>
@@ -544,6 +541,7 @@ function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveMode
         </div>
         <ReasoningEffort
           modelId={mid}
+          className="px-0 pb-0 pt-0"
           value={(level || undefined) as never}
           onChange={(l) => {
             setLevel(l);

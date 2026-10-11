@@ -19,17 +19,20 @@ export function ThreadSearch({
   activeId,
   onQueryChange,
   onSelect,
+  onClear,
   className,
   ...props
 }: Omit<
   ComponentProps<"div">,
-  "children" | "threads" | "query" | "activeId" | "onQueryChange" | "onSelect"
+  "children" | "threads" | "query" | "activeId" | "onQueryChange" | "onSelect" | "onClear"
 > & {
   threads: readonly SearchableThread[];
   query: string;
   activeId: string;
   onQueryChange?: (query: string) => void;
   onSelect?: (id: string) => void;
+  /** Escape clears the search back to the thread list. */
+  onClear?: () => void;
 }) {
   const matches = threads.filter((thread) =>
     `${thread.title} ${thread.preview}`
@@ -65,6 +68,14 @@ export function ThreadSearch({
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       move(-1);
+    } else if (event.key === "Enter") {
+      // Enter completes the search — select the active result. Was a dead key.
+      event.preventDefault();
+      const active = ordered.find((t) => t.id === activeId) ?? ordered[0];
+      if (active) onSelect?.(active.id);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onClear?.();
     }
   };
 
@@ -88,9 +99,11 @@ export function ThreadSearch({
           {thread.title}
         </span>
       </span>
-      <span className="text-foreground/35 truncate text-xs">
-        {thread.preview}
-      </span>
+      {thread.preview && (
+        <span className="text-foreground/35 truncate text-xs">
+          {thread.preview}
+        </span>
+      )}
     </button>
   );
 
@@ -116,8 +129,8 @@ export function ThreadSearch({
           value={query}
           onChange={(event) => onQueryChange?.(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search threads"
-          aria-label="Search threads"
+          placeholder="Search chats"
+          aria-label="Search chats"
           className="text-foreground/85 placeholder:text-foreground/30 min-w-0 flex-1 bg-transparent text-[13px] outline-none"
         />
       </div>
@@ -133,9 +146,11 @@ export function ThreadSearch({
 
       {groups.map((group) => (
         <div key={group} className="flex flex-col">
-          <span className={cn(mono, "text-foreground/25 px-2 pb-1")}>
-            {group}
-          </span>
+          {group && (
+            <span className={cn(mono, "text-foreground/25 px-2 pb-1")}>
+              {group}
+            </span>
+          )}
           {matches
             .filter((thread) => !thread.pinned && thread.group === group)
             .map(row)}
@@ -144,7 +159,7 @@ export function ThreadSearch({
 
       {matches.length === 0 && (
         <span className="text-foreground/30 px-2 py-4 text-center text-xs">
-          No thread matches “{query}”
+          No chats match “{query}”
         </span>
       )}
     </div>

@@ -265,41 +265,48 @@ export default function Sidebar({
       <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-black light:bg-white">
         <div className="flex flex-col items-center gap-3">
           <button
-            className="h-10 w-10 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-10 w-10 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             onClick={onToggle}
             title="Expand sidebar"
           >
-            <PanelLeft className="h-5 w-5" />
+            <PanelLeft className="h-4 w-4" />
           </button>
           <button
-            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] hover:light:bg-[#d4960010] transition-colors"
             onClick={handleNewChat}
             aria-label="New chat" title="New chat"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
           </button>
         </div>
         <div className="flex flex-col items-center gap-2">
           <Link
             href="/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            aria-label="Settings"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>
         <button
-          className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] hover:light:bg-[#d4960010] transition-colors"
           onClick={toggleTheme}
           title={theme === "dark" ? "Light" : "Dark"}
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
-          <button className="h-9 w-9 rounded-full overflow-hidden ring-1 dark:ring-white/10 light:ring-black/10" title="Profile">
+          <Link
+            href="/settings"
+            aria-label="Profile"
+            className="h-9 w-9 rounded-full overflow-hidden ring-1 dark:ring-white/10 light:ring-black/10"
+            title="Profile"
+          >
             <Avatar className="h-9 w-9">
               <AvatarImage src={user?.imageUrl} />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
-          </button>
+          </Link>
         </div>
       </div>
     );
@@ -311,21 +318,21 @@ export default function Sidebar({
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <Link href="/" className="flex items-center gap-1.5 group">
-          <span className="font-signature text-xl text-[#ffb400] text-glow-amber group-hover:tracking-wider transition-all">
+          <span className="font-signature text-xl text-[#ffb400] text-glow-amber">
             Leopard
           </span>
         </Link>
         <div className="flex items-center gap-0.5">
           <button
-            className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] hover-lift transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] hover:light:bg-[#d4960010] transition-colors"
             onClick={handleNewChat}
             aria-label="New chat" title="New chat"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
           </button>
           {!isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onToggle}
               aria-label="Collapse sidebar" title="Collapse sidebar"
             >
@@ -334,7 +341,7 @@ export default function Sidebar({
           )}
           {isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
               onClick={onClose}
             >
               <X className="h-4 w-4" />
@@ -343,25 +350,28 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Search */}
-      <div className="px-4 pb-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-[#525252] light:text-[#8c8c8c]" />
-          <Input
-            type="search"
-            placeholder="Search chats…"
-            aria-label="Search chats"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#505050] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
-          />
+      {/* Search — hidden while searching: the ThreadSearch panel carries its
+          own field then, so keeping this one rendered read as a duplicate. */}
+      {!searchQuery.trim() && (
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-[#525252] light:text-[#8c8c8c]" />
+            <Input
+              type="search"
+              placeholder="Search chats…"
+              aria-label="Search chats"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#6b6b6b] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <Separator className="dark:bg-white/[0.08] light:bg-black/[0.05]" />
 
       {/* Chat List - kit ThreadList rows; ThreadSearch panel while searching */}
-      <div className="flex-1 overflow-y-auto px-2 scroll-container scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-2 scrollbar-thin">
         <div className="py-3">
           {chats === undefined ? (
             <div className="space-y-3 px-2 py-4">
@@ -377,13 +387,16 @@ export default function Sidebar({
               threads={filtered.map((c) => ({
                 id: c._id,
                 title: c.title,
-                group: "results",
+                // No group header — a flat match list reads cleaner than a
+                // literal "results" label; no preview line (we don't have one).
+                group: "",
                 preview: "",
               }))}
               query={searchQuery}
               activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : ""}
               onQueryChange={setSearchQuery}
               onSelect={(id) => handleChatClick(id)}
+              onClear={() => setSearchQuery("")}
               className="mx-1 max-w-none border-0 bg-transparent p-1 shadow-none"
             />
           ) : (
@@ -458,12 +471,8 @@ export default function Sidebar({
                   onEditCancel={() => setEditingId(null)}
                 />
               ))}
-              {/* Load more: pages in
-                  40-row chunks; hidden while searching (search filters the
-                  already-loaded page only) or when the page is complete. */}
-              {/* Load more: pages in
-                  40-row chunks; hidden while searching (search filters the
-                  already-loaded page only) or when the page is complete. */}
+              {/* Load more: pages in 40-row chunks; hidden while searching
+                  (search filters the loaded page) or when the page is full. */}
               {(chatsHasMore || chatsLoadingMore) && !searchQuery.trim() && (
                 <div className="px-1 pb-2 pt-1">
                   <button
@@ -484,12 +493,12 @@ export default function Sidebar({
                   chip flips archived rows back into view (unarchive from
                   there via the same button, now relabeled). */}
               {archivedCount > 0 && (
-                <div className="px-1 pb-1">
+                <div className="px-1 pb-2">
                   <button
                     type="button"
                     aria-pressed={showArchived}
                     onClick={() => setShowArchived((s) => !s)}
-                    className="w-full rounded-xl px-3 py-1.5 text-left font-mono text-[10px] uppercase tracking-wide dark:text-[#737373] light:text-[#737373] dark:hover:bg-white/[0.03] light:hover:bg-black/[0.03] transition-colors"
+                    className="w-full rounded-xl border px-3 py-2 text-[12px] font-medium dark:border-white/[0.08] light:border-black/[0.08] dark:text-[#a3a3a3] light:text-[#525252] dark:hover:bg-white/[0.04] light:hover:bg-black/[0.03] transition-colors"
                   >
                     {showArchived ? "Hide" : "Show"} {archivedCount} archived
                   </button>
@@ -516,14 +525,14 @@ export default function Sidebar({
           </div>
           <Link
             href="/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
             title="Settings"
             onClick={() => isMobile && onClose && onClose()}
           >
             <Settings className="h-4 w-4" />
           </Link>
       <button
-        className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] light:bg-[#d4960010] transition-colors"
+        className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-[#ffb400] hover:dark:bg-[#ffb40010] hover:light:bg-[#d4960010] transition-colors"
         onClick={toggleTheme}
         title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -531,7 +540,7 @@ export default function Sidebar({
         {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
           <button
-            className="h-7 w-7 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:text-red-400 hover:bg-red-500/5 transition-colors"
             onClick={() => signOut()}
             aria-label="Sign out" title="Sign out"
           >
@@ -546,7 +555,7 @@ export default function Sidebar({
   return (
     <div
       className={cn(
-        "dark:bg-black light:bg-white border-r dark:border-white/[0.04] light:border-black/[0.05] shrink-0",
+        "dark:bg-black light:bg-white border-r dark:border-white/[0.08] light:border-black/[0.08] shrink-0",
         isMobile
           ? cn("sidebar-mobile", !sidebarOpen && "-translate-x-full")
           : overlayDesktop

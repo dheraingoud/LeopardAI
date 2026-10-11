@@ -110,26 +110,26 @@ export const ThreadList = memo(function ThreadList({
             {active && (
               <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#ffb400]" />
             )}
+            {/* Title gets the full row width — the status dot + actions are
+                absolutely pinned at the trailing edge so they never truncate
+                the title early. */}
             <span className="min-w-0 flex-1 truncate">{thread.title}</span>
-            {thread.generating ? (
+            {/* Unread is a filled amber dot (subtle, not a hollow ring); the
+                generating pulse keeps its own motion. Both read as state, not
+                clutter. */}
+            {(thread.generating || thread.unread) && (
               <span
                 role="status"
-                title="Generating…"
-                className="size-1.5 shrink-0 animate-pulse rounded-full bg-[#ffb400]"
+                title={thread.generating ? "Generating…" : "Unread"}
+                aria-label={thread.generating ? "Generating" : "Unread"}
+                className={cn(
+                  "absolute right-3 top-1/2 size-1.5 shrink-0 -translate-y-1/2 rounded-full bg-[#ffb400] transition-opacity",
+                  thread.generating ? "animate-pulse" : "opacity-80",
+                  "group-hover:opacity-0",
+                )}
               />
-            ) : thread.unread ? (
-              // Audit 2026-10-10: unread used to be a bare dot — same shape +
-              // stillness as generating's amber pulse read identically for
-              // color-blind users. Ringed outline reads as "marker", not
-              // "activity".
-              <span
-                role="status"
-                title="Unread"
-                aria-label="Unread"
-                className="size-1.5 shrink-0 rounded-full border dark:border-white/70 light:border-black/60 dark:bg-transparent light:bg-transparent"
-              />
-            ) : null}
-            {thread.time && (
+            )}
+            {thread.time && !thread.generating && !thread.unread && (
               <span
                 className={cn(
                   mono,
@@ -139,37 +139,28 @@ export const ThreadList = memo(function ThreadList({
                 {thread.time}
               </span>
             )}
-            {/* Pin: pinned rows show the
-                pin at rest (not just on hover) so the affordance reads. */}
-            {thread.pinned && (
+            {/* Pinned rows read as pinned via the bucket they're in — no
+                at-rest pin icon (it ate the title's width). Hover/focus
+                reveals the action set as an overlay at the trailing edge, so
+                the title keeps the full row width. */}
+            <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-lg pl-6 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-[linear-gradient(to_right,transparent,black_30%)] light:bg-[linear-gradient(to_right,transparent,white_30%)]">
               <button
                 type="button"
-                aria-label="Unpin chat"
-                title="Unpin"
-                className="shrink-0 rounded-full p-1 text-[#ffb400] dark:text-[#ffb400] light:text-[#d49600]"
+                aria-label={thread.pinned ? "Unpin chat" : "Pin chat"}
+                title={thread.pinned ? "Unpin" : "Pin"}
+                className={cn(
+                  "rounded-full p-1 hover:bg-foreground/[0.08]",
+                  thread.pinned
+                    ? "text-[#ffb400] dark:text-[#ffb400] light:text-[#d49600]"
+                    : "text-foreground/45 hover:text-foreground/90",
+                )}
                 onClick={(e) => {
                   e.stopPropagation();
                   onPin?.(thread.id);
                 }}
               >
-                <PinIcon className="size-3 fill-current" />
+                <PinIcon className={cn("size-3", thread.pinned && "fill-current")} />
               </button>
-            )}
-            <span className="hidden items-center gap-0.5 group-hover:flex">
-              {!thread.pinned && (
-                <button
-                  type="button"
-                  aria-label="Pin chat"
-                  title="Pin"
-                  className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPin?.(thread.id);
-                  }}
-                >
-                  <PinIcon className="size-3" />
-                </button>
-              )}
               <button
                 type="button"
                 aria-label="Rename chat"
