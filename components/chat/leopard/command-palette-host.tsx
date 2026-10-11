@@ -7,7 +7,19 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useLeopardTheme } from "@/components/theme-provider";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
+import {
+  MessageSquarePlus,
+  SunMoon,
+  Settings,
+  MessageSquare,
+  Lightbulb,
+  Code2,
+  Compass,
+  Mail,
+} from "lucide-react";
 import { CommandPalette, type PaletteCommand } from "./command-palette";
+
+const PROMPT_ICONS = { explain: Lightbulb, code: Code2, research: Compass, email: Mail } as const;
 
 // Curated starter prompts surfaced as palette commands; selecting one loads it
 // into the composer via the composer:set-text event.
@@ -67,21 +79,23 @@ export function CommandPaletteHost() {
 
   const commands = useMemo<PaletteCommand[]>(() => {
     const base: PaletteCommand[] = [
-      { id: "new", label: "New chat", group: "actions", keys: [] },
-      { id: "theme", label: "Toggle theme", group: "actions", keys: [] },
-      { id: "settings", label: "Open settings", group: "actions", keys: [] },
+      { id: "new", label: "New chat", group: "actions", keys: [], icon: MessageSquarePlus },
+      { id: "theme", label: "Toggle theme", group: "actions", keys: [], icon: SunMoon },
+      { id: "settings", label: "Open settings", group: "actions", keys: [], icon: Settings },
     ];
     const recent = (chats ?? []).slice(0, 8).map((c) => ({
       id: `chat:${c._id}`,
       label: c.title,
       group: "chats",
       keys: [] as string[],
+      icon: MessageSquare,
     }));
     const prompts = SAVED_PROMPTS.map((p) => ({
       id: `prompt:${p.id}`,
       label: p.label,
       group: "prompts",
       keys: [] as string[],
+      icon: PROMPT_ICONS[p.id as keyof typeof PROMPT_ICONS] ?? Lightbulb,
     }));
     return [...base, ...prompts, ...recent];
   }, [chats]);
