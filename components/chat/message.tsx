@@ -12,9 +12,9 @@ import {
   Code,
   Table,
   Image as ImageIcon,
-  ArrowUpRight,
   PencilLine,
   RotateCcw,
+  X as XIcon,
   ThumbsUp,
   ThumbsDown,
   Download,
@@ -219,7 +219,19 @@ function toAgentRunState(
       done,
     };
   }
-  if (snap) return { agents: snap.agents, done };
+  if (snap) {
+    // Stamp startedAt on the running transition — the per-agent wall-clock
+    // reads it (was never set, so the timer showed nothing while the card
+    // re-rendered every second anyway).
+    return {
+      agents: snap.agents.map((a) =>
+        a.status === "running" && a.startedAt === undefined
+          ? { ...a, startedAt: Date.now() }
+          : a,
+      ),
+      done,
+    };
+  }
   const tasks =
     (input as { tasks?: Array<{ name: string; kind: string; task: string }> } | undefined)?.tasks ?? [];
   return {
@@ -380,8 +392,14 @@ function DocumentCard({ part, live }: { part: DocToolPart; live: boolean }) {
       {/* Preview modal — themed overlay showing the raw file text in mono. */}
       {previewOpen && content && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || "Preview"}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
           onClick={() => setPreviewOpen(false)}
+          onKeyDown={(e) => e.key === "Escape" && setPreviewOpen(false)}
+          ref={(el) => el?.focus()}
+          tabIndex={-1}
         >
           <div
             className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border dark:border-white/15 light:border-black/10 dark:bg-[#0a0a0a] light:bg-[#faf8f1] shadow-2xl"
@@ -403,11 +421,11 @@ function DocumentCard({ part, live }: { part: DocToolPart; live: boolean }) {
               </div>
               <button
                 type="button"
+                aria-label="Close preview"
                 onClick={() => setPreviewOpen(false)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors"
-                title="Close preview"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg dark:text-[#505050] light:text-[#737373] hover:dark:text-[#e5e5e5] hover:light:text-[#262626] hover:dark:bg-white/[0.06] hover:light:bg-black/[0.04] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#ffb400]/60"
               >
-                <ArrowUpRight className="h-4 w-4 rotate-45" />
+                <XIcon className="h-4 w-4" />
               </button>
             </div>
             <pre className="flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 text-[13px] leading-[1.6] font-mono dark:text-[#cfcfcf] light:text-[#262626]">
@@ -1114,6 +1132,10 @@ export const PreviewMessage = memo(function PreviewMessage({
         // askUser renders its own question→answer chip — never group it.
         seg.toolName !== "askUser" &&
         seg.state !== "ask" &&
+        // Denied/error tools keep their own surface — grouping them under a
+        // green "done" run contradicts the standalone declined/error chip.
+        seg.state !== "denied" &&
+        seg.state !== "error" &&
         // Never-ran approval-gated tools render as nothing — never group them
         // into a "2 complete" run (operator 2026-10-10).
         seg.state !== "skipped" &&
@@ -1481,13 +1503,13 @@ export const PreviewMessage = memo(function PreviewMessage({
                   ? "failed"
                   : "done") as "done" | "failed",
               }));
-              const failed = tools.filter((t) => t.state === "failed").length;
               const names = [...new Set(tools.map((t) => t.name))].join(", ");
               return (
                 <ToolRunGroup
                   key={`tg-${i}`}
-                  label={`${names} — ${failed > 0 ? `${failed} of ${tools.length} failed` : `${tools.length} complete`}`}
+                  label={names}
                   tools={tools}
+                  className="max-w-none"
                   open={groupOpen[i] ?? false}
                   onOpenChange={(o) => setGroupOpen((m) => ({ ...m, [i]: o }))}
                 />

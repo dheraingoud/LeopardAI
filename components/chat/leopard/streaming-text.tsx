@@ -700,6 +700,10 @@ async function renderMermaid(
     fontFamily: "var(--font-body), ui-sans-serif, system-ui, sans-serif",
   });
   try {
+    // Mermaid renders model TEXT into its own SVG — the <style> block is
+    // mermaid's theme, not model-supplied markup, so it must NOT go through
+    // the style-stripping svg-fence sanitizer (that stripped the theme and
+    // the diagram rendered as black boxes, 2026-10-11 regression).
     return (await mermaid.render(id, code)).svg;
   } catch (err) {
     const lines = code.split("\n");

@@ -26,9 +26,19 @@ export function ArtifactCard({
   return (
     <div
       data-slot="artifact-card"
+      // a11y: the card's primary action is opening the side panel — it's a
+      // button (role + tabIndex + Enter/Space), not a bare clickable div.
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          (e.currentTarget as HTMLDivElement).click();
+        }
+      }}
       className={cn(
         paper,
-        "group flex w-full max-w-xs cursor-pointer items-center gap-3 rounded-[20px] p-3.5 transition-transform duration-150 hover:-translate-y-px active:scale-[0.98]",
+        "group flex w-full max-w-xs cursor-pointer items-center gap-3 rounded-[20px] p-3.5 transition-transform duration-150 hover:-translate-y-px active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-[#ffb400]/60",
         className,
       )}
       {...props}
@@ -48,8 +58,12 @@ export function ArtifactCard({
             <ShimmerLabel className="relative inline-block leading-none">
               Writing
             </ShimmerLabel>
-            <span>·</span>
-            <span className="tabular-nums">{words} words</span>
+            {words > 0 && (
+              <>
+                <span>·</span>
+                <span className="tabular-nums">{words} words</span>
+              </>
+            )}
           </p>
         ) : (
           <p
