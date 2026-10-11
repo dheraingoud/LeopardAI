@@ -387,7 +387,12 @@ function ModelSelectorImpl() {
       return {
         id: m.id,
         name: m.name,
-        description: m.description.replace(`${m.name} — `, ""),
+        // Description only when it adds info beyond the name (e.g. "vision") —
+        // with speed tags gone the subtitle otherwise echoes the model name.
+        description: (() => {
+          const d = m.description.replace(`${m.name} — `, "");
+          return d === m.name ? undefined : d;
+        })(),
         // Static registry unavailability OR a live probe failure greys it out.
         // A SLOW model stays selectable — slow ≠ down (2026-10-08 user call).
         disabled: m.unavailable || badge !== undefined,

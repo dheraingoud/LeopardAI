@@ -133,10 +133,10 @@ function nimTextSeed(): ChatModel[] {
     id: m.id,
     name: m.displayName,
     provider: "nim" as const,
-    description:
-      m.type === "vlm"
-        ? `${m.displayName} — vision`
-        : `${m.displayName} — ${speedTierMap[m.speedTier]}`,
+    // Speed tags removed from the picker copy (operator 2026-10-11): health is
+    // availability-only; a slow-but-up model is not a degraded one. Vision is a
+    // capability, not a speed tag — it stays.
+    description: m.type === "vlm" ? `${m.displayName} — vision` : m.displayName,
     speedTier: speedTierMap[m.speedTier],
     supportsVision: m.supportsVision,
     supportsReasoning: m.reasoning.enabled,
