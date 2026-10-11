@@ -408,7 +408,12 @@ function PreShell({
   return (
     <div className="cb-shell">
       <div className="cb-header">
-        <span className="cb-badge">{lang || "text"}</span>
+        {/* No badge for unlabeled fences — "text" is noise, not information. */}
+        {lang && lang !== "text" && lang !== "plaintext" ? (
+          <span className="cb-badge">{lang}</span>
+        ) : (
+          <span />
+        )}
         <div className="cb-btns">
           {runnable && <RunButton running={runState.running} onRun={() => run(copyText)} />}
           <button

@@ -1728,7 +1728,7 @@ export function ActiveChatProvider({
     // route's literal error codes too — otherwise a 401/400 auto-retries into
     // the same deterministic wall (audit 2026-10-06).
     const fatal =
-      /\b(401|403|404)\b|Authorization failed|Forbidden|API key|not configured|Bad Request|unauthorized|model_not_allowed|bad_request|daily_token_cap|not enabled/i.test(
+      /\b(401|403|404)\b|Authorization failed|Forbidden|API key|not configured|Bad Request|unauthorized|model_not_allowed|bad_request|daily_token_cap|not enabled|Tool results? (are|is) missing|MissingToolResults/i.test(
         lastErrorRef.current,
       );
     if (fatal) return;

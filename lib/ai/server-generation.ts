@@ -704,7 +704,13 @@ class PartAccumulator {
       }
       case "tool-approval-response": {
         const t = this.findTool(chunk.toolCallId);
-        if (t) t.state = "approval-responded";
+        // Never downgrade a part whose output already landed — a late
+        // approval-response chunk would otherwise flip output-available back
+        // to approval-responded, and convertToModelMessages then emits a
+        // tool-call with no tool-result (MissingToolResultsError bricks the
+        // chat's later turns, 2026-10-12 live).
+        if (t && t.state !== "output-available" && t.state !== "output-error" && t.state !== "output-denied")
+          t.state = "approval-responded";
         break;
       }
       case "tool-output-available": {
@@ -1063,6 +1069,20 @@ export function backgroundServe(args: {
         type: "tool-output-denied",
         toolCallId,
       } as UIMessageStreamChunk);
+    } else if (st === "approval-requested") {
+      // Still-pending gate (GAP C): the client validator throws "Tool result
+      // is missing" for a bare input-available, and the approval id must ride
+      // along or the dock can't pair the answer. Emit the request chunk so
+      // the client marks the part approval-requested with its id — the same
+      // wiring the live stream produced the first time.
+      const approval = (seeded as { approval?: { id?: string } }).approval;
+      if (approval?.id) {
+        emit({
+          type: "tool-approval-request",
+          toolCallId,
+          approvalId: approval.id,
+        } as UIMessageStreamChunk);
+      }
     }
   }
 

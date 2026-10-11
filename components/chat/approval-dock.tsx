@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { ApprovalCard } from "./leopard/approval-card";
@@ -29,6 +29,13 @@ export function ApprovalDock({
 }) {
   const chat = useActiveChat();
   const [decided, setDecided] = useState<boolean | null>(null);
+  // If the resume errored (stream crashed mid-resume), the part never flips to
+  // approval-responded — the grant pill would latch forever with the composer
+  // gone. Reset to the card so the user can answer again.
+  const errored = !!chat.error;
+  useEffect(() => {
+    if (errored) setDecided(null);
+  }, [errored]);
 
   // Human summary of the target (url / query / spawn task list), same shape
   // as the inline card.

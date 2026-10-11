@@ -270,6 +270,7 @@ export function ChatShell() {
           <Messages />
           {pendingApproval ? (
             <ApprovalDock
+              key={pendingApproval.approvalId}
               approvalId={pendingApproval.approvalId}
               toolName={pendingApproval.toolName}
               input={pendingApproval.input}
@@ -366,6 +367,7 @@ export function ChatShell() {
         <Messages />
         {pendingApproval ? (
           <ApprovalDock
+            key={pendingApproval.approvalId}
             approvalId={pendingApproval.approvalId}
             toolName={pendingApproval.toolName}
             input={pendingApproval.input}
