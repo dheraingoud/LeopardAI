@@ -1445,6 +1445,21 @@ export function backgroundServe(args: {
         let finalParts = normalizeUIMessageParts(
           sdkParts ?? accParts,
         ) as unknown[];
+        // Never persist a completed row with zero user-visible parts — a turn
+        // whose only chunks were a gated tool's approval (or reasoning that
+        // never produced an answer) would otherwise land as an empty assistant
+        // bubble (2026-10-11 regression probe: completed + 0 parts, no card).
+        // Fall through to finalizePartial, which deletes the placeholder.
+        const hasVisiblePart = finalParts.some((p) => {
+          const t = (p as { type?: string }).type ?? "";
+          if (t === "text" || t === "reasoning")
+            return (((p as { text?: string }).text ?? "").trim().length > 0);
+          return t.startsWith("tool-") || t === "dynamic-tool";
+        });
+        if (!hasVisiblePart) {
+          await finalizePartial();
+          return;
+        }
         // finish_reason=length marker rides the FINAL parts (not just the
         // accumulator) so it survives the sdkParts branch too.
         if (truncatedByLength) {
