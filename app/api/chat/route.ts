@@ -650,11 +650,17 @@ export async function POST(request: Request) {
     const parts = (m.parts as Array<Record<string, any>>)
       // approval scaffolding is not model content — never convert it
       .filter((p) => p?.type !== "tool-approval-request" && p?.type !== "tool-approval-response")
-      .map((p) =>
-        p.toolCallId && resumeOutputs.has(p.toolCallId)
-          ? { ...p, state: "output-available", output: resumeOutputs.get(p.toolCallId) }
-          : p,
-      );
+      .map((p) => {
+        if (p.toolCallId && resumeOutputs.has(p.toolCallId))
+          return { ...p, state: "output-available", output: resumeOutputs.get(p.toolCallId) };
+        // Crash-recovery: a denied call whose resume detection failed (the row
+        // settled before the decision POST) converts with no result and the
+        // SDK's MissingToolResultsError 400s the whole chat. Feed the model the
+        // refusal as an error output so history stays valid.
+        if (p.toolCallId && p.state === "output-denied")
+          return { ...p, state: "output-error", output: "The user declined this action. Do not retry it." };
+        return p;
+      });
     return { ...m, parts };
   }) as typeof messages;
   modelMessages = await convertToModelMessages(messagesForConvert);

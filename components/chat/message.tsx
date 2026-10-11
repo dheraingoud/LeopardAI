@@ -935,7 +935,10 @@ export const PreviewMessage = memo(function PreviewMessage({
           last.toolName === toolName &&
           (last.state === "pending" || last.state === "streaming")
         ) {
-          last.state = mapToolState(p.state);
+          last.state =
+            p.state === "approval-responded" && p.output !== undefined
+              ? "complete"
+              : mapToolState(p.state);
           last.output = p.output ?? last.output;
           if (last.toolName === "spawn_agents") {
             const snap = (last.toolCallId ? orchByCall.get(last.toolCallId) : undefined) ??
@@ -947,7 +950,14 @@ export const PreviewMessage = memo(function PreviewMessage({
         cur = {
           kind: "tool",
           toolName,
-          state: isApproval ? "ask" : mapToolState(p.state),
+          // approval-responded carrying a real output means the tool RAN (the
+          // resume executed it) — the row just settled before the seed patch
+          // flipped the state. Render complete, not the stale-pending error.
+          state: isApproval
+            ? "ask"
+            : p.state === "approval-responded" && p.output !== undefined
+              ? "complete"
+              : mapToolState(p.state),
           input: p.input ?? p.args ?? undefined,
           output: p.output ?? undefined,
           toolCallId: p.toolCallId,

@@ -118,7 +118,7 @@ export function SkillConfigModal({ open, onClose }: Props) {
             aria-modal="true"
             aria-label="Skills"
             className={cn(
-              "relative w-[70vw] max-w-[960px] max-h-[70vh] flex flex-col overflow-hidden rounded-2xl",
+              "relative w-[calc(100vw-2rem)] sm:w-[70vw] max-w-[960px] max-h-[85dvh] sm:max-h-[70vh] flex flex-col overflow-hidden rounded-2xl",
               "border dark:border-white/10 light:border-black/10",
               "dark:bg-[linear-gradient(160deg,#151311_0%,#0c0a08_100%)] light:bg-[linear-gradient(160deg,#ffffff_0%,#f6f3eb_100%)]",
               "dark:shadow-[0_24px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.06)] light:shadow-[0_24px_80px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.8)]",

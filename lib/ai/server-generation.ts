@@ -584,6 +584,9 @@ type ReasoningSegment = {
   text: string;
   startMs: number | null;
   endMs: number | null;
+  /** Frozen duration — set once the window closes so a later hold (approval
+   *  pause) can't stretch "Thought for Ns" across the user's decision time. */
+  frozenMs?: number;
 };
 type TextSegment = { type: "text"; text: string };
 type Segment = ReasoningSegment | TextSegment | Record<string, unknown>;
@@ -619,7 +622,10 @@ class PartAccumulator {
     const last = this.segments[this.segments.length - 1];
     if (last && last.type === "reasoning") {
       const r = last as ReasoningSegment;
-      if (r.endMs === null) r.endMs = Date.now();
+      if (r.endMs === null) {
+        r.endMs = Date.now();
+        if (typeof r.startMs === "number") r.frozenMs = r.endMs - r.startMs;
+      }
     }
   }
 
@@ -680,6 +686,10 @@ class PartAccumulator {
         break;
       }
       case "tool-approval-request": {
+        // The approval pause is where reasoning ENDS — the model stopped
+        // thinking to await the decision. Close the window so the hold never
+        // stretches "Thought for Ns" across the user's decision time.
+        this.closeReasoningWindow();
         const t = this.findTool(chunk.toolCallId);
         if (t) {
           t.state = "approval-requested";
@@ -738,11 +748,13 @@ class PartAccumulator {
         // `!== null` passes for undefined and `Date.now() - undefined` is NaN
         // (persisted literally as NaN → "Thought for NaN seconds" 2026-09-05).
         const durationMs =
-          typeof r.startMs === "number"
-            ? (r.endMs ?? Date.now()) - r.startMs
-            : typeof r.durationMs === "number" && Number.isFinite(r.durationMs)
-              ? r.durationMs
-              : undefined;
+          typeof r.frozenMs === "number" && Number.isFinite(r.frozenMs)
+            ? r.frozenMs
+            : typeof r.startMs === "number"
+              ? (r.endMs ?? Date.now()) - r.startMs
+              : typeof r.durationMs === "number" && Number.isFinite(r.durationMs)
+                ? r.durationMs
+                : undefined;
         out.push({
           type: "reasoning",
           text: r.text,
@@ -1026,6 +1038,14 @@ export function backgroundServe(args: {
         type: "tool-output-available",
         toolCallId,
         output: out,
+      } as UIMessageStreamChunk);
+    } else if (st === "output-denied") {
+      // Denied seed: the SDK's client-side validator throws "Tool result is
+      // missing for tool call" if a tool-input-available lands with no output
+      // chunk — emit the denial as the result.
+      emit({
+        type: "tool-output-denied",
+        toolCallId,
       } as UIMessageStreamChunk);
     }
   }
