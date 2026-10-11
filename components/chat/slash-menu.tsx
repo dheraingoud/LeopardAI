@@ -1,9 +1,37 @@
 "use client";
 
-import { CornerDownLeftIcon, SlashIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  Code2Icon,
+  CornerDownLeftIcon,
+  NetworkIcon,
+  GaugeIcon,
+  ImageIcon,
+  ScanSearchIcon,
+  SlashIcon,
+  SmartphoneIcon,
+  SparklesIcon,
+  TableIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, floating, mono } from "./leopard/surfaces";
 import { skillSlug, type SkillConfig } from "@/lib/skill-config";
+
+// Per-command icon by slug keyword — a generic slash for everything else.
+// Mirrors the reference composer menu (each command carries its own icon).
+function skillIcon(slug: string, name: string): LucideIcon {
+  const s = `${slug} ${name}`.toLowerCase();
+  if (/diagram|mermaid|chart/.test(s)) return NetworkIcon;
+  if (/svg|image|art/.test(s)) return ImageIcon;
+  if (/code|gen|debug|review/.test(s)) return Code2Icon;
+  if (/sql|table|data/.test(s)) return TableIcon;
+  if (/explain|explain-sql/.test(s)) return BookOpenIcon;
+  if (/optimize|perf|speed/.test(s)) return GaugeIcon;
+  if (/mobile|format|layout/.test(s)) return SmartphoneIcon;
+  if (/custom|response|style/.test(s)) return SparklesIcon;
+  return SlashIcon;
+}
 
 /**
  * Slash-command menu — Leopard's composer command
@@ -97,6 +125,7 @@ export function SlashMenu({
       {matches.map((match, i) => {
         const active = i === activeIndex;
         const desc = blurb(match.skill.body);
+        const Icon = skillIcon(match.slug, match.skill.name);
         return (
           <button
             key={match.skill.id}
@@ -110,7 +139,7 @@ export function SlashMenu({
               active ? field : "hover:bg-foreground/[0.04]",
             )}
           >
-            <SlashIcon
+            <Icon
               className={cn(
                 "size-3.5 shrink-0",
                 active
