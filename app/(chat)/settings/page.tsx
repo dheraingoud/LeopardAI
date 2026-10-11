@@ -253,7 +253,6 @@ export default function SettingsPage() {
           <h1 className="text-[26px] font-medium tracking-[-0.02em] dark:text-[#ececec] light:text-[#171717]">
             Den control<span className="dark:text-[#ffb400] light:text-[#d49600]">.</span>
           </h1>
-          <p className={cn(mono, "mt-1", faint)}>account · appearance · models · data</p>
         </motion.header>
 
         <div className="grid gap-8 md:grid-cols-[168px_minmax(0,1fr)]">
