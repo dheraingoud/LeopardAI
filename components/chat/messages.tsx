@@ -465,8 +465,9 @@ export function Messages() {
               <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
             </span>
             Reconnecting — the model stalled. Retrying
-            {chat.stallSignal.maxRetries > 1
-              ? ` (${chat.stallSignal.attempt}/${chat.stallSignal.maxRetries + chat.stallSignal.attempt - 1})`
+            {/* attempt A with maxRetries R left = attempt A of A+R total */}
+            {chat.stallSignal.maxRetries > 0
+              ? ` (${chat.stallSignal.attempt + 1}/${chat.stallSignal.attempt + chat.stallSignal.maxRetries})`
               : "…"}
           </div>
         )}
