@@ -566,6 +566,9 @@ export async function POST(request: Request) {
   // executeApprovedTools runs in the backgroundServe prelude, i.e. AFTER that,
   // so the closure is populated by the time subagents read it.
   let generationSignal: AbortSignal | undefined;
+  // The full turn tool set, assigned after `tools` is built — the resume
+  // prelude's fallback executor for gated tools without a manual entry.
+  let resumeToolSet: Record<string, any> | undefined;
   /** Execute the approved tools once, streaming orchestration progress through
    * `emitChunk` (live card) and filling resumeOutputs for the model pass. */
   const executeApprovedTools = async (
@@ -617,8 +620,18 @@ export async function POST(request: Request) {
         emitChunk({ type: "tool-output-available", toolCallId: p.toolCallId, output: out });
         continue;
       }
-      const def = manualTools[toolName];
+      // manualTools first (they stream progress through emitChunk); the full
+      // turn tool set is the fallback so a gated tool with no manual entry
+      // (e.g. research_deep) still executes on resume — skipping it left the
+      // seeded part outputless and crashed the client's MissingToolResults
+      // validator (2026-10-11 live repro: askUser → research_deep chain).
+      const def = manualTools[toolName] ?? resumeToolSet?.[toolName];
       if (!def?.execute) {
+        // No executor anywhere — still must not leave the part outputless:
+        // close it with an error so the client + history stay consistent.
+        const out = { error: `Tool ${toolName} is unavailable in this deployment.` };
+        resumeOutputs.set(p.toolCallId, out);
+        emitChunk({ type: "tool-output-available", toolCallId: p.toolCallId, output: out });
         continue;
       }
       try {
@@ -1002,6 +1015,7 @@ export async function POST(request: Request) {
             : {}),
           ...mcpHandle.tools,
         };
+        resumeToolSet = tools;
         const supportsTools =
           webFetchEnabled ||
           webSearchEnabled ||
