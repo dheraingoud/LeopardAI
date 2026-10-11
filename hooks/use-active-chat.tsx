@@ -771,7 +771,7 @@ export function ActiveChatProvider({
     {
       const prev = chat.messages;
       let changed = false;
-      let next = prev.slice();
+      const next = prev.slice();
 
       // ── Φ10/#3 review M3: adopt the server id BY POSITION once the stream
       // settles. onData runs before the optimistic bubble exists, so the id is
