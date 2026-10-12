@@ -1054,40 +1054,44 @@ pre code {
   color: var(--shiki-light);
 }
 
-/* code-block chrome wrapping every fenced block (PreShell). */
+/* code-block chrome wrapping every fenced block (PreShell).
+   Redesigned 2026-10-13: neutral surface (no amber stain), sharper radius,
+   stronger header/body separation, line numbers, terminal-style output. */
 .markdown-body .cb-shell {
   margin: 0.75rem 0;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #111113;
   overflow: hidden;
   font-family: var(--font-mono);
 }
 .light .markdown-body .cb-shell {
-  border-color: rgba(0, 0, 0, 0.08);
-  background: linear-gradient(180deg, rgba(255, 247, 230, 0.6) 0%, rgba(253, 246, 227, 0.45) 100%);
+  border-color: rgba(0, 0, 0, 0.09);
+  background: #fafafa;
 }
 .markdown-body .cb-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 11px;
   line-height: 1;
-  color: #8a8a8a;
-  background: rgba(255, 255, 255, 0.025);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  letter-spacing: 0.03em;
+  color: #787878;
+  background: rgba(255, 255, 255, 0.035);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 .light .markdown-body .cb-header {
-  color: #6a6a6a;
-  background: rgba(0, 0, 0, 0.015);
-  border-bottom-color: rgba(0, 0, 0, 0.06);
+  color: #5a5a5a;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.07);
 }
 .markdown-body .cb-badge {
   text-transform: lowercase;
-  letter-spacing: 0.02em;
-  opacity: 0.8;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  opacity: 0.7;
 }
 .markdown-body .cb-btns {
   display: flex;
@@ -1099,8 +1103,8 @@ pre code {
   align-items: center;
   gap: 4px;
   padding: 4px 6px;
-  border-radius: 9999px;
-  color: #8a8a8a;
+  border-radius: 6px;
+  color: #787878;
   cursor: pointer;
   background: transparent;
   border: 0;
@@ -1108,15 +1112,36 @@ pre code {
   transition: background 0.15s, color 0.15s;
 }
 .markdown-body .cb-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
   color: #e5e5e5;
 }
 .light .markdown-body .cb-btn {
-  color: #6a6a6a;
+  color: #5a5a5a;
 }
 .light .markdown-body .cb-btn:hover {
   background: rgba(0, 0, 0, 0.05);
-  color: #262626;
+  color: #171717;
+}
+/* Run button: filled accent pill, not a ghost — the only colored element in
+   the header. Signals "this code is executable." */
+.markdown-body .cb-btn-run {
+  background: rgba(255, 180, 0, 0.12);
+  color: #ffb400;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.markdown-body .cb-btn-run:hover {
+  background: rgba(255, 180, 0, 0.22);
+  color: #ffb400;
+}
+.light .markdown-body .cb-btn-run {
+  background: rgba(180, 130, 0, 0.1);
+  color: #8a5c00;
+}
+.light .markdown-body .cb-btn-run:hover {
+  background: rgba(180, 130, 0, 0.18);
+  color: #6b4400;
 }
 .markdown-body .cb-body {
   padding: 12px 14px;
@@ -1148,7 +1173,7 @@ pre code {
   color: inherit;
 }
 .light .markdown-body .cb-plain {
-  color: #3a2a08;
+  color: #1a1a1a;
 }
 .markdown-body .cb-mermaid {
   display: flex;
