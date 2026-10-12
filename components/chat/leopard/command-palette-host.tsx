@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
@@ -118,23 +119,37 @@ export function CommandPaletteHost() {
     }
   };
 
-  if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[18vh] backdrop-blur-sm"
-      onClick={() => setOpen(false)}
-    >
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md px-4">
-        <CommandPalette
-          commands={commands}
-          query={query}
-          activeId={activeId}
-          onQueryChange={setQuery}
-          onActiveChange={setActiveId}
-          onRun={run}
-          className="w-full max-w-none"
-        />
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[18vh] backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+        >
+          <motion.div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md px-4"
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.985 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+          >
+            <CommandPalette
+              commands={commands}
+              query={query}
+              activeId={activeId}
+              onQueryChange={setQuery}
+              onActiveChange={setActiveId}
+              onRun={run}
+              className="w-full max-w-none"
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
