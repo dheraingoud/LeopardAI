@@ -39,13 +39,19 @@ export function ConfirmDialog({
     if (!open) return;
     setBusy(false);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        // Nested inside panels that ALSO close on Escape (MCP/skills) — swallow
+        // the event so one press closes the dialog only, not both layers.
+        e.stopImmediatePropagation();
+        onCancel();
+      }
     };
-    window.addEventListener("keydown", onKey);
+    // Capture phase so this runs before any ancestor panel's bubble listener.
+    window.addEventListener("keydown", onKey, true);
     // Initial focus lands on confirm so Enter works immediately, but nothing
     // fires without an explicit activation.
     confirmRef.current?.focus();
-    return () => window.removeEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onCancel]);
 
   if (!open) return null;

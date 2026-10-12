@@ -126,6 +126,11 @@ export function ThreadSearch({
       >
         <SearchIcon className="text-foreground/30 size-3.5 shrink-0" />
         <input
+          // The sidebar's own field unmounts the moment the query goes
+          // non-empty (this panel takes over) — without autoFocus the first
+          // keystroke strands focus on an unmounted input and the second
+          // keystroke types nowhere (2026-10-12 audit).
+          autoFocus
           value={query}
           onChange={(event) => onQueryChange?.(event.target.value)}
           onKeyDown={onKeyDown}

@@ -74,6 +74,10 @@ export function ApprovalCard({
               el instanceof HTMLElement &&
               (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.isContentEditable);
             if (inField) return;
+            // Enter on a focused button must click THAT button — the event
+            // bubbles here, and allowing it through made Deny's Enter fire
+            // onAllow (2026-10-12 audit: keyboard Deny silently approved).
+            if (el instanceof HTMLElement && el.tagName === "BUTTON") return;
             e.preventDefault();
             onAllow?.();
           }
