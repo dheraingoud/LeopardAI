@@ -218,15 +218,15 @@ export function ResearchPanel() {
         title="Deep research panel"
         className={cn(
           "relative grid h-6 items-center rounded-full px-1.5",
-          "bg-white/[0.03] ring-1 transition",
+          "dark:bg-white/[0.03] light:bg-black/[0.03] ring-1 transition",
           open
-            ? "ring-cyan-300/40 text-cyan-200"
-            : "ring-cyan-300/20 text-cyan-200/80 hover:ring-cyan-300/40 hover:text-cyan-100",
+            ? "ring-[#ffb400]/40 dark:text-[#ffb400] light:text-[#d49600]"
+            : "ring-[#ffb400]/20 dark:text-[#ffb400]/80 light:text-[#d49600]/80 hover:ring-[#ffb400]/40 hover:dark:text-[#ffb400] hover:light:text-[#d49600]",
         )}
       >
         <Search className="h-3 w-3" strokeWidth={1.5} />
         {active > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-cyan-400 px-0.5 font-mono text-[8px] font-semibold text-black">
+          <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full dark:bg-[#ffb400] light:bg-[#d49600] px-0.5 font-mono text-[8px] font-semibold text-black">
             {active}
           </span>
         )}
@@ -240,34 +240,34 @@ export function ResearchPanel() {
           role="dialog"
           aria-label="Deep research"
         >
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#111113]/90 shadow-xl shadow-black/40 backdrop-blur-xl">
-            <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
-              <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-cyan-200/70">
+          <div className="overflow-hidden rounded-2xl dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#111113]/90 light:bg-white/95 shadow-xl dark:shadow-black/40 light:shadow-black/10 backdrop-blur-xl">
+            <div className="flex items-center justify-between border-b dark:border-white/[0.06] light:border-black/[0.06] px-3 py-2">
+              <span className="text-[10px] font-medium uppercase tracking-[0.18em] dark:text-[#ffb400]/70 light:text-[#d49600]/80">
                 Deep Research
               </span>
               <button
                 type="button"
                 aria-label="Close"
                 onClick={() => setOpen(false)}
-                className="text-[#b6b6b6] transition hover:text-white"
+                className="dark:text-[#8a8a8a] light:text-[#737373] transition dark:hover:text-white light:hover:text-black"
               >
                 <X className="h-3.5 w-3.5" strokeWidth={1.5} />
               </button>
             </div>
 
-            <div className="flex gap-2 border-b border-white/5 p-2">
+            <div className="flex gap-2 border-b dark:border-white/[0.06] light:border-black/[0.06] p-2">
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && run()}
                 placeholder="Investigate something across multiple sources…"
-                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[12px] text-[#ececec] placeholder:text-[#6a6a6a] outline-none focus:border-cyan-300/40"
+                className="min-w-0 flex-1 rounded-lg dark:border-white/[0.08] light:border-black/[0.1] dark:bg-white/[0.02] light:bg-black/[0.02] px-2.5 py-1.5 text-[12px] dark:text-[#ececec] light:text-[#262626] placeholder:dark:text-[#6a6a6a] placeholder:light:text-[#8a8a8a] outline-none focus:dark:border-[#ffb400]/40 focus:light:border-[#d49600]/40"
               />
               <button
                 type="button"
                 onClick={run}
                 disabled={!query.trim() || spawning}
-                className="shrink-0 rounded-lg bg-cyan-400/15 px-3 py-1.5 text-[12px] font-medium text-cyan-200 transition hover:bg-cyan-400/25 disabled:opacity-40"
+                className="shrink-0 rounded-lg dark:bg-[#ffb400]/15 light:bg-[#d49600]/15 px-3 py-1.5 text-[12px] font-medium dark:text-[#ffb400] light:text-[#8a5c00] transition hover:dark:bg-[#ffb400]/25 hover:light:bg-[#d49600]/22 disabled:opacity-40"
               >
                 {spawning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Run"}
               </button>
@@ -275,9 +275,9 @@ export function ResearchPanel() {
 
             <div className="max-h-[24rem] overflow-y-auto p-2">
               {disabled ? (
-                <p className="px-3 py-4 text-[12px] text-[#8a8a8a]">{disabled}</p>
+                <p className="px-3 py-4 text-[12px] dark:text-[#8a8a8a] light:text-[#737373]">{disabled}</p>
               ) : jobs.length === 0 ? (
-                <p className="px-3 py-4 text-[12px] text-[#8a8a8a]">
+                <p className="px-3 py-4 text-[12px] dark:text-[#8a8a8a] light:text-[#737373]">
                   No research runs yet. Type a question and press Run — or ask
                   Leopard to research something and it starts here.
                 </p>
@@ -328,7 +328,7 @@ export function ResearchPanel() {
                         />
                       )}
                       <Timeline
-                        className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
+                        className="mx-2 mb-2 max-w-none dark:border-white/[0.06] light:border-black/[0.06] dark:bg-white/[0.02] light:bg-black/[0.02] shadow-none backdrop-blur-none"
                         events={jobTimeline(selectedJob)}
                         visibleCount={selectedJob.steps.length}
                       />
@@ -342,13 +342,13 @@ export function ResearchPanel() {
                     </>
                   )}
                   {selectedJob?.status === "error" && (
-                    <p className="px-3 py-2 text-[11px] text-red-300/90">
+                    <p className="px-3 py-2 text-[11px] dark:text-red-300/90 light:text-red-600">
                       {selectedJob.error ?? "Unknown error."}
                     </p>
                   )}
                   {selectedJob?.status === "done" && selectedJob.report && (
                     <ResearchReport
-                      className="mx-2 mb-2 max-w-none border-white/5 bg-white/[0.02] shadow-none backdrop-blur-none"
+                      className="mx-2 mb-2 max-w-none dark:border-white/[0.06] light:border-black/[0.06] dark:bg-white/[0.02] light:bg-black/[0.02] shadow-none backdrop-blur-none"
                       title={selectedJob.query}
                       sections={jobSections(selectedJob)}
                       sourcesRead={selectedJob.steps.length}
@@ -358,7 +358,7 @@ export function ResearchPanel() {
                         steps={selectedJob.steps}
                         activeIndex={selectedJob.totalSteps}
                       />
-                      <div className="max-h-64 overflow-y-auto [&_a]:text-cyan-300/80 [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2">
+                      <div className="max-h-64 overflow-y-auto [&_a]:dark:text-[#ffb400]/80 [&_a]:light:text-[#8a5c00] [&_code]:rounded [&_code]:bg-white/5 [&_code]:px-1 [&_h2]:mt-2 [&_h2]:text-[12px] [&_h2]:font-semibold [&_li]:ml-3 [&_p]:my-1 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-white/5 [&_pre]:p-2">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {selectedJob.report}
                         </ReactMarkdown>
