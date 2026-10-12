@@ -788,15 +788,30 @@ export function ActiveChatProvider({
       // than appending the server row as a duplicate bubble.
       const sid = serverAssistantIdRef.current;
       if (sid) {
-        const hasServerRow = next.some((x) => x.id === sid);
+        const serverIdx = next.findIndex((x) => x.id === sid);
         const last = next[next.length - 1];
         if (
           last?.role === "assistant" &&
-          last.id !== sid &&
-          !hasServerRow
+          last.id !== sid
         ) {
-          next[next.length - 1] = { ...last, id: sid };
-          changed = true;
+          if (serverIdx < 0) {
+            // No server row in state yet — rename the bubble so the mirror
+            // updates it in place instead of appending a duplicate.
+            next[next.length - 1] = { ...last, id: sid };
+            changed = true;
+          } else if (
+            serverIdx !== next.length - 1 &&
+            (next[serverIdx].parts?.length ?? 0) > 0
+          ) {
+            // BOTH exist (mirror landed before this stream's id chunk — the
+            // resume-reload race) and the server row has content: it's the
+            // persisted truth; drop the trailing client bubble (2026-10-12
+            // live: the same turn rendered twice — 2-part stub + 8-part row).
+            // Guard on parts so we never swap a live bubble for an empty
+            // placeholder.
+            next.splice(next.length - 1, 1);
+            changed = true;
+          }
         }
       }
 
@@ -1567,27 +1582,26 @@ export function ActiveChatProvider({
       }
       // Approval-gate hold (2026-10-10): the SDK stream ENDS on an unresolved
       // approval and the SERVER holds the turn open — the SSE stays open until
-      // the resume POST's abortAndSettle aborts it. The old poll waited for
-      // status to leave "streaming" before sending, but nothing closes the SSE
-      // until the resume itself → 18s giveup → the resume never fired and the
-      // turn went zombie (live repro: Deny → "Fetching…" + Stop forever → 150s
-      // watchdog). Cancel the CLIENT-side request only (SDK stop, NOT the
-      // /api/chat/stop POST — that would abort the server gen + settle the row
-      // before the resume's seed poll could anchor). Status flips ready → the
-      // poll sends immediately; the route's abortAndSettle then closes the
-      // held generation.
+      // the resume POST's abortAndSettle aborts it. Cancel the CLIENT-side
+      // request only (SDK stop, NOT the /api/chat/stop POST — that would abort
+      // the server gen + settle the row before the resume's seed poll could
+      // anchor). Don't poll statusRef: chat.stop() aborts the fetch but the
+      // status flip is async (React render + useEffect). The old 120×150ms poll
+      // exhausted without the ref ever reading "ready" on a held stream →
+      // resume never fired → zombie turn (live repro 2026-10-12: createDocument
+      // allow → 18min Thinking → document created server-side but client
+      // stuck). Wait two frames (stop → SDK state → React render → ref sync),
+      // then force-send. If the SDK is somehow still streaming, sendMessage
+      // queues or the route's resume detection handles it.
       chat.stop();
       setResumeInFlight(true);
-      let tries = 0;
-      const attempt = () => {
-        const st = statusRef.current;
-        if (st === "streaming" || st === "submitted") {
-          if (++tries < 120) setTimeout(attempt, 150); // up to ~18s
-          return;
-        }
-        void chat.sendMessage().catch(() => {
-          /* surfaced via chat.error → error card */
-        });
+      // Two RAFs: first lets the abort propagate through the SDK's internal
+      // stream processing, second lets React flush the status update.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          void chat.sendMessage().catch(() => {
+            /* surfaced via chat.error → error card */
+          });
         // Release once the resume stream drains back to ready. Two phases:
         // the 250ms poll used to catch the stale "ready" between sendMessage
         // and the status actually flipping — released instantly, the mirror
@@ -1609,9 +1623,9 @@ export function ActiveChatProvider({
           }
           setResumeInFlight(false);
         };
-        setTimeout(release, 250);
-      };
-      attempt();
+          setTimeout(release, 250);
+        });
+      });
     },
     [chat],
   );
