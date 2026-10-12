@@ -96,7 +96,7 @@ export function CommandPalette({
       data-slot="command-palette"
       className={cn(
         floating,
-        "flex w-full max-w-sm flex-col overflow-hidden rounded-[20px]",
+        "flex w-full max-w-sm flex-col overflow-hidden rounded-2xl",
         className,
       )}
 

@@ -81,7 +81,7 @@ export function ConfirmDialog({
       />
       <div
         className={cn(
-          "relative w-full max-w-[400px] rounded-xl p-5 elev-5 animate-scale-in",
+          "relative w-full max-w-[400px] rounded-xl p-5 elev-5 animate-in zoom-in-95 duration-150",
           "dark:bg-[#14110d] dark:text-[#f5f5f5] dark:border dark:border-white/[0.1]",
           "light:bg-[#f7f1e3] light:text-[#171717] light:border light:border-black/[0.1]",
         )}
