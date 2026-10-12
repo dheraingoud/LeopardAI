@@ -833,6 +833,15 @@ export function ActiveChatProvider({
             const pos = next.findIndex((x) => x.id === serverIds[k]);
             if (pos >= 0) { insertAt = pos; break; }
           }
+          // The scan misses when the next server row exists locally under its
+          // CLIENT id (SDK bubble not yet adopted) — the row then appended
+          // after the reply it prompted and the transcript inverted (user
+          // bubble below the answer, 2026-10-12 live). Fall back to the first
+          // assistant bubble.
+          if (insertAt === next.length) {
+            const firstAssistant = next.findIndex((x) => x.role === "assistant");
+            if (firstAssistant >= 0) insertAt = firstAssistant;
+          }
           next.splice(insertAt, 0, ui);
           changed = true;
         }
@@ -885,12 +894,20 @@ export function ActiveChatProvider({
       (m) => m.role === "assistant" && serverIds.has(m.id),
     );
     if (!serverRow || serverRow.parts.length === 0) return;
-    const keep = prev.filter(
-      (m, i) =>
-        i <= lastUser ||
-        m.role !== "assistant" ||
-        serverIds.has(m.id),
-    );
+    // Dedupe by id: the SDK bubble adopts the server id mid-stream (M3), so
+    // both the SDK copy and the mirrored row can carry the same id — keeping
+    // both duplicated the reply (2026-10-12 live: the same answer twice).
+    // First occurrence wins (the live bubble during a stream; the mirror
+    // after settle — identical content either way).
+    const seen = new Set<string>();
+    const keep = prev.filter((m, i) => {
+      if (i <= lastUser) return true;
+      if (m.role !== "assistant") return true;
+      if (!serverIds.has(m.id)) return false;
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
     if (keep.length !== prev.length) chat.setMessages(keep);
   }, [chat.messages, chat.status, chat.setMessages, convexMessages, resumeInFlight]);
 

@@ -350,10 +350,6 @@ export function Messages() {
   // the stop state during the retry window — here we only render it.
   const autoRetrying = chat.retrying;
 
-  if (messages.length === 0) {
-    return <Greeting />;
-  }
-
   const isThinking = status === "submitted";
 
   // Turn rail (2026-10-09, ported conversation-map): a tick rail on the
@@ -365,23 +361,11 @@ export function Messages() {
     title: `Turn ${i + 1}`,
     preview: getMessageText(m).slice(0, 140),
   }));
-  // Scroll by user-turn index: the i-th user message maps to the i-th
-  // message-pair (pairs lead with the user bubble; regen-only assistant rows
-  // are rare enough that an off-by-one still lands in view).
-  const scrollToTurn = (id: string) => {
-    const idx = userTurns.findIndex((m) => m.id === id);
-    if (idx < 0) return;
-    const pairs = scrollRef.current?.querySelectorAll('[data-slot="message-pair"]');
-    const target = pairs?.[Math.min(idx, (pairs?.length ?? 1) - 1)];
-    (target as HTMLElement | undefined)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  };
 
   // Rail active state: the user turn whose pair is nearest the viewport top
   // (the one you're reading). Without visibleIds/activeId the rail's ticks
-  // never marked a current turn (2026-10-12 audit).
+  // never marked a current turn (2026-10-12 audit). Hooks must live above the
+  // empty-state early return below (rules-of-hooks).
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   useEffect(() => {
     const root = scrollRef.current;
@@ -405,7 +389,25 @@ export function Messages() {
     update();
     root.addEventListener("scroll", update, { passive: true });
     return () => root.removeEventListener("scroll", update);
-  }, [railEntries.length, userTurns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railEntries.length, messages.length]);
+
+  if (messages.length === 0) {
+    return <Greeting />;
+  }
+  // Scroll by user-turn index: the i-th user message maps to the i-th
+  // message-pair (pairs lead with the user bubble; regen-only assistant rows
+  // are rare enough that an off-by-one still lands in view).
+  const scrollToTurn = (id: string) => {
+    const idx = userTurns.findIndex((m) => m.id === id);
+    if (idx < 0) return;
+    const pairs = scrollRef.current?.querySelectorAll('[data-slot="message-pair"]');
+    const target = pairs?.[Math.min(idx, (pairs?.length ?? 1) - 1)];
+    (target as HTMLElement | undefined)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   return (
     <div className="relative flex-1 min-h-0 flex flex-col">
