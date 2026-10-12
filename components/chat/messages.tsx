@@ -376,6 +376,34 @@ export function Messages() {
     });
   };
 
+  // Rail active state: the user turn whose pair is nearest the viewport top
+  // (the one you're reading). Without visibleIds/activeId the rail's ticks
+  // never marked a current turn (2026-10-12 audit).
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || railEntries.length < 3) return;
+    const update = () => {
+      const pairs = root.querySelectorAll('[data-slot="message-pair"]');
+      const top = root.getBoundingClientRect().top;
+      let best: string | null = null;
+      let bestDist = Infinity;
+      pairs.forEach((pair, idx) => {
+        const r = (pair as HTMLElement).getBoundingClientRect();
+        if (r.bottom < top || r.top > top + root.clientHeight) return;
+        const d = Math.abs(r.top - top);
+        if (d < bestDist) {
+          bestDist = d;
+          best = userTurns[idx]?.id ?? null;
+        }
+      });
+      if (best) setActiveTurnId(best);
+    };
+    update();
+    root.addEventListener("scroll", update, { passive: true });
+    return () => root.removeEventListener("scroll", update);
+  }, [railEntries.length, userTurns]);
+
   return (
     <div className="relative flex-1 min-h-0 flex flex-col">
       <div
@@ -394,6 +422,7 @@ export function Messages() {
             <div className="pointer-events-auto sticky top-1/2 -translate-y-1/2 self-start">
               <TurnRail
                 entries={railEntries}
+                activeId={activeTurnId ?? undefined}
                 onSelect={scrollToTurn}
                 className="h-40"
               />
