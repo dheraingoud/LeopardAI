@@ -1386,13 +1386,18 @@ export const PreviewMessage = memo(function PreviewMessage({
                         />
                       </button>
                     ) : (
-                      <div
+                      // Non-image attachment: click downloads (the data-URL is
+                      // inline, so it's just an anchor download). Was inert.
+                      <a
                         key={i}
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] dark:bg-white/[0.07] dark:text-[#d4d4d4] light:bg-black/[0.05] light:text-[#404040]"
+                        href={f.url}
+                        download={f.filename ?? "attachment"}
+                        aria-label={`Download ${f.filename ?? "file"}`}
+                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] dark:bg-white/[0.07] dark:text-[#d4d4d4] light:bg-black/[0.05] light:text-[#404040] transition-colors hover:dark:bg-white/[0.1] hover:light:bg-black/[0.07] outline-none focus-visible:ring-1 focus-visible:ring-[#ffb400]/40"
                       >
                         <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-50" />
                         <span className="max-w-56 truncate">{f.filename ?? "file"}</span>
-                      </div>
+                      </a>
                     ),
                   )}
                 </div>

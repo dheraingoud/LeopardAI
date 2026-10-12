@@ -206,7 +206,7 @@ function ComposerAttachMenu({
               type="button"
               title="Add attachment"
               aria-label="Add attachment"
-              className={cn(ghostButton, "size-9 max-sm:size-11 dark:border dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08]")}
+              className={cn(ghostButton, "size-9 max-sm:size-11 dark:border dark:border-white/10 light:border-black/10 dark:bg-white/[0.05] light:bg-black/[0.04] hover:dark:bg-white/[0.1] hover:light:bg-black/[0.08] data-[popup-open]:dark:bg-white/[0.1] data-[popup-open]:light:bg-black/[0.08] data-[popup-open]:dark:text-white data-[popup-open]:light:text-black")}
             >
               <PlusIcon className="size-4" />
             </button>
@@ -733,7 +733,8 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               </span>
             ))}
             {uploading && (
-              <span className="self-center font-mono text-[10px] dark:text-[#ffb400]/70 light:text-[#d49600]/80">
+              <span className="flex items-center gap-1.5 self-center font-mono text-[10px] dark:text-[#ffb400]/80 light:text-[#d49600]">
+                <span className="size-2 animate-spin rounded-full border border-current border-t-transparent" aria-hidden />
                 uploading…
               </span>
             )}

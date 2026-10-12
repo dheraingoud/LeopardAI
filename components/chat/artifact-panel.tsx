@@ -296,6 +296,23 @@ function PanelBody({ artifact }: { artifact: UIArtifact }) {
     );
   }
 
+  // Settled with no content — a blank panel reads as broken (audit 2026-10-12).
+  if (!artifact.content) {
+    return (
+      <div className="flex-1 flex items-center justify-center px-8 text-center">
+        <div className="space-y-2">
+          <FileText className="h-5 w-5 mx-auto dark:text-[#a0a0a0] light:text-[#555]" />
+          <p className="text-sm font-body dark:text-[#a0a0a0] light:text-[#555]">
+            This document came back empty.
+          </p>
+          <p className="text-xs font-mono dark:text-[#606060] light:text-[#8a8a8a]">
+            The turn may have been interrupted before any content was written.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto px-5 py-6 min-h-0">
       <div className="markdown-body text-[15px] leading-[1.75] dark:text-[#dedede] light:text-[#262626]">

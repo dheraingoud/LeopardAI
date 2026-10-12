@@ -341,6 +341,8 @@ export default function Sidebar({
           )}
           {isMobile && (
             <button
+              aria-label="Close sidebar"
+              title="Close"
               className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
               onClick={onClose}
             >
@@ -415,12 +417,25 @@ export default function Sidebar({
                   rendered a blank void under the search box). */}
               {chats !== undefined && Object.keys(grouped).length === 0 && (
                 <div className="px-3 py-8 text-center">
-                  <p className="text-[13px] font-medium dark:text-[#a3a3a3] light:text-[#525252]">
-                    No chats yet
-                  </p>
-                  <p className="mt-1 text-[11px] dark:text-[#6b6b6b] light:text-[#8a8a8a]">
-                    Start one — your conversations show up here.
-                  </p>
+                  {archivedCount > 0 ? (
+                    <>
+                      <p className="text-[13px] font-medium dark:text-[#a3a3a3] light:text-[#525252]">
+                        All chats archived
+                      </p>
+                      <p className="mt-1 text-[11px] dark:text-[#6b6b6b] light:text-[#8a8a8a]">
+                        Restore one below, or start fresh.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[13px] font-medium dark:text-[#a3a3a3] light:text-[#525252]">
+                        No chats yet
+                      </p>
+                      <p className="mt-1 text-[11px] dark:text-[#6b6b6b] light:text-[#8a8a8a]">
+                        Start one — your conversations show up here.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
               {Object.entries(grouped).map(([bucket, items]) => (
