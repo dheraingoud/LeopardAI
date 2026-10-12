@@ -262,10 +262,10 @@ export default function Sidebar({
   // ─── Collapsed sidebar (Desktop only) ───
   if (!sidebarOpen && !isMobile) {
     return (
-      <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] dark:bg-black light:bg-white">
+      <div className="flex flex-col items-center justify-between py-4 w-[60px] h-full border-r dark:border-white/[0.08] light:border-black/[0.08] bg-background">
         <div className="flex flex-col items-center gap-3">
           <button
-            className="h-10 w-10 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-10 w-10 flex items-center justify-center rounded-full dark:text-[#737373] light:text-[#737373] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
             onClick={onToggle}
             title="Expand sidebar"
           >
@@ -283,7 +283,7 @@ export default function Sidebar({
           <Link
             href="/settings"
             aria-label="Settings"
-            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
@@ -332,7 +332,7 @@ export default function Sidebar({
           </button>
           {!isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
               onClick={onToggle}
               aria-label="Collapse sidebar" title="Collapse sidebar"
             >
@@ -341,7 +341,7 @@ export default function Sidebar({
           )}
           {isMobile && (
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
               onClick={onClose}
             >
               <X className="h-4 w-4" />
@@ -362,7 +362,7 @@ export default function Sidebar({
               aria-label="Search chats"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] light:border-[#d4960030] focus:dark:ring-[#ffb40020] light:ring-[#d4960020] placeholder:dark:text-[#6b6b6b] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
+              className="h-10 rounded-full pl-10 text-sm dark:bg-white/[0.03] light:bg-black/[0.02] dark:border-white/[0.08] light:border-black/[0.08] focus:dark:border-[#ffb40030] focus:light:border-[#d4960030] focus:dark:ring-[#ffb40020] focus:light:ring-[#d4960020] placeholder:dark:text-[#6b6b6b] dark:text-[#e5e5e5] light:text-[#262626] light:placeholder:text-[#6b6b6b]"
             />
           </div>
         </div>
@@ -378,7 +378,7 @@ export default function Sidebar({
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-10 rounded-xl dark:bg-white/[0.02] light:bg-black/[0.015] animate-pulse"
+                  className="h-10 rounded-xl dark:bg-white/[0.05] light:bg-black/[0.04] animate-pulse"
                 />
               ))}
             </div>
@@ -418,7 +418,7 @@ export default function Sidebar({
                   <p className="text-[13px] font-medium dark:text-[#a3a3a3] light:text-[#525252]">
                     No chats yet
                   </p>
-                  <p className="mt-1 text-[11px] dark:text-[#505050] light:text-[#9a9a9a]">
+                  <p className="mt-1 text-[11px] dark:text-[#6b6b6b] light:text-[#8a8a8a]">
                     Start one — your conversations show up here.
                   </p>
                 </div>
@@ -525,7 +525,7 @@ export default function Sidebar({
           </div>
           <Link
             href="/settings"
-            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 light:bg-black/5 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full dark:text-[#525252] light:text-[#8c8c8c] hover:dark:text-white hover:light:text-[#171717] hover:dark:bg-white/5 hover:light:bg-black/5 transition-colors"
             title="Settings"
             onClick={() => isMobile && onClose && onClose()}
           >
@@ -555,7 +555,7 @@ export default function Sidebar({
   return (
     <div
       className={cn(
-        "dark:bg-black light:bg-white border-r dark:border-white/[0.08] light:border-black/[0.08] shrink-0",
+        "bg-background border-r dark:border-white/[0.08] light:border-black/[0.08] shrink-0",
         isMobile
           ? cn("sidebar-mobile", !sidebarOpen && "-translate-x-full")
           : overlayDesktop

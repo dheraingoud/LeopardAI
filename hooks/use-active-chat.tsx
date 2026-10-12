@@ -160,11 +160,13 @@ function toChatMessage(m: Doc<"messages">): ChatMessage {
     id: m.id ?? String(m._id),
     role: m.role,
     // Server lifecycle rides metadata so the UI can mark a row still being
-    // written by the detached route (reload/reopen mid-generation).
-    metadata:
-      m.status === "streaming"
-        ? { serverStreaming: true }
-        : undefined,
+    // written by the detached route (reload/reopen mid-generation). createdAt
+    // rides too — the day separators stamp first-render time otherwise, so a
+    // reloaded history all landed under "Today" (audit 2026-10-12).
+    metadata: {
+      ...(m.status === "streaming" ? { serverStreaming: true } : {}),
+      ...(typeof m.createdAt === "number" ? { createdAt: m.createdAt } : {}),
+    } as ChatMessage["metadata"],
     // Normalize persisted parts (legacy `tool-*` / `step-start` are invalid in
     // the v7 UIMessage schema and would otherwise throw on reload→send —
     // lib/ai/message-parts).
