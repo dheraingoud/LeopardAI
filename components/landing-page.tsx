@@ -183,7 +183,7 @@ export default function LandingPage() {
           </motion.p>
           <motion.p
             variants={fadeUp}
-            className="text-sm dark:text-[#525252] light:text-[#737373] font-mono max-w-xl mx-auto mb-9"
+            className="text-sm dark:text-[#737373] light:text-[#6b6b6b] font-mono max-w-xl mx-auto mb-9"
           >
             A multi-model chat workbench — streaming, tools, agents, and
             artifacts in one pane, with your data in your own Convex instance.
@@ -212,7 +212,7 @@ export default function LandingPage() {
 
           <motion.p
             variants={fadeUp}
-            className="text-[11px] font-mono dark:text-[#3a3a3a] light:text-[#a8a29e] tracking-[0.18em] uppercase"
+            className="text-[11px] font-mono dark:text-[#6b6b6b] light:text-[#8a8a8a] tracking-[0.18em] uppercase"
           >
             Dherain Goud <span className="inline-block w-1 h-1 rounded-full bg-[#ffb400] align-middle mx-2" /> v1
           </motion.p>
@@ -299,7 +299,7 @@ export default function LandingPage() {
         transition={{ delay: 1 }}
         className="relative z-10 text-center py-6 border-t dark:border-white/[0.04] light:border-black/[0.05]"
       >
-        <p className="text-[11px] dark:text-[#404040] light:text-[#a3a3a3] font-mono">
+        <p className="text-[11px] dark:text-[#6b6b6b] light:text-[#8a8a8a] font-mono">
           © {new Date().getFullYear()} Leopard · Built with precision
         </p>
       </motion.footer>
