@@ -680,6 +680,12 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Regen history (session-scoped, from use-active-chat) + stream duration.
   const siblings = isUser ? [] : chat.getSiblings(message.id);
   const [branchIdx, setBranchIdx] = useState<number | null>(null); // null = latest
+  // Browsing a branch SWAPS the main content (aui pattern) — the navigator
+  // used to render the picked variant as a plain-text duplicate BELOW the
+  // live reply (audit 2026-10-12: regenerate → the same answer twice).
+  const browsingBranch =
+    branchIdx !== null && branchIdx >= 0 && branchIdx < siblings.length;
+  const branchText = browsingBranch ? siblings[branchIdx] : null;
   // (Whole-run timing display removed 2026-09-02 — see reasoning panel.)
   // Reasoning panel open overrides — keyed by segment index. Default is
   // derived (`live`): completed cards default collapsed, live ones open; an
@@ -1484,9 +1490,14 @@ export const PreviewMessage = memo(function PreviewMessage({
             <ThinkingIndicator className="max-w-none my-2" label="Working" />
           )}
 
+          {/* Branch browsing swaps the reply body for the picked variant. */}
+          {branchText !== null && (
+            <StreamingText content={branchText} streaming={false} />
+          )}
+
           {/* Refusal heuristic: a settled assistant answer opening with a
               decline pattern gets a subtle guardrail note above the text. */}
-          {!isStreaming && isRefusal(text) && (
+          {branchText === null && !isStreaming && isRefusal(text) && (
             <GuardrailNotice
               className="mb-2 max-w-none"
               title="The assistant declined this request"
@@ -1496,7 +1507,9 @@ export const PreviewMessage = memo(function PreviewMessage({
             />
           )}
 
-          {segments.map((seg, i) => {
+          {/* While a branch is browsed the live segments (reasoning, tools,
+              text) hide — the variant IS the whole reply for that turn. */}
+          {branchText === null && segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
             // Tool-run grouping (2026-10-09): 2+ consecutive settled tool
             // segments (not approvals/spawn_agents/createDocument, never the
