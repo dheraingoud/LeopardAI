@@ -123,11 +123,14 @@ export function CommandPaletteHost() {
     <AnimatePresence>
       {open && (
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[18vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[90] flex items-start justify-center dark:bg-black/50 light:bg-black/30 pt-[18vh] backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <motion.div

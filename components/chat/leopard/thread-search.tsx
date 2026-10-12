@@ -142,8 +142,8 @@ export function ThreadSearch({
 
       {pinned.length > 0 && (
         <div className="flex flex-col">
-          <span className={cn(mono, "text-foreground/25 px-2 pb-1")}>
-            pinned
+          <span className={cn(mono, "text-foreground/35 light:text-foreground/60 px-2 pb-1")}>
+            Pinned
           </span>
           {pinned.map(row)}
         </div>
@@ -152,7 +152,7 @@ export function ThreadSearch({
       {groups.map((group) => (
         <div key={group} className="flex flex-col">
           {group && (
-            <span className={cn(mono, "text-foreground/25 px-2 pb-1")}>
+            <span className={cn(mono, "text-foreground/35 light:text-foreground/60 px-2 pb-1")}>
               {group}
             </span>
           )}
@@ -163,7 +163,7 @@ export function ThreadSearch({
       ))}
 
       {matches.length === 0 && (
-        <span className="text-foreground/30 px-2 py-4 text-center text-xs">
+        <span className="text-foreground/50 px-2 py-4 text-center text-xs">
           No chats match “{query}”
         </span>
       )}
