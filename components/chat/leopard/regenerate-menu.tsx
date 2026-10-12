@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { RefreshCwIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { floating, ghostButton, mono } from "./surfaces";
@@ -30,8 +31,22 @@ export function RegenerateMenu({
   onPick?: (id: string) => void;
   className?: string;
 }) {
+  // Outside click closes the menu — without it the dropdown only closed on
+  // Escape/re-click/pick (2026-10-12 audit).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+        onOpenChange?.(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open, onOpenChange]);
+
   return (
     <div
+      ref={rootRef}
       data-slot="regenerate-menu"
       className={cn("relative flex flex-col gap-2", className)}
     >

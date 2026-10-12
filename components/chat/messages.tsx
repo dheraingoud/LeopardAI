@@ -158,7 +158,14 @@ export function Messages() {
   // guard makes it referentially safe — first stamp wins).
   for (const m of messages) {
     if (!firstSeenRef.current.has(m.id))
-      firstSeenRef.current.set(m.id, Date.now());
+      firstSeenRef.current.set(
+        m.id,
+        // Persisted rows carry their real createdAt via metadata (mirror) —
+        // stamp that, not first-render time, or a reloaded history groups
+        // every old message under "Today".
+        (m.metadata as { createdAt?: number } | undefined)?.createdAt ??
+          Date.now(),
+      );
   }
 
   // Stopped-run note: streaming→ready with an EMPTY trailing assistant bubble
@@ -587,7 +594,7 @@ function Greeting() {
           {/* Keyboard hint (audit 2026-10-10): ⌘K + / exist but had no
               in-app discoverability — the greeting is the natural spot. */}
           <p className="mt-6 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
-            <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">⌘K</kbd>{" "}
+            <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">⌘/Ctrl K</kbd>{" "}
             palette · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">/</kbd>{" "}
             skills · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">@</kbd>{" "}
             recent chats

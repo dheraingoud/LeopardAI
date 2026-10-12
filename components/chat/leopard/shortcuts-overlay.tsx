@@ -11,10 +11,10 @@ import { mono, paper } from "./surfaces";
 // live bindings: chat-shell (find/copy), command-palette-host (palette),
 // composer (submit/stop/dictate), message edit (save/cancel).
 const ROWS: ReadonlyArray<{ keys: string; action: string }> = [
-  { keys: "⌘ K", action: "Command palette" },
-  { keys: "⌘ F", action: "Find in conversation" },
-  { keys: "⌘ ⇧ C", action: "Copy last response" },
-  { keys: "⌘ ↵", action: "Send message" },
+  { keys: "⌘/Ctrl K", action: "Command palette" },
+  { keys: "⌘/Ctrl F", action: "Find in conversation" },
+  { keys: "⌘/Ctrl ⇧ C", action: "Copy last response" },
+  { keys: "⌘/Ctrl ↵", action: "Send message" },
   { keys: "↑ / ↓", action: "Recall sent messages (at composer edge)" },
   { keys: "Esc", action: "Stop generating / close" },
   { keys: "⌘ .", action: "This panel" },
