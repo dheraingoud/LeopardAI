@@ -95,6 +95,8 @@ export const StreamingText = memo(function StreamingText({
           streaming={!!streaming && i === blocks.length - 1}
         />
       ))}
+      {/* Sibling caret, inline after the last block — markdown can't carry a
+          raw span (no rehype-raw), and the trim gate keeps it off empty tails. */}
       {streaming && content.trim().length > 0 && (
         <span aria-hidden className="leopard-stream-caret" />
       )}
