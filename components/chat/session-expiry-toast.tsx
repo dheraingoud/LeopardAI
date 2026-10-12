@@ -41,15 +41,15 @@ export function SessionExpiryToast() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[100] flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-amber-300/25 bg-[#161512]/95 py-2 pl-3.5 pr-2 shadow-xl shadow-black/40 backdrop-blur-xl">
-        <LogOut className="h-3.5 w-3.5 shrink-0 text-amber-300" strokeWidth={1.5} />
-        <span className="text-[12px] text-[#ece6d8]">
+      <div className="pointer-events-auto flex items-center gap-3 rounded-full border dark:border-amber-300/25 light:border-[#d49600]/30 dark:bg-[#161512]/95 light:bg-white/95 py-2 pl-3.5 pr-2 shadow-xl dark:shadow-black/40 light:shadow-black/15 backdrop-blur-xl">
+        <LogOut className="h-3.5 w-3.5 shrink-0 dark:text-amber-300 light:text-[#d49600]" strokeWidth={1.5} />
+        <span className="text-[12px] dark:text-[#ece6d8] light:text-[#262626]">
           Your session expired. Generation is paused until you reconnect.
         </span>
         <button
           type="button"
           onClick={() => void signOut({ redirectUrl: "/sign-in" })}
-          className="rounded-full bg-amber-300/15 px-2.5 py-1 text-[11px] font-medium text-amber-200 transition hover:bg-amber-300/25"
+          className="rounded-full dark:bg-amber-300/15 light:bg-[#d49600]/15 px-2.5 py-1 text-[11px] font-medium dark:text-amber-200 light:text-[#8a5c00] transition hover:dark:bg-amber-300/25 hover:light:bg-[#d49600]/22"
         >
           Reconnect
         </button>
@@ -57,7 +57,7 @@ export function SessionExpiryToast() {
           type="button"
           aria-label="Dismiss"
           onClick={() => setDismissed(true)}
-          className="text-[#9a958a] transition hover:text-white"
+          className="dark:text-[#9a958a] light:text-[#8a8a8a] transition dark:hover:text-white light:hover:text-black"
         >
           <X className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
