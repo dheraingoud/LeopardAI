@@ -5,7 +5,7 @@ const clerkAppearance = {
     rootBox: "mx-auto",
     card: "glass-intense !shadow-none",
     headerTitle:
-      "font-signature !text-[26px] !text-[#ffb400] text-glow-amber !whitespace-nowrap",
+      "font-signature !text-[26px] dark:!text-[#ffb400] light:!text-[#8a5c00] dark:text-glow-amber !whitespace-nowrap",
     headerSubtitle: "!text-[#737373] !font-mono !text-[13px]",
     socialButtonsBlockButton:
       "dark:!bg-white/[0.04] light:!bg-black/[0.03] dark:!border-white/[0.08] light:!border-black/[0.1] dark:hover:!bg-white/[0.07] light:hover:!bg-black/[0.05] dark:!text-[#d4d4d4] light:!text-[#404040] !font-mono !text-sm",
