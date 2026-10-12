@@ -138,11 +138,11 @@ export default function LandingPage() {
         className="relative z-20 flex items-center justify-between px-6 sm:px-10 py-5"
       >
         <Link href="/" className="flex items-center gap-2 group">
-          <span className="font-signature text-3xl text-[#ffb400] text-glow-amber transition-all group-hover:tracking-wider">
+          <span className="font-signature text-2xl sm:text-3xl text-[#ffb400] text-glow-amber transition-all group-hover:tracking-wider">
             Leopard
           </span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <Link href="/sign-in">
             <Button
               variant="ghost"
@@ -189,11 +189,11 @@ export default function LandingPage() {
             artifacts in one pane, with your data in your own Convex instance.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="flex items-center justify-center gap-3 mb-10">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-3 mb-10 px-2">
             <Link href="/sign-in">
               <Button
                 size="lg"
-                className="bg-[#ffb400] light:bg-[#d49600] text-black hover:bg-[#e6a300] light:hover:bg-[#c18500] font-body text-base h-12 px-9 glow-amber-intense active:scale-[0.97] transition-all"
+                className="bg-[#ffb400] light:bg-[#d49600] text-black hover:bg-[#e6a300] light:hover:bg-[#c18500] font-body text-base h-12 px-7 sm:px-9 glow-amber-intense active:scale-[0.97] transition-all"
               >
                 Start chatting
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -203,7 +203,7 @@ export default function LandingPage() {
               <Button
                 size="lg"
                 variant="ghost"
-                className="font-mono text-sm h-12 px-6 dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white hover:light:text-black active:scale-[0.97] transition-all"
+                className="font-mono text-sm h-12 px-5 sm:px-6 dark:text-[#a3a3a3] light:text-[#525252] hover:dark:text-white hover:light:text-black active:scale-[0.97] transition-all"
               >
                 See what's inside
               </Button>
