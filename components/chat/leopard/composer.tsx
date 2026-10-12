@@ -751,7 +751,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             <div
               data-slot="composer-dropzone"
               aria-hidden
-              className="absolute inset-0 z-20 flex items-center justify-center rounded-[22px] border-2 border-dashed dark:border-[#ffb400]/50 light:border-[#d49600]/60 dark:bg-[#ffb400]/[0.04] light:bg-[#d49600]/[0.04] pointer-events-none"
+              className="absolute inset-0 z-20 flex items-center justify-center rounded-[26px] border-2 border-dashed dark:border-[#ffb400]/50 light:border-[#d49600]/60 dark:bg-[#ffb400]/[0.04] light:bg-[#d49600]/[0.04] pointer-events-none"
             >
               <span className="font-mono text-[12px] dark:text-[#ffb400] light:text-[#d49600]">
                 drop files to attach
@@ -802,7 +802,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               rows={1}
               minRows={1}
               maxRows={8}
-              className="min-h-[44px] max-h-[240px] w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] caret-[#ffb400]"
+              className="min-h-[44px] max-h-[240px] w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] light:placeholder:text-[#8a8a8a] caret-[#ffb400] light:caret-[#8a5c00]"
             />
             <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
               <ComposerAttachMenu
@@ -822,17 +822,20 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 <MemoryChips />
                 <ResearchPanel />
                 {/* Dictation: speech input streams into the composer. Hidden
-                    where the SpeechRecognition API is unsupported. */}
-                {dictation.supported && !isStreaming && (
+                    where the SpeechRecognition API is unsupported. Disabled
+                    (not unmounted) mid-stream — hiding it shifted the action
+                    row every run (2026-10-12 audit). */}
+                {dictation.supported && (
                   <button
                     type="button"
-                    title={dictation.listening ? "Stop dictation" : "Dictate"}
+                    disabled={isStreaming}
+                    title={dictation.listening ? "Stop dictation" : isStreaming ? "Dictation unavailable while generating" : "Dictate"}
                     aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
                     aria-pressed={dictation.listening}
                     onClick={toggleDictation}
                     className={cn(
                       ghostButton,
-                      "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11",
+                      "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11 disabled:opacity-35 disabled:pointer-events-none",
                       dictation.listening &&
                         "dark:text-[#ffb400] light:text-[#d49600] dark:bg-[#ffb400]/[0.12] light:bg-[#d49600]/[0.14]",
                     )}
