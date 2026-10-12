@@ -81,7 +81,7 @@ function ModelSelectorTrigger() {
       role="combobox"
       aria-haspopup="listbox"
       aria-label={`Model: ${selectedModel?.name ?? "Select model"}`}
-      className="flex h-8 w-fit items-center justify-between gap-2 overflow-hidden rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap outline-none transition-colors hover:bg-foreground/[0.05] focus-visible:ring-1 focus-visible:ring-[#ffb400]/50"
+      className="flex h-8 w-fit max-w-[44vw] sm:max-w-none items-center justify-between gap-2 overflow-hidden rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap outline-none transition-colors hover:bg-foreground/[0.05] focus-visible:ring-1 focus-visible:ring-[#ffb400]/50"
     >
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate font-medium">

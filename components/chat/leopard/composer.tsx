@@ -805,7 +805,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               maxRows={8}
               className="min-h-[44px] max-h-[240px] w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] light:placeholder:text-[#8a8a8a] caret-[#ffb400] light:caret-[#8a5c00]"
             />
-            <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
+            <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5 min-w-0">
               <ComposerAttachMenu
                 modelVision={modelVision}
                 modelImageEdit={modelImageEdit}
