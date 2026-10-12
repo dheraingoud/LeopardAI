@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { MessageSquareIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { floating } from "./leopard/surfaces";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 
 /**
@@ -45,11 +46,10 @@ export function MentionMenu({
     <div
       data-slot="mention-menu"
       className={cn(
-        "absolute bottom-full start-0 z-30 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-md border",
-        "dark:border-white/[0.08] light:border-black/[0.08]",
-        "dark:bg-[#141414] light:bg-white",
-        "dark:shadow-[0_1px_1px_rgba(0,0,0,0.2),0_8px_16px_-4px_rgba(0,0,0,0.25),0_24px_32px_-8px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.05)]",
-        "light:shadow-[0_1px_1px_rgba(0,0,0,0.02),0_8px_16px_-4px_rgba(0,0,0,0.04),0_24px_32px_-8px_rgba(0,0,0,0.06),inset_0_0_0_1px_rgba(0,0,0,0.02)]",
+        // Share the kit's floating surface (glass + hairline + elevation) so
+        // the mention menu matches the slash menu it sits beside.
+        floating,
+        "absolute bottom-full start-0 z-30 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl",
         "flex max-h-72 flex-col overflow-y-auto p-1.5",
       )}
       role="listbox"
