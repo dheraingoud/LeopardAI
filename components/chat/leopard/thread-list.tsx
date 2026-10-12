@@ -108,7 +108,7 @@ export const ThreadList = memo(function ThreadList({
             )}
           >
             {active && (
-              <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#ffb400]" />
+              <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#ffb400] light:bg-[#d49600]" />
             )}
             {/* Title gets the full row width — the status dot + actions are
                 absolutely pinned at the trailing edge so they never truncate
@@ -123,7 +123,7 @@ export const ThreadList = memo(function ThreadList({
                 title={thread.generating ? "Generating…" : "Unread"}
                 aria-label={thread.generating ? "Generating" : "Unread"}
                 className={cn(
-                  "absolute right-3 top-1/2 size-1.5 shrink-0 -translate-y-1/2 rounded-full bg-[#ffb400] transition-opacity",
+                  "absolute right-3 top-1/2 size-1.5 shrink-0 -translate-y-1/2 rounded-full bg-[#ffb400] light:bg-[#d49600] transition-opacity",
                   thread.generating ? "animate-pulse" : "opacity-80",
                   "group-hover:opacity-0",
                 )}

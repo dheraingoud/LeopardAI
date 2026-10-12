@@ -133,7 +133,7 @@ export function SkillConfigModal({ open, onClose }: Props) {
             {/* Header */}
             <div className="flex items-center justify-between px-5 h-14 border-b dark:border-white/[0.07] light:border-black/[0.07] shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="h-7 w-7 rounded-lg flex items-center justify-center dark:bg-[#ffb400]/[0.12] light:bg-[#ffb400]/[0.14]">
+                <div className="h-7 w-7 rounded-lg flex items-center justify-center dark:bg-[#ffb400]/[0.12] light:bg-[#d49600]/[0.12]">
                   <Sparkles className="h-3.5 w-3.5 dark:text-[#ffb400] light:text-[#d49600]" />
                 </div>
                 <div className="leading-tight">
@@ -225,7 +225,7 @@ export function SkillConfigModal({ open, onClose }: Props) {
                           className={cn(
                             "px-4 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight transition-colors",
                             canSave
-                              ? "dark:bg-[#ffb400] light:bg-[#ffb400] dark:text-black light:text-black hover:brightness-110"
+                              ? "dark:bg-[#ffb400] light:bg-[#d49600] dark:text-black light:text-black hover:brightness-110"
                               : "dark:bg-white/[0.04] light:bg-black/[0.04] dark:text-[#505050] light:text-[#b0b0b0] cursor-not-allowed",
                           )}
                         >
@@ -413,7 +413,7 @@ function SkillRow({
             </button>
             <button
               onClick={saveEdit}
-              className="px-4 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight transition-colors dark:bg-[#ffb400] light:bg-[#ffb400] dark:text-black light:text-black hover:brightness-110"
+              className="px-4 h-8 rounded-lg text-[11px] font-mono uppercase tracking-tight transition-colors dark:bg-[#ffb400] light:bg-[#d49600] dark:text-black light:text-black hover:brightness-110"
             >
               Save
             </button>

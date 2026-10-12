@@ -152,7 +152,7 @@ export default function LandingPage() {
             </Button>
           </Link>
           <Link href="/sign-in">
-            <Button className="bg-[#ffb400] text-black hover:bg-[#e6a300] font-body text-sm h-9 px-5 active:scale-[0.97] transition-transform">
+            <Button className="bg-[#ffb400] light:bg-[#d49600] text-black hover:bg-[#e6a300] light:hover:bg-[#c18500] font-body text-sm h-9 px-5 active:scale-[0.97] transition-transform">
               Open app
               <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
             </Button>
@@ -193,7 +193,7 @@ export default function LandingPage() {
             <Link href="/sign-in">
               <Button
                 size="lg"
-                className="bg-[#ffb400] text-black hover:bg-[#e6a300] font-body text-base h-12 px-9 glow-amber-intense active:scale-[0.97] transition-all"
+                className="bg-[#ffb400] light:bg-[#d49600] text-black hover:bg-[#e6a300] light:hover:bg-[#c18500] font-body text-base h-12 px-9 glow-amber-intense active:scale-[0.97] transition-all"
               >
                 Start chatting
                 <ArrowRight className="ml-2 h-4 w-4" />

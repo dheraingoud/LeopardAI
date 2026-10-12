@@ -187,7 +187,7 @@ function ModelSelectorContent({
       className={cn("w-72 overflow-hidden rounded-xl p-0", className)}
     >
       {searchable && (
-        <div className="border-b border-foreground/[0.07] px-3 py-2">
+        <div className="border-b border-foreground/[0.07] px-3 py-2 focus-within:bg-foreground/[0.03]">
           <input
             data-slot="model-selector-search"
             value={query}
