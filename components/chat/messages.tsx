@@ -253,7 +253,10 @@ export function Messages() {
     if (messages.length > prev) {
       setUnseen((u) => u + (messages.length - prev));
     } else if (grew > 400) {
-      setUnseen((u) => u + 1); // one tick per sizable streamed chunk
+      // Streamed content while scrolled up: the reply-in-flight counts as ONE
+      // message regardless of how many chunks landed (the pill said "5 new
+      // messages" for a single long answer — 2026-10-12 audit).
+      setUnseen((u) => Math.max(u, 1));
     }
   }, [messages]);
 

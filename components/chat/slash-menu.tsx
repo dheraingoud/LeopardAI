@@ -113,7 +113,7 @@ export function SlashMenu({
       aria-label="Commands"
       className={cn(
         floating,
-        "absolute bottom-full start-0 z-30 mb-2 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-0.5 rounded-2xl p-1.5",
+        "absolute bottom-full start-0 z-30 mb-2 flex w-80 max-w-[calc(100vw-2rem)] max-h-[min(420px,60dvh)] overflow-y-auto flex-col gap-0.5 rounded-2xl p-1.5",
         "origin-bottom-left transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
       )}
     >
