@@ -90,12 +90,12 @@ export function ToolCall({
         <div className={cn(field, "mt-2 overflow-hidden rounded-2xl text-xs")}>
           <div className="px-3.5 pt-2.5 pb-2">
             <p className={cn(mono, "text-foreground/35 mb-1")}>Request</p>
-            <p className="text-foreground/55 font-mono">{request}</p>
+            <p className="text-foreground/55 font-mono break-words">{request}</p>
           </div>
           <div className="bg-foreground/[0.06] mx-3.5 h-px" />
           <div className="px-3.5 pt-2 pb-2.5">
             <p className={cn(mono, "text-foreground/35 mb-1")}>Result</p>
-            <p className="text-foreground/90">{result}</p>
+            <p className="text-foreground/90 break-words">{result}</p>
           </div>
         </div>
       </CollapsibleContent>
