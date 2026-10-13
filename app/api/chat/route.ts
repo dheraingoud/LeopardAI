@@ -1184,7 +1184,11 @@ export async function POST(request: Request) {
           // Auto-approve low-risk tools ONLY under the bare default (no operator
           // rules). An explicit TOOL_APPROVAL_RULES entry (e.g. webFetch=ask)
           // must win — else the AskCard can never surface and the gate is theatre.
-          if (lowRiskTool && approvalRules.length === 0 && d.mode !== "deny") {
+          // renderWidget is ALWAYS auto-approved — rendering a widget is not a
+          // side effect and the approval card would freeze the turn (the SDK
+          // ends the stream on an unresolved approval, and the resume path for
+          // a read-only render is unnecessary complexity).
+          if (toolName === "renderWidget" || (lowRiskTool && approvalRules.length === 0 && d.mode !== "deny")) {
             decision = "approved";
           }
           // Φ-docs: append the gate decision to the enterprise tool-audit trail
