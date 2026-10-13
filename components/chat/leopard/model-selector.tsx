@@ -25,6 +25,7 @@ import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useModelHealth, healthLabel } from "@/hooks/use-model-health";
 import type { ReasoningLevel } from "@/lib/nim";
+import { isCompositionKey } from "@/lib/is-composition-key";
 
 export type EffortOption = { id: string; name: string };
 
@@ -161,7 +162,7 @@ function ModelSelectorContent({
     // before the input sees it. Stop propagation so typing reaches the field;
     // our own arrows/Enter handling below keeps list navigation working.
     e.stopPropagation();
-    if (e.nativeEvent.isComposing) return;
+    if (isCompositionKey(e)) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       move(1);

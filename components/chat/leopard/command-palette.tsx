@@ -4,6 +4,7 @@ import { useEffect, useId, type ComponentProps } from "react";
 import { SearchIcon, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, floating, mono } from "./surfaces";
+import { isCompositionKey } from "@/lib/is-composition-key";
 
 export interface PaletteCommand {
   id: string;
@@ -77,7 +78,7 @@ export function CommandPalette({
   }, [activeId, listId]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing) return;
+    if (isCompositionKey(event)) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       move(1);

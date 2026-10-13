@@ -3,6 +3,7 @@
 import type { ComponentProps } from "react";
 import { ShieldAlertIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isCompositionKey } from "@/lib/is-composition-key";
 import { field, inkButton, mono, paper } from "./surfaces";
 
 // Composer-zone approval card: tool name + input preview + Allow (amber) /
@@ -68,7 +69,7 @@ export function ApprovalCard({
           if (e.key === "Escape") {
             e.stopPropagation();
             onDeny?.();
-          } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          } else if (e.key === "Enter" && !isCompositionKey(e)) {
             const el = document.activeElement;
             const inField =
               el instanceof HTMLElement &&

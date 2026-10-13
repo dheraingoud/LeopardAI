@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { PinIcon, SearchIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, mono, paper } from "./surfaces";
+import { isCompositionKey } from "@/lib/is-composition-key";
 
 export interface SearchableThread {
   id: string;
@@ -61,7 +62,7 @@ export function ThreadSearch({
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing) return;
+    if (isCompositionKey(event)) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       move(1);
