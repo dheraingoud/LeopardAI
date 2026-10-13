@@ -1064,6 +1064,9 @@ export async function POST(request: Request) {
           ...mcpHandle.tools,
         };
         resumeToolSet = tools;
+        // renderWidget is always available — generative UI needs no gate.
+        // supportsTools must include it or the tools object never reaches
+        // streamText (the model then says "renderWidget is not available").
         const supportsTools =
           webFetchEnabled ||
           webSearchEnabled ||
@@ -1071,7 +1074,8 @@ export async function POST(request: Request) {
           researchEnabled ||
           multiAgentsEnabled ||
           artifactsEnabled ||
-          mcpHasTools;
+          mcpHasTools ||
+          true; // renderWidget is always on
         // Φ-docs · recall injection — the user's stored facts ride into the
         // system prompt each turn (listUserMemories returns [] when the admin
         // client or storage is unavailable; memory is additive, never fatal).
