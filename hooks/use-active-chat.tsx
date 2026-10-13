@@ -395,7 +395,13 @@ export function ActiveChatProvider({
           } catch {
             /* body parse is best-effort */
           }
-          const res = await fetch(url, options);
+          let res: Response;
+          try {
+            res = await fetch(url, options);
+          } catch (e) {
+            console.error("[transport] fetch failed:", e);
+            throw e;
+          }
           const ct = res.headers.get("content-type") ?? "";
           if (!res.body || !ct.includes("text/event-stream")) return res;
           const reader = res.body.getReader();
@@ -1365,7 +1371,13 @@ export function ActiveChatProvider({
       setCurrentModelIdState(pending.model);
       hasSyncedModelRef.current = true; // don't let the chatMeta sync override it
     }
-    void chat.sendMessage({ parts: pending.parts } as never);
+    // Defer to the next tick — the OLD chat instance (draft) unmounts on the
+    // route change and its useChat cleanup calls stop(), which aborts any
+    // in-flight fetch. If the pickup fires in the same tick, the abort lands
+    // on the NEW send (AbortError: signal is aborted without reason).
+    setTimeout(() => {
+      void chat.sendMessage({ parts: pending.parts } as never);
+    }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot per mount
   }, [isDraft, chatId]);
 
