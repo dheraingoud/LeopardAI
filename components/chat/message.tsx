@@ -1747,8 +1747,10 @@ export const PreviewMessage = memo(function PreviewMessage({
             <div className="mt-1">
               {widgetParts.map((p, i) => {
                 const args = (p as { input?: unknown }).input;
-                if (!args || typeof args !== "object") return null;
-                return <WidgetRenderer key={`widget-${i}`} spec={args as never} />;
+                // The SDK may serialize the input as a JSON string — parse it.
+                const spec = typeof args === "string" ? JSON.parse(args) : args;
+                if (!spec || typeof spec !== "object") return null;
+                return <WidgetRenderer key={`widget-${i}`} spec={spec as never} />;
               })}
             </div>
           )}
