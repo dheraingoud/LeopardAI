@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useScrollLock } from "@/hooks/use-scroll-lock";
 import { collapsePanel, mono, ShimmerLabel, SwapLabel } from "./surfaces";
 
 // Leopard reasoning panel: clickable trigger (kit behavior); expands to the
@@ -68,13 +69,10 @@ export const ReasoningPanel = memo(function ReasoningPanel({
     return () => clearInterval(id);
   }, [streaming]);
 
-  // Height animation runs inside the transcript scroller — dispatch per-frame
-  // deltas so messages.tsx can hold the reading anchor.
+  // aui adoption (useScrollLock): lock scroll position during the expand/collapse
+  // animation instead of dispatching per-frame deltas. Cleaner and self-contained.
   const contentRef = useRef<HTMLDivElement>(null);
-  // Follow the thinking while it streams: the inner scroller is capped at
-  // max-h-64, so without this the tail of the reasoning freezes out of view
-  // mid-stream (operator 2026-09-04). Pins only while streaming + open — once
-  // it settles the user scrolls the static text freely.
+  const lockScroll = useScrollLock(contentRef, 220);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!streaming || !open) return;
@@ -82,25 +80,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
     if (el) el.scrollTop = el.scrollHeight;
   }, [content, streaming, open]);
   const handleOpenChange = (next: boolean) => {
-    const el = contentRef.current;
-    if (el && typeof window !== "undefined") {
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const duration = reduced ? 0 : 220;
-      let prev = el.getBoundingClientRect().height;
-      const start = performance.now();
-      const step = () => {
-        const cur = el.getBoundingClientRect().height;
-        const delta = cur - prev;
-        prev = cur;
-        if (Math.abs(delta) > 0.5) {
-          window.dispatchEvent(
-            new CustomEvent("leopard:reasoning-resize", { detail: { delta } }),
-          );
-        }
-        if (performance.now() - start < duration) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }
+    lockScroll();
     onOpenChange(next);
   };
 

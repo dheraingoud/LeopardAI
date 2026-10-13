@@ -217,18 +217,8 @@ export function Messages() {
 
   // Reasoning-panel expand/collapse dispatches per-frame height deltas; hold
   // the reading anchor when NOT pinned to the bottom.
-  useEffect(() => {
-    const onResize = (e: Event) => {
-      const d = (e as CustomEvent).detail as { delta?: number };
-      const delta = d?.delta;
-      const el = scrollRef.current;
-      if (!delta || !el || stickToBottomRef.current) return;
-      el.scrollTop += delta;
-    };
-    window.addEventListener("leopard:reasoning-resize", onResize);
-    return () =>
-      window.removeEventListener("leopard:reasoning-resize", onResize);
-  }, []);
+  // aui adoption (useScrollLock): reasoning panel now locks scroll via
+  // useScrollLock — no need for the custom event listener.
 
   const showGhost =
     ghost !== null && !messages.some((m) => m.id === ghost.id);
