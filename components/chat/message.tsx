@@ -80,6 +80,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ghostButton } from "./leopard/surfaces";
 import { ImageLightbox } from "./leopard/image-lightbox";
+import { WidgetRenderer } from "./leopard/widget-renderer";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -650,6 +651,10 @@ export const PreviewMessage = memo(function PreviewMessage({
     ? (message.parts.filter(
         (p) => p.type === "tool-createDocument",
       ) as unknown as DocToolPart[])
+    : [];
+  // Generative UI: tool-renderWidget parts → inline interactive widgets.
+  const widgetParts = !isUser
+    ? message.parts.filter((p) => p.type === "tool-renderWidget")
     : [];
   // Effort badge source: the per-model client-persisted reason level. The UIMessage
   // parts carry only reasoning text (no effort field), so the badge reflects the
@@ -1734,6 +1739,17 @@ export const PreviewMessage = memo(function PreviewMessage({
               {docParts.map((p, i) => (
                 <DocumentCard key={`doc-${i}`} part={p} live={isStreaming} />
               ))}
+            </div>
+          )}
+
+          {/* Generative UI: renderWidget parts render as interactive widgets. */}
+          {widgetParts.length > 0 && (
+            <div className="mt-1">
+              {widgetParts.map((p, i) => {
+                const args = (p as { input?: unknown }).input;
+                if (!args || typeof args !== "object") return null;
+                return <WidgetRenderer key={`widget-${i}`} spec={args as never} />;
+              })}
             </div>
           )}
 

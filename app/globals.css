@@ -1050,6 +1050,13 @@ pre code {
 .markdown-body .shiki .line {
   display: block;
 }
+/* Blank lines in code blocks collapse to half-height — the full line-height
+   on an empty .line reads as a gap (user report 2026-10-13: "one-line gaps"). */
+.markdown-body .shiki .line:empty,
+.markdown-body .shiki .line:has(> br:only-child) {
+  min-height: 0.5em;
+  line-height: 0.5;
+}
 .light .markdown-body .shiki span {
   color: var(--shiki-light);
 }
