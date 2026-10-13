@@ -1288,7 +1288,22 @@ export async function POST(request: Request) {
           ...nimReasoningProviderOptions(attemptCfg, body.reasoning),
         },
         ...(supportsTools && {
-          tools,
+          // On a resume, the prelude already executed the approved tools —
+          // the SDK must NOT re-execute them. Filter the tool set so a tool
+          // whose output already landed in resumeOutputs is invisible to the
+          // step loop (its call in history reads as already-answered).
+          tools: isApprovalResume
+            ? Object.fromEntries(
+                Object.entries(tools).filter(([name]) => {
+                  // Keep tools that DON'T have a pending exec part — those
+                  // are either new calls or tools the user denied (denied
+                  // tools are handled by autoDeniedToolNames, not by removal).
+                  return !pendingExecParts.some(
+                    (p) => (p.toolName ?? String(p.type).slice(5)) === name,
+                  );
+                }),
+              )
+            : tools,
           // Salvage Hermes-DSL / mangled spawn_agents inputs from weaker
           // master models instead of erroring the whole turn (2026-09-01).
           repairToolCall,
