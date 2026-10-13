@@ -156,9 +156,24 @@ export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
   const budget = maxMcpTools(process.env.LEOPARD_MCP_MAX_TOOLS);
   let mounted = 0;
 
+  // aui adoption (McpServerResource.withConnectionTimeout): one shared
+  // deadline across connect + listTools. A hung MCP server must not hang the
+  // entire chat request — 8s budget, phase-labelled errors.
+  const MCP_TIMEOUT_MS = Number(process.env.LEOPARD_MCP_TIMEOUT_MS) || 8000;
+  const withTimeout = <T>(promise: Promise<T>, phase: string, startedAt: number, serverName: string): Promise<T> => {
+    const remaining = Math.max(1000, MCP_TIMEOUT_MS - (Date.now() - startedAt));
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`MCP server "${serverName}" timed out while ${phase} after ${remaining}ms`)), remaining),
+      ),
+    ]);
+  };
+
   for (const server of servers) {
     let client: MCPClient | null = null;
     try {
+      const startedAt = Date.now();
       const transport =
         server.type === "stdio"
           ? new Experimental_StdioMCPTransport({
@@ -171,11 +186,11 @@ export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
               url: server.url,
               ...(server.headers ? { headers: server.headers } : {}),
             };
-      client = await createMCPClient({ transport, maxRetries: 2 });
+      client = await withTimeout(createMCPClient({ transport, maxRetries: 2 }), "connecting", startedAt, server.name);
 
       let defs: ListToolsResult;
       try {
-        defs = await client.listTools();
+        defs = await withTimeout(client.listTools(), "listing tools", startedAt, server.name);
       } catch (e) {
         logWarn(`MCP server '${server.name}' tools/list failed`, e);
         continue;
@@ -222,7 +237,14 @@ export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
     serverNames: clients.map((c) => c.name),
     instructions,
     close: async () => {
-      await Promise.allSettled(clients.map((c) => c.client.close()));
+      // aui adoption (throwAggregated): log each close rejection instead of
+      // silently dropping — a stdio child that fails to exit is invisible
+      // without this.
+      const results = await Promise.allSettled(clients.map((c) => c.client.close()));
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.status === "rejected") logWarn(`MCP server '${clients[i].name}' close failed`, r.reason);
+      }
     },
   };
 }
