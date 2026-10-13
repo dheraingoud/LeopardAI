@@ -12,6 +12,7 @@ import { ResearchPanel } from "../research-panel";
 import { McpServerPanel } from "./mcp-server-panel";
 import { SkillConfigModal } from "@/components/chat/skill-config-modal";
 import { uploadFile } from "@/lib/upload";
+import { isCompositionKey } from "@/lib/is-composition-key";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getModelById } from "@/lib/ai/models";
@@ -627,7 +628,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
         setActiveIndex((i) => (i - 1 + count) % count);
         return;
       }
-      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing)) {
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !isCompositionKey(e))) {
         e.preventDefault();
         if (slashOpen) selectSlash(slashMatches[activeIndex % count]);
         else selectMention(mentionMatches[activeIndex % count].name);
@@ -637,7 +638,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     // Input history (no menu open): ArrowUp recalls the previous sent message
     // from the first caret line; ArrowDown walks back toward the live draft
     // from the last line. Caret-mid-textarea motion is untouched.
-    if (!menuOpen && (e.key === "ArrowUp" || e.key === "ArrowDown") && !e.nativeEvent.isComposing) {
+    if (!menuOpen && (e.key === "ArrowUp" || e.key === "ArrowDown") && !isCompositionKey(e)) {
       const el = e.currentTarget;
       const beforeCaret = el.value.slice(0, el.selectionStart);
       const afterCaret = el.value.slice(el.selectionEnd);
@@ -654,7 +655,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
       }
     }
     const sendKey = sendWithEnter ? !e.shiftKey : e.shiftKey;
-    if (e.key === "Enter" && sendKey && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter" && sendKey && !isCompositionKey(e)) {
       e.preventDefault();
       handleSubmit();
     }
