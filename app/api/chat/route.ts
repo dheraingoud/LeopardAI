@@ -1177,7 +1177,8 @@ export async function POST(request: Request) {
             (toolName ?? "").startsWith("research_") ||
             toolName === "webFetch" ||
             toolName === "webSearch" ||
-            toolName === "createDocument";
+            toolName === "createDocument" ||
+            toolName === "renderWidget";
           let decision: "approved" | "denied" | "user-approval" =
             d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
           // Auto-approve low-risk tools ONLY under the bare default (no operator
