@@ -28,6 +28,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /** Group chats by relative date buckets */
 function groupChats<T extends { _id: string; title: string; updatedAt: number; pinned?: boolean }>(
@@ -125,14 +126,7 @@ export default function Sidebar({
   const { signOut } = useClerk();
   const { theme, toggleTheme } = useLeopardTheme();
 
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  const isMobile = useIsMobile();
 
   // Effective user id — Clerk id, or DEV_USER_ID under BYPASS_CLERK so a fresh
   // unauth'd browser can list/create chats (matches the chat route + new-chat page).

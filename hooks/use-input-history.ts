@@ -24,7 +24,9 @@ export function useInputHistory(messages: readonly ChatMessage[]) {
     .filter((m) => m.role === "user")
     .map((m) => m.parts.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("").trim())
     .filter((t) => t.length > 0)
-    .reverse();
+    .reverse()
+    // Consecutive-dupe recall is noise — "yes" sent twice = one history entry.
+    .filter((t, i, arr) => i === 0 || t !== arr[i - 1]);
 
   /**
    * Attempt an ArrowUp/ArrowDown recall. Returns the text to load into the

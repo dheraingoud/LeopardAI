@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ContextIndicator } from "../context-indicator";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { estimateTokens, getContextBudget } from "@/lib/token-estimator";
+import { formatTokenCount } from "@/lib/format-tokens";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { mono } from "./surfaces";
 
@@ -28,7 +29,7 @@ const TINT = {
 const SYSTEM_RESERVE = 1000;
 const RESPONSE_RESERVE = 3000;
 
-const fmt = (n: number) => n.toLocaleString("en-US");
+const fmt = (n: number) => formatTokenCount(n);
 
 type Row = {
   id: string;
