@@ -850,7 +850,10 @@ export function ActiveChatProvider({
           const alreadyHas = next.some((x) => {
             if (x.id === ui.id) return true;
             if (x.role !== "assistant") return false;
-            return JSON.stringify(x.parts) === JSON.stringify(ui.parts);
+            // Content match: same text parts = same message, regardless of id.
+            const xText = x.parts.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("");
+            const uiText = ui.parts.filter((p) => p.type === "text").map((p) => (p as { text?: string }).text ?? "").join("");
+            return xText === uiText && xText.length > 0;
           });
           if (!alreadyHas) {
             next.push(ui);
