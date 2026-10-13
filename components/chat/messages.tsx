@@ -98,7 +98,16 @@ function renderTranscript(
     if (m.role === "user") lastUserIdx = i;
     if (m.role === "assistant") lastAssistantIdx = i;
   });
-  messages.forEach((message, index) => {
+  // Dedupe by id before rendering — the mirror can push a duplicate between
+  // the mirror effect and the dedupe effect's setMessages. React warns on
+  // duplicate keys; the dedupe here catches it before render.
+  const seenIds = new Set<string>();
+  const dedupedMessages = messages.filter((m) => {
+    if (seenIds.has(m.id)) return false;
+    seenIds.add(m.id);
+    return true;
+  });
+  dedupedMessages.forEach((message, index) => {
     const day = dayLabel(firstSeen.get(message.id) ?? 0);
     if (day !== lastDay) {
       flush();
@@ -119,7 +128,7 @@ function renderTranscript(
       <MessageRenderBoundary key={`${message.id}-${index}`}>
       <PreviewMessage
         message={message}
-        isLast={index === messages.length - 1}
+        isLast={index === dedupedMessages.length - 1}
         status={status}
         hideReasoning={
           message.role === "assistant" &&
