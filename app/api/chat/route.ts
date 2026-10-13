@@ -30,6 +30,7 @@ import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { createDocument } from "@/lib/ai/tools/create-document";
+import { renderWidget } from "@/lib/ai/tools/render-widget";
 import { askUser } from "@/lib/ai/tools/ask-user";
 import { loadMcpTools } from "@/lib/ai/mcp";
 import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
@@ -1057,6 +1058,9 @@ export async function POST(request: Request) {
           ...(artifactsEnabled
             ? { createDocument: createDocument({ dataStream, modelId, userId: userId ?? DEV_USER_ID }) }
             : {}),
+          // Generative UI: render interactive widgets inline in chat. No
+          // approval gate — rendering is read-only, not a side effect.
+          renderWidget: renderWidget(),
           ...mcpHandle.tools,
         };
         resumeToolSet = tools;
