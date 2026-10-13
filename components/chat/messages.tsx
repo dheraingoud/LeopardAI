@@ -289,6 +289,16 @@ export function Messages() {
       touchY = y;
     };
     const onKey = (e: KeyboardEvent) => {
+      // aui adoption: don't unpin when the user is scrolling inside a text
+      // field (ArrowUp in the composer textarea recalls history, not scrolls).
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "TEXTAREA" ||
+          target.tagName === "INPUT" ||
+          target.isContentEditable)
+      )
+        return;
       if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "Home") {
         stickToBottomRef.current = false;
       }
@@ -317,12 +327,26 @@ export function Messages() {
   // loading, markdown reflow, cards expanding) used to un-pin the view
   // mid-stream — observe the column's size and re-pin while stuck to bottom.
   const contentRef = useRef<HTMLDivElement>(null);
+  // aui adoption (useThreadViewportAutoScroll): expanding a collapsible
+  // (reasoning panel, tool card) means the user is INSPECTING it — pause
+  // bottom-follow so the ResizeObserver re-pin doesn't fight them.
+  const inspectingRef = useRef(false);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onToggle = (e: Event) => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === "DETAILS") inspectingRef.current = (t as HTMLDetailsElement).open;
+    };
+    el.addEventListener("toggle", onToggle, true); // capture — toggle doesn't bubble
+    return () => el.removeEventListener("toggle", onToggle, true);
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
     const col = contentRef.current;
     if (!el || !col) return;
     const ro = new ResizeObserver(() => {
-      if (stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+      if (stickToBottomRef.current && !inspectingRef.current) el.scrollTop = el.scrollHeight;
     });
     ro.observe(col);
     return () => ro.disconnect();

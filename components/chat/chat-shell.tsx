@@ -214,7 +214,9 @@ export function ChatShell() {
     a.href = url;
     a.download = `${meta.title.replace(/\s+/g, "-").toLowerCase() || "chat"}.md`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Defer revoke — a synchronous revoke can cancel the download before the
+    // browser dispatches it (Safari + some Chrome builds).
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success("Chat exported as Markdown");
   }, []);
 
