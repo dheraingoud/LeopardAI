@@ -32,12 +32,12 @@ export function ThinkingIndicator({
       <span
         key={label}
         data-text={label}
-        className="text-glimmer fade-in slide-in-from-bottom-1 animate-in relative inline-block font-sans text-[13px] font-medium leading-none tracking-[-0.01em] duration-300"
+        className="text-glimmer fade-in slide-in-from-bottom-1 animate-in relative inline-block min-w-0 truncate font-sans text-[13px] font-medium leading-none tracking-[-0.01em] duration-300"
       >
         {label}
       </span>
       {elapsed !== undefined && (
-        <span className={cn(mono, "text-foreground/30 tabular-nums")}>
+        <span className={cn(mono, "text-foreground/30 shrink-0 tabular-nums")}>
           {elapsed}
         </span>
       )}

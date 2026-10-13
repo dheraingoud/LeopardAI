@@ -162,7 +162,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
     <div
       className={
         streaming
-          ? "animate-in fade-in duration-300 leopard-fresh-tail"
+          ? "animate-in fade-in duration-300 motion-reduce:animate-none leopard-fresh-tail"
           : undefined
       }
     >
