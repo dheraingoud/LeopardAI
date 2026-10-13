@@ -844,7 +844,15 @@ export function ActiveChatProvider({
         } else if (m.role === "assistant") {
           // Never push a duplicate — the SDK bubble might already carry the
           // same id (adopted mid-stream) or the mirror might race itself.
-          if (!next.some((x) => x.id === ui.id)) {
+          // Also check content: the SDK bubble might have a different id but
+          // the same parts (the server row's id is different from the SDK's
+          // nanoid until the adoption fires).
+          const alreadyHas = next.some((x) => {
+            if (x.id === ui.id) return true;
+            if (x.role !== "assistant") return false;
+            return JSON.stringify(x.parts) === JSON.stringify(ui.parts);
+          });
+          if (!alreadyHas) {
             next.push(ui);
             changed = true;
           }
