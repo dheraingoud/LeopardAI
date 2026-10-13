@@ -842,8 +842,12 @@ export function ActiveChatProvider({
             changed = true;
           }
         } else if (m.role === "assistant") {
-          next.push(ui);
-          changed = true;
+          // Never push a duplicate — the SDK bubble might already carry the
+          // same id (adopted mid-stream) or the mirror might race itself.
+          if (!next.some((x) => x.id === ui.id)) {
+            next.push(ui);
+            changed = true;
+          }
         } else {
           // Non-assistant (user) row missing locally → reinsert at its
           // chronological slot among server rows.
