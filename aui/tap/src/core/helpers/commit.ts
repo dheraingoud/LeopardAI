@@ -1,0 +1,111 @@
+import type { CommitCallbacks, EffectCell, ResourceFiber } from "../types";
+import { throwAggregated } from "./throwAggregated";
+import { depsShallowEqual } from "../../hooks/utils/depsShallowEqual";
+
+export function commitAllCallbacks(callbacks: CommitCallbacks): void {
+  if (callbacks.length === 0) return;
+  let errors: unknown[] | undefined;
+
+  for (let i = 0; i < callbacks.length; i++) {
+    try {
+      callbacks[i]!();
+    } catch (error) {
+      (errors ??= []).push(error);
+    }
+  }
+
+  if (errors !== undefined) throwAggregated(errors, "Errors during commit");
+}
+
+function setupEffect(cell: EffectCell): void {
+  const setup = cell.setup!;
+  const deps = cell.setupDeps;
+  const generation = cell.generation;
+  let cleanup: (() => void) | undefined;
+  try {
+    const result = setup();
+    if (result !== undefined && typeof result !== "function") {
+      throw new Error(
+        "An effect function must either return a cleanup function or nothing. " +
+          `Received: ${typeof result}`,
+      );
+    }
+    cleanup = result;
+  } finally {
+    if (cell.generation === generation) {
+      cell.cleanup = cleanup;
+      cell.deps = deps;
+    } else {
+      cleanup?.();
+    }
+  }
+}
+
+const effectNeedsRun = (cell: EffectCell): boolean => {
+  if (cell.setup === undefined) return false;
+  if (cell.deps === null) return true;
+  if (cell.setupDeps === undefined) return true;
+  return !depsShallowEqual(cell.deps!, cell.setupDeps);
+};
+
+function reconcileCells(
+  cells: EffectCell[],
+  errors: unknown[] | undefined,
+): unknown[] | undefined {
+  let pending: EffectCell[] | undefined;
+
+  for (const cell of cells) {
+    if (effectNeedsRun(cell)) (pending ??= []).push(cell);
+  }
+
+  if (pending === undefined) return errors;
+  for (const cell of pending) {
+    cell.deps = null;
+    if (cell.cleanup === undefined) continue;
+    try {
+      cell.cleanup();
+    } catch (e) {
+      (errors ??= []).push(e);
+    } finally {
+      cell.cleanup = undefined;
+    }
+  }
+  for (const cell of pending) {
+    try {
+      setupEffect(cell);
+    } catch (e) {
+      (errors ??= []).push(e);
+    }
+  }
+  return errors;
+}
+
+export function reconcileEffects<R>(
+  fiber: ResourceFiber<R>,
+  includeInsertion = true,
+): void {
+  let errors: unknown[] | undefined;
+  if (fiber.insertionCells !== null && includeInsertion) {
+    errors = reconcileCells(fiber.insertionCells, errors);
+  }
+  errors = reconcileCells(fiber.effectCells, errors);
+  if (errors !== undefined) throwAggregated(errors, "Errors during commit");
+}
+
+export function cleanupCells(cells: EffectCell[]): void {
+  let errors: unknown[] | undefined;
+  for (const cell of cells) {
+    cell.deps = null;
+
+    if (cell.cleanup) {
+      try {
+        cell.cleanup?.();
+      } catch (e) {
+        (errors ??= []).push(e);
+      } finally {
+        cell.cleanup = undefined;
+      }
+    }
+  }
+  if (errors !== undefined) throwAggregated(errors, "Errors during cleanup");
+}
