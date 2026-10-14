@@ -23,6 +23,7 @@
     "clsx": "^2.1.1",
     "convex": "^1.46.0",
     "date-fns": "^4.4.0",
+    "diagrammatic": "^0.0.4",
     "framer-motion": "^14.2.0",
     "gsap": "^3.15.0",
     "heat-graph": "^0.0.24",

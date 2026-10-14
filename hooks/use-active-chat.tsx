@@ -889,7 +889,19 @@ export function ActiveChatProvider({
         }
       }
 
-      if (changed) chat.setMessages(next);
+      if (changed) {
+        // Final guard: never write a state with duplicate ids — the SDK
+        // bubble and a mirrored row can share an id between the adoption
+        // rename and the dedupe effect. React warns on duplicate keys and
+        // the warning fires before the effect cleans up.
+        const seen = new Set<string>();
+        const deduped = next.filter((m) => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+        chat.setMessages(deduped);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.status, chat.setMessages, resumeInFlight, serverAssistantIdRef.current]);

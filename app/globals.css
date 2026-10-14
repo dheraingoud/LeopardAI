@@ -241,6 +241,26 @@
   --font-body: var(--font-geist), var(--font-instrument), "Segoe UI", sans-serif;
 }
 
+/* ─── Diagrammatic chart tokens ───
+   The `diagrammatic` package renders charts themed by --dg-* custom
+   properties. Map them onto Leopard's existing --chart-* / ink palette so the
+   generative-UI chart widget follows the active theme. Ink stays
+   currentColor (foreground) so axis/label text flips with the theme; the
+   categorical series run amber-first to match the brand. */
+.light,
+.dark {
+  --dg-c1: var(--chart-1);
+  --dg-c2: var(--chart-2);
+  --dg-c3: var(--chart-3);
+  --dg-c4: var(--chart-4);
+  --dg-c5: var(--chart-5);
+  --dg-c6: var(--leopard-amber-dim);
+  --dg-c7: var(--muted-foreground);
+  --dg-pos: var(--chart-1);
+  --dg-neg: var(--destructive);
+  --dg-ink: currentColor;
+}
+
 /* ─── Base Styles ─── */
 @layer base {
   * {

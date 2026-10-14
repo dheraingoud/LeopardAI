@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import dynamic from "next/dynamic";
+import { Bar, Line, Pie } from "diagrammatic";
 import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
 import { MermaidDiagram } from "./mermaid-diagram";
@@ -23,105 +24,37 @@ const GeoMapLazy = dynamic(
 // Each widget type maps to a component with Leopard tokens (amber accents,
 // dark/light pairs, paper surfaces).
 
-const CHART_COLORS = ["#ffb400", "#e86f51", "#5aa9e6", "#7fc8a9", "#c084fc", "#f472b6", "#94a3b8", "#facc15"];
+// Generative UI charts render through the `diagrammatic` package: 68
+// zero-dependency, server-safe SVG forms themed by --dg-* tokens (mapped to
+// Leopard's --chart-* palette in globals.css). The widget schema's
+// { chartType, data: [{ label, value }] } shape is mapped onto Bar/Line/Pie
+// here; the model contract is unchanged. Each chart gets `title` for a11y and
+// a native tooltip, and the categorical palette + ink resolve through CSS
+// variables so dark/light stay correct.
 
 function ChartWidget({ title, data, chartType }: Extract<WidgetSpec, { _type: "chart" }>) {
-  const max = Math.max(...data.map((d) => d.value));
-  const body = chartType === "line"
-    ? <LineChart data={data} />
-    : chartType === "pie"
-      ? <PieChart data={data} />
-      : (
-        <div className="flex flex-col gap-2">
-          {data.map((d, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className={cn(mono, "w-20 truncate text-[11px] text-foreground/60")}>{d.label}</span>
-              <div className="flex-1 h-5 rounded-sm bg-foreground/[0.06] overflow-hidden">
-                <div
-                  className="h-full rounded-sm dark:bg-[#ffb400] light:bg-[#d49600] transition-all duration-300"
-                  style={{ width: `${(d.value / max) * 100}%` }}
-                />
-              </div>
-              <span className={cn(mono, "text-[11px] tabular-nums text-foreground/70 w-12 text-right")}>{d.value}</span>
-            </div>
-          ))}
-        </div>
-      );
+  // Guard against empty/degenerate data so a bad tool call renders an inert
+  // card instead of throwing mid-stream.
+  const items = data.filter((d) => Number.isFinite(d.value));
+  const body =
+    items.length === 0 ? (
+      <p className={cn(mono, "text-[11px] text-foreground/40")}>No data</p>
+    ) : chartType === "line" ? (
+      <Line
+        data={items.map((d) => d.value)}
+        labels={items.map((d) => d.label)}
+        title={title}
+        yTicks={4}
+      />
+    ) : chartType === "pie" ? (
+      <Pie items={items} title={title} />
+    ) : (
+      <Bar items={items} title={title} xTicks={4} />
+    );
   return (
     <div className={cn(paper, "rounded-xl p-4 my-2")}>
       <p className={cn(mono, "text-foreground/50 mb-3 text-[11px] uppercase tracking-wider")}>{title}</p>
-      {body}
-    </div>
-  );
-}
-
-function LineChart({ data }: { data: { label: string; value: number }[] }) {
-  const W = 480;
-  const H = 140;
-  const PAD = 8;
-  const values = data.map((d) => d.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const stepX = data.length > 1 ? (W - PAD * 2) / (data.length - 1) : 0;
-  const pts = data.map((d, i) => [PAD + i * stepX, H - PAD - ((d.value - min) / span) * (H - PAD * 2)] as const);
-  const path = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const area = `${path} L${(PAD + (data.length - 1) * stepX).toFixed(1)},${H - PAD} L${PAD},${H - PAD} Z`;
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Line chart">
-        <path d={area} className="fill-[#ffb400]/10" />
-        <path d={path} fill="none" stroke="#ffb400" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {pts.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="3" fill="#ffb400" />
-        ))}
-      </svg>
-      <div className="flex justify-between mt-1">
-        {data.map((d, i) => (
-          <span key={i} className={cn(mono, "text-[10px] text-foreground/50 truncate max-w-[4rem]")}>{d.label}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PieChart({ data }: { data: { label: string; value: number }[] }) {
-  const total = data.reduce((s, d) => s + Math.max(0, d.value), 0) || 1;
-  const R = 56;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
-  const segs = data.map((d, i) => {
-    const frac = Math.max(0, d.value) / total;
-    const seg = { d, i, frac, start: offset };
-    offset += frac;
-    return seg;
-  });
-  return (
-    <div className="flex items-center gap-4">
-      <svg viewBox="0 0 140 140" className="h-32 w-32 shrink-0" role="img" aria-label="Pie chart">
-        <g transform="rotate(-90 70 70)">
-          {segs.map(({ d, i, frac, start }) => (
-            <circle
-              key={i}
-              cx="70" cy="70" r={R}
-              fill="none"
-              stroke={CHART_COLORS[i % CHART_COLORS.length]}
-              strokeWidth="22"
-              strokeDasharray={`${(frac * C).toFixed(2)} ${C.toFixed(2)}`}
-              strokeDashoffset={(-start * C).toFixed(2)}
-            />
-          ))}
-        </g>
-      </svg>
-      <div className="flex flex-col gap-1 min-w-0">
-        {segs.map(({ d, i, frac }) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="size-2.5 rounded-sm shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-            <span className={cn(mono, "text-[11px] text-foreground/70 truncate")}>{d.label}</span>
-            <span className={cn(mono, "text-[11px] tabular-nums text-foreground/50 ml-auto pl-2")}>{Math.round(frac * 100)}%</span>
-          </div>
-        ))}
-      </div>
+      <div className="text-foreground">{body}</div>
     </div>
   );
 }
