@@ -30,5 +30,22 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "aui/cli",
+    "aui/metro",
+    "aui/vite",
+    "aui/create-assistant-ui",
+    "aui/agent-launcher",
+    "aui/setup-agent",
+    "aui/x-buildutils",
+    "aui/x-generative-compiler",
+    "aui/mcp-docs-server",
+    "aui/vscode",
+    "aui/react-native",
+    "aui/react-ink",
+    "aui/react-ink-markdown",
+    "aui/vue",
+    "aui/svelte"
+  ]
 }
