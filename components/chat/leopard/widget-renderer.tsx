@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { NumberTicker } from "./number-ticker";
+import { ImageGallery } from "./image-gallery";
 import type { WidgetSpec } from "@/lib/ai/widget-schema";
 
 const GeoMapLazy = dynamic(
@@ -123,16 +124,15 @@ function ProgressWidget({ label, value, status }: Extract<WidgetSpec, { _type: "
 }
 
 function GalleryWidget({ images }: Extract<WidgetSpec, { _type: "gallery" }>) {
+  const galleryImages = images.map((img, i) => ({
+    id: `img-${i}`,
+    src: img.src,
+    alt: img.alt,
+    caption: img.caption,
+  }));
   return (
-    <div className="my-2 grid grid-cols-2 gap-2">
-      {images.map((img, i) => (
-        <figure key={i} className="flex flex-col gap-1">
-          <img src={img.src} alt={img.alt} className="rounded-lg w-full object-cover aspect-video" />
-          {img.caption && (
-            <figcaption className={cn(mono, "text-[10px] text-foreground/40")}>{img.caption}</figcaption>
-          )}
-        </figure>
-      ))}
+    <div className="my-2">
+      <ImageGallery images={galleryImages} />
     </div>
   );
 }
