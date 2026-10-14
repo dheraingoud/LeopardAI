@@ -25,6 +25,7 @@ import { Check, ChevronDown, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { cn, sanitizeText } from "@/lib/utils";
+import { normalizeMathDelimiters, escapeCurrencyDollars } from "@/lib/markdown-preprocess";
 import { ImageLightbox } from "./image-lightbox";
 import { CodeRunOutput, RunButton } from "./code-runner";
 import { useRunCode } from "@/hooks/use-run-code";
@@ -67,7 +68,12 @@ export const StreamingText = memo(function StreamingText({
   content: string;
   streaming?: boolean;
 }) {
-  const sanitized = sanitizeText(content).replace(/\s+height=["']auto["']/g, "");
+  // Model output often uses \(...\) / \[...\] / [/math] or currency $ that
+  // remark-math won't parse — normalize to $$...$$, escape currency. Ported
+  // from aui react-markdown preprocess (battle-tested char-level scanner,
+  // fence/blockquote aware). Run BEFORE the fence-aware block split.
+  const mathReady = escapeCurrencyDollars(normalizeMathDelimiters(content));
+  const sanitized = sanitizeText(mathReady).replace(/\s+height=["']auto["']/g, "");
   // Typewriter reveal (useSmoothReveal):
   // fast NIM token bursts popped whole word-chunks in; the reveal drains the
   // backlog at a bounded rate (250ms drain, 5ms/char floor) so text flows
