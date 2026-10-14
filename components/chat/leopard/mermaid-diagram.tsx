@@ -394,6 +394,14 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
   );
 }
 
+let renderSeq = 0;
+let renderQueue: Promise<string> = Promise.resolve("");
+// Mermaid v12 writes into a body-level sandbox div keyed by render id and
+// reads it back synchronously-ish — overlapping renders (StrictMode double
+// effect, two diagram widgets) can remove each other's sandbox mid-render
+// ("firstChild of null"). Serialize all renders through one chain.
+let renderChain: Promise<unknown> = Promise.resolve();
+
 const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
   code,
   className,
@@ -421,8 +429,13 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
         if (active) setResult({ svg: null, error: new Error("empty diagram") });
         return;
       }
+      const attemptId = `${id}-${++renderSeq}`;
       try {
-        const svg = await renderMermaid(id, code, dark);
+        // Serialize mermaid renders — v12's render writes a body-level
+        // sandbox div then reads it back; overlapping renders on ANY id can
+        // empty each other's nodes ("firstChild of null").
+        renderQueue = renderQueue.then(() => renderMermaid(attemptId, code, dark));
+        const svg = await renderQueue;
         if (!active) return;
         if (svg && svg.trim() && !isIncompleteDiagram(code, svg)) {
           setResult({ svg, error: null });
@@ -437,7 +450,9 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
           });
         }
       } finally {
-        purgeMermaidErrors(id);
+        // Purge only THIS attempt's nodes — a prefix match would remove a
+        // concurrent retry's in-flight sandbox and crash its render.
+        purgeMermaidErrors(attemptId);
       }
     };
     void render();

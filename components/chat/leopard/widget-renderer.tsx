@@ -1,9 +1,20 @@
 "use client";
 
 import { memo } from "react";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
+import { MermaidDiagram } from "./mermaid-diagram";
 import type { WidgetSpec } from "@/lib/ai/widget-schema";
+
+const GeoMapLazy = dynamic(
+  () => import("./geo-map.js").then((m) => m.GeoMap),
+  { ssr: false, loading: () => <div className={cn(paper, "my-2 h-64 animate-pulse rounded-xl")} /> },
+) as React.ComponentType<{
+  places: { id: string; label: string; lat: number; lng: number; description?: string | undefined }[];
+  className?: string;
+}>;
+// (id is required by GeoMap after MapWidget fills missing ids)
 
 // Generative UI renderer — maps widget specs to Leopard-styled components.
 // The model emits a JSON tree via the renderWidget tool; this renders it.
@@ -128,6 +139,41 @@ function CodeWidget({ language, code, title }: Extract<WidgetSpec, { _type: "cod
   );
 }
 
+function DiagramWidget({ code, title }: Extract<WidgetSpec, { _type: "diagram" }>) {
+  return (
+    <figure className="my-2">
+      <MermaidDiagram code={code} className="rounded-xl" />
+      {title ? (
+        <figcaption className={cn(mono, "text-muted-foreground mt-1 text-[11px]")}>{title}</figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
+function MapWidget({ places }: Extract<WidgetSpec, { _type: "map" }>) {
+  // Models sometimes send a single place object or a keyed record instead of
+  // an array — normalize before it reaches GeoMap.
+  const list = Array.isArray(places)
+    ? places
+    : places && typeof places === "object"
+      ? Object.values(places as Record<string, unknown>)
+      : [];
+  const valid = list.filter(
+    (p): p is { id?: string; label: string; lat: number; lng: number; description?: string } =>
+      !!p && typeof p === "object" &&
+      typeof (p as { lat?: unknown }).lat === "number" &&
+      typeof (p as { lng?: unknown }).lng === "number" &&
+      typeof (p as { label?: unknown }).label === "string",
+  );
+  const withIds = valid.map((p, i) => ({ ...p, id: p.id ?? `pin-${i}` }));
+  if (withIds.length === 0) return null;
+  return (
+    <div className="my-2">
+      <GeoMapLazy places={withIds} className="h-64 rounded-xl" />
+    </div>
+  );
+}
+
 export const WidgetRenderer = memo(function WidgetRenderer({ spec }: { spec: WidgetSpec }) {
   switch (spec._type) {
     case "chart": return <ChartWidget {...spec} />;
@@ -136,6 +182,8 @@ export const WidgetRenderer = memo(function WidgetRenderer({ spec }: { spec: Wid
     case "progress": return <ProgressWidget {...spec} />;
     case "gallery": return <GalleryWidget {...spec} />;
     case "code": return <CodeWidget {...spec} />;
+    case "diagram": return <DiagramWidget {...spec} />;
+    case "map": return <MapWidget {...spec} />;
     default: return null;
   }
 });
