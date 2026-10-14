@@ -21,15 +21,46 @@ declare module "ioredis" {
   export default Redis;
 }
 declare module "redis";
-declare module "@/aui/tap";
-declare module "@/aui/tap/*";
 declare module "@/aui/x-generative-compiler";
 declare module "@/aui/x-generative-compiler/*";
-declare module "@/aui/store";
-declare module "@/aui/store/*";
-declare module "@/aui/core";
-declare module "@/aui/core/*";
-declare module "@/aui/assistant-stream";
-declare module "@/aui/assistant-stream/*";
-declare module "@/aui/react";
-declare module "@/aui/react/*";
+// Build-time constants the aui build injects (x-buildutils). Fork tree is
+// source-only — pin a placeholder version.
+declare const __AUI_PACKAGE_VERSION__: string;
+declare module "@opentelemetry/api" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type Span = any;
+  export type Context = any;
+  export const trace: any;
+  const api: any;
+  export default api;
+}
+declare module "@opentelemetry/sdk-trace-base" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type ReadableSpan = any;
+  export type SpanExporter = any;
+  export interface SpanProcessor {
+    onStart(span: any, parentContext: any): void;
+    onEnd(span: any): void;
+    forceFlush(): Promise<void>;
+    shutdown(): Promise<void>;
+  }
+  export class BatchSpanProcessor implements SpanProcessor {
+    constructor(exporter: any);
+    onStart(span: any, parentContext: any): void;
+    onEnd(span: any): void;
+    forceFlush(): Promise<void>;
+    shutdown(): Promise<void>;
+    [key: string]: any;
+  }
+}
+declare module "@opentelemetry/exporter-trace-otlp-http" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export class OTLPTraceExporter {
+    constructor(config?: any);
+    [key: string]: any;
+  }
+}
+declare module "@opentelemetry/api";
+declare module "@opentelemetry/exporter-trace-otlp-http";
+declare module "@opentelemetry/sdk-trace-base";
+declare module "vitest";

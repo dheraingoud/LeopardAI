@@ -22,10 +22,27 @@
       "@/*": ["./*"],
       "@/aui/tap": ["./aui/tap/src/index.ts"],
       "@/aui/store": ["./aui/store/src/index.ts"],
+      "@/aui/store/internal": ["./aui/store/src/internal.ts"],
+      "@/aui/store/client": ["./aui/store/src/client.ts"],
+      "@/aui/core/internal": ["./aui/core/src/internal.ts"],
+      "@/aui/core/react": ["./aui/core/src/react/index.ts"],
       "@/aui/core": ["./aui/core/src/index.ts"],
       "@/aui/assistant-stream": ["./aui/assistant-stream/src/index.ts"],
+      "@/aui/assistant-stream/utils": ["./aui/assistant-stream/src/utils.ts"],
+      "@/aui/assistant-stream/utils/*": ["./aui/assistant-stream/src/utils/*"],
+      "@/aui/assistant-stream/ai-sdk": ["./aui/assistant-stream/src/ai-sdk/index.ts"],
+      "@/aui/cloud": ["./aui/cloud/src/index.ts"],
+      "@/aui/cloud/ai-sdk": ["./aui/cloud/src/ai-sdk/index.ts"],
+      "assistant-cloud": ["./aui/cloud/src/index.ts"],
+      "assistant-cloud/ai-sdk": ["./aui/cloud/src/ai-sdk/index.ts"],
       "@/aui/react": ["./aui/react/src/index.ts"],
-      "@/aui/ai-sdk": ["./aui/ai-sdk/src/index.ts"]
+      "@/aui/ai-sdk": ["./aui/ai-sdk/src/index.ts"],
+      "assistant-stream": ["./aui/assistant-stream/src/index.ts"],
+      "assistant-stream/*": ["./aui/assistant-stream/src/*"],
+      "assistant-stream/utils": ["./aui/assistant-stream/src/utils.ts"],
+      "assistant-stream/utils/*": ["./aui/assistant-stream/src/utils/*"],
+      "assistant-stream/cloud": ["./aui/assistant-stream/src/cloud.ts"],
+      "assistant-stream/ai-sdk": ["./aui/assistant-stream/src/ai-sdk/index.ts"]
     }
   },
   "include": [
