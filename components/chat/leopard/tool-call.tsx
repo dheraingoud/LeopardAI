@@ -14,6 +14,7 @@ import {
   ShimmerLabel,
   SwapLabel,
 } from "./surfaces";
+import { JSONTree } from "./json-tree";
 
 export interface ToolCallProps {
   label: string;
@@ -26,6 +27,11 @@ export interface ToolCallProps {
   elapsed?: string;
   /** True = the tool round failed (red ✕ instead of emerald ✓). */
   failed?: boolean;
+  /** Structured request payload — renders as an expandable JSON tree when
+   *  present, falling back to the `request` string otherwise. */
+  requestData?: unknown;
+  /** Structured result payload — same treatment as requestData. */
+  resultData?: unknown;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   className?: string;
@@ -40,6 +46,8 @@ export function ToolCall({
   running,
   elapsed,
   failed = false,
+  requestData,
+  resultData,
   open,
   onOpenChange,
   className,
@@ -90,12 +98,20 @@ export function ToolCall({
         <div className={cn(field, "mt-2 overflow-hidden rounded-2xl text-xs")}>
           <div className="px-3.5 pt-2.5 pb-2">
             <p className={cn(mono, "text-foreground/35 mb-1")}>Request</p>
-            <p className="text-foreground/55 font-mono break-words">{request}</p>
+            {requestData !== undefined ? (
+              <JSONTree value={requestData} compact />
+            ) : (
+              <p className="text-foreground/55 font-mono break-words">{request}</p>
+            )}
           </div>
           <div className="bg-foreground/[0.06] mx-3.5 h-px" />
           <div className="px-3.5 pt-2 pb-2.5">
             <p className={cn(mono, "text-foreground/35 mb-1")}>Result</p>
-            <p className="text-foreground/90 break-words">{result}</p>
+            {resultData !== undefined ? (
+              <JSONTree value={resultData} compact />
+            ) : (
+              <p className="text-foreground/90 break-words">{result}</p>
+            )}
           </div>
         </div>
       </CollapsibleContent>

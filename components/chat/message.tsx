@@ -568,6 +568,8 @@ function ToolCard({
       query={summary}
       request={requestStr}
       result={resultLine || (resultOk ? "Done" : "Failed")}
+      requestData={input}
+      resultData={output}
       running={pending}
       failed={!pending && !resultOk}
       open={open}
