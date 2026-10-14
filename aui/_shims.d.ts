@@ -26,6 +26,12 @@ declare module "@/aui/x-generative-compiler/*";
 // Build-time constants the aui build injects (x-buildutils). Fork tree is
 // source-only — pin a placeholder version.
 declare const __AUI_PACKAGE_VERSION__: string;
+// aui/ai-sdk uses a package.json "imports" map for "#mcp-stdio" — the fork has
+// no package.json, so declare the subpath ambiently. The real impl is
+// mcp-stdio.node.ts; point the shim at its type surface.
+declare module "#mcp-stdio" {
+  export * from "@/aui/ai-sdk/src/tools/mcp-stdio.node";
+}
 declare module "@opentelemetry/api" {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   export type Span = any;
