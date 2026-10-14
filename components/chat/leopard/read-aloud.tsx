@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { SquareIcon, Volume2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ghostButton } from "./surfaces";
@@ -16,8 +16,12 @@ export function ReadAloudButton({
 }) {
   const [speaking, setSpeaking] = useState(false);
   // SSR + hydration safe: only render after mount, when speechSynthesis exists.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // useSyncExternalStore server/client split — no setState-in-effect.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   useEffect(() => {
     if (!mounted) return;
     return () => window.speechSynthesis?.cancel();
