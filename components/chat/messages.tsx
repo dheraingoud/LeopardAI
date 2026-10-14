@@ -378,7 +378,15 @@ export function Messages() {
   // Turn rail (2026-10-09, ported conversation-map): a tick rail on the
   // transcript edge for jumping between user turns. Only worth rendering on
   // threads long enough to scroll meaningfully (≥3 user turns).
-  const userTurns = messages.filter((m) => m.role === "user");
+  // Dedupe before keying — the mirror/SDK can leave transient duplicate ids
+  // in state between effects; keyed lists (rail, transcript) must never see
+  // them (React same-key warnings, 2026-10-14 RCA).
+  const railSeen = new Set<string>();
+  const userTurns = messages.filter((m) => {
+    if (m.role !== "user" || railSeen.has(m.id)) return false;
+    railSeen.add(m.id);
+    return true;
+  });
   const railEntries = userTurns.map((m, i) => ({
     id: m.id,
     title: `Turn ${i + 1}`,

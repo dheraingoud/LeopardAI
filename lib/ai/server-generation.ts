@@ -116,6 +116,23 @@ export function abortChatGenerations(chatId: string): number {
   return n;
 }
 
+/** Find the LIVE generation handle for a chat, if THIS process owns one.
+ *  Powers the resumable-stream re-attach (GET /api/chat/[chatId]/stream): a
+ *  reloaded client re-subscribes to the in-process chunk bus instead of
+ *  relying on Convex polling patches. Returns null when no generation is
+ *  live here (settled, aborted, or another serverless instance owns it) —
+ *  the caller answers 204 and the client falls back to the mirror. */
+export function getActiveGenerationForChat(
+  chatId: string,
+): ServerGenerationHandle | null {
+  for (const [aid, cid] of _generationChat) {
+    if (cid !== chatId) continue;
+    const h = _handles.get(aid);
+    if (h) return h;
+  }
+  return null;
+}
+
 /**
  * Create + register the controller for a generation, to run BEFORE the route
  * builds its streamText (so the signal can be passed in). Reload/exit must NOT

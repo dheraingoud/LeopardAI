@@ -177,6 +177,44 @@ function toChatMessage(m: Doc<"messages">): ChatMessage {
   };
 }
 
+// ── Resumable-stream re-attach (sessionStorage pending-stream tracking) ──────
+// The POST route stamps `x-resumable-stream-id: <assistantId>` on a generation-
+// bearing response (app/api/chat/route.ts §8c). The transport's fetch wrapper
+// records it here, per chat. On remount (reload mid-generation) the mount
+// effect re-attaches to the live SSE via chat.resumeStream() → GET
+// /api/chat/[chatId]/stream, which re-subscribes to the in-process generation
+// bus. sessionStorage (not localStorage): the marker must survive a RELOAD but
+// die with the tab — a brand-new tab opening the same chat goes through the
+// mirror fallback instead of stealing the stream.
+const PENDING_STREAM_KEY_PREFIX = "leopard:pending-stream:";
+
+function readPendingStreamId(chatId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(PENDING_STREAM_KEY_PREFIX + chatId);
+  } catch {
+    return null; // private mode / quota — the mirror fallback still covers reloads
+  }
+}
+
+function writePendingStreamId(chatId: string, streamId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(PENDING_STREAM_KEY_PREFIX + chatId, streamId);
+  } catch {
+    /* ignore — mirror fallback */
+  }
+}
+
+function clearPendingStreamId(chatId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(PENDING_STREAM_KEY_PREFIX + chatId);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function ActiveChatProvider({
   chatId,
   children,
@@ -386,10 +424,17 @@ export function ActiveChatProvider({
         // seen earlier in THIS response.
         fetch: (async (url: RequestInfo | URL, options?: RequestInit) => {
           const known = new Set<string>();
+          // The outgoing chat id (body.id) — scopes the pending-stream marker
+          // written from the response header below. The resume GET has no
+          // body, so it never lands here with a chatId (can't clobber).
+          let wireChatId: string | null = null;
           try {
             const body = JSON.parse(String(options?.body ?? "{}")) as {
+              id?: unknown;
               messages?: Array<{ parts?: Array<{ toolCallId?: string }> }>;
             };
+            if (typeof body.id === "string" && body.id.length > 0)
+              wireChatId = body.id;
             for (const m of body.messages ?? [])
               for (const p of m.parts ?? [])
                 if (typeof p?.toolCallId === "string") known.add(p.toolCallId);
@@ -402,6 +447,15 @@ export function ActiveChatProvider({
           } catch (e) {
             console.error("[transport] fetch failed:", e);
             throw e;
+          }
+          // Resumable-stream re-attach: the route stamps the persisted
+          // assistant row id on every generation-bearing POST response. Record
+          // it so a reload mid-generation can re-attach (mount effect below).
+          // Absent on errors / the image-gen branch / approval-resume posts →
+          // keep whatever is stored.
+          if (wireChatId) {
+            const streamId = res.headers.get("x-resumable-stream-id");
+            if (streamId) writePendingStreamId(wireChatId, streamId);
           }
           const ct = res.headers.get("content-type") ?? "";
           if (!res.body || !ct.includes("text/event-stream")) return res;
@@ -444,6 +498,12 @@ export function ActiveChatProvider({
                 }
               }
               if (buf) controller.enqueue(encoder.encode(buf));
+              // Clean SSE end → the turn settled on the wire (the POST route
+              // holds the response open until the detached generation is done).
+              // Drop the re-attach marker. An abort / tab close mid-stream
+              // skips this — exactly when the marker must survive for the
+              // mount re-attach.
+              if (wireChatId) clearPendingStreamId(wireChatId);
               controller.close();
             },
           });
@@ -889,19 +949,19 @@ export function ActiveChatProvider({
         }
       }
 
-      if (changed) {
-        // Final guard: never write a state with duplicate ids — the SDK
-        // bubble and a mirrored row can share an id between the adoption
-        // rename and the dedupe effect. React warns on duplicate keys and
-        // the warning fires before the effect cleans up.
-        const seen = new Set<string>();
-        const deduped = next.filter((m) => {
-          if (seen.has(m.id)) return false;
-          seen.add(m.id);
-          return true;
-        });
-        chat.setMessages(deduped);
-      }
+      // Final guard: never leave a state with duplicate ids — the mirror's
+      // user-row reinsert can double-insert when passes race, and the SDK
+      // bubble and a mirrored row can share an id between the adoption rename
+      // and the dedupe effect. Runs even when nothing else changed — dupes in
+      // the incoming state are reason enough to write.
+      const seen = new Set<string>();
+      let hadDup = false;
+      const deduped = next.filter((m) => {
+        if (seen.has(m.id)) { hadDup = true; return false; }
+        seen.add(m.id);
+        return true;
+      });
+      if (changed || hadDup) chat.setMessages(deduped);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.status, chat.setMessages, resumeInFlight, serverAssistantIdRef.current]);
@@ -955,11 +1015,14 @@ export function ActiveChatProvider({
     // after settle — identical content either way).
     const seen = new Set<string>();
     const keep = prev.filter((m, i) => {
+      // Global id dedupe — the mirror's user-row reinsert can double-insert
+      // when two effect passes race (observed live: every user row twice,
+      // React same-key warnings). First occurrence wins everywhere.
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
       if (i <= lastUser) return true;
       if (m.role !== "assistant") return true;
       if (!serverIds.has(m.id)) return false;
-      if (seen.has(m.id)) return false;
-      seen.add(m.id);
       return true;
     });
     if (keep.length !== prev.length) chat.setMessages(keep);
@@ -1163,6 +1226,11 @@ export function ActiveChatProvider({
 
   const stopGeneration = useCallback(() => {
       cancelRetryRef.current();
+      // A deliberate stop ends the turn — drop the resumable re-attach marker
+      // so a later mount can't try to re-attach to a generation that was just
+      // aborted. (The server abort persists the partial as `completed`, so the
+      // row-status gate would also block it — this is hygiene, not correctness.)
+      clearPendingStreamId(chatId);
       // Only ask the server to abort when we know the detached generation's id
       // (image-gen has no server row, so local stop alone suffices). RETURNED
       // so editMessage can order: stop → (abort's partial persist lands) →
@@ -1284,6 +1352,69 @@ export function ActiveChatProvider({
     }
     return null;
   })();
+
+  // ── Resumable-stream re-attach on remount (reload mid-generation) ──────────
+  // A sessionStorage marker (written by the transport wrapper from the route's
+  // x-resumable-stream-id header) plus a still-"streaming" trailing server row
+  // means the detached generation is live on the server → re-attach to its SSE
+  // with chat.resumeStream() (GET /api/chat/[chatId]/stream). The replayed
+  // stream rebuilds the trailing bubble IN PLACE: the GET route patches the
+  // replayed start chunk's messageId to the persisted row id, and the SDK's
+  // resume processing replaces an existing message by id on every write. No
+  // mirror interference — the mirror stands down while status is
+  // streaming/submitted and reconciles the final Convex row at settle.
+  // Guards:
+  //   - resumedStreamIdsRef: ONE attempt per (chatId, streamId) — never
+  //     double-resume (StrictMode double-invoke, convexMessages refetches,
+  //     status flapping back to ready).
+  //   - status gate: only from "ready" — a live local stream or an errored
+  //     turn is left alone.
+  //   - the marker is consumed on attempt (cleared), so a stale marker can
+  //     never re-arm a later mount.
+  //   - approval-held rows are SKIPPED (the replay log drops
+  //     tool-approval-request chunks by design; the mirror owns those turns).
+  //   - seed-carrying rows are SKIPPED (approval-resume generations): the
+  //     replay's start-reset rebuilds the bubble without the seeded tool
+  //     cards until the mirror restores them at settle.
+  // Fallback contract: a 204 (generation settled, or another server instance
+  // owns it) flips the SDK straight back to ready and the Convex mirror keeps
+  // doing exactly what it always did. This path only ever ADDS a faster
+  // re-attach on top of that fallback — never replaces it.
+  const resumedStreamIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (isDraft || badId) return;
+    if (!convexMessages) return;
+    if (chat.status !== "ready") return;
+    const streamId = readPendingStreamId(chatId);
+    if (!streamId) return;
+    const guardKey = `${chatId}:${streamId}`;
+    if (resumedStreamIdsRef.current.has(guardKey)) return;
+    const lastServer = convexMessages[convexMessages.length - 1];
+    if (
+      !lastServer ||
+      lastServer.role !== "assistant" ||
+      lastServer.status !== "streaming"
+    ) {
+      // Stale marker — the turn already settled server-side while the tab was
+      // closed. Nothing to re-attach to.
+      clearPendingStreamId(chatId);
+      return;
+    }
+    if (approvalPendingOnStreamingRow) return;
+    const seedCarried = (lastServer.parts ?? []).some((p) => {
+      const s = (p as { state?: string }).state;
+      return s === "approval-responded" || s === "output-denied";
+    });
+    if (seedCarried) return;
+    resumedStreamIdsRef.current.add(guardKey);
+    clearPendingStreamId(chatId);
+    console.log("[chat] resumable re-attach:", guardKey);
+    void chat.resumeStream().catch(() => {
+      /* surfaced via chat.error → onError → error card; the mirror heals */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gates read the
+    // latest convexMessages snapshot; chat.resumeStream is instance-stable.
+  }, [convexMessages, chat.status, chatId, isDraft, badId, approvalPendingOnStreamingRow]);
 
   useEffect(() => {
     // Cover serverStreaming (reopened mid-generation, SDK status is "ready")
