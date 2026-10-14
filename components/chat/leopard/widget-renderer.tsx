@@ -1,7 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import dynamic from "next/dynamic";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Bar, Line, Pie } from "diagrammatic";
 import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
@@ -59,7 +60,32 @@ function ChartWidget({ title, data, chartType }: Extract<WidgetSpec, { _type: "c
   );
 }
 
+// Table sorting (aui tableData.ts patterns): numbers sort numerically
+// (finite first), strings via Intl.Collator numeric, stable by original index,
+// click cycles asc → desc → clear.
+type TableSort = { column: number; direction: "ascending" | "descending" };
+const tableCollator = new Intl.Collator("en-US", { numeric: true });
+function compareTableCells(left: string | number, right: string | number): number {
+  const ln = typeof left === "number" && Number.isFinite(left);
+  const rn = typeof right === "number" && Number.isFinite(right);
+  if (ln && rn) return (left as number) - (right as number);
+  if (ln) return -1;
+  if (rn) return 1;
+  return tableCollator.compare(String(left), String(right));
+}
+
 function TableWidget({ title, columns, rows }: Extract<WidgetSpec, { _type: "table" }>) {
+  const [sort, setSort] = useState<TableSort | undefined>(undefined);
+  const sorted = sort
+    ? rows
+        .map((row, index) => ({ row, index }))
+        .sort((l, r) => {
+          const c = compareTableCells(l.row[sort.column] ?? "", r.row[sort.column] ?? "");
+          const ordered = sort.direction === "ascending" ? c : -c;
+          return ordered === 0 ? l.index - r.index : ordered;
+        })
+        .map(({ row }) => row)
+    : rows;
   return (
     <div className={cn(paper, "rounded-xl overflow-hidden my-2")}>
       {title && <p className={cn(mono, "px-4 pt-3 pb-2 text-[11px] uppercase tracking-wider text-foreground/50")}>{title}</p>}
@@ -67,13 +93,39 @@ function TableWidget({ title, columns, rows }: Extract<WidgetSpec, { _type: "tab
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b dark:border-white/[0.06] light:border-black/[0.06]">
-              {columns.map((col, i) => (
-                <th key={i} className="px-4 py-2 text-left font-medium dark:text-[#8a8a8a] light:text-[#6a6a6a]">{col}</th>
-              ))}
+              {columns.map((col, i) => {
+                const active = sort?.column === i;
+                return (
+                  <th key={i} className="px-4 py-2 text-left font-medium dark:text-[#8a8a8a] light:text-[#6a6a6a]">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                      onClick={() =>
+                        setSort((cur) =>
+                          cur?.column !== i
+                            ? { column: i, direction: "ascending" }
+                            : cur.direction === "ascending"
+                              ? { column: i, direction: "descending" }
+                              : undefined,
+                        )
+                      }
+                    >
+                      {col}
+                      {active ? (
+                        sort.direction === "ascending" ? (
+                          <ChevronUpIcon className="size-3" />
+                        ) : (
+                          <ChevronDownIcon className="size-3" />
+                        )
+                      ) : null}
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {sorted.map((row, i) => (
               <tr key={i} className="border-b last:border-0 dark:border-white/[0.04] light:border-black/[0.04]">
                 {row.map((cell, j) => (
                   <td key={j} className="px-4 py-2 dark:text-[#d5d5d5] light:text-[#262626]">{cell}</td>
