@@ -39,7 +39,7 @@ import { SpecSheet, parseSpecSheet } from "./spec-sheet";
 import { CodeDiff, parseDiff, type DiffLine } from "./code-diff";
 import { ReviewableDiff, type DiffHunk, type HunkDecision } from "./reviewable-diff";
 import { useShikiHtml } from "./primitives/shiki-highlighter";
-import remend from "remend";
+import { tailBoundedRemend } from "@/lib/remend";
 import { useSmoothReveal } from "./use-smooth-reveal";
 
 function sanitizeSvg(code: string): string {
@@ -89,7 +89,7 @@ export const StreamingText = memo(function StreamingText({
   // block settled. Settled text is never repaired — the model's final output
   // must render as written.
   const blocks = useMemo(
-    () => splitMarkdownBlocks(streaming ? remend(revealed) : sanitized),
+    () => splitMarkdownBlocks(streaming ? tailBoundedRemend(revealed) : sanitized),
     [revealed, sanitized, streaming],
   );
   return (
