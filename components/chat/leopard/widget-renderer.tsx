@@ -250,7 +250,35 @@ function MapWidget({ places }: Extract<WidgetSpec, { _type: "map" }>) {
   );
 }
 
+// Streaming-partial guard: while the tool args are still arriving (fixJson
+// repairs a partial string), required props may be missing or the wrong type.
+// Render a skeleton until the spec is complete enough to render safely.
+function WidgetSkeleton({ label }: { label: string }) {
+  return (
+    <div className={cn(paper, "rounded-xl p-4 my-2 animate-pulse")}>
+      <p className={cn(mono, "text-foreground/40 text-[11px] uppercase tracking-wider")}>{label}</p>
+      <div className="mt-2 h-16 rounded-lg bg-foreground/[0.05]" />
+    </div>
+  );
+}
+
+const specReady = (spec: WidgetSpec): boolean => {
+  switch (spec._type) {
+    case "chart": return Array.isArray(spec.data) && spec.data.length > 0;
+    case "table": return Array.isArray(spec.columns) && Array.isArray(spec.rows);
+    case "stat": return spec.value !== undefined;
+    case "progress": return typeof spec.value === "number";
+    case "gallery": return Array.isArray(spec.images) && spec.images.length > 0;
+    case "code": return typeof spec.code === "string" && spec.code.length > 0;
+    case "diagram": return typeof spec.code === "string" && spec.code.length > 0;
+    case "map": return Array.isArray(spec.places) && spec.places.length > 0;
+    default: return false;
+  }
+};
+
 export const WidgetRenderer = memo(function WidgetRenderer({ spec }: { spec: WidgetSpec }) {
+  if (!spec || typeof spec !== "object" || !("_type" in spec)) return null;
+  if (!specReady(spec)) return <WidgetSkeleton label={String(spec._type)} />;
   switch (spec._type) {
     case "chart": return <ChartWidget {...spec} />;
     case "table": return <TableWidget {...spec} />;

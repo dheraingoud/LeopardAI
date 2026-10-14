@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { cn, compactWhitespace } from "@/lib/utils";
+import { fixJson } from "@/lib/fix-json";
 import { hydrateMessageImages } from "@/lib/image-cache";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
@@ -1750,7 +1751,22 @@ export const PreviewMessage = memo(function PreviewMessage({
               {widgetParts.map((p, i) => {
                 const args = (p as { input?: unknown }).input;
                 // The SDK may serialize the input as a JSON string — parse it.
-                const spec = typeof args === "string" ? JSON.parse(args) : args;
+                // Mid-stream the args arrive as a PARTIAL JSON string: repair
+                // it (fixJson closes dangling strings/containers) so widgets
+                // render progressively as their props land instead of popping
+                // in at settle. Unrepairable → wait for more chunks.
+                let spec: unknown = args;
+                if (typeof args === "string") {
+                  try {
+                    spec = JSON.parse(args);
+                  } catch {
+                    try {
+                      spec = JSON.parse(fixJson(args)[0]);
+                    } catch {
+                      return null;
+                    }
+                  }
+                }
                 if (!spec || typeof spec !== "object") return null;
                 return <WidgetRenderer key={`widget-${i}`} spec={spec as never} />;
               })}
