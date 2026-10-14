@@ -1,0 +1,45 @@
+import React, { useEffect, useRef, useState } from "react";
+import { isDevelopment } from "../../core/helpers/env";
+import {
+  getCurrentResourceFiber,
+  peekResourceFiber,
+} from "../../core/helpers/execution-context";
+
+const getTapDevMode = () => {
+  const currentResourceFiber = getCurrentResourceFiber();
+  if (currentResourceFiber.devStrictMode)
+    return currentResourceFiber.isFirstRender
+      ? ("child" as const)
+      : ("root" as const);
+  return null;
+};
+
+const notDevMode = () => null;
+
+/* oxlint-disable react/rules-of-hooks -- isDevelopment is a build-time constant, so this branch is fixed per build. */
+const useDevStrictModeReact = () => {
+  if (!isDevelopment) return notDevMode;
+
+  const count = useRef(0);
+  useState(() => count.current++);
+  const detectedOnRender = count.current === 2;
+  const strictMode = useRef(false);
+  const renderedSinceEffect = useRef(true);
+  renderedSinceEffect.current = true;
+
+  useEffect(() => {
+    // The standalone shim's default export has no `version`.
+    if (!React.version?.startsWith("18.")) return;
+    if (!renderedSinceEffect.current) strictMode.current = true;
+    renderedSinceEffect.current = false;
+  }, []);
+
+  return () =>
+    detectedOnRender || strictMode.current ? ("child" as const) : null;
+};
+/* oxlint-enable react/rules-of-hooks */
+
+export const useDevStrictMode = () => {
+  // oxlint-disable-next-line react-hooks/rules-of-hooks
+  return peekResourceFiber() ? getTapDevMode : useDevStrictModeReact();
+};

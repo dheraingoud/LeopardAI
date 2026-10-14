@@ -1,0 +1,114 @@
+import {
+  createResourceFiber,
+  unmountResourceFiber,
+  renderResourceFiber,
+  commitResourceFiber,
+} from "./ResourceFiber";
+import { useTapRoot } from "../hooks/useTapRoot";
+import { isDevelopment } from "./helpers/env";
+import { flushTapSync, scheduleTask } from "./scheduler";
+import { createResourceFiberRoot } from "./helpers/root";
+import { isThenable } from "./helpers/thenable";
+
+export const createTapRoot = <R>(
+  render: () => R,
+  options?: { mountOnSubscribe?: boolean },
+): useTapRoot.Root<R> & { unmount: () => void } => {
+  let isUnmounted = false;
+  const fiber = createResourceFiber(
+    useTapRoot,
+    createResourceFiberRoot((evaluate, apply) => {
+      if (!evaluate()) return;
+      apply();
+      scheduleTask(() => {
+        if (isUnmounted || !fiber.isMounted) return;
+        if (isDevelopment && fiber.devStrictMode) {
+          void renderResourceFiber(fiber, [render]);
+        }
+        void renderResourceFiber(fiber, [render]);
+        commitResourceFiber(fiber);
+      });
+    }),
+    undefined,
+    isDevelopment ? "root" : null,
+  );
+
+  const renderFiber = () => {
+    try {
+      // In strict mode, render twice to detect side effects
+      if (isDevelopment && fiber.devStrictMode) {
+        void renderResourceFiber(fiber, [render]);
+      }
+      return renderResourceFiber(fiber, [render]) as useTapRoot.Root<R>;
+    } catch (error) {
+      if (isThenable(error)) {
+        throw new Error(
+          "createTapRoot suspended during its initial render; resolve the " +
+            "data first or use useTapRoot under a Suspense boundary.",
+        );
+      }
+      throw error;
+    }
+  };
+
+  const commitFiber = () =>
+    flushTapSync(() =>
+      scheduleTask(() => {
+        if (!isUnmounted) commitResourceFiber(fiber);
+      }),
+    );
+  const unmount = () => {
+    if (isUnmounted) return;
+    isUnmounted = true;
+    unmountResourceFiber(fiber);
+  };
+
+  let root: useTapRoot.Root<R> | undefined;
+  const ensureRoot = () => (root ??= renderFiber());
+
+  if (!options?.mountOnSubscribe) {
+    const root = ensureRoot();
+    commitFiber();
+
+    return {
+      ...root,
+      unmount,
+    };
+  }
+
+  let subscriberCount = 0;
+  const scheduleUnmount = () =>
+    scheduleTask(() => {
+      if (subscriberCount === 0 && fiber.isMounted)
+        unmountResourceFiber(fiber, false);
+    });
+
+  return {
+    getValue: () => ensureRoot().getValue(),
+    subscribe: (listener) => {
+      const unsubscribe = ensureRoot().subscribe(listener);
+      if (subscriberCount++ === 0 && !fiber.isMounted && !isUnmounted) {
+        try {
+          commitFiber();
+        } catch (error) {
+          try {
+            unmountResourceFiber(fiber, false);
+          } finally {
+            subscriberCount--;
+            unsubscribe();
+          }
+          throw error;
+        }
+      }
+
+      let isSubscribed = true;
+      return () => {
+        if (!isSubscribed) return;
+        isSubscribed = false;
+        unsubscribe();
+        if (--subscriberCount === 0) scheduleUnmount();
+      };
+    },
+    unmount,
+  };
+};

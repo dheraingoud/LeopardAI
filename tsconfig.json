@@ -19,7 +19,13 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/aui/tap": ["./aui/tap/src/index.ts"],
+      "@/aui/store": ["./aui/store/src/index.ts"],
+      "@/aui/core": ["./aui/core/src/index.ts"],
+      "@/aui/assistant-stream": ["./aui/assistant-stream/src/index.ts"],
+      "@/aui/react": ["./aui/react/src/index.ts"],
+      "@/aui/ai-sdk": ["./aui/ai-sdk/src/index.ts"]
     }
   },
   "include": [
