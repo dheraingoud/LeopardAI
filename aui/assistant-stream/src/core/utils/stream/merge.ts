@@ -1,0 +1,394 @@
+import type { AssistantStreamChunk } from "../../AssistantStreamChunk";
+import { promiseWithResolvers } from "../../../utils/promiseWithResolvers";
+
+export type MergeStreamFinishOrder = {
+  previous: () => Promise<void>;
+  delivered: ReturnType<typeof promiseWithResolvers<void>>;
+};
+
+type MergeStreamHold = {
+  writtenBefore: number;
+  reached: ReturnType<typeof promiseWithResolvers<void>>;
+  flushed: Promise<void>;
+};
+
+type MergeStreamItem = {
+  reader: ReadableStreamDefaultReader<AssistantStreamChunk>;
+  pipeTask?: Promise<unknown> | undefined;
+  promise?: Promise<unknown> | undefined;
+  orderedFinish?: MergeStreamFinishOrder | undefined;
+  written?: (() => number) | undefined;
+  delivered: number;
+  gate?: Promise<void> | undefined;
+  holds: MergeStreamHold[];
+};
+
+type MergeStreamOptions = {
+  orderedFinish?: MergeStreamFinishOrder | undefined;
+  written?: (() => number) | undefined;
+};
+
+export const createMergeStream = () => {
+  const list: MergeStreamItem[] = [];
+  let sealed = false;
+  let cancelled = false;
+  let errored = false;
+  let controller: ReadableStreamDefaultController<AssistantStreamChunk>;
+  let rawChunkBatch: AssistantStreamChunk[] | undefined;
+  let rawBarrier: Promise<void> | undefined;
+  let pendingRawBatches = 0;
+  let currentPull: ReturnType<typeof promiseWithResolvers<void>> | undefined;
+  let cleanupPromise: Promise<void> | undefined;
+
+  const releaseHolds = (item: MergeStreamItem) => {
+    for (const hold of item.holds) hold.reached.resolve();
+    item.holds = [];
+  };
+
+  const cancelAllReaders = () => {
+    // Repeated cancellation must wait for cleanup already in progress.
+    rawChunkBatch = undefined;
+    if (!cleanupPromise) {
+      const items = list.splice(0);
+      for (const item of items) {
+        item.orderedFinish?.delivered.resolve();
+        releaseHolds(item);
+      }
+      cleanupPromise = Promise.all(
+        items.map(async (item) => {
+          try {
+            await item.reader.cancel().catch(() => undefined);
+            await item.pipeTask;
+          } finally {
+            item.reader.releaseLock();
+          }
+        }),
+      ).then(() => undefined);
+    }
+    return cleanupPromise;
+  };
+
+  const handleError = (e: unknown) => {
+    if (cancelled || errored) return;
+
+    errored = true;
+    console.error(e);
+    void cancelAllReaders();
+
+    controller.error(e);
+
+    currentPull?.reject(e);
+    currentPull = undefined;
+  };
+
+  const handlePull = (item: MergeStreamItem) => {
+    if (!item.promise) {
+      // TODO for most streams, we can directly pipeTo to avoid the microTask queue
+      // add an option to eagerly pipe the stream to the merge stream
+      // ideally, using assistant-stream w sync run method + piping to a sync WritableStream runs in the same microtask
+      // this is useful because we often use AssistantStreams internally as a serialization utility, e. g. AssistantTransformStream
+      // idea: avoid reader.read() by instead using a WritableStream & if (!hasPendingPull) await waitForPull()?
+      item.promise = item.reader
+        .read()
+        .then(async ({ done, value }) => {
+          if (cancelled || errored) return;
+
+          if (done) {
+            item.orderedFinish?.delivered.resolve();
+            list.splice(list.indexOf(item), 1);
+            item.reader.releaseLock();
+            releaseHolds(item);
+            if (sealed && list.length === 0 && pendingRawBatches === 0) {
+              controller.close();
+            }
+          } else {
+            if (item.gate) {
+              await item.gate;
+              item.gate = undefined;
+              if (cancelled || errored) return;
+            }
+            while (
+              item.holds[0] &&
+              item.delivered >= item.holds[0].writtenBefore
+            ) {
+              await item.holds[0].flushed;
+              item.holds.shift();
+              if (cancelled || errored) return;
+            }
+            if (value.type === "part-finish" && item.orderedFinish) {
+              await item.orderedFinish.previous();
+              if (cancelled || errored) return;
+            }
+            controller.enqueue(value);
+            item.delivered++;
+            for (const hold of item.holds) {
+              if (item.delivered >= hold.writtenBefore) hold.reached.resolve();
+            }
+            if (value.type === "part-finish") {
+              item.orderedFinish?.delivered.resolve();
+            }
+          }
+
+          item.promise = undefined;
+          currentPull?.resolve();
+          currentPull = undefined;
+        })
+        .catch((error) => {
+          item.promise = undefined;
+          handleError(error);
+        });
+    }
+  };
+
+  const readable = new ReadableStream<AssistantStreamChunk>({
+    start(c) {
+      controller = c;
+    },
+    pull() {
+      currentPull = promiseWithResolvers();
+      list.forEach((item) => {
+        handlePull(item);
+      });
+
+      return currentPull.promise;
+    },
+    async cancel() {
+      cancelled = true;
+      const cleanup = cancelAllReaders();
+      currentPull?.resolve();
+      currentPull = undefined;
+      await cleanup;
+    },
+  });
+
+  const holdChild = (item: MergeStreamItem, flushed: Promise<void>) => {
+    const hold: MergeStreamHold = {
+      writtenBefore: item.written!(),
+      reached: promiseWithResolvers<void>(),
+      flushed,
+    };
+    if (item.delivered >= hold.writtenBefore) hold.reached.resolve();
+    item.holds.push(hold);
+    return hold.reached.promise;
+  };
+
+  const enqueueRawChunk = (chunk: AssistantStreamChunk) => {
+    // A step or message boundary, or an error, waits for the part chunks
+    // written before it; everything enqueued or added after it waits in turn.
+    const isMessageLevel =
+      chunk.type === "step-finish" ||
+      chunk.type === "message-finish" ||
+      chunk.type === "error";
+    // Active child reads split raw batches to preserve microtask ordering.
+    if (list.length > 0 || isMessageLevel) rawChunkBatch = undefined;
+
+    if (!rawChunkBatch) {
+      const batch: AssistantStreamChunk[] = [];
+      rawChunkBatch = batch;
+      pendingRawBatches++;
+      const previous = rawBarrier;
+      const parts = isMessageLevel ? list.filter((item) => item.written) : [];
+      const flushed =
+        previous || parts.length > 0 ? promiseWithResolvers<void>() : undefined;
+      const reached = flushed
+        ? parts.map((item) => holdChild(item, flushed.promise))
+        : [];
+      if (flushed) rawBarrier = flushed.promise;
+
+      // Match the readiness ordering of the one-chunk streams this replaces.
+      void Promise.resolve()
+        .then(async () => {
+          if (previous) await previous;
+          if (reached.length > 0) await Promise.all(reached);
+          pendingRawBatches--;
+          if (rawChunkBatch === batch) rawChunkBatch = undefined;
+          if (cancelled || errored) return;
+
+          for (const rawChunk of batch) controller.enqueue(rawChunk);
+          if (sealed && list.length === 0 && pendingRawBatches === 0) {
+            controller.close();
+          }
+
+          currentPull?.resolve();
+          currentPull = undefined;
+        })
+        .catch(handleError)
+        .finally(() => {
+          if (!flushed) return;
+          flushed.resolve();
+          if (rawBarrier === flushed.promise) rawBarrier = undefined;
+        });
+    }
+
+    rawChunkBatch.push(chunk);
+    if (isMessageLevel) rawChunkBatch = undefined;
+  };
+
+  const addStream = (
+    stream: ReadableStream<AssistantStreamChunk>,
+    pipeTask?: Promise<unknown>,
+    options?: MergeStreamOptions,
+  ) => {
+    const handledPipeTask = pipeTask?.catch(() => undefined);
+    if (cancelled || errored) {
+      void stream.cancel().catch(() => undefined);
+      return;
+    }
+
+    if (sealed) {
+      void stream.cancel().catch(() => undefined);
+      throw new Error("Cannot add streams after the run callback has settled.");
+    }
+
+    // A ready child must stay ahead of raw chunks enqueued after it.
+    rawChunkBatch = undefined;
+    const item: MergeStreamItem = {
+      reader: stream.getReader(),
+      pipeTask: handledPipeTask,
+      orderedFinish: options?.orderedFinish,
+      written: options?.written,
+      delivered: 0,
+      gate: rawBarrier,
+      holds: [],
+    };
+    list.push(item);
+    handlePull(item);
+  };
+
+  return {
+    readable,
+    isSealed() {
+      return sealed;
+    },
+    isCancelled() {
+      return cancelled;
+    },
+    isErrored() {
+      return errored;
+    },
+    seal() {
+      if (sealed || cancelled || errored) return;
+      sealed = true;
+      if (list.length === 0 && pendingRawBatches === 0) controller.close();
+    },
+    addStream,
+    enqueue(chunk: AssistantStreamChunk) {
+      if (cancelled || errored) return;
+      if (sealed) {
+        throw new Error(
+          "Cannot add streams after the run callback has settled.",
+        );
+      }
+
+      enqueueRawChunk(chunk);
+    },
+  };
+};
+
+// TODO
+// export class SpanContainerMerger {
+//   public get isSealed() {
+//     return this.mergeStream.isSealed();
+//   }
+
+//   public get readable() {
+//     return this.mergeStream.readable;
+//   }
+
+//   private subAllocator = new Counter();
+//   private mergeStream = createMergeStream();
+
+//   constructor() {
+//     // id 0 is auto allocated
+//     this.subAllocator.up();
+//   }
+
+//   add(stream: ReadableStream<AssistantStreamChunk>) {
+//     this.mergeStream.addStream(
+//       stream.pipeThrough(new SpanParentEncoder(this.subAllocator)),
+//     );
+//   }
+
+//   enqueue(chunk: AssistantStreamChunk & { parentId: 0 }) {
+//     this.mergeStream.addStream(
+//       new ReadableStream({
+//         start(c) {
+//           c.enqueue(chunk);
+//           c.close();
+//         },
+//       }),
+//     );
+//   }
+
+//   seal() {
+//     this.mergeStream.seal();
+//   }
+// }
+
+// export class SpanContainerSplitter {
+//   public writable;
+
+//   private isSealed = false;
+//   private writers = new Map<
+//     number,
+//     WritableStreamDefaultWriter<AssistantStreamChunk>
+//   >();
+
+//   private closeTasks: Promise<void>[] = [];
+
+//   private allocator = new Counter();
+//   private subAllocator = new Counter();
+
+//   constructor() {
+//     // id 0 is auto-allocated
+//     this.allocator.up();
+
+//     this.writable = new WritableStream({
+//       write: (chunk) => {
+//         const { type, parentId } = chunk;
+
+//         const writer = this.writers.get(parentId);
+//         if (writer === undefined) throw new Error("Parent id not found");
+
+//         writer.write(chunk);
+
+//         if (type === "span") {
+//           // allocate a new span id
+//           this.writers.set(this.allocator.up(), writer);
+//         }
+//         if (type === "finish") {
+//           this.writers.delete(parentId);
+//           writer.close();
+
+//           if (this.writers.size === 0) {
+//             const closeTask = this.writable.close();
+//             this.closeTasks.push(closeTask);
+//             closeTask.then(() => {
+//               this.closeTasks.splice(this.closeTasks.indexOf(closeTask), 1);
+//             });
+//           }
+//         }
+//       },
+//       close: async () => {
+//         if (this.writers.size > 0) throw new Error("Not all writers closed");
+
+//         // await and throw on any errors
+//         await Promise.all(this.closeTasks);
+//       },
+//     });
+//   }
+
+//   add(stream: WritableStream<AssistantStreamChunk>) {
+//     if (this.isSealed) throw new Error("Cannot add streams after sealing");
+
+//     const decoder = new SpanParentDecoder(this.subAllocator);
+//     decoder.readable.pipeTo(stream);
+
+//     this.writers.set(this.allocator.up(), decoder.writable.getWriter());
+//   }
+
+//   seal() {
+//     this.isSealed = true;
+//     if (this.writers.size === 0) this.writable.close();
+//   }
+// }

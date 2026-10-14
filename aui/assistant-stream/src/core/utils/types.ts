@@ -1,0 +1,237 @@
+import type {
+  ReadonlyJSONObject,
+  ReadonlyJSONValue,
+} from "../../utils/json/json-value";
+import type { ToolModelContentPart } from "../tool/tool-types";
+
+type TextStatus =
+  | {
+      type: "running";
+    }
+  | {
+      type: "complete";
+      reason: "stop" | "unknown";
+    }
+  | {
+      type: "incomplete";
+      reason: "cancelled" | "length" | "content-filter" | "other";
+    };
+
+// export type StepStartPart = {
+//   type: "step-start";
+// };
+
+export type TextPart = {
+  type: "text";
+  text: string;
+  status: TextStatus;
+  parentId?: string;
+};
+
+export type ReasoningPart = {
+  type: "reasoning";
+  text: string;
+  status: TextStatus;
+  /** @deprecated Experimental since 2026-08-07. Not scheduled for removal; the API may change in any release. */
+  unstable_summary?: string;
+  timing?: MessagePartTiming;
+  parentId?: string;
+};
+
+type ToolCallStatus =
+  | {
+      type: "running";
+      isArgsComplete: boolean;
+    }
+  | {
+      type: "requires-action";
+      reason: "tool-call-result";
+    }
+  | {
+      type: "complete";
+      reason: "stop" | "unknown";
+    }
+  | {
+      type: "incomplete";
+      reason: "cancelled" | "length" | "content-filter" | "other";
+    };
+
+/**
+ * Wall-clock timing of a message part. Accumulator-populated timings are
+ * measured by the consuming accumulator, so resumed or replayed streams
+ * re-measure them; hosts that need authoritative timings supply the field
+ * themselves.
+ */
+export type MessagePartTiming = {
+  /** Epoch milliseconds when the part started streaming, or when a tool call started executing. */
+  readonly startedAt: number;
+  /** Epoch milliseconds when the part finished: a reasoning part stopped streaming, or a tool call's result landed. Absent while the part runs. */
+  readonly completedAt?: number;
+};
+
+/** Wall-clock timing of a tool call. */
+export type ToolCallTiming = MessagePartTiming;
+
+type ToolCallPartBase = {
+  type: "tool-call";
+  status: ToolCallStatus;
+  toolCallId: string;
+  toolName: string;
+  argsText: string;
+  args: ReadonlyJSONObject;
+  timing?: ToolCallTiming;
+  artifact?: ReadonlyJSONValue;
+  result?: ReadonlyJSONValue;
+  modelContent?: readonly ToolModelContentPart[];
+  isError?: boolean;
+  parentId?: string;
+};
+
+type ToolCallPartWithoutResult = ToolCallPartBase & {
+  state: "partial-call" | "call";
+  result?: undefined;
+  modelContent?: undefined;
+  isPreliminary?: undefined;
+};
+
+type ToolCallPartWithPreliminaryResult = ToolCallPartBase & {
+  state: "partial-call" | "call";
+  result: ReadonlyJSONValue;
+  isPreliminary: true;
+  artifact?: ReadonlyJSONValue;
+  modelContent?: readonly ToolModelContentPart[];
+  isError?: boolean;
+};
+
+type ToolCallPartWithResult = ToolCallPartBase & {
+  state: "result";
+  result: ReadonlyJSONValue;
+  isPreliminary?: undefined;
+  artifact?: ReadonlyJSONValue;
+  modelContent?: readonly ToolModelContentPart[];
+  isError?: boolean;
+};
+
+export type ToolCallPart =
+  | ToolCallPartWithoutResult
+  | ToolCallPartWithPreliminaryResult
+  | ToolCallPartWithResult;
+
+export type SourcePart = {
+  type: "source";
+  sourceType: "url";
+  id: string;
+  url: string;
+  title?: string;
+  parentId?: string;
+};
+
+export type FilePart = {
+  type: "file";
+  data: string;
+  mimeType: string;
+  parentId?: string;
+};
+
+export type DataPart = {
+  type: "data";
+  name: string;
+  data: ReadonlyJSONValue;
+  parentId?: string;
+};
+
+export type AssistantMessagePart =
+  | TextPart
+  | ReasoningPart
+  | ToolCallPart
+  | SourcePart
+  | FilePart
+  | DataPart;
+
+type AssistantMessageStepUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+type AssistantMessageStepMetadata =
+  | {
+      state: "started";
+      messageId: string;
+    }
+  | {
+      state: "finished";
+      messageId: string;
+      finishReason:
+        | "stop"
+        | "length"
+        | "content-filter"
+        | "tool-calls"
+        | "error"
+        | "other"
+        | "unknown";
+      usage?: AssistantMessageStepUsage;
+      isContinued: boolean;
+    };
+
+export type AssistantMessageStatus =
+  | {
+      type: "running";
+    }
+  | {
+      type: "requires-action";
+      reason: "tool-calls";
+    }
+  | {
+      type: "complete";
+      reason: "stop" | "unknown";
+    }
+  | {
+      type: "incomplete";
+      reason:
+        | "cancelled"
+        | "tool-calls"
+        | "length"
+        | "content-filter"
+        | "other"
+        | "error";
+      error?: ReadonlyJSONValue;
+    };
+
+export type AssistantMessageTiming = {
+  /** Timestamp when the stream started (ms since epoch) */
+  streamStartTime: number;
+  /** Time to first text token (ms), undefined if no text was generated */
+  firstTokenTime?: number;
+  /** Total stream duration (ms) */
+  totalStreamTime?: number;
+  /** Estimated or actual completion token count */
+  tokenCount?: number;
+  /** Tokens per second throughput */
+  tokensPerSecond?: number;
+  /** Total number of chunks received */
+  totalChunks: number;
+  /** Number of tool calls in the message */
+  toolCallCount: number;
+};
+
+export type AssistantMessage = {
+  role: "assistant";
+  status: AssistantMessageStatus;
+  parts: AssistantMessagePart[];
+  /**
+   * @deprecated Use `parts` instead.
+   */
+  content: AssistantMessagePart[];
+
+  metadata: {
+    /** @deprecated Experimental since 2025-05-20. Not scheduled for removal; the API may change in any release. */
+    unstable_state: ReadonlyJSONValue;
+    /** @deprecated Experimental since 2025-01-04. Not scheduled for removal; the API may change in any release. */
+    unstable_data: ReadonlyJSONValue[];
+    /** @deprecated Experimental since 2025-01-27. Not scheduled for removal; the API may change in any release. */
+    unstable_annotations: ReadonlyJSONValue[];
+    steps: AssistantMessageStepMetadata[];
+    custom: Record<string, unknown>;
+    timing?: AssistantMessageTiming;
+  };
+};
