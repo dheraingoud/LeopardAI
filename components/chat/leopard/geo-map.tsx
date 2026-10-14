@@ -94,7 +94,8 @@ export function GeoMap({
   const markersRef = useRef(new Map<string, LeafletMarker>());
   const [mapReady, setMapReady] = useState(false);
   const mapContent = useMemo(() => {
-    const validPlaces = places.filter((place) =>
+    const placeList = Array.isArray(places) ? places : [];
+    const validPlaces = placeList.filter((place) =>
       isCoordinate(place.lat, place.lng),
     );
     const routePoints: Coordinate[] = [];
@@ -111,7 +112,7 @@ export function GeoMap({
 
     return {
       signature: JSON.stringify([
-        places.map((place) => [
+        placeList.map((place) => [
           place.id,
           place.lat,
           place.lng,
