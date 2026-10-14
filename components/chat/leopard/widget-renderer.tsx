@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
 import { MermaidDiagram } from "./mermaid-diagram";
+import { NumberTicker } from "./number-ticker";
 import type { WidgetSpec } from "@/lib/ai/widget-schema";
 
 const GeoMapLazy = dynamic(
@@ -73,10 +74,20 @@ function TableWidget({ title, columns, rows }: Extract<WidgetSpec, { _type: "tab
 }
 
 function StatWidget({ label, value, change, trend }: Extract<WidgetSpec, { _type: "stat" }>) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  const isNumeric = Number.isFinite(numeric) && String(value).trim() !== "";
   return (
     <div className={cn(paper, "rounded-xl p-4 my-2 flex flex-col gap-1")}>
       <span className={cn(mono, "text-[11px] uppercase tracking-wider text-foreground/40")}>{label}</span>
-      <span className="text-2xl font-semibold dark:text-[#ececec] light:text-[#171717]">{value}</span>
+      {isNumeric ? (
+        <NumberTicker
+          value={numeric}
+          label=""
+          className="items-start gap-0 [&>span:first-child]:text-2xl [&>span:first-child]:font-semibold [&>span:first-child]:dark:text-[#ececec] [&>span:first-child]:light:text-[#171717]"
+        />
+      ) : (
+        <span className="text-2xl font-semibold dark:text-[#ececec] light:text-[#171717]">{value}</span>
+      )}
       {change && (
         <span className={cn(
           "text-xs font-mono",
