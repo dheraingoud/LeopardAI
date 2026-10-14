@@ -1338,6 +1338,32 @@ export function ActiveChatProvider({
     (message, options) => {
       // A new turn supersedes the compaction notice from the previous one.
       setCompactionNotice(false);
+      // Orphan-approval cleanup (aui B4): a new send while an approval card is
+      // still pending leaves the card hanging forever — mark every
+      // approval-requested part as cancelled so the card settles as skipped.
+      const hasPending = chat.messages.some(
+        (m) =>
+          m.role === "assistant" &&
+          (m.parts ?? []).some(
+            (p) => (p as { state?: string }).state === "approval-requested",
+          ),
+      );
+      if (hasPending) {
+        chat.setMessages(
+          chat.messages.map((m) =>
+            m.role !== "assistant"
+              ? m
+              : {
+                  ...m,
+                  parts: (m.parts ?? []).map((p) =>
+                    (p as { state?: string }).state === "approval-requested"
+                      ? ({ ...p, state: "output-denied", approval: { ...(p as { approval?: object }).approval, approved: false, reason: "Superseded by a new message" } } as typeof p)
+                      : p,
+                  ),
+                },
+          ),
+        );
+      }
       if (!isDraft) return chat.sendMessage(message, options);
       const u = uidRef.current;
       if (!u) return Promise.resolve(undefined as never);
