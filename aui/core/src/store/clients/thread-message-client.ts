@@ -1,0 +1,193 @@
+import type {
+  ThreadAssistantMessagePart,
+  ThreadUserMessagePart,
+  ThreadMessage,
+} from "../../types/message";
+import type { Attachment } from "../../types/attachment";
+import type { ComposerSubmission } from "../../runtime/interfaces/composer-runtime-core";
+import { useMemo, useState } from "react";
+import { resource, withKey } from "@/aui/tap";
+import type { ClientOutput } from "@/aui/store";
+import { useClientLookup, useClientResource } from "@/aui/store/client";
+import type { MessageState } from "../scopes/message";
+import type { PartState } from "../scopes/part";
+import { NoOpComposerClient } from "./no-op-composer-client";
+import {
+  COMPLETE_STATUS,
+  normalizePartStatus,
+} from "../../utils/normalizePartStatus";
+import { getThreadMessageText } from "../../utils/text";
+import { getMessagePartKeys } from "../../utils/getMessagePartKeys";
+
+const useThreadMessagePartClient = ({
+  part,
+  isMessageRunning,
+}: {
+  part: ThreadAssistantMessagePart | ThreadUserMessagePart;
+  isMessageRunning: boolean;
+}): ClientOutput<"part"> => {
+  const state = useMemo<PartState>(() => {
+    return {
+      ...part,
+      status: isMessageRunning
+        ? (normalizePartStatus(part) ?? COMPLETE_STATUS)
+        : COMPLETE_STATUS,
+    };
+  }, [part, isMessageRunning]);
+
+  return {
+    getState: () => state,
+    addToolResult: () => {
+      throw new Error("Not supported");
+    },
+    resumeToolCall: () => {
+      throw new Error("Not supported");
+    },
+    respondToToolApproval: () => {
+      throw new Error("Not supported");
+    },
+    unstable_recordInteraction: async () => {},
+  };
+};
+
+const ThreadMessagePartClient = resource(useThreadMessagePartClient);
+
+const useThreadMessageAttachmentClient = ({
+  attachment,
+}: {
+  attachment: Attachment;
+}): ClientOutput<"attachment"> => {
+  return {
+    getState: () => attachment,
+    remove: () => {
+      throw new Error("Not supported");
+    },
+  };
+};
+
+const ThreadMessageAttachmentClient = resource(
+  useThreadMessageAttachmentClient,
+);
+export type ThreadMessageClientProps = {
+  message: ThreadMessage;
+  index: number;
+  isLast?: boolean;
+  branchNumber?: number;
+  branchCount?: number;
+  /** Set when this row is a composer submission rather than a thread message. */
+  submission?: ComposerSubmission | undefined;
+};
+
+const useThreadMessageClient = ({
+  message,
+  index,
+  isLast = true,
+  branchNumber = 1,
+  branchCount = 1,
+  submission,
+}: ThreadMessageClientProps): ClientOutput<"message"> => {
+  const [isCopiedState, setIsCopied] = useState(false);
+  const [isHoveringState, setIsHovering] = useState(false);
+  const isMessageRunning =
+    message.role === "assistant" && message.status.type === "running";
+
+  const partKeys = getMessagePartKeys(message.content);
+  const parts = useClientLookup(
+    message.content.map((part, idx) =>
+      withKey(
+        partKeys[idx]!,
+        ThreadMessagePartClient({ part, isMessageRunning }),
+        [part, isMessageRunning],
+      ),
+    ),
+  );
+
+  const attachments = useClientLookup(
+    (submission?.attachments ?? message.attachments ?? []).map((attachment) =>
+      withKey(attachment.id, ThreadMessageAttachmentClient({ attachment }), [
+        attachment,
+      ]),
+    ),
+  );
+
+  const composer = useClientResource(NoOpComposerClient({ type: "edit" }));
+  const composerState = composer.state;
+
+  const state = useMemo<MessageState>(() => {
+    return {
+      ...message,
+      parts: parts.state,
+      composer: composerState,
+      parentId: null,
+      index,
+      isLast,
+      branchNumber,
+      branchCount,
+      speech: undefined,
+      isCopied: isCopiedState,
+      isHovering: isHoveringState,
+      submission,
+    };
+  }, [
+    message,
+    submission,
+    index,
+    isCopiedState,
+    isHoveringState,
+    isLast,
+    parts.state,
+    composerState,
+    branchNumber,
+    branchCount,
+  ]);
+
+  return {
+    getState: () => state,
+    composer: () => composer.methods,
+    part: (selector) => {
+      if ("index" in selector) {
+        return parts.get({ index: selector.index });
+      } else {
+        return parts.get({
+          index: message.content.findIndex(
+            (part) =>
+              part.type === "tool-call" &&
+              part.toolCallId === selector.toolCallId,
+          ),
+        });
+      }
+    },
+    attachment: (selector) => {
+      if ("id" in selector) {
+        return attachments.get({ key: selector.id });
+      } else {
+        return attachments.get(selector);
+      }
+    },
+    delete: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    reload: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    speak: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    stopSpeaking: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    submitFeedback: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    switchToBranch: () => {
+      throw new Error("Not supported in ThreadMessageProvider");
+    },
+    getCopyText: () => {
+      return getThreadMessageText(message);
+    },
+    setIsCopied,
+    setIsHovering,
+  };
+};
+
+export const ThreadMessageClient = resource(useThreadMessageClient);
