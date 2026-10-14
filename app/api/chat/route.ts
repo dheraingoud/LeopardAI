@@ -832,6 +832,21 @@ export async function POST(request: Request) {
     ?.map((p) => (p.type === "text" ? p.text : ""))
     .join(" ");
 
+  // 8c. Resumable-stream re-attach (x-resumable-stream-id). The detached
+  //     generation keeps running after the client disconnects; a reloaded page
+  //     can re-attach to the LIVE SSE instead of relying on Convex polling
+  //     patches. The stream id IS the assistant row id this turn will persist
+  //     under: the client records it (sessionStorage, per chat) from this
+  //     response header, then on remount GETs /api/chat/[chatId]/stream, which
+  //     re-subscribes to the in-process generation bus (server-generation).
+  //     Minted HERE (before the response headers are sent) because the id is
+  //     otherwise only known inside the stream execute. Approval-RESUME posts
+  //     resolve their row id via the pendingRow poll INSIDE execute, so they
+  //     emit no header — the client keeps the entry from the original send
+  //     (same row id either way).
+  const isApprovalResumeEarly = approvalMsgEarly != null;
+  const resumableStreamId = generateId();
+
   // 9. Build the UIMessage stream.
   const stream = createUIMessageStream({
       // TEMP-DBG: catch any error from streamText + merge so we see the actual
@@ -917,7 +932,7 @@ export async function POST(request: Request) {
         } as never);
         return;
       }
-      const assistantId = pendingRow?.id ?? generateId();
+      const assistantId = pendingRow?.id ?? resumableStreamId;
       // Carry the persisted tool parts into the resumed generation: the row is
       // re-persisted from a fresh accumulator, so without the seed the tool card
       // vanishes on reload. Mark them approval-responded so the gate card does
@@ -1516,5 +1531,12 @@ export async function POST(request: Request) {
     },
   });
 
-  return createUIMessageStreamResponse({ stream });
+  // x-resumable-stream-id → see 8c above. Approval-resume posts resolve their
+  // row id only inside the stream (pendingRow), so no header rides those.
+  return createUIMessageStreamResponse({
+    stream,
+    headers: isApprovalResumeEarly
+      ? undefined
+      : { "x-resumable-stream-id": resumableStreamId },
+  });
 }
