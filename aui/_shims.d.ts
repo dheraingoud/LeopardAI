@@ -4,6 +4,23 @@
 // modules they use so the fork compiles without pulling each one's dev deps.
 declare module "cross-spawn";
 declare module "statewire";
+declare module "ioredis" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export class Redis {
+    constructor(...args: any[]);
+    xrangeBuffer(...args: any[]): Promise<[any, any][]>;
+    [key: string]: any;
+  }
+  export class Cluster {
+    constructor(...args: any[]);
+    [key: string]: any;
+  }
+  export type IoRedis = any;
+  export type IoRedisCluster = any;
+  export type ChainableCommander = any;
+  export default Redis;
+}
+declare module "redis";
 declare module "@/aui/tap";
 declare module "@/aui/tap/*";
 declare module "@/aui/x-generative-compiler";
