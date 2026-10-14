@@ -30,6 +30,7 @@ import {
   type ImageCacheEntry,
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
+import { RunLeases } from "@/lib/run-leases";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
 import { getEnabledMcpServers } from "@/lib/mcp-config";
 import { useSettingsStore } from "@/hooks/use-settings-store";
@@ -755,6 +756,9 @@ export function ActiveChatProvider({
   // re-ran and the pre-approval + resume bubbles BOTH stayed in state
   // (duplicated thinking/tool cards until reload).
   const [resumeInFlight, setResumeInFlight] = useState(false);
+  // Generation fence for resume races: a stale resume window never no-ops the
+  // mirror while a newer run is active.
+  const resumeLeases = useRef(new RunLeases());
 
   // ── Φ10 / #3: live-mirror the SERVER-written assistant rows into the view ─
   // Covers reload-mid-generation: after remount, the `streaming`/`completed`
@@ -777,7 +781,9 @@ export function ActiveChatProvider({
     // the part state: after a reload mid-resume the persisted placeholder row
     // IS approval-responded, and the guard would lock forever — the row never
     // updates to output-available and the card hangs on "Writing" (X4.2 RCA).
-    if (resumeInFlight) return;
+    // Lease check: a stale lease from a superseded resume never keeps the
+    // mirror closed.
+    if (resumeInFlight && resumeLeases.current.current().isCurrent()) return;
     // Same loop guard as the dedupe effect: never call setMessages when nothing
     // changed — the store notify alone refires this effect (chat.messages
     // identity churn) → infinite loop (2026-09-06).
@@ -1621,35 +1627,41 @@ export function ActiveChatProvider({
       // then force-send. If the SDK is somehow still streaming, sendMessage
       // queues or the route's resume detection handles it.
       chat.stop();
+      // Generation fence: any newer begin() invalidates this lease, so the
+      // release poll and the mirror gate stay open even if a stale RAF poll
+      // from an aborted resume window fires.
+      const lease = resumeLeases.current.begin();
       setResumeInFlight(true);
       // Two RAFs: first lets the abort propagate through the SDK's internal
       // stream processing, second lets React flush the status update.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
+          if (!lease.isCurrent()) return; // a newer run superseded this resume
           void chat.sendMessage().catch(() => {
             /* surfaced via chat.error → error card */
           });
-        // Release once the resume stream drains back to ready. Two phases:
-        // the 250ms poll used to catch the stale "ready" between sendMessage
-        // and the status actually flipping — released instantly, the mirror
-        // ran mid-resume and the dedupe collapsed nothing (s3 allow: 2
-        // bubbles, 2026-09-06). Wait until the stream is OBSERVED live first
-        // (15s cap: a denied-only resume may never stream), then until ready.
-        let sawLive = false;
-        const t0 = Date.now();
-        const release = () => {
-          const s = statusRef.current;
-          if (s === "streaming" || s === "submitted") {
-            sawLive = true;
-            setTimeout(release, 250);
-            return;
-          }
-          if (!sawLive && Date.now() - t0 < 15_000) {
-            setTimeout(release, 250);
-            return;
-          }
-          setResumeInFlight(false);
-        };
+          // Release once the resume stream drains back to ready. Two phases:
+          // the 250ms poll used to catch the stale "ready" between sendMessage
+          // and the status actually flipping — released instantly, the mirror
+          // ran mid-resume and the dedupe collapsed nothing (s3 allow: 2
+          // bubbles, 2026-09-06). Wait until the stream is OBSERVED live first
+          // (15s cap: a denied-only resume may never stream), then until ready.
+          let sawLive = false;
+          const t0 = Date.now();
+          const release = () => {
+            if (!lease.isCurrent()) return; // superseded — never release this lease
+            const s = statusRef.current;
+            if (s === "streaming" || s === "submitted") {
+              sawLive = true;
+              setTimeout(release, 250);
+              return;
+            }
+            if (!sawLive && Date.now() - t0 < 15_000) {
+              setTimeout(release, 250);
+              return;
+            }
+            setResumeInFlight(false);
+          };
           setTimeout(release, 250);
         });
       });
