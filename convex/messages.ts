@@ -204,6 +204,57 @@ export const settleStreaming = mutation({
 // turns (the Instagram-CDN zombie). One-off/insurance sweep — flips any
 // approval-requested part on a NON-streaming row to "interrupted" so the
 // client renders it as nothing (never a resurrected Allow/Deny card).
+// Approval decision write (2026-10-15): the Allow/Deny card can render from a
+// MIRRORED row (the SDK stream already ended on the gate, so the SDK holds no
+// tool part to answer). In that case the client's addToolApprovalResponse
+// no-ops and the resume POST goes out with no decision — the server logs
+// "[approval-resume] detected: false", treats it as a plain message, and the
+// turn dies with the tool never running. Write the decision to the ROW first so
+// the row is the source of truth the resume can anchor to.
+export const respondToApproval = mutation({
+  args: {
+    chatId: v.id("chats"),
+    userId: v.string(),
+    approvalId: v.string(),
+    approved: v.boolean(),
+    reason: v.optional(v.string()),
+  },
+  returns: v.object({ responded: v.boolean() }),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .collect();
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const row = rows[i];
+      if (row.role !== "assistant") continue;
+      const parts = row.parts ?? [];
+      const at = parts.findIndex(
+        (p) =>
+          (p as { state?: string })?.state === "approval-requested" &&
+          (p as { approval?: { id?: string } })?.approval?.id === args.approvalId,
+      );
+      if (at < 0) continue;
+      const next = parts.map((p, idx) =>
+        idx === at
+          ? {
+              ...(p as object),
+              state: "approval-responded",
+              approval: {
+                ...((p as { approval?: object }).approval ?? {}),
+                id: args.approvalId,
+                approved: args.approved,
+                ...(args.reason !== undefined ? { reason: args.reason } : {}),
+              },
+            }
+          : p,
+      );
+      await ctx.db.patch(row._id, { parts: next });
+      return { responded: true };
+    }
+    return { responded: false };
+  },
+});
 export const buryOrphanApprovals = internalMutation({
   args: { chatId: v.id("chats") },
   returns: v.object({ swept: v.number() }),

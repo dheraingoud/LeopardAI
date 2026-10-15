@@ -268,6 +268,7 @@ export function ActiveChatProvider({
   const updateModel = useMutation(api.chats.updateModel);
   const touchChat = useMutation(api.chats.touch);
   const settleStreaming = useMutation(api.messages.settleStreaming);
+  const respondToApproval = useMutation(api.messages.respondToApproval);
   // Φ6: persist assembled artifact doc on stream finish (client-persist —
   // route has no ConvexHttpClient by design; mirrors messages.send pattern).
   const documentsSave = useMutation(api.documents.save);
@@ -1796,6 +1797,26 @@ export function ActiveChatProvider({
   // row after a reload must NOT block them (X4.2).
   const approveAndResume = useCallback(
     (approvalId: string, approved: boolean, reason?: string) => {
+      // Mirror-row gate: the SDK stream already ended on the gate, so the SDK
+      // holds no tool part for addToolApprovalResponse to answer. Write the
+      // decision to the ROW so the resume POST carries it and the server's
+      // resolver can anchor. Fire-and-forget: the resume POST below re-reads
+      // the row server-side, and a lost write only means the pre-fix failure.
+      // Set FIRST: the mutation's Convex write re-fires the mirror effect, and
+      // without the flag it would clobber the SDK's approval-responded patch
+      // below before the resume POST reads it.
+      setResumeInFlight(true);
+      if (!isDraft && convexChatId && uidRef.current) {
+        void respondToApproval({
+          chatId: convexChatId as never,
+          userId: uidRef.current,
+          approvalId,
+          approved,
+          ...(reason !== undefined ? { reason } : {}),
+        }).catch(() => {
+          /* the resume POST's own anchor poll is the backstop */
+        });
+      }
       (
         chat as unknown as {
           addToolApprovalResponse?: (r: { id: string; approved: boolean; reason?: string }) => void;
@@ -1851,7 +1872,6 @@ export function ActiveChatProvider({
       // release poll and the mirror gate stay open even if a stale RAF poll
       // from an aborted resume window fires.
       const lease = resumeLeases.current.begin();
-      setResumeInFlight(true);
       // Two RAFs: first lets the abort propagate through the SDK's internal
       // stream processing, second lets React flush the status update.
       requestAnimationFrame(() => {
@@ -1888,7 +1908,7 @@ export function ActiveChatProvider({
         });
       });
     },
-    [chat],
+    [chat, respondToApproval, isDraft, convexChatId],
   );
 
   // Prior reply variants for the turn an assistant message answers (empty when
