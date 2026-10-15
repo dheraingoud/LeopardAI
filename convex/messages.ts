@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { requireChatOwner } from "./_auth";
+import { applyApprovalDecision, findApprovalTarget } from "@/lib/approval-target";
 
 
 export const list = query({
@@ -225,34 +226,16 @@ export const respondToApproval = mutation({
       .query("messages")
       .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
       .collect();
-    for (let i = rows.length - 1; i >= 0; i--) {
-      const row = rows[i];
-      if (row.role !== "assistant") continue;
-      const parts = row.parts ?? [];
-      const at = parts.findIndex(
-        (p) =>
-          (p as { state?: string })?.state === "approval-requested" &&
-          (p as { approval?: { id?: string } })?.approval?.id === args.approvalId,
-      );
-      if (at < 0) continue;
-      const next = parts.map((p, idx) =>
-        idx === at
-          ? {
-              ...(p as object),
-              state: "approval-responded",
-              approval: {
-                ...((p as { approval?: object }).approval ?? {}),
-                id: args.approvalId,
-                approved: args.approved,
-                ...(args.reason !== undefined ? { reason: args.reason } : {}),
-              },
-            }
-          : p,
-      );
-      await ctx.db.patch(row._id, { parts: next });
-      return { responded: true };
-    }
-    return { responded: false };
+    const target = findApprovalTarget(rows, args.approvalId);
+    if (!target) return { responded: false };
+    const row = rows[target.rowIndex];
+    const next = applyApprovalDecision(row.parts ?? [], target.partIndex, {
+      approvalId: args.approvalId,
+      approved: args.approved,
+      reason: args.reason,
+    });
+    await ctx.db.patch(target.rowId, { parts: next });
+    return { responded: true };
   },
 });
 export const buryOrphanApprovals = internalMutation({

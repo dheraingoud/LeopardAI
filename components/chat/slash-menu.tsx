@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, floating, mono } from "./leopard/surfaces";
-import { skillSlug, type SkillConfig } from "@/lib/skill-config";
+import type { SlashMatch } from "@/lib/slash-matches";
 
 // Per-command icon by slug keyword — a generic slash for everything else.
 // Mirrors the reference composer menu (each command carries its own icon).
@@ -42,29 +42,10 @@ function skillIcon(slug: string, name: string): LucideIcon {
  * places `/<slug> ` in the textarea (parsed server-side by getInvokedSkillBodies).
  */
 
-export interface SlashMatch {
-  skill: SkillConfig;
-  slug: string;
-}
-
-/** Enabled skills whose slug (or display name) starts with the slash query.
- *  Empty query yields every enabled skill. */
-export function getSlashMatches(
-  value: string,
-  skills: readonly SkillConfig[] | undefined,
-): SlashMatch[] {
-  if (!skills || !value.startsWith("/")) return [];
-  const query = value.slice(1).toLowerCase();
-  return skills
-    .filter((s) => s.enabled)
-    .map((s) => ({ skill: s, slug: skillSlug(s) }))
-    .filter(({ skill, slug }) => {
-      if (!query) return true;
-      return (
-        skill.name.toLowerCase().startsWith(query) || slug.startsWith(query)
-      );
-    });
-}
+/** Matching lives in lib/slash-matches.ts so it is testable outside React.
+ *  Re-exported here because the composer imports both from this module. */
+export { getSlashMatches } from "@/lib/slash-matches";
+export type { SlashMatch };
 
 /** One short line: first sentence of the body, hard-capped. */
 function blurb(body: string | undefined): string {
