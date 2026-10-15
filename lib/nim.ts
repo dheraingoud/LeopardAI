@@ -3,12 +3,13 @@
  *
  * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   nemotron-3.5-lightning-30b-a3b (DEFAULT), kimi-k3 (hangs on tool-use turns 2026-09-02),
- *   diffusiongemma-26b-a4b-it, muse-glimmer-30b, poolside-laguna-xs-2.1,
- *   nemotron-3.5-lightning-30b-a3b, deepseek-v4-flash-0731 (unfrozen
- *   2026-08-31), deepseek-v4-pro-0813.
+ *   stepfun-ai/step-5-preview (DEFAULT), nvidia/nemotron-3.5-lightning-30b-a3b,
+ *   google/diffusiongemma-26b-a4b-it, meta/muse-glimmer-30b,
+ *   poolside-laguna-xs-2.1, google/gemma-4-31b-it,
+ *   deepseek-ai/deepseek-v4.1-flash, z-ai/glm-5.3-flash.
  * inkling + step-3.7-flash removed 2026-08-31 (broken routing / NIM 404).
  * glm-5.2 removed 2026-08-24 (deprecated — no longer in /v1/models).
+ * kimi-k3 + glm-5.3 removed 2026-10-15 (operator: retire from picker).
  * minimax-m3 removed 2026-08-31 (operator: minimax deprecating; was also
  *   returning 0-token "stop" responses with 50-85s latency).
  * All ids verified present in /v1/models (2026-08-24 probe: 102 models).
@@ -154,7 +155,7 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 // 2026-09-02: kimi briefly re-defaulted (plain replies fast) but HANGS on
 // tool-use turns (300s, spawn_agents never fires) → default back to
 // nemotron-3.5-lightning; orchestration green again (live-notes PASS).
-export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
+export const DEFAULT_MODEL = "stepfun-ai/step-5-preview";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
@@ -172,28 +173,7 @@ export const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   // GLM 5.2 removed 2026-08-24 — deprecated + pulled from the NIM /v1/models
   // catalogue (probe returns zero glm ids). Do not re-add.
-  "moonshotai/kimi-k3": {
-    id: "moonshotai/kimi-k3",
-    displayName: "Kimi K3",
-    speedTier: 1.5,
-    type: "vlm",
-    supportsVision: true, // operator-confirmed vision 2026-09-03
-    visionModalities: ["image", "video"],
-    supportsTools: true,
-    contextWindow: 262_144,
-    // Probed live 2026-08-24: responds without params (reasoning_content
-    // populated by default); `reasoning_effort` accepts ONLY low/high/max —
-    // NIM 400s on "medium" ("supported values are low, high, and max").
-    // high/max emit long reasoning (need a generous token budget);
-    // `chat_template_kwargs:{enable_thinking:false}` cleanly disables reasoning.
-    reasoning: {
-      enabled: true,
-      toggleable: true,
-      param: "effort",
-      effortLevels: ["low", "high", "max"],
-      defaultEffort: "low",
-    },
-  },
+  // moonshotai/kimi-k3 REMOVED 2026-10-15 (operator: retire from picker).
   "google/gemma-4-31b-it": {
     id: "google/gemma-4-31b-it",
     displayName: "Gemma 4 31B",
@@ -230,28 +210,33 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       defaultEffort: "high",
     },
   },
-  // GLM 5.3 family added 2026-10-05 (operator). Both verified in /v1/models.
-  // GLM 5.3 family (added 2026-10-05). Probe 2026-10-08: enable_thinking:false
-  // is IGNORED upstream (reasoning_content arrives regardless) — but
-  // reasoning_effort works: low→0-900 chars, high→~11, max→~209. So the knob
-  // is real effort tiers with NO off (offSupported:false floors at "low").
-  "z-ai/glm-5.3": {
-    id: "z-ai/glm-5.3",
-    displayName: "GLM 5.3",
-    speedTier: 3,
+  // stepfun-ai/step-5-preview added 2026-10-15 (operator). Probed live:
+  // tools YES (finish_reason tool_calls, well-formed args), vision NO (image
+  // input → 400, text-only), reasoning YES — chat_template_kwargs
+  // enable_thinking:false cleanly empties reasoning_content, and
+  // reasoning_effort accepts low/high/max (low→0 chars, high→358, max→182).
+  "stepfun-ai/step-5-preview": {
+    id: "stepfun-ai/step-5-preview",
+    displayName: "Step 5 Preview",
+    speedTier: 1,
     type: "llm",
     supportsVision: false,
     supportsTools: true,
-    contextWindow: 1_000_000,
+    contextWindow: 262_144,
     reasoning: {
       enabled: true,
       toggleable: true,
       param: "effort",
       effortLevels: ["low", "high", "max"],
       defaultEffort: "low",
-      offSupported: false,
     },
   },
+  // GLM 5.3 family added 2026-10-05 (operator). Both verified in /v1/models.
+  // GLM 5.3 family (added 2026-10-05). Probe 2026-10-08: enable_thinking:false
+  // is IGNORED upstream (reasoning_content arrives regardless) — but
+  // reasoning_effort works: low→0-900 chars, high→~11, max→~209. So the knob
+  // is real effort tiers with NO off (offSupported:false floors at "low").
+  // z-ai/glm-5.3 REMOVED 2026-10-15 (operator: retire from picker).
   "z-ai/glm-5.3-flash": {
     id: "z-ai/glm-5.3-flash",
     displayName: "GLM 5.3 Flash",

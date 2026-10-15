@@ -23,9 +23,9 @@ import { Button } from "@/components/ui/button";
 const FEATURES = [
   {
     icon: Layers,
-    title: "Nine-model engine",
-    desc: "Route between Kimi K3, GLM 5.3, Nemotron Lightning, DeepSeek Flash, Muse Glimmer, Laguna, Gemma, and DiffusionGemma. Health-checked live, slow-but-up never reads as down.",
-    stat: "9",
+    title: "Eight-model engine",
+    desc: "Route between Step 5 Preview, Nemotron Lightning, DeepSeek Flash, Muse Glimmer, Laguna, Gemma, GLM 5.3 Flash, and DiffusionGemma. Health-checked live, slow-but-up never reads as down.",
+    stat: "8",
     statLabel: "models live",
     span: "lg:col-span-2",
   },
