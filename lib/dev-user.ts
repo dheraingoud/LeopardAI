@@ -8,7 +8,7 @@
  * → reload hydrate from Convex) without a Clerk session.
  *
  * Thread DEV_USER_ID through:
- *   - middleware.ts           (skip `auth.protect()`)
+ *   - proxy.ts                (skip `auth.protect()`)
  *   - app/(chat)/chat/page.tsx (create row with DEV_USER_ID)
  *   - hooks/use-active-chat.tsx (queries + mutations use DEV_USER_ID)
  *   - app/api/chat/route.ts  (skip 401, proceed with DEV_USER_ID)
