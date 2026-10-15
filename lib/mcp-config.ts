@@ -108,10 +108,6 @@ export const MCP_PRESETS: { name: string; server: Omit<McpServerConfig, "id" | "
     server: { name: "github", type: "http", url: "https://api.githubcopilot.com/mcp/" },
   },
   {
-    name: "fetch",
-    server: { name: "fetch", type: "stdio", command: "npx -y @modelcontextprotocol/server-fetch" },
-  },
-  {
     name: "sequential-thinking",
     server: { name: "sequential-thinking", type: "stdio", command: "npx -y @modelcontextprotocol/server-sequential-thinking" },
   },
