@@ -111,11 +111,11 @@ export function CommandPaletteHost() {
       const prompt = SAVED_PROMPTS.find((p) => `prompt:${p.id}` === id);
       if (!prompt) return;
       router.push("/chat");
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         window.dispatchEvent(
           new CustomEvent("composer:set-text", { detail: { text: prompt.text } }),
         );
-      });
+      }, 32);
     }
   };
 
