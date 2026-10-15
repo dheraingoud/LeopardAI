@@ -1872,23 +1872,15 @@ export function ActiveChatProvider({
       // release poll and the mirror gate stay open even if a stale RAF poll
       // from an aborted resume window fires.
       const lease = resumeLeases.current.begin();
-      // Two frames: first lets the abort propagate through the SDK's internal
-      // stream processing, second lets React flush the status update. A timer
-      // fallback is required — RAF is suspended in a hidden/backgrounded tab
-      // (verified: rafFired stays false while setTimeout still runs), and a
-      // suspended RAF left the resume POST unsent and the turn dead.
-      const nextFrame = (cb: () => void) => {
-        let done = false;
-        const run = () => {
-          if (done) return;
-          done = true;
-          cb();
-        };
-        requestAnimationFrame(run);
-        setTimeout(run, 32);
-      };
-      nextFrame(() => {
-        nextFrame(() => {
+      // Two ticks: first lets the abort propagate through the SDK's internal
+      // stream processing, second lets React flush the status update.
+      // setTimeout, NOT requestAnimationFrame: RAF is suspended whenever the
+      // compositor is not painting (hidden/backgrounded tab, headless), which
+      // left the resume POST permanently unsent and the turn dead. A timer
+      // fires in every visibility state.
+      const tick = (cb: () => void) => setTimeout(cb, 32);
+      tick(() => {
+        tick(() => {
           if (!lease.isCurrent()) return;
           void resumeLeases.current
             .fenced(() => chat.sendMessage())
