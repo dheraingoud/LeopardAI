@@ -31,6 +31,10 @@ import {
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { RunLeases } from "@/lib/run-leases";
+import {
+  createSerialRunQueue,
+  SerialRunQueueDropError,
+} from "@/lib/serial-run-queue";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
 import { getEnabledMcpServers } from "@/lib/mcp-config";
 import { useSettingsStore } from "@/hooks/use-settings-store";
@@ -820,6 +824,22 @@ export function ActiveChatProvider({
   // mirror while a newer run is active.
   const resumeLeases = useRef(new RunLeases());
 
+  // ── Serial turn queue (aui react-langgraph SerialRunQueue, 2026-10-15) ─────
+  // At most one SDK turn is in flight. A send/regenerate/edit-resend that lands
+  // while a turn runs waits for it instead of racing it (the SDK's own guard
+  // makes a second concurrent send a silent no-op, so the user saw "sent" and
+  // nothing happened). Back-to-back sends form ONE running window — the queue
+  // only reports idle once nothing else is queued, so the composer can't
+  // flicker send→stop→send mid-typing. stopGeneration() drops whatever is
+  // queued and leaves the live turn to settle.
+  const turnQueueRef = useRef(
+    createSerialRunQueue({
+      run: async (send: () => Promise<unknown>) => {
+        await send();
+      },
+    }),
+  );
+
   // ── Φ10 / #3: live-mirror the SERVER-written assistant rows into the view ─
   // Covers reload-mid-generation: after remount, the `streaming`/`completed`
   // row (written by the detached route task) appears in Convex; as the task
@@ -1275,6 +1295,11 @@ export function ActiveChatProvider({
         }, 5000);
       }
       chat.stop();
+      // Kill turns the user queued behind this one — they were sent while a
+      // turn was already running, and the user has now said stop. The live
+      // turn is left to settle (stopRun semantics: abort the fetch, let the
+      // server's finalize persist the partial).
+      turnQueueRef.current.drop();
       return stopped;
     },
     [chat.stop, chatId, isDraft, uid, settleStreaming],
@@ -1495,7 +1520,15 @@ export function ActiveChatProvider({
           ),
         );
       }
-      if (!isDraft) return chat.sendMessage(message, options);
+      if (!isDraft)
+        return turnQueueRef.current
+          .enqueue(() => chat.sendMessage(message, options))
+          .catch((error) => {
+            // A dropped follower (stopGeneration landed first) is not an error
+            // the user needs a card for — the turn they stopped is gone.
+            if (error instanceof SerialRunQueueDropError) return undefined;
+            throw error;
+          }) as ReturnType<typeof chat.sendMessage>;
       const u = uidRef.current;
       if (!u) return Promise.resolve(undefined as never);
       const parts =
