@@ -383,6 +383,11 @@ export function ActiveChatProvider({
   // adoption itself runs in the live-mirror effect below (review M3).
   const serverAssistantIdRef = useRef<string | null>(null);
 
+  // A cancelled turn whose server row is still being patched. Late tool-call
+  // frames from that turn must land on THIS bubble, not bleed into whatever
+  // turn the user started next.
+  const settlingAssistantIdRef = useRef<string | null>(null);
+
   // Last stream activity timestamp for the hung-request watchdog (declared
   // before useChat so onData can bump it — see the watchdog effect below).
   const lastActivityRef = useRef(Date.now());
@@ -929,6 +934,7 @@ export function ActiveChatProvider({
             changed = true;
           }
         } else if (m.role === "assistant") {
+          const isSettling = settlingAssistantIdRef.current === ui.id;
           // Never push a duplicate — the SDK bubble might already carry the
           // same id (adopted mid-stream) or the mirror might race itself.
           // Also check content: the SDK bubble might have a different id but
@@ -943,6 +949,7 @@ export function ActiveChatProvider({
             return xText === uiText && xText.length > 0;
           });
           if (!alreadyHas) {
+            if (isSettling) continue;
             next.push(ui);
             changed = true;
           }
@@ -1258,6 +1265,7 @@ export function ActiveChatProvider({
       // delete rows → resend. Fire-and-forget here raced the delete and the
       // abort's finalize upsert resurrected the old assistant row (2026-09-01).
       const sid = serverAssistantIdRef.current;
+      settlingAssistantIdRef.current = sid;
       // After a mid-stream reload the assistantId ref is empty (it's only set
       // from the live data-assistant-id chunk) — but the server-side detached
       // generation is still running and the mirror keeps syncing it into the
@@ -1523,6 +1531,7 @@ export function ActiveChatProvider({
         );
       }
       if (!isDraft) {
+        settlingAssistantIdRef.current = null;
         startLeases.current.invalidate();
         return turnQueueRef.current
           .enqueue(() => chat.sendMessage(message, options))
