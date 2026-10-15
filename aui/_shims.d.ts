@@ -66,6 +66,71 @@ declare module "@opentelemetry/exporter-trace-otlp-http" {
     [key: string]: any;
   }
 }
+// Non-web externals for forked-but-not-bundled packages (vue/svelte/react-native
+// adapters, MCP sdk v2 split) — ambient any so the fork tree typechecks; the
+// app never imports these paths at runtime.
+declare module "vue" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type Component<P = any> = any;
+  export type PropType<T = any> = any;
+  export type Ref<T = any> = any;
+  export type App<E = any> = any;
+  export const defineComponent: any;
+  export const ref: any;
+  export const computed: any;
+  export const watch: any;
+  export const h: any;
+  export const camelize: any;
+  export const Fragment: any;
+  export const inject: any;
+  export const onBeforeUnmount: any;
+  export const onErrorCaptured: any;
+  export const onMounted: any;
+  export const provide: any;
+  export const shallowRef: any;
+  export const toRef: any;
+  export const useSlots: any;
+  export const watchEffect: any;
+  export const nextTick: any;
+  const vue: any;
+  export default vue;
+}
+declare module "react-native" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type ViewStyle = any;
+  export type TextStyle = any;
+  export type StyleProp<T = any> = any;
+  export const View: any;
+  export const Text: any;
+  export const StyleSheet: any;
+  const rn: any;
+  export default rn;
+}
+declare module "react-native-web";
+declare module "@/aui/vue" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type Toolkit = any;
+  export type ToolUIProps = any;
+  const v: any;
+  export default v;
+}
+declare module "@/aui/react-native" {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  export type Toolkit = any;
+  const v: any;
+  export default v;
+}
+declare module "@testing-library/react";
+declare module "@testing-library/react";
+// Alias-shims for excluded non-web fork dirs — the dirs are excluded from the
+// app build (non-web), so @/aui/vue and @/aui/react-native resolve to these
+// ambient modules instead of real source. The generative-frame spec renderers
+// for those platforms typecheck against `any` here; the real types land only
+// if those platforms are ever built.
+declare module "@/aui/vue";
+declare module "@/aui/vue/*";
+declare module "@/aui/react-native";
+declare module "@/aui/react-native/*";
 declare module "@opentelemetry/api";
 declare module "@opentelemetry/exporter-trace-otlp-http";
 declare module "@opentelemetry/sdk-trace-base";
