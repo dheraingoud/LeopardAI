@@ -259,10 +259,15 @@ export async function resolvePendingApprovalRowId(input: {
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i];
       if (r.role !== "assistant") continue;
+      // approval-requested = the SDK still holds the gate. approval-responded =
+      // the client already wrote the decision to the row (mirror-row gate, where
+      // the SDK had no tool part to answer) — the resume POST is in flight with
+      // that decision, so the row is still the anchor for this turn.
       if (
-        (r.parts ?? []).some(
-          (p) => (p as { state?: string })?.state === "approval-requested",
-        )
+        (r.parts ?? []).some((p) => {
+          const s = (p as { state?: string })?.state;
+          return s === "approval-requested" || s === "approval-responded";
+        })
       ) {
         return { id: r.id, parts: r.parts ?? [] };
       }
