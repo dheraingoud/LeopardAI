@@ -1,10 +1,5 @@
-// Generation fence for late async work (aui RunLeases pattern). `begin()`
-// advances the generation and returns a lease for the new run; `current()`
-// captures the generation as-is; `invalidate()` advances without starting.
-// A lease stays current until the next begin() or invalidate().
-//
-// Use: any async continuation checks lease.isCurrent() before touching state.
-// A stale lease no-ops — the async work resolves but its effects are dropped.
+// Generation fence for late async work: a stale lease no-ops, so a superseded
+// run's effects are dropped even though the work itself still resolves.
 export type RunLease = {
   isCurrent(): boolean;
 };
@@ -24,5 +19,13 @@ export class RunLeases {
 
   public invalidate(): void {
     this._generation++;
+  }
+
+  public async fenced<T>(
+    fn: (lease: RunLease) => Promise<T>,
+  ): Promise<T | undefined> {
+    const lease = this.current();
+    const result = await fn(lease);
+    return lease.isCurrent() ? result : undefined;
   }
 }

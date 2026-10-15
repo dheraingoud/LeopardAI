@@ -823,6 +823,7 @@ export function ActiveChatProvider({
   // Generation fence for resume races: a stale resume window never no-ops the
   // mirror while a newer run is active.
   const resumeLeases = useRef(new RunLeases());
+  const startLeases = useRef(new RunLeases());
 
   // ── Serial turn queue (aui react-langgraph SerialRunQueue, 2026-10-15) ─────
   // At most one SDK turn is in flight. A send/regenerate/edit-resend that lands
@@ -1244,7 +1245,7 @@ export function ActiveChatProvider({
   // next user send.
   const [compactionNotice, setCompactionNotice] = useState(false);
 
-  const stopGeneration = useCallback(() => {
+  const stopGeneration = useCallback((opts?: { keepStartLease?: boolean }) => {
       cancelRetryRef.current();
       // A deliberate stop ends the turn — drop the resumable re-attach marker
       // so a later mount can't try to re-attach to a generation that was just
@@ -1300,6 +1301,7 @@ export function ActiveChatProvider({
       // turn is left to settle (stopRun semantics: abort the fetch, let the
       // server's finalize persist the partial).
       turnQueueRef.current.drop();
+      if (!opts?.keepStartLease) startLeases.current.invalidate();
       return stopped;
     },
     [chat.stop, chatId, isDraft, uid, settleStreaming],
@@ -1520,7 +1522,8 @@ export function ActiveChatProvider({
           ),
         );
       }
-      if (!isDraft)
+      if (!isDraft) {
+        startLeases.current.invalidate();
         return turnQueueRef.current
           .enqueue(() => chat.sendMessage(message, options))
           .catch((error) => {
@@ -1529,6 +1532,8 @@ export function ActiveChatProvider({
             if (error instanceof SerialRunQueueDropError) return undefined;
             throw error;
           }) as ReturnType<typeof chat.sendMessage>;
+      }
+
       const u = uidRef.current;
       if (!u) return Promise.resolve(undefined as never);
       const parts =
@@ -1633,7 +1638,7 @@ export function ActiveChatProvider({
       // Same ordering as editAndResend: abort the detached generation first and
       // let its finalize-partial write land BEFORE deleting rows, else the
       // abort's upsert resurrects the old assistant row after the delete.
-      const stopped = stopGeneration();
+      const stopped = stopGeneration({ keepStartLease: true });
       const u = uidRef.current;
       const target =
         !isDraft && u && convexMessages
@@ -1664,7 +1669,9 @@ export function ActiveChatProvider({
       // re-sending the last user message, DUPLICATING the turn. Fall back to a
       // bare regenerate (last assistant reply) when the id isn't live.
       const known = chat.messages.some((m) => m.id === messageId);
+      const lease = startLeases.current.begin();
       void cleanup.then(() => {
+        if (!lease.isCurrent()) return; // superseded during cleanup — withhold
         try {
           if (known) void r({ messageId });
           else void r();
@@ -1688,10 +1695,7 @@ export function ActiveChatProvider({
   const editMessage = useCallback(
     (messageId: string) => {
       // Stop any in-flight stream FIRST — truncating the message list out from
-      // under a live stream orphans it: the SDK never sees its finish chunk
-      // and status sticks at "streaming", deadlocking the composer. Uses the
-      // provider stop (also aborts the detached server generation).
-      const stopped = stopGeneration();
+      const stopped = stopGeneration({ keepStartLease: true });
       editWindowRef.current = true; // mirror off until the resend fires
       const u = uidRef.current;
       let deleted: Promise<unknown> = Promise.resolve();
@@ -1740,9 +1744,14 @@ export function ActiveChatProvider({
       // fired in that window re-POSTs them (route re-persists → duplicates).
       // The await also gives React a full network round-trip to apply the
       // setMessages truncation before we send.
+      const lease = startLeases.current.begin();
       void Promise.resolve(editMessage(messageId)).then(() => {
         let tries = 0;
         const attempt = () => {
+          if (!lease.isCurrent()) {
+            editWindowRef.current = false;
+            return;
+          }
           // statusRef, NOT chat.status: this closure is from callback-creation
           // time; the SDK status inside it never advances.
           const st = statusRef.current;
@@ -1838,10 +1847,12 @@ export function ActiveChatProvider({
       // stream processing, second lets React flush the status update.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (!lease.isCurrent()) return; // a newer run superseded this resume
-          void chat.sendMessage().catch(() => {
-            /* surfaced via chat.error → error card */
-          });
+          if (!lease.isCurrent()) return;
+          void resumeLeases.current
+            .fenced(() => chat.sendMessage())
+            .catch(() => {
+              /* surfaced via chat.error → error card */
+            });
           // Release once the resume stream drains back to ready. Two phases:
           // the 250ms poll used to catch the stale "ready" between sendMessage
           // and the status actually flipping — released instantly, the mirror
