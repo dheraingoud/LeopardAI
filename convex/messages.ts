@@ -1,7 +1,11 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { requireChatOwner } from "./_auth";
-import { applyApprovalDecision, findApprovalTarget } from "@/lib/approval-target";
+import {
+  applyApprovalDecision,
+  findApprovalTarget,
+  isPendingApprovalPart,
+} from "@/lib/approval-target";
 
 
 export const list = query({
@@ -190,9 +194,7 @@ export const settleStreaming = mutation({
     // running). A settled turn means the prompt is dead — flip the orphan to a
     // terminal state.
     const parts = (msg.parts ?? []).map((p) =>
-      p && (p as { state?: string }).state === "approval-requested"
-        ? { ...(p as object), state: "interrupted" }
-        : p,
+      isPendingApprovalPart(p) ? { ...(p as object), state: "interrupted" } : p,
     );
     await ctx.db.patch(args.messageId, { status: "completed", parts });
     await ctx.db.patch(msg.chatId, { generating: false });
@@ -234,7 +236,7 @@ export const respondToApproval = mutation({
       approved: args.approved,
       reason: args.reason,
     });
-    await ctx.db.patch(target.rowId, { parts: next });
+    await ctx.db.patch(row._id, { parts: next });
     return { responded: true };
   },
 });
@@ -250,13 +252,10 @@ export const buryOrphanApprovals = internalMutation({
     for (const row of rows) {
       if (row.status === "streaming") continue; // live decision — hands off
       const parts = row.parts ?? [];
-      if (!parts.some((p) => (p as { state?: string })?.state === "approval-requested"))
-        continue;
+      if (!parts.some((p) => isPendingApprovalPart(p))) continue;
       await ctx.db.patch(row._id, {
         parts: parts.map((p) =>
-          p && (p as { state?: string }).state === "approval-requested"
-            ? { ...(p as object), state: "interrupted" }
-            : p,
+          isPendingApprovalPart(p) ? { ...(p as object), state: "interrupted" } : p,
         ),
       });
       swept += 1;

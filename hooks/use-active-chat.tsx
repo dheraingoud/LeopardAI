@@ -31,6 +31,7 @@ import {
 } from "@/lib/image-cache";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { RunLeases } from "@/lib/run-leases";
+import { isPendingApprovalPart } from "@/lib/approval-target";
 import {
   createSerialRunQueue,
   SerialRunQueueDropError,
@@ -1359,9 +1360,7 @@ export function ActiveChatProvider({
     (m) =>
       m.role === "assistant" &&
       m.status === "streaming" &&
-      (m.parts ?? []).some(
-        (p) => (p as { state?: string })?.state === "approval-requested",
-      ),
+      (m.parts ?? []).some((p) => isPendingApprovalPart(p)),
   );
 
   // The pending approval straight from the server row — covers the case where
@@ -1511,9 +1510,7 @@ export function ActiveChatProvider({
       const hasPending = chat.messages.some(
         (m) =>
           m.role === "assistant" &&
-          (m.parts ?? []).some(
-            (p) => (p as { state?: string }).state === "approval-requested",
-          ),
+          (m.parts ?? []).some((p) => isPendingApprovalPart(p)),
       );
       if (hasPending) {
         chat.setMessages(
@@ -1523,7 +1520,7 @@ export function ActiveChatProvider({
               : {
                   ...m,
                   parts: (m.parts ?? []).map((p) =>
-                    (p as { state?: string }).state === "approval-requested"
+                    isPendingApprovalPart(p)
                       ? ({ ...p, state: "output-denied", approval: { ...(p as { approval?: object }).approval, approved: false, reason: "Superseded by a new message" } } as typeof p)
                       : p,
                   ),
@@ -2096,10 +2093,7 @@ export function ActiveChatProvider({
           m.status === "streaming",
       );
       if (last?.role === "assistant" && !rowStillStreaming) {
-        const stale = (last.parts ?? []).some(
-          (p) =>
-            (p as { state?: string }).state === "approval-requested",
-        );
+        const stale = (last.parts ?? []).some((p) => isPendingApprovalPart(p));
         if (stale) {
           // Flip to a terminal non-resume state (NOT approval-responded — that
           // would make the NEXT send read as a resume to hasApprovalDecision).
@@ -2113,7 +2107,7 @@ export function ActiveChatProvider({
                 : {
                     ...m,
                     parts: (m.parts ?? []).map((p) =>
-                      (p as { state?: string }).state === "approval-requested"
+                      isPendingApprovalPart(p)
                         ? { ...(p as object), state: "interrupted" }
                         : p,
                     ) as never,
