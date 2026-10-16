@@ -1,33 +1,28 @@
 // Allow/Deny selection + decision write, extracted from convex/messages.ts.
-// Generic over the row's _id type so Convex's branded Id<"messages"> satisfies it.
+// isPendingApprovalPart is the single shared pending-gate predicate.
 
-export type ApprovalTargetRow<TId = unknown> = {
-  _id: TId;
-  role: string;
-  parts?: unknown;
-};
+export function isPendingApprovalPart(p: unknown): boolean {
+  return (p as { state?: string } | null)?.state === "approval-requested";
+}
 
-export type ApprovalTarget<TId = unknown> = {
+export type ApprovalTarget = {
   rowIndex: number;
-  rowId: TId;
   partIndex: number;
 };
 
-export function findApprovalTarget<T extends ApprovalTargetRow>(
-  rows: readonly T[],
+export function findApprovalTarget(
+  rows: readonly { _id: unknown; role: string; parts?: unknown }[],
   approvalId: string,
-): ApprovalTarget<T["_id"]> | null {
+): ApprovalTarget | null {
   for (let i = rows.length - 1; i >= 0; i--) {
     const row = rows[i];
     if (row.role !== "assistant") continue;
     const parts = Array.isArray(row.parts) ? row.parts : [];
     const at = parts.findIndex(
-      (p) =>
-        (p as { state?: string })?.state === "approval-requested" &&
-        (p as { approval?: { id?: string } })?.approval?.id === approvalId,
+      (p) => isPendingApprovalPart(p) && (p as { approval?: { id?: string } })?.approval?.id === approvalId,
     );
     if (at < 0) continue;
-    return { rowIndex: i, rowId: row._id, partIndex: at };
+    return { rowIndex: i, partIndex: at };
   }
   return null;
 }

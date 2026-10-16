@@ -42,8 +42,6 @@ function skillIcon(slug: string, name: string): LucideIcon {
  * places `/<slug> ` in the textarea (parsed server-side by getInvokedSkillBodies).
  */
 
-/** Matching lives in lib/slash-matches.ts so it is testable outside React.
- *  Re-exported here because the composer imports both from this module. */
 export { getSlashMatches } from "@/lib/slash-matches";
 export type { SlashMatch };
 
