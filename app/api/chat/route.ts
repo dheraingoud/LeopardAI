@@ -127,6 +127,46 @@ function lastUserMessage(messages: UIMessage[]): UIMessage | null {
   return null;
 }
 
+/**
+ * Lookup budget per turn (webFetch + webSearch calls). Once the model has
+ * spent it, the lookup tools are withdrawn for the rest of the turn so the
+ * next step has nothing to call and MUST write the answer. Env:
+ * LEOPARD_MAX_LOOKUPS. 4 = one discovery search + a couple of page reads, or a
+ * small compare; genuine deep research belongs to the research tool.
+ *
+ * Why withdraw rather than stop the loop: the model narrates before every tool
+ * batch ("Found it — let me read the abstract"), so a "stop when the last step
+ * had no prose" test never fires. And stopping outright ends the turn with
+ * zero text parts, so the answer never gets written (2026-10-20: 7 lookups,
+ * every step finish=tool-calls, last text "…let me read the abstract").
+ * Taking the tools away leaves exactly one guaranteed synthesis step.
+ */
+const MAX_LOOKUPS_PER_TURN = (() => {
+  const raw = Number(process.env.LEOPARD_MAX_LOOKUPS);
+  return Number.isFinite(raw) && raw >= 1 && raw <= 12 ? Math.floor(raw) : 4;
+})();
+
+/**
+ * Tools counted against the lookup budget. research_deep counts because it is a
+ * web-lookup tool by nature — a research subagent burns the same kind of
+ * round-trips the budget exists to bound, so a turn that "did 4 searches" has
+ * spent its budget whether it did them itself or delegated them.
+ */
+const LOOKUP_TOOLS = ["webFetch", "webSearch", "research_deep"];
+
+/**
+ * Injected as a user turn on the budget-spent step: the lookups are over and
+ * this step must be the answer. Covers what the prompt alone did not — never
+ * emit tool-call syntax as text once tools are gone.
+ */
+const SYNTHESIS_NUDGE =
+  "Your research budget for this turn is spent, so no further tool calls are " +
+  "available or needed. Write your complete answer now from what you have " +
+  "already gathered. Do not emit tool-call syntax (no <function=...>, no " +
+  "function_calls blocks, no JSON tool arguments) as text — you cannot call " +
+  "tools this step. If something remains unverified, say so plainly and " +
+  "still give the best answer you can.";
+
 function isFirstExchange(messages: UIMessage[]): boolean {
   const hasAssistant = messages.some((m) => m.role === "assistant");
   const hasUser = messages.some((m) => m.role === "user");
@@ -998,6 +1038,12 @@ export async function POST(request: Request) {
       // Declared OUTSIDE the try (its catch rethrows on streamText construction
       // errors) so the retry factory stays visible to backgroundServe below.
       let buildStream: (() => any) | null = null;
+      // Lookups used so far this turn. prepareStep counts them and withdraws
+      // the lookup tools once the budget is spent, so the next step has to
+      // write the answer instead of fetching again.
+      let lookupsUsed = 0;
+      // Per-turn lookup accounting, shared by the stop condition and the tool
+      // filter below. `spent` flips once the budget is used up.
       // Φ-fallback (P1.2) · cross-model failover. AI SDK v7 has no native
       // cross-model dispatch (customProvider fallbackProvider is interface
       // inheritance, not error failover — see lib/ai/fallback.ts). The
@@ -1334,6 +1380,38 @@ export async function POST(request: Request) {
           // 2026-09-01: was stepCountIs(3) — a 3-tool burst (even all-failed)
           // ate the whole turn and the reply terminated with NO synthesis.
           // 8 leaves room for search→fetch→retry bursts + the final text step.
+          // Lookup budget (2026-10-20). stepCountIs alone counts every step, so
+          // a wandering model burned all 8 on fetches and the turn ended with
+          // no answer at all — 5 fetch rounds across 4 domains, zero text
+          // parts. prepareStep (below) withdraws the lookup tools once the
+          // budget is spent, which leaves exactly one guaranteed synthesis
+          // step; this condition is the backstop for a model that ignores it.
+          prepareStep: ({ steps, instructions }) => {
+            let n = 0;
+            for (const step of (steps ?? []) as Array<{
+              staticToolCalls?: Array<{ toolName?: unknown }>;
+            }>) {
+              for (const call of step?.staticToolCalls ?? []) {
+                if (LOOKUP_TOOLS.includes(String(call?.toolName))) n += 1;
+              }
+            }
+            lookupsUsed = n;
+            if (n < MAX_LOOKUPS_PER_TURN) return {};
+            // Budget spent: no tool calls at all this step. Withholding only
+            // the lookup tools just moves the model to the next one
+            // (2026-10-20: webFetch/webSearch withdrawn → research_deep, then
+            // spawn_agents — both unbounded, both left the row at
+            // status:streaming with zero text). toolChoice "none" removes the
+            // Keep the tools AVAILABLE and instead append a hard synthesis
+            // directive to the system prompt for this step.
+            //
+            // Why not toolChoice "none": with the tools removed, step-5-preview
+            // emits tool-call syntax as prose instead of answering
+            // (2026-10-20: "<invoke name=webFetch>…" as the entire reply,
+            // fake-tool-syntax true, twice). Leaving them registered but
+            // telling the model to write gives it a legal way to finish.
+            return { instructions: `${instructions}\n\n${SYNTHESIS_NUDGE}` };
+          },
           stopWhen: stepCountIs(8),
         }),
         // Φ-docs: enterprise tool-execution audit. onToolExecutionEnd fires per
@@ -1438,16 +1516,6 @@ export async function POST(request: Request) {
             }
           : undefined,
       });
-      const unsubGen = gen.subscribe((chunk) => {
-        try {
-          // Mirror each protocol chunk (text-delta/reasoning-*/finish/error/…) to
-          // the browser. Failures mean the browser is gone → drop the mirror only.
-          dataStream.write(chunk as never);
-        } catch {
-          /* detached generation continues regardless */
-        }
-      });
-
       // Title is fully DETACHED (fire-and-forget): a slow title-model call must
       // never hold the chat stream open — an awaited titlePromise here kept the
       // turn in `submitted`/`streaming` for MINUTES when the title endpoint
@@ -1476,6 +1544,17 @@ export async function POST(request: Request) {
       } else {
         console.log("[title] skipped — not first exchange");
       }
+
+      const unsubGen = gen.subscribe((chunk) => {
+        try {
+          // Mirror each protocol chunk (text-delta/reasoning-*/finish/error/…) to
+          // the browser. Failures mean the browser is gone → drop the mirror only.
+          dataStream.write(chunk as never);
+        } catch {
+          /* detached generation continues regardless */
+        }
+      });
+
 
       // Broadcast a compaction notice when the route folded older history.
       if (compactedSummary) {
