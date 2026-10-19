@@ -160,7 +160,6 @@ function unregisterGeneration(assistantId: string, handle?: ServerGenerationHand
 
 // ── Convex admin client ─────────────────────────────────────────────────────
 let _client: ConvexHttpClient | null = null;
-let _clientInitFailed = false;
 
 /** Admin Convex client for server-side persistence (null without deploy key).
  *  Keys are deployment-scoped ("prod:slug|…" / "dev:slug|…") — the key whose
@@ -168,7 +167,7 @@ let _clientInitFailed = false;
  *  deployment use CONVEX_DEPLOY_KEY_DEV; the prod key is never sent to a
  *  deployment it doesn't belong to (that would 401 every write). */
 export function convexClient(): ConvexHttpClient | null {
-  if (_client || _clientInitFailed) return _client;
+  if (_client) return _client;
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   const slug = url?.match(/^https:\/\/([^.]+)\.convex\.cloud/)?.[1];
   const candidates = [
@@ -181,12 +180,16 @@ export function convexClient(): ConvexHttpClient | null {
       return m && m[1] === slug;
     }) ?? (slug ? undefined : candidates[0]); // no slug in URL → legacy single-key setup
   if (!url || !key) {
+    // No permanent failure cache: a server started before .env.local was in
+    // place (or with the key unset) used to latch _clientInitFailed and stay
+    // persistence-dead for its whole lifetime — which silently cost BOTH the
+    // chat title and every assistant row. Re-evaluate each call so picking up
+    // the env (or a restart) heals it without a code change.
     if (url && candidates.length > 0) {
       logWarn(
         `no deploy key matches deployment "${slug}" — server-side persistence off (set CONVEX_DEPLOY_KEY_DEV for the dev deployment)`,
       );
     }
-    _clientInitFailed = true;
     return null;
   }
   try {
@@ -202,8 +205,8 @@ export function convexClient(): ConvexHttpClient | null {
     );
     _client = c;
     return c;
-  } catch {
-    _clientInitFailed = true;
+  } catch (err) {
+    logWarn("[convex] admin client construction failed:", String(err).slice(0, 200));
     return null;
   }
 }

@@ -679,7 +679,13 @@ export function ActiveChatProvider({
       if (part.type === "data-chat-title") {
         const u = uidRef.current;
         if (!u) return;
-        void updateTitle({ chatId: convexChatId, userId: u, title: part.data });
+        // Log rather than swallow blind: an ownership mismatch here is the
+        // difference between "title is stale" and "title is silently broken".
+        // The server-side setTitleIfUntitled is the durable path either way.
+        void updateTitle({ chatId: convexChatId, userId: u, title: part.data }).catch(
+          (err) =>
+            console.warn("[title] client persist failed:", String(err).slice(0, 200)),
+        );
         return;
       }
 
@@ -936,7 +942,17 @@ export function ActiveChatProvider({
             changed = true;
           }
         } else if (m.role === "assistant") {
-          const isSettling = settlingAssistantIdRef.current === ui.id;
+          // A stopped turn's row is held back only while the server is still
+          // writing it — appending mid-settle lands it below the next turn's
+          // bubble. Once the row is settled (no longer server-streaming) it
+          // MUST be appended like any other, or the partial the user stopped
+          // is lost until a reload: the mirror already delivered and skipped
+          // it, and clearing the ref on the next send does not replay it
+          // (2026-10-20: stop → send → turn-1 reply vanished from the UI).
+          const isSettling =
+            settlingAssistantIdRef.current === ui.id &&
+            (ui.metadata as { serverStreaming?: boolean } | undefined)
+              ?.serverStreaming === true;
           // Never push a duplicate — the SDK bubble might already carry the
           // same id (adopted mid-stream) or the mirror might race itself.
           // Also check content: the SDK bubble might have a different id but
