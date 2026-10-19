@@ -138,10 +138,15 @@ export async function searchWeb(opts: {
 export const webSearch = () =>
   tool({
     description:
-      "Search the public web for a query and return a ranked list of " +
-      "results with titles and URLs. Use this to discover relevant pages, " +
-      "then call webFetch to read a specific result's content. This tool " +
-      "returns NO page content — only titles and URLs.",
+      "Search the public web and return a ranked list of result titles and " +
+      "URLs. Use it to DISCOVER which pages exist when you don't have a URL — " +
+      "finding an official site, a doc page, or coverage of something recent. " +
+      "It returns NO page content, so a follow-up webFetch on a chosen result " +
+      "is usually needed before you can answer. Do not call it when the user " +
+      "already gave you a URL (fetch that directly), when the answer is stable " +
+      "knowledge you already have, or when the conversation already contains " +
+      "what you need. Write plain natural-language queries rather than " +
+      "appending years or operators.",
     inputSchema: z
       .object({
         query: z.string().describe("The search query (natural language)."),

@@ -115,11 +115,16 @@ type WebFetchProps = {
 export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
   tool({
     description:
-      "Fetch a public http/https URL and return its readable text content. " +
-      "Use this when the answer requires information from the live web " +
-      "(articles, docs, recent news, raw source). For pure search " +
-      "intent prefer the model's built-in knowledge; this is for cases " +
-      "where freshness or a specific URL matters.",
+      "Fetch one public http/https URL and return its readable text content. " +
+      "Use it when the user gives you a URL, or when the answer depends on a " +
+      "specific page being current (a release note, a doc page, an article, a " +
+      "product spec, raw source). It returns the page's text, its final URL, " +
+      "and whether the body was truncated. It does NOT search, does NOT follow " +
+      "links, and does NOT tell you which pages exist — use webSearch to find " +
+      "candidate URLs. Do not call it for stable knowledge you already have " +
+      "(math, established facts, coding concepts, creative writing) or for " +
+      "content already in the conversation. One URL per call: fetch the page " +
+      "the user asked about rather than sampling several related ones.",
     inputSchema: z.object({
       url: z
         .string()
@@ -238,6 +243,14 @@ export const webFetch = ({ dataStream: _dataStream }: WebFetchProps) =>
         content_type: ctype,
         bytes_read: received,
         truncated,
+        ...(truncated
+          ? {
+              note:
+                "Body exceeded max_bytes and was cut off. The beginning is " +
+                "present but the end is missing — answer from what is here, or " +
+                "fetch a more specific page rather than re-fetching this one.",
+            }
+          : {}),
         content,
       };
     },
