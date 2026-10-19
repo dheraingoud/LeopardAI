@@ -72,9 +72,10 @@ export function CommandPaletteHost() {
     if (open) return;
     const prev = lastFocusRef.current;
     if (prev && document.contains(prev)) {
-      // Defer one frame — the palette's own input still holds focus during
-      // this render, and a synchronous focus() loses to the unmount.
-      requestAnimationFrame(() => prev.focus());
+      // setTimeout, NOT requestAnimationFrame: RAF is suspended whenever the
+      // compositor is not painting, which left focus stranded on <body> after
+      // close in hidden/headless contexts.
+      setTimeout(() => prev.focus(), 0);
     }
   }, [open]);
 
@@ -128,7 +129,6 @@ export function CommandPaletteHost() {
           aria-label="Command palette"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           className="fixed inset-0 z-[90] flex items-start justify-center dark:bg-black/50 light:bg-black/30 pt-[18vh] backdrop-blur-sm"
           onClick={() => setOpen(false)}
@@ -138,7 +138,6 @@ export function CommandPaletteHost() {
             className="w-full max-w-md px-4"
             initial={{ opacity: 0, y: -10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.985 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
           >
             <CommandPalette
