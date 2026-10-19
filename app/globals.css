@@ -1515,14 +1515,25 @@ pre code {
   font-size: 1.3em;
 }
 
-/* Inline SVG fence — centered, self-scaled by its own viewBox. */
+/* Inline SVG fence — fills the block width at rest; wheel/buttons zoom and
+   drag pans via a CSS transform on .cb-svg-art (no canvas). The art box sits
+   at the viewport's top-left so transform-origin 0 0 keeps zoom math exact. */
 .markdown-body .cb-svg-viewport {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: relative;
   width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.markdown-body .cb-svg-viewport[data-zoomed="1"] {
+  touch-action: none;
+  cursor: grab;
+}
+.markdown-body .cb-svg-art {
+  width: 100%;
+  box-sizing: border-box;
   padding: 16px;
-  overflow-x: auto;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 .markdown-body .cb-svg-art svg {
   display: block;

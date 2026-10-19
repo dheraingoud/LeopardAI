@@ -8,6 +8,7 @@
 
 import {
   memo,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -513,12 +514,48 @@ function LiveSvgBlock({ code, streaming }: { code: string; streaming: boolean })
     const t = setTimeout(() => setDebounced(code), 250);
     return () => clearTimeout(t);
   }, [code, streaming]);
-  return <SvgBlock code={debounced} />;
+  return <SvgBlock key={debounced} code={debounced} />;
 }
 
 function SvgBlock({ code }: { code: string }) {
   const [mode, setMode] = useState<"svg" | "code">("svg");
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    px: number;
+    py: number;
+    ox: number;
+    oy: number;
+  } | null>(null);
   const html = useMemo(() => sanitizeSvg(code), [code]);
+
+  const applyZoom = useCallback((factor: number, cx: number, cy: number) => {
+    setView((v) => {
+      const ns = Math.min(6, Math.max(0.5, v.scale * factor));
+      const k = ns / v.scale;
+      return { scale: ns, x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k };
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || mode !== "svg") return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      applyZoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [applyZoom, mode]);
+
+  const zoomFromCenter = (factor: number) => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    applyZoom(factor, r.width / 2, r.height / 2);
+  };
 
   if (mode === "code") {
     return (
@@ -543,11 +580,57 @@ function SvgBlock({ code }: { code: string }) {
     );
   }
 
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (view.scale <= 1) return;
+    dragRef.current = { px: e.clientX, py: e.clientY, ox: view.x, oy: view.y };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    setView((v) => ({
+      ...v,
+      x: d.ox + (e.clientX - d.px),
+      y: d.oy + (e.clientY - d.py),
+    }));
+  };
+  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+  };
+
   return (
     <PreShell lang="svg" copyText={code} longBlock={false}>
-      <div className="cb-svg-viewport">
+      <div
+        ref={viewportRef}
+        className="cb-svg-viewport"
+        data-zoomed={view.scale > 1 ? "1" : "0"}
+        style={{
+          cursor: view.scale > 1 ? (dragging ? "grabbing" : "grab") : "default",
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onDoubleClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          applyZoom(
+            view.scale > 1.5 ? 1 / view.scale : 2 / view.scale,
+            e.clientX - r.left,
+            e.clientY - r.top,
+          );
+        }}
+      >
         <div
           className="cb-svg-art"
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          }}
           dangerouslySetInnerHTML={html ? { __html: html } : undefined}
           role="img"
           aria-label="Inline SVG"
@@ -559,6 +642,30 @@ function SvgBlock({ code }: { code: string }) {
         className="cb-mermaid-chrome cb-mermaid-chrome-left"
         onPointerDown={(e) => e.stopPropagation()}
       >
+        <button
+          type="button"
+          aria-label="Zoom in"
+          className="cb-mermaid-btn"
+          onClick={() => zoomFromCenter(1.4)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          className="cb-mermaid-btn"
+          onClick={() => zoomFromCenter(1 / 1.4)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          aria-label="Reset zoom"
+          className="cb-mermaid-btn"
+          onClick={() => setView({ scale: 1, x: 0, y: 0 })}
+        >
+          reset
+        </button>
         <button
           type="button"
           aria-label="View SVG source"
