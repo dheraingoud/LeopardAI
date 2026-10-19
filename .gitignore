@@ -74,3 +74,8 @@ Thumbs.db
 # playwright sweep output
 shots/
 orchestrator-errors.jsonl
+
+# Not published: local test suite, dev scripts, env template
+/tests/
+/scripts/
+.env.example
