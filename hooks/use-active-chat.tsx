@@ -1893,7 +1893,13 @@ export function ActiveChatProvider({
           let sawLive = false;
           const t0 = Date.now();
           const release = () => {
-            if (!lease.isCurrent()) return; // superseded — never release this lease
+            // A superseded lease must still clear the flag: the mirror gate
+            // re-checks the lease itself, so releasing here cannot let a stale
+            // resume mirror — it only stops a dead poll from stranding the flag.
+            if (!lease.isCurrent()) {
+              setResumeInFlight(false);
+              return;
+            }
             const s = statusRef.current;
             if (s === "streaming" || s === "submitted") {
               sawLive = true;
