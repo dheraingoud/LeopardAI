@@ -805,10 +805,12 @@ pre code {
 }
 
 /* Touch-friendly tap targets */
-@media (pointer: coarse) {
-  button, a, [role="button"] {
-    min-height: 36px;
-    min-width: 36px;
+@layer base {
+  @media (pointer: coarse) {
+    button, a, [role="button"] {
+      min-height: 36px;
+      min-width: 36px;
+    }
   }
 }
 
@@ -1085,6 +1087,7 @@ pre code {
    Redesigned 2026-10-13: neutral surface (no amber stain), sharper radius,
    stronger header/body separation, line numbers, terminal-style output. */
 .markdown-body .cb-shell {
+  position: relative;
   margin: 0.75rem 0;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);

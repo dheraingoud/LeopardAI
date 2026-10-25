@@ -60,7 +60,7 @@ export default function ChatLayout({
     <SidebarProvider
       value={{ collapsed, setCollapsed, autoCollapse, restoreCollapse }}
     >
-      <div className="flex h-screen w-screen bg-background overflow-hidden relative">
+      <div className="flex h-dvh w-screen bg-background overflow-hidden relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
         <CommandPaletteHost />
         <ShortcutsOverlay />
         {/* Mobile overlay */}
@@ -82,7 +82,10 @@ export default function ChatLayout({
           {isMobile && (
             <div className="flex items-center px-4 h-12 border-b dark:border-white/[0.04] light:border-black/[0.05] shrink-0">
               <button
+                type="button"
                 onClick={() => setCollapsed(false)}
+                aria-label="Open chat history"
+                title="Open chat history"
                 className="h-10 w-10 flex items-center justify-center rounded-lg dark:text-[#737373] light:text-[#737373] hover:dark:text-white light:text-[#171717]"
               >
                 <Menu className="h-4.5 w-4.5" />

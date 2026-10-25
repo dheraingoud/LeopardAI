@@ -96,7 +96,7 @@ function ComposerActions({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="composer-actions"
-      className={cn("flex items-center gap-1.5", className)}
+      className={cn("flex min-w-0 shrink items-center gap-1.5", className)}
       {...props}
     />
   );
@@ -662,7 +662,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   };
 
   return (
-    <div className={placement === "center" ? "pointer-events-none w-full px-4 sm:px-6" : "pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-6"}>
+    <div className={placement === "center" ? "pointer-events-none w-full px-4 sm:px-6" : "pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 pb-[calc(1rem_+_env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))]"}>
       <div className="pointer-events-auto mx-auto max-w-3xl">
         {/* QA loop-2: queued sends used to vanish silently — show them. */}
         {queued.length > 0 && (
@@ -813,7 +813,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               maxRows={8}
               className="min-h-[44px] max-h-[240px] w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[15px] leading-[1.6] outline-none dark:text-[#e5e5e5] light:text-[#262626] placeholder:text-[#505050] light:placeholder:text-[#8a8a8a] caret-[#ffb400] light:caret-[#8a5c00]"
             />
-            <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5 min-w-0">
+            <div className="relative flex items-center justify-between gap-1.5 px-1.5 pb-1.5 min-w-0">
               <ComposerAttachMenu
                 modelVision={modelVision}
                 modelImageEdit={modelImageEdit}
@@ -857,26 +857,26 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                     />
                   </button>
                 )}
-                {isStreaming ? (
-                  <ComposerSend
-                    streaming
-                    idle={false}
-                    onClick={stopGeneration}
-                    title="Stop"
-                  />
-                ) : (
-                  // modelDown keeps the button CLICKABLE (the handleSubmit gate
-                  // fires the explaining toast) but dims it + title says why —
-                  // audit 2026-10-08: a fully enabled-looking send into a dead
-                  // model read as a bug before the toast landed.
-                  <ComposerSend
-                    streaming={false}
-                    idle={!canSend || modelDown}
-                    modelDown={modelDown}
-                    title={modelDown ? "Model is currently down — pick another" : "Send"}
-                  />
-                )}
               </ComposerActions>
+              {isStreaming ? (
+                <ComposerSend
+                  streaming
+                  idle={false}
+                  onClick={stopGeneration}
+                  title="Stop"
+                />
+              ) : (
+                // modelDown keeps the button CLICKABLE (the handleSubmit gate
+                // fires the explaining toast) but dims it + title says why —
+                // audit 2026-10-08: a fully enabled-looking send into a dead
+                // model read as a bug before the toast landed.
+                <ComposerSend
+                  streaming={false}
+                  idle={!canSend || modelDown}
+                  modelDown={modelDown}
+                  title={modelDown ? "Model is currently down — pick another" : "Send"}
+                />
+              )}
             </div>
           </ComposerBar>
         </form>

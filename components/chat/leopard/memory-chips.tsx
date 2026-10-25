@@ -42,7 +42,7 @@ export function MemoryChips() {
   if (!UI_ENABLED || !userId || count === 0) return null;
 
   return (
-    <div className="relative">
+    <div className="min-w-0">
       <button
         type="button"
         aria-haspopup="true"
@@ -64,7 +64,7 @@ export function MemoryChips() {
       </button>
 
       {open && (
-        <div className="absolute right-0 bottom-9 z-40 w-72 max-w-[80vw]">
+        <div className="absolute right-0 bottom-[calc(100%_+_0.5rem)] z-40 w-72 max-w-[calc(100vw-2rem)]">
           <div className={cn(paper, "overflow-hidden rounded-2xl dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)] light:shadow-[0_16px_48px_rgba(0,0,0,0.18)]")}>
             <div className="flex items-center justify-between border-b px-3 py-2 dark:border-white/[0.06] light:border-black/[0.06]">
               <span className="text-[10px] font-medium uppercase tracking-[0.18em] dark:text-[#ffb400]/70 light:text-[#d49600]">

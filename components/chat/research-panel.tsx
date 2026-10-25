@@ -209,7 +209,7 @@ export function ResearchPanel() {
     }));
 
   return (
-    <div className="relative">
+    <div className="min-w-0">
       <button
         type="button"
         aria-expanded={open}
@@ -234,13 +234,13 @@ export function ResearchPanel() {
 
       {open && (
         <div
-          className="absolute bottom-9 right-0 z-40 w-[28rem] max-w-[92vw]"
+          className="absolute bottom-[calc(100%_+_0.5rem)] right-0 z-40 w-[28rem] max-w-[calc(100vw-2rem)]"
           // a11y (audit 2026-10-10): the popover is a dialog — give it a role
           // + label so ATs announce it on open.
           role="dialog"
           aria-label="Deep research"
         >
-          <div className="overflow-hidden rounded-2xl dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#111113]/90 light:bg-white/95 shadow-xl dark:shadow-black/40 light:shadow-black/10 backdrop-blur-xl">
+          <div className="max-h-[60dvh] overflow-y-auto rounded-2xl dark:border-white/[0.08] light:border-black/[0.08] dark:bg-[#111113]/90 light:bg-white/95 shadow-xl dark:shadow-black/40 light:shadow-black/10 backdrop-blur-xl">
             <div className="flex items-center justify-between border-b dark:border-white/[0.06] light:border-black/[0.06] px-3 py-2">
               <span className="text-[10px] font-medium uppercase tracking-[0.18em] dark:text-[#ffb400]/70 light:text-[#d49600]/80">
                 Deep Research
