@@ -3,12 +3,13 @@
 import { memo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { Bar, Line, Pie } from "diagrammatic";
 import { cn } from "@/lib/utils";
 import { paper, mono } from "./surfaces";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { NumberTicker } from "./number-ticker";
 import { ImageGallery } from "./image-gallery";
+import { LeopardChart } from "./charts/chart-figure";
+import { chartHasData } from "./charts/registry";
 import type { WidgetSpec } from "@/lib/ai/widget-schema";
 
 const GeoMapLazy = dynamic(
@@ -33,31 +34,35 @@ const GeoMapLazy = dynamic(
 // a native tooltip, and the categorical palette + ink resolve through CSS
 // variables so dark/light stay correct.
 
-function ChartWidget({ title, data, chartType }: Extract<WidgetSpec, { _type: "chart" }>) {
-  // Guard against empty/degenerate data so a bad tool call renders an inert
-  // card instead of throwing mid-stream.
-  const items = data.filter((d) => Number.isFinite(d.value));
-  const body =
-    items.length === 0 ? (
-      <p className={cn(mono, "text-[11px] text-foreground/40")}>No data</p>
-    ) : chartType === "line" ? (
-      <Line
-        data={items.map((d) => d.value)}
-        labels={items.map((d) => d.label)}
-        title={title}
-        yTicks={4}
-      />
-    ) : chartType === "pie" ? (
-      <Pie items={items} title={title} />
-    ) : (
-      <Bar items={items} title={title} xTicks={4} />
+function ChartWidget({
+  title,
+  data,
+  series,
+  groups,
+  matrix,
+  scatter,
+  bins,
+  chartType,
+}: Extract<WidgetSpec, { _type: "chart" }>) {
+  const points = (data ?? []).filter((d) => Number.isFinite(d.value));
+  const spec = {
+    form: chartType,
+    title,
+    points,
+    series,
+    groups,
+    matrix,
+    scatter,
+    bins,
+  };
+  if (!chartHasData(spec)) {
+    return (
+      <div className={cn(paper, "rounded-xl p-4 my-2")}>
+        <p className={cn(mono, "text-[11px] text-foreground/40")}>No data</p>
+      </div>
     );
-  return (
-    <div className={cn(paper, "rounded-xl p-4 my-2")}>
-      <p className={cn(mono, "text-foreground/50 mb-3 text-[11px] uppercase tracking-wider")}>{title}</p>
-      <div className="text-foreground">{body}</div>
-    </div>
-  );
+  }
+  return <LeopardChart spec={spec} />;
 }
 
 // Table sorting (aui tableData.ts patterns): numbers sort numerically
@@ -264,7 +269,15 @@ function WidgetSkeleton({ label }: { label: string }) {
 
 const specReady = (spec: WidgetSpec): boolean => {
   switch (spec._type) {
-    case "chart": return Array.isArray(spec.data) && spec.data.length > 0;
+    case "chart":
+      return (
+        (Array.isArray(spec.data) && spec.data.length > 0) ||
+        (Array.isArray(spec.series) && spec.series.length > 0) ||
+        (Array.isArray(spec.groups) && spec.groups.length > 0) ||
+        Boolean(spec.matrix) ||
+        (Array.isArray(spec.scatter) && spec.scatter.length > 0) ||
+        (Array.isArray(spec.bins) && spec.bins.length > 0)
+      );
     case "table": return Array.isArray(spec.columns) && Array.isArray(spec.rows);
     case "stat": return spec.value !== undefined;
     case "progress": return typeof spec.value === "number";

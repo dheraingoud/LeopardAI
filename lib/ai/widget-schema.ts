@@ -15,14 +15,72 @@ const jsonStringArray = <T extends z.ZodTypeAny>(item: T) =>
     z.array(item),
   );
 
+const chartPoint = z.object({
+  label: z.string().optional(),
+  value: z.number(),
+});
+
+const chartSeries = z.object({
+  name: z.string(),
+  data: jsonStringArray(z.number()),
+});
+
+const chartGroup = z.object({
+  name: z.string(),
+  values: jsonStringArray(z.number()),
+});
+
+const chartMatrix = z.object({
+  rows: jsonStringArray(z.string()),
+  cols: jsonStringArray(z.string()),
+  values: jsonStringArray(jsonStringArray(z.number())),
+});
+
+const chartScatterPoint = z.object({
+  x: z.number(),
+  y: z.number(),
+  label: z.string().optional(),
+  series: z.string().optional(),
+});
+
 const chartWidget = widgetBase.extend({
   _type: z.literal("chart"),
-  chartType: z.enum(["bar", "line", "pie"]).describe("Chart type"),
+  chartType: z
+    .enum([
+      "bar",
+      "column",
+      "line",
+      "area",
+      "pie",
+      "donut",
+      "grouped-bar",
+      "stacked-bar",
+      "stacked-area",
+      "heatmap",
+      "scatter",
+      "sparkline",
+      "histogram",
+    ])
+    .describe(
+      "Chart type. bar/column/line/area/pie/donut/sparkline use `data`; grouped-bar/stacked-bar/stacked-area use `series` + `groups`; heatmap uses `matrix`; scatter uses `scatter`; histogram uses `bins`.",
+    ),
   title: z.string().describe("Chart title"),
-  data: jsonStringArray(z.object({
-    label: z.string(),
-    value: z.number(),
-  })).describe("Data points"),
+  data: jsonStringArray(chartPoint)
+    .optional()
+    .describe("Data points for the single-series forms"),
+  series: jsonStringArray(chartSeries)
+    .optional()
+    .describe("Named series for grouped-bar/stacked-bar/stacked-area"),
+  groups: jsonStringArray(chartGroup)
+    .optional()
+    .describe("Category groups for grouped-bar/stacked-bar/stacked-area"),
+  matrix: chartMatrix.optional().describe("Row/column grid for heatmap"),
+  scatter: jsonStringArray(chartScatterPoint)
+    .optional()
+    .describe("x/y points for scatter"),
+  bins: jsonStringArray(z.number())
+    .optional()
+    .describe("Bin counts for histogram"),
 });
 
 const tableWidget = widgetBase.extend({

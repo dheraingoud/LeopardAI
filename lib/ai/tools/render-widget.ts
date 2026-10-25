@@ -9,7 +9,7 @@ export function renderWidget() {
   return tool({
     description:
       "Render an interactive widget inline in the chat. Pick the type that fits the data:\n" +
-      "- chart: numeric series — chartType bar (comparisons), line (trend over time/sequence), pie (share of a whole, values must sum meaningfully)\n" +
+      "- chart: numeric series. chartType bar (horizontal comparisons), column (vertical comparisons), line (trend over time/sequence), area (trend with volume), pie (share of a whole, values must sum meaningfully), donut (share of a whole, ring), sparkline (inline micro trend), histogram (distribution of one numeric sample), heatmap (row × column grid), scatter (x/y relationship), grouped-bar (compare series per category), stacked-bar (part-to-whole per category), stacked-area (part-to-whole over time). Use data for bar/column/line/area/pie/donut/sparkline; series + groups for grouped-bar/stacked-bar/stacked-area; matrix for heatmap; scatter for scatter; bins for histogram\n" +
       "- table: rows × columns of mixed values; sorted views\n" +
       "- stat: one big number with a label; use change/trend for deltas\n" +
       "- progress: 0-100 completion of one thing\n" +

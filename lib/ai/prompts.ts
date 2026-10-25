@@ -96,6 +96,44 @@ CRITICAL RULES:
 - ONLY when the user explicitly asks for suggestions on an existing document.
 `;
 
+/**
+ * Generative UI operating instructions. Without these the model has the
+ * `renderWidget` tool but no reason to reach for it: it answers "here is the
+ * chart" in prose and the chart never appears. The block states WHEN a widget
+ * beats prose, names the type→data-shape mapping, and forbids announcing a
+ * widget that was not actually called.
+ */
+export const widgetsPrompt = `
+INTERACTIVE WIDGETS (renderWidget): calling \`renderWidget\` paints a real, interactive card inline in the chat — a chart, table, stat, progress bar, form, gallery, code card, mermaid diagram, or map.
+
+WHEN TO USE A WIDGET:
+- The user asks to SEE or SHOW data: "chart this", "plot", "visualize", "make a graph", "table of", "break it down", "compare these numbers", "heatmap of", "scatter of".
+- The answer is a small set of concrete numbers where a visual beats a sentence (a stat card for one headline number, a table for a comparison across items).
+- The user asks for a diagram, flow, architecture picture, or map of places.
+
+WHEN NOT TO USE A WIDGET:
+- Prose, explanation, code you are writing out, or a plain list of steps belongs in chat text.
+- Never call renderWidget for a single word, a yes/no answer, or a conversational reply.
+
+HOW TO CALL IT:
+- One widget per call. If the user wants several widgets, call renderWidget once per widget.
+- Pick the type that fits the data:
+  - chart → numeric data. chartType bar (horizontal comparison), column (vertical comparison), line (trend over time), area (trend with volume), pie (share of a whole; values must sum meaningfully), donut (share of a whole, ring), sparkline (tiny inline trend), histogram (distribution of one numeric sample), heatmap (row × column grid), scatter (x/y relationship), grouped-bar (compare series per category), stacked-bar (part-to-whole per category), stacked-area (part-to-whole over time).
+  - chart data goes in \`data\` for bar/column/line/area/pie/donut/sparkline; \`series\` + \`groups\` for grouped-bar/stacked-bar/stacked-area; \`matrix\` for heatmap; \`scatter\` for scatter; \`bins\` for histogram.
+  - table → rows × columns of mixed values.
+  - stat → one big number with a label; use change/trend for deltas.
+  - progress → 0-100 completion of one thing.
+  - gallery → images the user should browse (needs real image URLs).
+  - code → a snippet worth its own card (language + code).
+  - diagram → mermaid source for flows, architecture, sequences.
+  - map → geographic places with lat/lng pins.
+  - form → collect several structured answers at once.
+- Pass arrays as real JSON arrays, never stringified. Keep titles short.
+
+CRITICAL:
+- If you call renderWidget, the widget IS the answer. Do not also describe it in prose, do not repeat its numbers, and do not repeat the title. A one-line lead-in before the call is fine.
+- Never write tool-call syntax as text and never say you rendered something you did not call.`;
+
 export function systemPrompt({
   requestHints,
   supportsTools,
@@ -205,6 +243,12 @@ ${locationLine(requestHints ?? {})}`.trim();
   // askUser: structured clarifying questions with clickable options.
   if (availableTools?.includes("askUser")) {
     prompt = `${prompt}\n\nCLARIFYING QUESTIONS (askUser): when the answer materially depends on a choice the user must make and guessing would risk a wrong or wasted turn, call askUser with a one-sentence question and 2-4 short mutually exclusive options. The user picks one (or types their own). Use it ONLY for real forks — scope, format, target, priority — never for small talk, never when a reasonable default exists, and never more than once per turn.`;
+  }
+
+  // renderWidget: generative UI. Without this block the model has the tool but
+  // no reason to use it and answers data requests in prose instead.
+  if (availableTools?.includes("renderWidget")) {
+    prompt = `${prompt}\n\n${widgetsPrompt}`;
   }
 
   // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the
