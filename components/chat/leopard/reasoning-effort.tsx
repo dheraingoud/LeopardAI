@@ -81,7 +81,7 @@ export function ReasoningEffort({
   }
 
   return (
-    <div data-slot="reasoning-effort" className="min-w-[176px] px-2.5 py-1">
+    <div data-slot="reasoning-effort" className="min-w-0 px-2.5 py-1">
       {(["off", "on"] as ReasoningLevel[]).map((opt) => {
         const sel = (opt === "on" && active) || (opt === "off" && !active);
         return (

@@ -264,11 +264,8 @@ export function ChatShell() {
       <div role="presentation" className="relative flex flex-1 min-h-0 dark:bg-black light:bg-white">
         <SessionExpiryToast />
         <div className="flex-1 flex flex-col min-w-0 relative">
-          {/* No header bar — floating pill, top-right (operator 2026-09-04). */}
-          <div className="absolute top-3 right-4 z-30 flex items-center gap-1 rounded-full border px-2 py-1 dark:border-white/[0.08] dark:bg-black/60 light:border-black/[0.08] light:bg-white/70 backdrop-blur-xl">
-            <ConnectionDot />
-            <HeaderQuotaBanner />
-          </div>
+          {/* No header bar — floating status, top-right (operator 2026-09-04). */}
+          <ConnectionDot className="absolute top-3 right-4 z-30" />
           <Messages />
           {pendingApproval ? (
             <ApprovalDock

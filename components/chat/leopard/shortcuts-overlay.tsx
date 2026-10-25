@@ -72,7 +72,7 @@ export function ShortcutsOverlay() {
             aria-label="Keyboard shortcuts"
             className={cn(
               paper,
-              "relative flex w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl",
+              "relative flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl",
               "dark:shadow-[0_24px_80px_rgba(0,0,0,0.6)] light:shadow-[0_24px_80px_rgba(0,0,0,0.25)]",
             )}
             initial={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -93,7 +93,7 @@ export function ShortcutsOverlay() {
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="flex flex-col gap-0.5 p-2.5">
+            <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto p-2.5">
               {ROWS.map((r) => (
                 <div
                   key={r.keys}

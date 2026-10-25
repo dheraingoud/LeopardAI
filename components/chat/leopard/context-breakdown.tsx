@@ -114,7 +114,7 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
 
   return (
     <Popover>
-      <PopoverTrigger aria-label="Context usage" className="block shrink-0">
+      <PopoverTrigger aria-label="Context usage" className="hidden shrink-0 sm:block">
         <ContextIndicator
           contextWindow={contextWindow}
           text={text}

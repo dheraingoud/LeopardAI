@@ -2,9 +2,15 @@
 
 import type { ComponentProps } from "react";
 import { memo } from "react";
-import { ArchiveIcon, PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
+import { ArchiveIcon, EllipsisIcon, PencilIcon, PinIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "./surfaces";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export interface ThreadListItem {
   id: string;
@@ -112,8 +118,11 @@ export const ThreadList = memo(function ThreadList({
             )}
             {/* Title gets the full row width — the status dot + actions are
                 absolutely pinned at the trailing edge so they never truncate
-                the title early. */}
-            <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+                the title early. Touch rows reserve the overflow trigger's
+                width so the label stops before it. */}
+            <span className="min-w-0 flex-1 truncate [@media(hover:none)]:pr-10">
+              {thread.title}
+            </span>
             {/* Unread is a filled amber dot (subtle, not a hollow ring); the
                 generating pulse keeps its own motion. Both read as state, not
                 clutter. */}
@@ -126,6 +135,7 @@ export const ThreadList = memo(function ThreadList({
                   "absolute right-3 top-1/2 size-1.5 shrink-0 -translate-y-1/2 rounded-full bg-[#ffb400] light:bg-[#d49600] transition-opacity",
                   thread.generating ? "animate-pulse" : "opacity-80",
                   "group-hover:opacity-0",
+                  "[@media(hover:none)]:right-11",
                 )}
               />
             )}
@@ -142,59 +152,94 @@ export const ThreadList = memo(function ThreadList({
             {/* Pinned rows read as pinned via the bucket they're in — no
                 at-rest pin icon (it ate the title's width). Hover/focus
                 reveals the action set as an overlay at the trailing edge, so
-                the title keeps the full row width. */}
-            <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-lg pl-6 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-[linear-gradient(to_right,transparent,black_30%)] light:bg-[linear-gradient(to_right,transparent,white_30%)]">
-              <button
-                type="button"
-                aria-label={thread.pinned ? "Unpin chat" : "Pin chat"}
-                title={thread.pinned ? "Unpin" : "Pin"}
-                className={cn(
-                  "rounded-full p-1 hover:bg-foreground/[0.08]",
-                  thread.pinned
-                    ? "text-[#ffb400] dark:text-[#ffb400] light:text-[#d49600]"
-                    : "text-foreground/45 hover:text-foreground/90",
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPin?.(thread.id);
-                }}
-              >
-                <PinIcon className={cn("size-3", thread.pinned && "fill-current")} />
-              </button>
-              <button
-                type="button"
-                aria-label="Rename chat"
-                className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRename?.(thread.id);
-                }}
-              >
-                <PencilIcon className="size-3" />
-              </button>
-              <button
-                type="button"
-                aria-label={thread.archived ? "Unarchive chat" : "Archive chat"}
-                title={thread.archived ? "Unarchive" : "Archive"}
-                className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onArchive?.(thread.id);
-                }}
-              >
-                <ArchiveIcon className="size-3" />
-              </button>
-              <button
-                type="button"
-                aria-label="Delete chat"
-                className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-red-400 rounded-full p-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete?.(thread.id);
-                }}
-              >
-                <Trash2Icon className="size-3" />
-              </button>
+                the title keeps the full row width. Touch devices have no
+                hover, so they get a persistent overflow trigger instead. */}
+            <span className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              <span className="pointer-events-none hidden items-center gap-0.5 rounded-lg pl-6 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:hover)]:flex dark:bg-[linear-gradient(to_right,transparent,black_30%)] light:bg-[linear-gradient(to_right,transparent,white_30%)]">
+                <button
+                  type="button"
+                  aria-label={thread.pinned ? "Unpin chat" : "Pin chat"}
+                  title={thread.pinned ? "Unpin" : "Pin"}
+                  className={cn(
+                    "rounded-full p-1 hover:bg-foreground/[0.08]",
+                    thread.pinned
+                      ? "text-[#ffb400] dark:text-[#ffb400] light:text-[#d49600]"
+                      : "text-foreground/45 hover:text-foreground/90",
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPin?.(thread.id);
+                  }}
+                >
+                  <PinIcon className={cn("size-3", thread.pinned && "fill-current")} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Rename chat"
+                  className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRename?.(thread.id);
+                  }}
+                >
+                  <PencilIcon className="size-3" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={thread.archived ? "Unarchive chat" : "Archive chat"}
+                  title={thread.archived ? "Unarchive" : "Archive"}
+                  className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 rounded-full p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive?.(thread.id);
+                  }}
+                >
+                  <ArchiveIcon className="size-3" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete chat"
+                  className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-red-400 rounded-full p-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete?.(thread.id);
+                  }}
+                >
+                  <Trash2Icon className="size-3" />
+                </button>
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Chat actions"
+                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                      className="text-foreground/45 hover:bg-foreground/[0.06] hover:text-foreground/90 hidden size-8 shrink-0 items-center justify-center rounded-full [@media(hover:none)]:flex"
+                    />
+                  }
+                >
+                  <EllipsisIcon className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="right" sideOffset={6} className="min-w-40">
+                  <DropdownMenuItem onClick={() => onPin?.(thread.id)}>
+                    <PinIcon className="size-3.5" />
+                    {thread.pinned ? "Unpin" : "Pin"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onRename?.(thread.id)}>
+                    <PencilIcon className="size-3.5" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onArchive?.(thread.id)}>
+                    <ArchiveIcon className="size-3.5" />
+                    {thread.archived ? "Unarchive" : "Archive"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(thread.id)}>
+                    <Trash2Icon className="size-3.5" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </span>
           </div>
         );

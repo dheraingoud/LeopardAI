@@ -81,10 +81,10 @@ function ModelSelectorTrigger() {
       data-slot="model-selector-trigger"
       role="combobox"
       aria-haspopup="listbox"
-      aria-label={`Model: ${selectedModel?.name ?? "Select model"}`}
-      className="flex h-8 w-fit max-w-[44vw] sm:max-w-none items-center justify-between gap-2 overflow-hidden rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap outline-none transition-colors hover:bg-foreground/[0.05] focus-visible:ring-1 focus-visible:ring-[#ffb400]/50"
+      aria-label={`Model: ${selectedModel?.name ?? "Select model"}${selectedModel?.badge ? ` — ${selectedModel.badge}` : ""}`}
+      className="flex h-8 w-fit min-w-0 shrink max-w-[44vw] sm:max-w-none items-center justify-between gap-2 overflow-hidden rounded-md px-2 py-1.5 text-xs whitespace-nowrap outline-none transition-colors hover:bg-foreground/[0.05] focus-visible:ring-1 focus-visible:ring-[#ffb400]/50 sm:px-2.5"
     >
-      <span className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 items-center gap-1 sm:gap-2">
         <span className="truncate font-medium">
           {selectedModel?.name ?? "Select model"}
         </span>
@@ -92,7 +92,14 @@ function ModelSelectorTrigger() {
             model that goes dead after selection must not look fine (2026-10-05
             send-into-void incident). */}
         {selectedModel?.badge && (
-          <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
+          <span
+            title={selectedModel.badge}
+            aria-label={selectedModel.badge}
+            className="size-1.5 shrink-0 rounded-full bg-red-500 sm:hidden"
+          />
+        )}
+        {selectedModel?.badge && (
+          <span className="hidden shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 sm:inline dark:text-red-400">
             {selectedModel.badge}
           </span>
         )}
@@ -103,7 +110,7 @@ function ModelSelectorTrigger() {
           />
         )}
         {effortName && (
-          <span className="text-foreground/40 min-w-7.5 truncate text-center">
+          <span className="text-foreground/40 hidden min-w-7.5 truncate text-center sm:inline">
             {effortName}
           </span>
         )}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ExternalLinksNewTab } from "@/components/external-links";
@@ -62,6 +62,13 @@ export const metadata: Metadata = {
     description: "High-performance AI chat powered by NVIDIA NIM.",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

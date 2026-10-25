@@ -255,12 +255,12 @@ export default function SettingsPage() {
           </h1>
         </motion.header>
 
-        <div className="grid gap-8 md:grid-cols-[168px_minmax(0,1fr)]">
+        <div className="grid gap-8 lg:grid-cols-[168px_minmax(0,1fr)]">
           <nav
             role="tablist"
             aria-label="Settings sections"
             aria-orientation="vertical"
-            className="flex gap-1 overflow-x-auto md:sticky md:top-6 md:flex-col md:self-start"
+            className="flex gap-1 overflow-x-auto lg:sticky lg:top-6 lg:flex-col lg:self-start"
             onKeyDown={(e) => {
               // Arrow-key nav (audit 2026-10-10): tablist semantics need
               // ArrowUp/Down to step between sections; Home/End jump to
