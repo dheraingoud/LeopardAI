@@ -69,3 +69,31 @@ export function reportNimKeyFailure(key: string, status?: number): void {
 export function hasNimKey(): boolean {
   return buildPool().length > 0;
 }
+
+let leaseCursor = 0;
+
+export function nimKeyPoolSize(): number {
+  return buildPool().length;
+}
+
+export function leaseNimKey(leased?: Set<string>): string | null {
+  const p = buildPool();
+  const now = Date.now();
+  const usable = p.filter((k) => !k.dead && k.backoffUntil <= now);
+  if (usable.length === 0) {
+    const soonest = p.filter((k) => !k.dead).sort((a, b) => a.backoffUntil - b.backoffUntil)[0];
+    return soonest ? soonest.key : null;
+  }
+  const free = usable.filter((k) => !leased?.has(k.key));
+  if (free.length === 0) return null;
+  const start = leaseCursor % free.length;
+  leaseCursor = (leaseCursor + 1) % free.length;
+  return free[start].key;
+}
+
+export function usableNimKeyCount(leased?: Set<string>): number {
+  const now = Date.now();
+  return buildPool().filter(
+    (k) => !k.dead && k.backoffUntil <= now && !leased?.has(k.key),
+  ).length;
+}
