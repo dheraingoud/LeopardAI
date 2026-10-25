@@ -258,6 +258,12 @@ const handleResult = (
   return updatePartForPath(message, chunk, warnOnce, (part) => {
     if (part.type === "tool-call") {
       const isPreliminary = chunk.isPreliminary === true;
+      if (isPreliminary && part.state === "result") return part;
+      const {
+        isPreliminary: _isPreliminary,
+        modelContent: _modelContent,
+        ...basePart
+      } = part;
       const runningStatus =
         part.status.type === "running"
           ? part.status
@@ -266,9 +272,8 @@ const handleResult = (
               isArgsComplete: part.state !== "partial-call",
             };
       if (isPreliminary) {
-        if (part.state === "result") return part;
         return {
-          ...part,
+          ...basePart,
           state: part.state === "partial-call" ? "partial-call" : "call",
           ...(chunk.artifact !== undefined ? { artifact: chunk.artifact } : {}),
           result: chunk.result,
@@ -282,9 +287,8 @@ const handleResult = (
         };
       }
 
-      const { isPreliminary: _isPreliminary, ...partWithoutPreliminary } = part;
       return {
-        ...partWithoutPreliminary,
+        ...basePart,
         state: "result",
         ...(part.timing !== undefined
           ? {

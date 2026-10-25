@@ -70,7 +70,13 @@ type ClientError<E extends string> = {
   events: Record<`${E}.`, E>;
 };
 
-type ReservedAccessorProps = "source" | "query" | "name";
+type ReservedAccessorProps =
+  | "source"
+  | "query"
+  | "name"
+  | "call"
+  | "apply"
+  | "bind";
 
 type ReservedScopeNames = "optional" | "subscribe" | "on";
 
@@ -79,7 +85,7 @@ type ValidateMethods<K extends string, TClient> = TClient extends {
 }
   ? keyof TClient["methods"] & ReservedAccessorProps extends never
     ? unknown
-    : ClientError<`ERROR: ${K} methods declare a reserved accessor property (source/query/name)`>
+    : ClientError<`ERROR: ${K} methods declare a reserved accessor property (source/query/name/call/apply/bind)`>
   : ClientError<`ERROR: ${K} has invalid methods type`>;
 
 type ValidateMeta<K extends string, TClient> = "meta" extends keyof TClient
