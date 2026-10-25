@@ -1,7 +1,7 @@
 "use client";
 
-import * as HeatGraphPrimitive from "heat-graph";
-import { useMemo } from "react";
+import * as HeatGraphPrimitive from "@/aui/heat-graph";
+import { useHeatGraphContext } from "@/aui/heat-graph/context";
 import { cn } from "@/lib/utils";
 
 const LEVEL_TINT = [
@@ -13,17 +13,15 @@ const LEVEL_TINT = [
 ] as const;
 
 export function HeatGraph({ data }: { data: HeatGraphPrimitive.DataPoint[] }) {
-  const end = useMemo(() => new Date(), [data]);
   return (
     <HeatGraphPrimitive.Root
       data={data}
-      end={end}
       weekStart="monday"
       className="flex flex-col gap-2"
     >
       <div className="flex flex-row-reverse overflow-x-auto">
         <div className="flex min-w-fit grow flex-col gap-2">
-          <MonthLabels end={end} />
+          <MonthLabels />
           <div className="flex gap-2">
             <DayLabels />
             <CellGrid />
@@ -39,23 +37,22 @@ export function HeatGraph({ data }: { data: HeatGraphPrimitive.DataPoint[] }) {
 // A month is labelled over the first week that starts in it, so a month whose
 // first week falls before the grid, and a month starting in the current week,
 // stay unlabelled instead of colliding with a neighbour or running past the grid.
-function labelsMonth({ date, row }: HeatGraphPrimitive.CellData, end: Date) {
-  const weekLater = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate() + 7,
-  );
-  return row === 0 && date.getDate() <= 7 && weekLater <= end;
+function labelsMonth(
+  { date, row, column }: HeatGraphPrimitive.CellData,
+  totalWeeks: number,
+) {
+  return row === 0 && date.getDate() <= 7 && column < totalWeeks - 1;
 }
 
-function MonthLabels({ end }: { end: Date }) {
+function MonthLabels() {
+  const { totalWeeks } = useHeatGraphContext();
   return (
     <HeatGraphPrimitive.Grid
       className="ms-10 h-5 gap-x-[3px] overflow-hidden"
       style={{ gridTemplateRows: "auto" }}
     >
       {({ cell }) =>
-        labelsMonth(cell, end) ? (
+        labelsMonth(cell, totalWeeks) ? (
           <span
             className="text-foreground/40 w-0 text-xs whitespace-nowrap"
             style={{ gridColumn: cell.column + 1, gridRow: 1 }}
