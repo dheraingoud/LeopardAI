@@ -524,7 +524,7 @@ export function ActiveChatProvider({
             headers: res.headers,
           });
         }) as typeof fetch,
-        prepareSendMessagesRequest: ({ id, messages }) => ({
+        prepareSendMessagesRequest: ({ id, messages, body }) => ({
           body: {
             id,
             // FULL history — /api/chat validates + converts via convertToModelMessages.
@@ -534,7 +534,10 @@ export function ActiveChatProvider({
               ...m,
               parts: normalizeUIMessageParts(m.parts),
             })),
-            model: currentModelIdRef.current,
+            model:
+              typeof (body as { model?: unknown } | undefined)?.model === "string"
+                ? ((body as { model: string }).model)
+                : currentModelIdRef.current,
             // Per-model reasoning level (undefined for locked-on/no-knob models
             // → route omits the key → NIM non-think / no param). Route.ts reads
             // this + nimReasoningProviderOptions() builds providerOptions.nim.
@@ -1234,6 +1237,11 @@ export function ActiveChatProvider({
   // fresh identities would invalidate it every keystroke.
   const setCurrentModel = useCallback((id: string) => {
     setCurrentModelIdState(id);
+    // The ref must move NOW, not in the effect — the draft send creates the
+    // chat row from currentModelIdRef.current, and a fallback switch that
+    // lands in the same tick as the send would otherwise record the OLD model
+    // on the new chat row.
+    currentModelIdRef.current = id;
     try {
       window.localStorage.setItem("leopard:last-model", id);
     } catch {

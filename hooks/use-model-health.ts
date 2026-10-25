@@ -1,103 +1,167 @@
 "use client";
 
 /**
- * Model health store — the client side of /api/models/health.
- *
- * Fetched on first mount and re-validated at most every 5 min, NOT on every
- * selector open. A model reported `!ok` is demoted to the bottom of the
- * picker and badged "Currently down". When the whole fleet is down (a dead
- * key — the 2026-10-05
- * incident), every model reports auth-down and the picker shows a global
- * banner instead of letting the user send into a black hole.
+ * Model health store — client side of /api/models/health. Tri-state per model:
+ * checking (grey), ok (green), down (red).
  */
 import { create } from "zustand";
+import { getActiveModels } from "@/lib/ai/models";
+import {
+  healthLabel as sharedHealthLabel,
+  healthStatusFor,
+  speedLabel as sharedSpeedLabel,
+  takeHealthEvent,
+  type HealthStatus,
+} from "@/lib/health-events";
+
+export type { HealthStatus };
 
 export type ModelHealth = {
   id: string;
   ok: boolean;
   latencyMs: number | null;
-  /** Latency tier when ok (slow ≠ down — big models have slow TTFT). */
   speed?: "fast" | "slow" | "very_slow";
   reason?: string;
+  status: HealthStatus;
 };
 
 type HealthState = {
-  /** id → health. Empty until the first probe resolves. */
   byId: Record<string, ModelHealth>;
-  /** True once a probe completed this session (even if all failed). */
   loaded: boolean;
-  /** Epoch ms of the last completed probe — drives the revalidate window. */
+  checking: boolean;
   checkedAt: number;
-  /** In-flight guard so parallel mounts fire one fetch. */
+  startedAt: number;
+  error: string | null;
   _inflight: Promise<void> | null;
+  _abort: AbortController | null;
   load: () => void;
-  /** Force a re-probe (e.g. after the user rotates a key / recovers). */
   refresh: () => void;
+  _run: (force: boolean) => Promise<void>;
 };
 
-/** Re-probe at most every 5 min — a model that recovered must lose its
- *  "Currently down" badge within a session, not just on the next login. */
 const REVALIDATE_MS = 5 * 60_000;
 
-async function fetchHealth(): Promise<Record<string, ModelHealth>> {
-  try {
-    const res = await fetch("/api/models/health", { cache: "no-store" });
-    // 503 = every key down (route short-circuits before probing). That's the
-    // exact fleet-down case the banner exists for — DON'T swallow it into {}
-    // (which read as "not loaded" and hid the banner, audit 2026-10-06).
-    if (res.status === 503) {
-      const json = (await res.json().catch(() => null)) as { models?: string[] } | null;
-      const byId: Record<string, ModelHealth> = {};
-      for (const id of json?.models ?? []) byId[id] = { id, ok: false, latencyMs: null, reason: "auth" };
-      return byId;
-    }
-    if (!res.ok) return {};
-    const json = (await res.json()) as { results?: ModelHealth[] };
-    const byId: Record<string, ModelHealth> = {};
-    for (const r of json.results ?? []) byId[r.id] = r;
-    return byId;
-  } catch {
-    return {};
+function seedChecking(): Record<string, ModelHealth> {
+  const byId: Record<string, ModelHealth> = {};
+  for (const m of getActiveModels()) {
+    byId[m.id] = { id: m.id, ok: false, latencyMs: null, status: "checking" };
   }
+  return byId;
 }
 
 export const useModelHealth = create<HealthState>()((set, get) => ({
-  byId: {},
+  byId: seedChecking(),
   loaded: false,
+  checking: false,
   checkedAt: 0,
+  startedAt: 0,
+  error: null,
   _inflight: null,
+  _abort: null,
+
   load: () => {
     if (get()._inflight) return;
-    // Within the revalidate window a completed probe stands — no request
-    // storm from remounts; past it, re-check so recovered models return.
     if (get().loaded && Date.now() - get().checkedAt < REVALIDATE_MS) return;
-    const p = fetchHealth().then((byId) => {
-      set({ byId, loaded: true, checkedAt: Date.now(), _inflight: null });
-    });
-    set({ _inflight: p });
+    void get()._run(false);
   },
+
   refresh: () => {
+    get()._abort?.abort();
     set({ _inflight: null, loaded: false, checkedAt: 0 });
-    get().load();
+    void get()._run(true);
+  },
+
+  _run: async (force: boolean) => {
+    if (!force && get()._inflight) return;
+    const ctrl = new AbortController();
+    const current = () => get()._abort === ctrl;
+    set({
+      _abort: ctrl,
+      _inflight: Promise.resolve(),
+      checking: true,
+      startedAt: Date.now(),
+      error: null,
+    });
+    set(() => ({ byId: seedChecking() }));
+
+    const p = (async () => {
+      try {
+        const res = await fetch("/api/models/health?stream=1", {
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+        if (!res.ok || !res.body) throw new Error(`sweep failed: ${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          for (;;) {
+            const { event, rest } = takeHealthEvent(buffer);
+            buffer = rest;
+            if (!event) break;
+            if (!current()) return;
+            if (event.type === "start") {
+              set((s) => {
+                const byId = { ...s.byId };
+                for (const id of event.models) {
+                  byId[id] = {
+                    id,
+                    ok: false,
+                    latencyMs: null,
+                    status: "checking",
+                  };
+                }
+                return { byId };
+              });
+            } else if (event.type === "result") {
+              const r = event.result;
+              set((s) => ({
+                byId: {
+                  ...s.byId,
+                  [r.id]: { ...r, status: healthStatusFor(r) },
+                },
+              }));
+            } else if (event.type === "error") {
+              throw new Error(event.message);
+            }
+          }
+        }
+        if (!current()) return;
+        set({
+          loaded: true,
+          checking: false,
+          checkedAt: Date.now(),
+          _inflight: null,
+          _abort: null,
+        });
+      } catch (e) {
+        if (!current()) return;
+        if ((e as Error)?.name === "AbortError") {
+          set({ checking: false, _inflight: null, _abort: null });
+          return;
+        }
+        set({
+          loaded: true,
+          checking: false,
+          error: (e as Error)?.message ?? "health check failed",
+          _inflight: null,
+          _abort: null,
+        });
+      }
+    })();
+
+    set({ _inflight: p });
+    await p;
   },
 }));
 
-/**
- * Down badge for a model's health. undefined = healthy/unknown.
- * Product wording is fixed: a failed probe reads "Currently down" regardless
- * of the machine reason (auth/timeout/5xx) — users act on the state, not the
- * cause. Slow-but-serving models are ok:true and get a SPEED badge instead
- * (see speedLabel) — latency is not an outage.
- */
 export function healthLabel(h: ModelHealth | undefined): string | undefined {
-  if (!h || h.ok) return undefined;
-  return "Currently down";
+  return sharedHealthLabel(h);
 }
 
-/** Speed badge for a healthy model — undefined for fast (the default reading). */
 export function speedLabel(h: ModelHealth | undefined): string | undefined {
-  if (!h?.ok) return undefined;
-  if (h.speed === "slow") return "Slow";
-  if (h.speed === "very_slow") return "Very slow";
-  return undefined;
+  return sharedSpeedLabel(h);
 }

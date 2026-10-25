@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/popover";
 import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { useModelHealth, healthLabel } from "@/hooks/use-model-health";
+import {
+  useModelHealth,
+  healthLabel,
+  type HealthStatus,
+} from "@/hooks/use-model-health";
 import type { ReasoningLevel } from "@/lib/nim";
 import { isCompositionKey } from "@/lib/is-composition-key";
 
@@ -38,8 +42,8 @@ export type ModelOption = {
   efforts?: readonly EffortOption[];
   /** Down badge from the model probe ("Currently down"); undefined = healthy. */
   badge?: string;
-  /** Probing state while the health check is in flight — pulse dot. */
-  probing?: boolean;
+  /** Health phase: still being probed (grey dot) / answered / did not answer. */
+  health?: HealthStatus;
 };
 
 // Kit ModelSelector, Leopard-wired: popover + search + list + footer effort
@@ -73,6 +77,41 @@ function useModelSelector() {
   return ctx;
 }
 
+function HealthDot({ status }: { status?: HealthStatus }) {
+  if (!status) return null;
+  if (status === "checking") {
+    return (
+      <span
+        data-slot="model-health-dot"
+        data-health={status}
+        aria-label="Checking model"
+        title="Checking availability…"
+        className="size-1.5 shrink-0 animate-pulse rounded-full bg-foreground/30"
+      />
+    );
+  }
+  if (status === "down") {
+    return (
+      <span
+        data-slot="model-health-dot"
+        data-health={status}
+        aria-label="Currently down"
+        title="Currently down"
+        className="size-1.5 shrink-0 rounded-full bg-red-500"
+      />
+    );
+  }
+  return (
+    <span
+      data-slot="model-health-dot"
+      data-health={status}
+      aria-label="Available"
+      title="Available"
+      className="size-1.5 shrink-0 rounded-full bg-emerald-500"
+    />
+  );
+}
+
 function ModelSelectorTrigger() {
   const { selectedModel, efforts, effort } = useModelSelector();
   const effortName = efforts?.find((e) => e.id === effort)?.name;
@@ -91,23 +130,11 @@ function ModelSelectorTrigger() {
         {/* Surface the SELECTED model's health on the closed trigger too — a
             model that goes dead after selection must not look fine (2026-10-05
             send-into-void incident). */}
-        {selectedModel?.badge && (
-          <span
-            title={selectedModel.badge}
-            aria-label={selectedModel.badge}
-            className="size-1.5 shrink-0 rounded-full bg-red-500 sm:hidden"
-          />
-        )}
+        <HealthDot status={selectedModel?.health} />
         {selectedModel?.badge && (
           <span className="hidden shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 sm:inline dark:text-red-400">
             {selectedModel.badge}
           </span>
-        )}
-        {selectedModel?.probing && !selectedModel?.badge && (
-          <span
-            aria-label="Checking model"
-            className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
-          />
         )}
         {effortName && (
           <span className="text-foreground/40 hidden min-w-7.5 truncate text-center sm:inline">
@@ -139,7 +166,12 @@ function ModelSelectorContent({
     fleetDown,
   } = useModelSelector();
   // Probe footer (audit 2026-10-10): age + manual refresh under the list.
-  const { loaded: healthLoaded, checkedAt: healthCheckedAt, refresh: refreshHealth } = useModelHealth();
+  const {
+    checkedAt: healthCheckedAt,
+    checking: healthChecking,
+    error: healthError,
+    refresh: refreshHealth,
+  } = useModelHealth();
   // Render-time Date.now() trips the purity rule — snapshot once per open
   // (the popover mounts fresh each time).
   const [checkedNowMs] = useState(() => Date.now());
@@ -231,32 +263,34 @@ function ModelSelectorContent({
         ))}
       </div>
       <ModelSelectorEffort />
-      {/* Probe age + manual refresh (audit 2026-10-10): badges used to sit
-          stale for the 5-min revalidate with no user path to a fresh check. */}
-      {healthLoaded && (
-        <div className="flex items-center justify-between gap-2 border-t border-foreground/[0.07] px-3 py-1.5">
-          <span className="font-mono text-[10px] text-foreground/35">
-            {healthCheckedAt > 0
-              ? `checked ${formatAgo(checkedNowMs - healthCheckedAt)}`
-              : "checking…"}
-          </span>
-          <button
-            type="button"
-            aria-label="Refresh model health"
-            title="Re-check model availability"
-            onClick={(e) => {
-              e.stopPropagation();
-              refreshHealth();
-            }}
-            className={cn(
-              ghostButton,
-              "size-5 shrink-0",
-            )}
-          >
-            <RefreshCwIcon className="size-3" />
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-2 border-t border-foreground/[0.07] px-3 py-1.5">
+        <span className="font-mono text-[10px] text-foreground/35">
+          {healthChecking
+            ? "checking…"
+            : healthError
+              ? "check failed"
+              : healthCheckedAt > 0
+                ? `checked ${formatAgo(checkedNowMs - healthCheckedAt)}`
+                : "not checked yet"}
+        </span>
+        <button
+          type="button"
+          aria-label="Refresh model health"
+          title="Re-check model availability"
+          onClick={(e) => {
+            e.stopPropagation();
+            refreshHealth();
+          }}
+          className={cn(
+            ghostButton,
+            "size-5 shrink-0",
+          )}
+        >
+          <RefreshCwIcon
+            className={cn("size-3", healthChecking && "animate-spin")}
+          />
+        </button>
+      </div>
     </PopoverContent>
   );
 }
@@ -284,16 +318,11 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
       <span className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5 truncate text-[13px] font-medium">
           {model.name}
+          <HealthDot status={model.health} />
           {model.badge && (
             <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
               {model.badge}
             </span>
-          )}
-          {model.probing && !model.badge && (
-            <span
-              aria-label="Checking model"
-              className="size-1.5 shrink-0 animate-pulse rounded-full dark:bg-white/30 light:bg-black/25"
-            />
           )}
         </span>
         {model.description && (
@@ -368,8 +397,8 @@ function ModelSelectorImpl() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState("");
-  // Model health probe — loaded once per session (see use-model-health).
-  const { byId: health, loaded: healthLoaded, load: loadHealth } = useModelHealth();
+  // Model health probe — one streaming sweep per session (see use-model-health).
+  const { byId: health, load: loadHealth } = useModelHealth();
   useEffect(() => {
     loadHealth();
   }, [loadHealth]);
@@ -387,11 +416,8 @@ function ModelSelectorImpl() {
             ).map((id) => ({ id, name: levelName(id) }))
           : undefined;
       const h = health[m.id];
-      // Probe in flight (audit 2026-10-10): a down model rendering as healthy
-      // for the ~300-800ms probe window then flipping was a visible
-      // correctness pop. While unloaded the badge slot shows a pulse dot.
-      const probing = !healthLoaded;
-      const badge = probing ? undefined : healthLabel(h);
+      const status: HealthStatus | undefined = h?.status;
+      const badge = healthLabel(h);
       return {
         id: m.id,
         name: m.name,
@@ -403,11 +429,11 @@ function ModelSelectorImpl() {
         })(),
         // Static registry unavailability OR a live probe failure greys it out.
         // A SLOW model stays selectable — slow ≠ down (2026-10-08 user call).
-        disabled: m.unavailable || badge !== undefined,
+        disabled: m.unavailable || status === "down",
         keywords: [m.id],
         efforts,
         badge,
-        probing,
+        health: status,
       };
     });
     // Order: healthy first, down last. Tiebreak = registry index →
@@ -416,13 +442,12 @@ function ModelSelectorImpl() {
       .map((m, i) => ({ m, i }))
       .sort((a, b) => Number(a.m.badge !== undefined) - Number(b.m.badge !== undefined) || a.i - b.i)
       .map(({ m }) => m);
-  }, [health, healthLoaded]);
+  }, [health]);
 
   /** True when every probed model is down — the picker shows a banner. */
   const fleetDown =
-    healthLoaded &&
     Object.keys(health).length > 0 &&
-    models.every((m) => m.badge !== undefined);
+    models.every((m) => m.health === "down");
 
   const selectedModel = models.find((m) => m.id === currentModelId);
   const efforts = selectedModel?.efforts;

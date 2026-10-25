@@ -6,6 +6,7 @@ import { ArrowUpIcon, FileIcon, GlobeIcon, ImageIcon, MicIcon, PlugIcon, PlusIco
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelector } from "./model-selector";
+import { ModelFallbackNotice } from "./model-fallback-notice";
 import { ContextBreakdown } from "./context-breakdown";
 import { MemoryChips } from "./memory-chips";
 import { ResearchPanel } from "../research-panel";
@@ -15,8 +16,9 @@ import { uploadFile } from "@/lib/upload";
 import { isCompositionKey } from "@/lib/is-composition-key";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getModelById } from "@/lib/ai/models";
+import { getDefaultChatModel, getModelById } from "@/lib/ai/models";
 import { useModelHealth } from "@/hooks/use-model-health";
+import { useModelFallbackNotice } from "@/hooks/use-model-fallback-notice";
 import { getSkillsSnapshot, subscribeSkills } from "@/lib/skill-store";
 import { getSlashMatches, SlashMenu, type SlashMatch } from "../slash-menu";
 import { MentionMenu, useRecentChatTitles } from "../mention-menu";
@@ -105,21 +107,16 @@ function ComposerActions({ className, ...props }: ComponentProps<"div">) {
 function ComposerSend({
   streaming,
   idle,
-  modelDown,
   className,
   ...props
 }: Omit<ComponentProps<"button">, "children"> & {
   streaming: boolean;
   idle: boolean;
-  /** Down-model gate stays clickable (the submit gate toasts the reason) but
-   *  reads disabled — aria-disabled + dimmed, not the disabled attribute. */
-  modelDown?: boolean;
 }) {
   return (
     <button
       type={streaming ? "button" : "submit"}
-      disabled={!streaming && idle && !modelDown}
-      aria-disabled={!streaming && idle && modelDown ? true : undefined}
+      disabled={!streaming && idle}
       aria-label={streaming ? "Stop generating" : "Send message"}
       data-slot="composer-send"
       className={cn(
@@ -290,7 +287,7 @@ const takePendingComposerText = (): string | null => {
 };
 
 export function Composer({ placement = "bottom" }: { placement?: "bottom" | "center" } = {}) {
-  const { sendMessage, status, stopGeneration, currentModelId, chatMeta, serverStreaming, retrying, messages } = useActiveChat();
+  const { sendMessage, status, stopGeneration, currentModelId, setCurrentModel, chatMeta, serverStreaming, retrying, messages } = useActiveChat();
   // Composer input history: ArrowUp recalls
   // the previous sent message, ArrowDown walks back to the live draft.
   const { tryRecall } = useInputHistory(messages);
@@ -431,14 +428,12 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
   const isStreaming =
     status === "submitted" || status === "streaming" || serverStreaming || retrying;
   const hasContent = input.trim().length > 0 || attachments.length > 0;
-  // Block send when the SELECTED model is probed-down — sending into a dead
-  // model produced the "bubble appears, then nothing" black hole (the picker
-  // badge alone lives inside a closed popover). The store polls /api/models/health.
-  const modelDown = useModelHealth((s) => {
-    const h = s.byId[currentModelId];
-    return s.loaded && h !== undefined && !h.ok;
-  });
+  const selectedHealth = useModelHealth((s) => s.byId[currentModelId]);
+  const modelDown = selectedHealth?.status === "down";
   const canSend = hasContent && !isStreaming && !uploading;
+  const fallbackNotice = useModelFallbackNotice((s) => s.fallback);
+  const showFallbackNotice = useModelFallbackNotice((s) => s.show);
+  const dismissFallbackNotice = useModelFallbackNotice((s) => s.dismiss);
   const { queued, enqueue, drain, remove: removeQueued } = useMessageQueue();
 
   // Steer: stop the current run, pull the
@@ -521,11 +516,6 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
       }
       return;
     }
-    // Dead model → don't fire into the void. Tell the user + point at the picker.
-    if (modelDown) {
-      toast.error(`${getModelById(currentModelId)?.name ?? "This model"} is unreachable right now — pick another model.`);
-      return;
-    }
     if (!canSend) return;
     const fileParts = attachments.map((a) => ({
       type: "file" as const,
@@ -538,6 +528,17 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
     setInput("");
     setAttachments([]);
     setDraft("");
+    if (modelDown) {
+      const fallback = getDefaultChatModel();
+      const from = getModelById(currentModelId)?.name ?? "That model";
+      const to = fallback.name;
+      showFallbackNotice({ from, to });
+      setCurrentModel(fallback.id);
+      void sendMessage({ parts } as never, {
+        body: { model: fallback.id },
+      });
+      return;
+    }
     void sendMessage({ parts } as never);
   };
 
@@ -741,6 +742,13 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
             )}
           </div>
         )}
+        {fallbackNotice && (
+          <ModelFallbackNotice
+            from={fallbackNotice.from}
+            to={fallbackNotice.to}
+            onDismiss={() => dismissFallbackNotice()}
+          />
+        )}
         <form
           onSubmit={handleSubmit}
           className="relative"
@@ -866,15 +874,14 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                   title="Stop"
                 />
               ) : (
-                // modelDown keeps the button CLICKABLE (the handleSubmit gate
-                // fires the explaining toast) but dims it + title says why —
-                // audit 2026-10-08: a fully enabled-looking send into a dead
-                // model read as a bug before the toast landed.
                 <ComposerSend
                   streaming={false}
-                  idle={!canSend || modelDown}
-                  modelDown={modelDown}
-                  title={modelDown ? "Model is currently down — pick another" : "Send"}
+                  idle={!canSend}
+                  title={
+                    modelDown
+                      ? "Model is currently down — this will be sent to the default model"
+                      : "Send"
+                  }
                 />
               )}
             </div>
