@@ -31,6 +31,7 @@ import { webSearch } from "@/lib/ai/tools/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { renderWidget } from "@/lib/ai/tools/render-widget";
+import { presentUI } from "@/lib/ai/tools/present-ui";
 import { askUser } from "@/lib/ai/tools/ask-user";
 import { loadMcpTools } from "@/lib/ai/mcp";
 import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
@@ -1122,6 +1123,7 @@ export async function POST(request: Request) {
           // Generative UI: render interactive widgets inline in chat. No
           // approval gate — rendering is read-only, not a side effect.
           renderWidget: renderWidget(),
+          presentUI: presentUI(),
           ...mcpHandle.tools,
         };
         resumeToolSet = tools;
@@ -1239,7 +1241,8 @@ export async function POST(request: Request) {
             toolName === "webFetch" ||
             toolName === "webSearch" ||
             toolName === "createDocument" ||
-            toolName === "renderWidget";
+            toolName === "renderWidget" ||
+            toolName === "presentUI";
           let decision: "approved" | "denied" | "user-approval" =
             d.mode === "allow" ? "approved" : d.mode === "deny" ? "denied" : "user-approval";
           // Auto-approve low-risk tools ONLY under the bare default (no operator
@@ -1249,7 +1252,7 @@ export async function POST(request: Request) {
           // side effect and the approval card would freeze the turn (the SDK
           // ends the stream on an unresolved approval, and the resume path for
           // a read-only render is unnecessary complexity).
-          if (toolName === "renderWidget" || (lowRiskTool && approvalRules.length === 0 && d.mode !== "deny")) {
+          if (toolName === "renderWidget" || toolName === "presentUI" || (lowRiskTool && approvalRules.length === 0 && d.mode !== "deny")) {
             decision = "approved";
           }
           // Φ-docs: append the gate decision to the enterprise tool-audit trail

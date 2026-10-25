@@ -134,6 +134,32 @@ CRITICAL:
 - If you call renderWidget, the widget IS the answer. Do not also describe it in prose, do not repeat its numbers, and do not repeat the title. A one-line lead-in before the call is fine.
 - Never write tool-call syntax as text and never say you rendered something you did not call.`;
 
+export const presentUIPrompt = `
+COMPOSED UI (presentUI): calling \`presentUI\` paints one laid-out surface built from components you nest. Use it when the answer is an INTERFACE — a summary card, a set of headline figures side by side, a tabbed breakdown, a numbered guide, a timeline, an alert with supporting detail. For ONE chart, table, code card, diagram, or map use renderWidget instead; the two are not the same tool.
+
+HOW TO BUILD IT:
+- The tool takes ONE node. Its \`_type\` selects the component and its props go inline at the top level. Nest more nodes with \`children\`. Wrap several nodes in one Row, Col, or Card so they share a surface.
+- Start from a layout: \`Row\` lays out left to right, \`Col\` stacks top to bottom, \`Card\` is a panel. Put the components you want inside.
+- \`children\` on a node may be one node, a list of nodes, or plain text.
+
+COMPONENTS:
+- Card (title, padding, background, asForm, confirm, cancel) — a panel for one module. Do not wrap the whole answer in one card, and do not nest cards.
+- Row (gap, align, justify) — horizontal row. Col (gap, align) — vertical stack. Spacer — empty space that pushes neighbours apart. Box (width, height, radius, background) — generic container.
+- Tabs (tabs: list of tab labels, label) — each child is one panel, in the same order as \`tabs\`.
+- Header (text, size) — section heading. Text (value, size, weight, color) — a run of text. Caption (value) — de-emphasised text. Divider (flush) — a horizontal rule. Markdown (value) — a markdown string.
+- Fact (label, value, delta, trend, upIsGood) — a key/value pair; put an answer's key figures side by side in a Row.
+- ListView — a vertical list; its children are ListViewItem. Steps (steps: list of {title, detail}) — numbered steps. Timeline (items: list of {time, title, detail}) — events in time order.
+- Alert (title, description, tone: info | success | warning | danger) — a highlighted message. Badge (value, variant) — a small status or category tag. Icon (name, size) — a line icon.
+- Citation (title, url, source, snippet) — one per source the answer draws on.
+- Button (label, buttonStyle: primary | secondary | outline | ghost | danger, block, submit) — a clickable button. Select (options, placeholder, label, name, defaultValue) — a dropdown. Input (inputType, placeholder, multiline, label, name, defaultValue) — a text field. Checkbox (label, name, defaultChecked) — a checkbox.
+- Text sizes are sm | md | lg | xl | 2xl | 3xl; text weights are normal | medium | semibold | bold; text colors are emphasis | secondary | alpha-70 | white | white-70 | white-50; row/col align is start | center | end; row justify adds between.
+- Icon names: sun, moon, cloud, rain, snow, wind, play, pause, check, x, star, heart, arrow-right, arrow-up-right, chevron-right, calendar, clock, map-pin, plane, truck, credit-card, user, search, bell.
+
+CRITICAL:
+- Call presentUI EXACTLY ONCE per answer, with the whole interface in that one tree. Two calls paint two surfaces, not one.
+- If you call presentUI, the surface IS the answer. Do not also describe it in prose, do not repeat its numbers, and do not repeat its title. A one-line lead-in before the call is fine.
+- Never write tool-call syntax as text and never say you presented something you did not call.`;
+
 export function systemPrompt({
   requestHints,
   supportsTools,
@@ -249,6 +275,10 @@ ${locationLine(requestHints ?? {})}`.trim();
   // no reason to use it and answers data requests in prose instead.
   if (availableTools?.includes("renderWidget")) {
     prompt = `${prompt}\n\n${widgetsPrompt}`;
+  }
+
+  if (availableTools?.includes("presentUI")) {
+    prompt = `${prompt}\n\n${presentUIPrompt}`;
   }
 
   // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the

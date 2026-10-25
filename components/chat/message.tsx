@@ -82,6 +82,8 @@ import {
 import { ghostButton } from "./leopard/surfaces";
 import { ImageLightbox } from "./leopard/image-lightbox";
 import { WidgetRenderer } from "./leopard/widget-renderer";
+import { LeopardGenerativeUI } from "./leopard/generative-ui/renderer";
+import { generativeUiNode } from "@/lib/ai/generative-ui-tree";
 import { getActiveModels } from "@/lib/ai/models";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -658,6 +660,9 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Generative UI: tool-renderWidget parts → inline interactive widgets.
   const widgetParts = !isUser
     ? message.parts.filter((p) => p.type === "tool-renderWidget")
+    : [];
+  const presentUIParts = !isUser
+    ? message.parts.filter((p) => p.type === "tool-presentUI")
     : [];
   // Effort badge source: the per-model client-persisted reason level. The UIMessage
   // parts carry only reasoning text (no effort field), so the badge reflects the
@@ -1769,6 +1774,18 @@ export const PreviewMessage = memo(function PreviewMessage({
                 }
                 if (!spec || typeof spec !== "object") return null;
                 return <WidgetRenderer key={`widget-${i}`} spec={spec as never} />;
+              })}
+            </div>
+          )}
+
+          {presentUIParts.length > 0 && (
+            <div className="mt-1">
+              {presentUIParts.map((p, i) => {
+                const node = generativeUiNode((p as { input?: unknown }).input);
+                if (!node) return null;
+                return (
+                  <LeopardGenerativeUI key={`present-ui-${i}`} node={node} />
+                );
               })}
             </div>
           )}
