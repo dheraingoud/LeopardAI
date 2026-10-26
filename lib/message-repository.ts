@@ -1,4 +1,4 @@
-// Ported from assistant-ui message-repository.ts — self-contained, no aui imports.
+// Ported from assistant-ui message-repository.ts — self-contained, no leopard imports.
 // Parent-pointer message tree with head/branch switching, optimistic-message
 // eviction, and an export shape that only contains persisted messages.
 

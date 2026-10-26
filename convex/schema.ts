@@ -46,10 +46,10 @@ export default defineSchema({
     type: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
-    // aui ThreadListItem pin port (2026-10-10): pinned chats sort above
+    // leopard ThreadListItem pin port (2026-10-10): pinned chats sort above
     // recency in the sidebar. Optional so existing rows validate unchanged.
     pinned: v.optional(v.boolean()),
-    // aui ThreadListItem archive port (2026-10-10): archived rows hide from
+    // leopard ThreadListItem archive port (2026-10-10): archived rows hide from
     // the sidebar (listPage filters them) but stay in the table — unarchive
     // or a direct link brings them back.
     archived: v.optional(v.boolean()),

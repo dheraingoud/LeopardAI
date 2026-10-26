@@ -69,7 +69,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
     return () => clearInterval(id);
   }, [streaming]);
 
-  // aui adoption (useScrollLock): lock scroll position during the expand/collapse
+  // leopard adoption (useScrollLock): lock scroll position during the expand/collapse
   // animation instead of dispatching per-frame deltas. Cleaner and self-contained.
   const contentRef = useRef<HTMLDivElement>(null);
   const lockScroll = useScrollLock(contentRef, 220);

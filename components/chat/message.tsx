@@ -693,7 +693,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   // Regen history (session-scoped, from use-active-chat) + stream duration.
   const siblings = isUser ? [] : chat.getSiblings(message.id);
   const [branchIdx, setBranchIdx] = useState<number | null>(null); // null = latest
-  // Browsing a branch SWAPS the main content (aui pattern) — the navigator
+  // Browsing a branch SWAPS the main content (leopard pattern) — the navigator
   // used to render the picked variant as a plain-text duplicate BELOW the
   // live reply (audit 2026-10-12: regenerate → the same answer twice).
   const browsingBranch =

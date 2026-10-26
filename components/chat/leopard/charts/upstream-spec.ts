@@ -4,7 +4,7 @@
 import {
   type ChartSpec as UpstreamChartSpec,
   validateSpec,
-} from "@/aui/diagrammatic/spec";
+} from "@/leopard-ui/diagrammatic/spec";
 import {
   type ChartForm,
   type ChartSpec,

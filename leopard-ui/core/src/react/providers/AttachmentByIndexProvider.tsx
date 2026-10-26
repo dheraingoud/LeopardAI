@@ -1,0 +1,42 @@
+import type { FC, PropsWithChildren } from "react";
+import { useLeopard, LeopardConfig, LeopardProvider, Derived } from "@/leopard-ui/store";
+
+export const MessageAttachmentByIndexProvider: FC<
+  PropsWithChildren<{
+    index: number;
+  }>
+> = ({ index, children }) => {
+  const leopard = useLeopard();
+  const config = LeopardConfig({
+    attachment: Derived({
+      source: "message",
+      query: { type: "index", index },
+      get: (leopard) => leopard.message.attachment({ index }),
+    }),
+  });
+  return (
+    <LeopardProvider extends={leopard} config={config}>
+      {children}
+    </LeopardProvider>
+  );
+};
+
+export const ComposerAttachmentByIndexProvider: FC<
+  PropsWithChildren<{
+    index: number;
+  }>
+> = ({ index, children }) => {
+  const leopard = useLeopard();
+  const config = LeopardConfig({
+    attachment: Derived({
+      source: "composer",
+      query: { type: "index", index },
+      get: (leopard) => leopard.composer.attachment({ index }),
+    }),
+  });
+  return (
+    <LeopardProvider extends={leopard} config={config}>
+      {children}
+    </LeopardProvider>
+  );
+};

@@ -16,7 +16,7 @@ export const list = query({
   },
 });
 
-/** Paginated variant (aui ThreadListLoadMore port 2026-10-10): the sidebar
+/** Paginated variant (leopard ThreadListLoadMore port 2026-10-10): the sidebar
  *  used to `.collect()` the whole chats table — 124+ dev rows and unbounded
  *  growth meant every mount re-read every row. `paginate` pages in 40-row
  *  chunks; the sidebar shows "Load more" while `status === "CanLoadMore"`.
@@ -140,7 +140,7 @@ export const updateTitle = mutation({
   },
 });
 
-// Pin toggle (aui ThreadListItem pin port 2026-10-10): pinned chats sort
+// Pin toggle (leopard ThreadListItem pin port 2026-10-10): pinned chats sort
 // above recency in the sidebar. Does NOT touch updatedAt — pinning must not
 // reorder the unpinned tail or mark the chat unread.
 export const setPinned = mutation({
@@ -152,7 +152,7 @@ export const setPinned = mutation({
   returns: v.null(),
 });
 
-// Archive toggle (aui ThreadListItem archive port 2026-10-10): archived rows
+// Archive toggle (leopard ThreadListItem archive port 2026-10-10): archived rows
 // hide from the sidebar (listPage filters) but stay in the table — unarchive
 // or a direct link brings them back. Does NOT touch updatedAt.
 export const setArchived = mutation({

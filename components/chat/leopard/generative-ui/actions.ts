@@ -1,10 +1,6 @@
-// Generative-UI action dispatch. An interactive component (Button, Select,
-// Input, Checkbox, Slider, DatePicker, RadioGroup, CheckboxGroup, Form) fires
-// its `_action` payload through `$dispatch`. Leopard hands that payload back to
-// the model as the next user turn, so the surface the model painted drives the
-// conversation it belongs to.
+// Generative-UI action dispatch: a fired `_action` payload becomes the next user turn, so the surface the model painted drives the conversation it belongs to.
 
-import type { Action } from "@/aui/generative-ui/ir";
+import type { Action } from "@/leopard-ui/generative-ui/ir";
 
 export type GenerativeUIActionSender = (action: Action) => void;
 

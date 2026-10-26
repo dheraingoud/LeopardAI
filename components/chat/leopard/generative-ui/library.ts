@@ -1,7 +1,7 @@
 "use client";
 
-import { defaultGenerativeUILibrary } from "@/aui/generative-ui/vocabulary";
-import type { GenerativeUILibrary } from "@/aui/generative-ui/types";
+import { defaultGenerativeUILibrary } from "@/leopard-ui/generative-ui/vocabulary";
+import type { GenerativeUILibrary } from "@/leopard-ui/generative-ui/types";
 import { LEOPARD_UI_COMPONENTS } from "@/lib/ai/generative-ui-schema";
 
 export const leopardUiRenderLibrary = Object.fromEntries(

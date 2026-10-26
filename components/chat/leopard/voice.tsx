@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { type FC, memo, useCallback, useEffect, useRef, useState } from "react";
 
 // Forked verbatim from assistant-ui elements/voice.tsx — self-contained WebGL
-// orb, no aui imports beyond cn (which maps to Leopard's @/lib/utils).
+// orb, no leopard imports beyond cn (which maps to Leopard's @/lib/utils).
 
 export type VoiceOrbState =
   | "idle"
@@ -401,7 +401,7 @@ export const VoiceOrb: FC<VoiceOrbProps> = memo(
     return (
       <canvas
         ref={canvasRef}
-        className={cn("aui-voice-orb size-16 shrink-0", className)}
+        className={cn("leopard-voice-orb size-16 shrink-0", className)}
         data-state={state}
       />
     );

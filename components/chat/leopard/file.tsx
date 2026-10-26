@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Forked from assistant-ui elements/file.tsx. The aui FileMessagePartComponent
+// Forked from assistant-ui elements/file.tsx. The leopard FileMessagePartComponent
 // type is replaced by a plain props interface; AudioPlayer/VideoPlayer from
 // ./media-player are replaced by native <audio>/<video> elements.
 
 const fileVariants = cva(
-  "aui-file-root inline-flex items-center gap-3 rounded-lg transition-colors",
+  "leopard-file-root inline-flex items-center gap-3 rounded-lg transition-colors",
   {
     variants: {
       variant: {
@@ -281,7 +281,7 @@ export interface FilePlayerProps extends Omit<
   sourceType?: "url" | "id" | undefined;
 }
 
-// Native <audio>/<video> replace the aui ./media-player AudioPlayer/VideoPlayer.
+// Native <audio>/<video> replace the leopard ./media-player AudioPlayer/VideoPlayer.
 function FilePlayer({
   data,
   mimeType,
@@ -312,7 +312,7 @@ function FilePlayer({
   );
 }
 
-// Plain props replacing aui's FileMessagePartComponent.
+// Plain props replacing leopard's FileMessagePartComponent.
 export interface FilePartProps {
   filename?: string | undefined;
   data: string;

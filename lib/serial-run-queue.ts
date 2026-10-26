@@ -1,4 +1,4 @@
-// Leopard fork of aui's SerialRunQueue: at most one turn is in flight, and a
+// Leopard fork of leopard's SerialRunQueue: at most one turn is in flight, and a
 // payload enqueued while one runs waits for it instead of racing it.
 export class SerialRunQueueDropError extends Error {
   constructor() {

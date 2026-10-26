@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
-import { Chart } from "@/aui/diagrammatic/spec";
+import { Chart } from "@/leopard-ui/diagrammatic/spec";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "../surfaces";
 import { type ChartSpec } from "./registry";

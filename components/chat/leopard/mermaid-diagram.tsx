@@ -165,7 +165,7 @@ function MermaidSvg({ svg, ...props }: MermaidSvgProps) {
   return (
     <div
       {...props}
-      data-aui-mermaid-svg=""
+      data-leopard-mermaid-svg=""
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
@@ -307,7 +307,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
   return (
     <div
       data-slot="mermaid-zoom-wrap"
-      className="aui-mermaid-zoom-wrap group/mermaid relative"
+      className="leopard-mermaid-zoom-wrap group/mermaid relative"
     >
       {children}
       <button
@@ -316,7 +316,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
         data-slot="mermaid-zoom-trigger"
         aria-label="Expand diagram"
         onClick={() => setIsOpen(true)}
-        className="aui-mermaid-zoom-trigger text-muted-foreground hover:text-foreground hover:border-muted-foreground/70 border-border bg-background absolute top-2 right-2 cursor-pointer rounded-md border p-1.5 opacity-0 transition group-hover/mermaid:opacity-100 focus-visible:opacity-100"
+        className="leopard-mermaid-zoom-trigger text-muted-foreground hover:text-foreground hover:border-muted-foreground/70 border-border bg-background absolute top-2 right-2 cursor-pointer rounded-md border p-1.5 opacity-0 transition group-hover/mermaid:opacity-100 focus-visible:opacity-100"
       >
         <Maximize2 className="size-3.5" />
       </button>
@@ -328,11 +328,11 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
             role="dialog"
             aria-modal="true"
             aria-label="Diagram"
-            className="aui-mermaid-zoom-overlay fade-in animate-in bg-background fixed inset-0 z-50 duration-200"
+            className="leopard-mermaid-zoom-overlay fade-in animate-in bg-background fixed inset-0 z-50 duration-200"
           >
             <div
               ref={viewportRef}
-              className="aui-mermaid-zoom-viewport h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
+              className="leopard-mermaid-zoom-viewport h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
               onWheel={onWheel}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
@@ -341,7 +341,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
             >
               <MermaidSvg
                 data-slot="mermaid-zoom-content"
-                className="aui-mermaid-zoom-content flex h-full w-full items-center justify-center [&_svg]:max-h-[80vh] [&_svg]:max-w-[90vw]"
+                className="leopard-mermaid-zoom-content flex h-full w-full items-center justify-center [&_svg]:max-h-[80vh] [&_svg]:max-w-[90vw]"
                 style={{
                   transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
                   transformOrigin: "0 0",
@@ -351,7 +351,7 @@ function MermaidZoom({ svg, children }: MermaidZoomProps) {
             </div>
             <div
               data-slot="mermaid-zoom-toolbar"
-              className="aui-mermaid-zoom-toolbar border-border bg-background absolute top-4 right-4 flex items-center gap-1 rounded-lg border p-1"
+              className="leopard-mermaid-zoom-toolbar border-border bg-background absolute top-4 right-4 flex items-center gap-1 rounded-lg border p-1"
             >
               <button
                 type="button"
@@ -467,7 +467,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
         data-slot="mermaid-skeleton"
         aria-label="Rendering diagram"
         className={cn(
-          "aui-mermaid-skeleton bg-muted flex h-32 animate-pulse items-center justify-center gap-3 rounded-b-lg p-4",
+          "leopard-mermaid-skeleton bg-muted flex h-32 animate-pulse items-center justify-center gap-3 rounded-b-lg p-4",
           className,
         )}
       >
@@ -485,7 +485,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
       <div
         data-slot="mermaid-fallback"
         className={cn(
-          "aui-mermaid-fallback bg-muted/75 rounded-b-lg",
+          "leopard-mermaid-fallback bg-muted/75 rounded-b-lg",
           className,
         )}
       >
@@ -502,7 +502,7 @@ const MermaidDiagramImpl: FC<MermaidDiagramProps> = ({
       <MermaidSvg
         data-slot="mermaid-diagram"
         className={cn(
-          "aui-mermaid-diagram bg-muted overflow-x-auto rounded-b-lg p-2 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full",
+          "leopard-mermaid-diagram bg-muted overflow-x-auto rounded-b-lg p-2 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full",
           className,
         )}
         svg={result.svg}

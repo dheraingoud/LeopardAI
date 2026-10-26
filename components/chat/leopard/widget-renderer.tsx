@@ -74,7 +74,7 @@ function ChartWidget({
   return <LeopardChart spec={spec} />;
 }
 
-// Table sorting (aui tableData.ts patterns): numbers sort numerically
+// Table sorting (leopard tableData.ts patterns): numbers sort numerically
 // (finite first), strings via Intl.Collator numeric, stable by original index,
 // click cycles asc → desc → clear.
 type TableSort = { column: number; direction: "ascending" | "descending" };

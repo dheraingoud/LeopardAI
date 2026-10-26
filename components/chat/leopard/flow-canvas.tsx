@@ -199,13 +199,13 @@ export function FlowCanvas({
     <div
       ref={ref}
       data-slot="flow-canvas"
-      className={cn("aui-flow-canvas relative isolate", className)}
+      className={cn("leopard-flow-canvas relative isolate", className)}
       {...props}
     >
       <svg
         aria-hidden
         data-slot="flow-canvas-edges"
-        className="aui-flow-canvas-edges text-muted-foreground/70 pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible"
+        className="leopard-flow-canvas-edges text-muted-foreground/70 pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible"
       >
         {rendered.map((edge, index) => (
           <g key={index} data-slot="flow-canvas-edge">
@@ -228,7 +228,7 @@ export function FlowCanvas({
             <span
               key={index}
               data-slot="flow-canvas-label"
-              className="aui-flow-canvas-label bg-background text-muted-foreground absolute z-20 -translate-x-1/2 -translate-y-1/2 px-1.5 text-xs whitespace-nowrap"
+              className="leopard-flow-canvas-label bg-background text-muted-foreground absolute z-20 -translate-x-1/2 -translate-y-1/2 px-1.5 text-xs whitespace-nowrap"
               style={{ left: edge.label.x, top: edge.label.y }}
             >
               {edge.label.text}

@@ -1,0 +1,85 @@
+import {
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { resource } from "@/leopard-ui/tap";
+import type { ClientOutput } from "@/leopard-ui/store";
+import { CompositeContextProvider } from "../../utils/composite-context-provider";
+import type { ModelContextState } from "../scopes/model-context";
+import type { ModelContextOptions } from "../../model-context/types";
+import { shallowEqual } from "@/leopard-ui/store/internal";
+
+const EMPTY_TOOL_NAMES: readonly string[] = [];
+
+const INITIAL_STATE: ModelContextState = {
+  modelName: undefined,
+  toolNames: EMPTY_TOOL_NAMES,
+};
+
+const toolNamesEqual = (a: readonly string[], b: readonly string[]): boolean =>
+  a === b || shallowEqual(a, b);
+
+const deriveState = (
+  composite: CompositeContextProvider,
+  prev: ModelContextState,
+): ModelContextState => {
+  const ctx = composite.getModelContext();
+  const modelName = ctx.config?.modelName;
+  const keys = ctx.tools ? Object.keys(ctx.tools).sort() : EMPTY_TOOL_NAMES;
+  const toolNames = keys.length ? keys : EMPTY_TOOL_NAMES;
+
+  if (modelName === prev.modelName && toolNamesEqual(toolNames, prev.toolNames))
+    return prev;
+
+  return { modelName, toolNames };
+};
+
+const useModelContext = (
+  options: ModelContextOptions = {},
+): ClientOutput<"modelContext"> => {
+  const optionsRef = useRef(options);
+  useInsertionEffect(() => {
+    optionsRef.current = options;
+  });
+  const composite = useMemo(
+    () => new CompositeContextProvider(() => optionsRef.current),
+    [],
+  );
+  const { maxSystemLength, mergeSystem } = options;
+  const appliedOptionsRef = useRef({ maxSystemLength, mergeSystem });
+  useEffect(() => {
+    const applied = appliedOptionsRef.current;
+    if (
+      applied.maxSystemLength === maxSystemLength &&
+      applied.mergeSystem === mergeSystem
+    )
+      return;
+    appliedOptionsRef.current = { maxSystemLength, mergeSystem };
+    composite.notifySubscribers();
+  }, [composite, maxSystemLength, mergeSystem]);
+  const [state, setState] = useState<ModelContextState>(() =>
+    deriveState(composite, INITIAL_STATE),
+  );
+
+  useEffect(() => {
+    // The composite is an external store; this catches the snapshot up for
+    // providers registered between render and subscribe.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState((prev) => deriveState(composite, prev));
+    return composite.subscribe(() => {
+      setState((prev) => deriveState(composite, prev));
+    });
+  }, [composite]);
+
+  return {
+    getState: () => deriveState(composite, state),
+    getModelContext: () => composite.getModelContext(),
+    subscribe: (callback) => composite.subscribe(callback),
+    register: (provider) => composite.registerModelContextProvider(provider),
+  };
+};
+
+export const ModelContext = resource(useModelContext);

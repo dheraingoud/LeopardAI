@@ -5,7 +5,7 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
-// Leopard fork of aui react-devtools JSONTree + getInlineJson — recursive
+// Leopard fork of leopard react-devtools JSONTree + getInlineJson — recursive
 // JSON view with incremental expand, entry caps, inline single-line rendering
 // for small payloads, and formatted-copy. Used for tool-call args/results.
 

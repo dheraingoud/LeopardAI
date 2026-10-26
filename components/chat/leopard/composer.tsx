@@ -757,7 +757,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
           onDragLeave={onDragLeave}
           onDrop={onDropFiles}
           onMouseDown={(e) => {
-            // aui adoption (ComposerRoot): click on blank form space focuses the
+            // leopard adoption (ComposerRoot): click on blank form space focuses the
             // input — the user shouldn't have to find the textarea.
             if (e.target instanceof HTMLElement && e.target.closest("textarea, input, button, a, [contenteditable]")) return;
             const input = e.currentTarget.querySelector("textarea");

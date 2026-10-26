@@ -1,0 +1,66 @@
+import { useDebugValue } from "react";
+import type { AssistantState } from "./types/client";
+import { useLeopard } from "./useLeopard";
+import { getProxiedAssistantState } from "./utils/proxied-assistant-state";
+import { useTrackedSyncExternalStore } from "./utils/scoped-signal";
+
+/**
+ * Subscribes to a slice of {@link AssistantState} and re-renders the
+ * component whenever that slice changes.
+ *
+ * The `selector` runs again when a client whose state it read, or a list
+ * whose items it looked up, changes; a selector whose reads the store cannot
+ * follow, such as one that reads nothing through it, runs on every store
+ * update. Its return value is compared by `Object.is`, and the component
+ * re-renders only when the selected slice changes. Returning the entire
+ * state object is not supported and throws at runtime — select a specific
+ * field instead, or compose multiple `useLeopardState` calls. Returning a new
+ * object or array literal, including spreading `s.thread` into a new object,
+ * re-renders the component every time the selector runs; either select
+ * primitives or return a memoized reference.
+ *
+ * Scopes that may be unavailable can be read via `s.optional.<scope>`,
+ * which resolves to `undefined` instead of throwing.
+ *
+ * @param selector - Pure function that derives a value from the current
+ *   assistant state. Should be cheap and referentially stable for equal
+ *   inputs (plain field reads, primitives, or memoized values).
+ * @returns The currently selected slice.
+ *
+ * @example
+ * ```tsx
+ * // Disable a button while a run is in flight.
+ * const isRunning = useLeopardState((s) => s.thread.isRunning);
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Prefer multiple selectors over an inline object literal, which would
+ * // create a new reference on every render.
+ * const text = useLeopardState((s) => s.composer.text);
+ * const canSend = useLeopardState((s) => s.composer.canSend);
+ * ```
+ */
+export const useLeopardState = <T>(selector: (state: AssistantState) => T): T => {
+  const leopard = useLeopard();
+  const proxiedState = getProxiedAssistantState(leopard);
+
+  const slice = useTrackedSyncExternalStore(leopard.subscribe, () =>
+    selector(proxiedState),
+  );
+
+  if (
+    typeof slice === "object" &&
+    slice !== null &&
+    ((slice as unknown) === proxiedState ||
+      (slice as unknown) === proxiedState.optional)
+  ) {
+    throw new Error(
+      "You tried to return the entire AssistantState. This is not supported due to technical limitations.",
+    );
+  }
+
+  useDebugValue(slice);
+
+  return slice;
+};

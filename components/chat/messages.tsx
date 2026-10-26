@@ -227,7 +227,7 @@ export function Messages() {
 
   // Reasoning-panel expand/collapse dispatches per-frame height deltas; hold
   // the reading anchor when NOT pinned to the bottom.
-  // aui adoption (useScrollLock): reasoning panel now locks scroll via
+  // leopard adoption (useScrollLock): reasoning panel now locks scroll via
   // useScrollLock — no need for the custom event listener.
 
   const showGhost =
@@ -289,7 +289,7 @@ export function Messages() {
       touchY = y;
     };
     const onKey = (e: KeyboardEvent) => {
-      // aui adoption: don't unpin when the user is scrolling inside a text
+      // leopard adoption: don't unpin when the user is scrolling inside a text
       // field (ArrowUp in the composer textarea recalls history, not scrolls).
       const target = e.target as HTMLElement | null;
       if (
@@ -327,7 +327,7 @@ export function Messages() {
   // loading, markdown reflow, cards expanding) used to un-pin the view
   // mid-stream — observe the column's size and re-pin while stuck to bottom.
   const contentRef = useRef<HTMLDivElement>(null);
-  // aui adoption (useThreadViewportAutoScroll): expanding a collapsible
+  // leopard adoption (useThreadViewportAutoScroll): expanding a collapsible
   // (reasoning panel, tool card) means the user is INSPECTING it — pause
   // bottom-follow so the ResizeObserver re-pin doesn't fight them.
   const inspectingRef = useRef(false);

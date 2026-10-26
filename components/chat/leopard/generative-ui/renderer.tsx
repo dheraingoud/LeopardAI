@@ -1,12 +1,10 @@
-// Generative-UI surface. Renders the model's composed tree against the
-// leopard vocabulary and wires the interactive components' `_action` payloads
-// back into the conversation.
+// Generative-UI surface: renders the model's composed tree against the leopard vocabulary and wires interactive `_action` payloads back into the conversation.
 
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { GenerativeUITree } from "@/aui/generative-ui/GenerativeUITree";
-import type { GenerativeUIDispatch } from "@/aui/generative-ui/types";
+import { GenerativeUITree } from "@/leopard-ui/generative-ui/GenerativeUITree";
+import type { GenerativeUIDispatch } from "@/leopard-ui/generative-ui/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { cn } from "@/lib/utils";
 import { paper } from "../surfaces";
@@ -46,7 +44,7 @@ export function LeopardGenerativeUI({ node }: { node: unknown }) {
   return (
     <div className={cn(paper, "rounded-xl p-4 my-2")} data-leopard-ui-theme>
       <VocabularyStyle />
-      <div className="text-foreground" data-aui="root">
+      <div className="text-foreground" data-leopard="root">
         <GenerativeUITree
           node={node}
           library={leopardUiRenderLibrary}

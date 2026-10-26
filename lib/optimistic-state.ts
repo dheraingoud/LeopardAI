@@ -1,4 +1,4 @@
-// Ported from assistant-ui optimistic-state.ts — self-contained, no aui imports.
+// Ported from assistant-ui optimistic-state.ts — self-contained, no leopard imports.
 
 export type Unsubscribe = () => void;
 

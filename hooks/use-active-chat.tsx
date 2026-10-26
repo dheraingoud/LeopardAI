@@ -841,7 +841,7 @@ export function ActiveChatProvider({
   const resumeLeases = useRef(new RunLeases());
   const startLeases = useRef(new RunLeases());
 
-  // ── Serial turn queue (aui react-langgraph SerialRunQueue, 2026-10-15) ─────
+  // ── Serial turn queue (leopard react-langgraph SerialRunQueue, 2026-10-15) ─────
   // At most one SDK turn is in flight. A send/regenerate/edit-resend that lands
   // while a turn runs waits for it instead of racing it (the SDK's own guard
   // makes a second concurrent send a silent no-op, so the user saw "sent" and
@@ -1528,7 +1528,7 @@ export function ActiveChatProvider({
     (message, options) => {
       // A new turn supersedes the compaction notice from the previous one.
       setCompactionNotice(false);
-      // Orphan-approval cleanup (aui B4): a new send while an approval card is
+      // Orphan-approval cleanup (leopard B4): a new send while an approval card is
       // still pending leaves the card hanging forever — mark every
       // approval-requested part as cancelled so the card settles as skipped.
       const hasPending = chat.messages.some(

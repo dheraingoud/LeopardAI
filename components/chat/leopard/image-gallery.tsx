@@ -17,7 +17,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@/lib/utils";
 import { field, ghostButton, mono } from "./surfaces";
 
-// inlined from aui utils/href
+// inlined from leopard utils/href
 const RELATIVE = /^(?:[/?#]|\.{1,2}\/)/;
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -33,7 +33,7 @@ function safeHref(url: string | undefined): string | undefined {
   }
 }
 
-// inlined from aui utils/range
+// inlined from leopard utils/range
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
   return Math.min(max, Math.max(min, value));

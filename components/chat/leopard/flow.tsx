@@ -34,7 +34,7 @@ function FlowRoot({ className, children, llm: _llm, ...props }: FlowRootProps) {
     <div
       data-slot="flow-root"
       className={cn(
-        "aui-flow-root not-prose my-6 overflow-x-auto overflow-y-hidden",
+        "leopard-flow-root not-prose my-6 overflow-x-auto overflow-y-hidden",
         className,
       )}
       {...props}
@@ -42,7 +42,7 @@ function FlowRoot({ className, children, llm: _llm, ...props }: FlowRootProps) {
       <FlowExpand>
         <div
           data-slot="flow-content"
-          className="aui-flow-content mx-auto w-fit py-3"
+          className="leopard-flow-content mx-auto w-fit py-3"
         >
           {children}
         </div>
@@ -58,7 +58,7 @@ function FlowRow({ className, ...props }: FlowRowProps) {
     <div
       data-slot="flow-row"
       className={cn(
-        "aui-flow-row flex items-center justify-center gap-3",
+        "leopard-flow-row flex items-center justify-center gap-3",
         className,
       )}
       {...props}
@@ -73,7 +73,7 @@ function FlowColumn({ className, ...props }: FlowColumnProps) {
     <div
       data-slot="flow-column"
       className={cn(
-        "aui-flow-column flex flex-col items-center gap-3",
+        "leopard-flow-column flex flex-col items-center gap-3",
         className,
       )}
       {...props}
@@ -91,7 +91,7 @@ function FlowGroup({ className, flowId, ...props }: FlowGroupProps) {
       data-slot="flow-group"
       data-flow-id={flowId}
       className={cn(
-        "aui-flow-group border-border relative rounded-xl border border-dashed p-4",
+        "leopard-flow-group border-border relative rounded-xl border border-dashed p-4",
         className,
       )}
       {...props}
@@ -106,7 +106,7 @@ function FlowGroupLabel({ className, ...props }: FlowGroupLabelProps) {
     <span
       data-slot="flow-group-label"
       className={cn(
-        "aui-flow-group-label bg-background text-muted-foreground absolute -top-2 left-3 px-1.5 text-[10px] font-medium tracking-widest uppercase",
+        "leopard-flow-group-label bg-background text-muted-foreground absolute -top-2 left-3 px-1.5 text-[10px] font-medium tracking-widest uppercase",
         className,
       )}
       {...props}
@@ -115,7 +115,7 @@ function FlowGroupLabel({ className, ...props }: FlowGroupLabelProps) {
 }
 
 const flowNodeVariants = cva(
-  "aui-flow-node relative inline-flex items-center justify-center text-sm whitespace-nowrap",
+  "leopard-flow-node relative inline-flex items-center justify-center text-sm whitespace-nowrap",
   {
     variants: {
       variant: {
@@ -163,7 +163,7 @@ function FlowNode({
         <svg
           aria-hidden
           data-slot="flow-node-decision-shape"
-          className="aui-flow-node-decision-shape absolute inset-0 h-full w-full"
+          className="leopard-flow-node-decision-shape absolute inset-0 h-full w-full"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
         >
@@ -220,7 +220,7 @@ function FlowArrow({
         data-slot="flow-arrow"
         data-direction={direction}
         className={cn(
-          "aui-flow-arrow text-muted-foreground/70 relative flex justify-center",
+          "leopard-flow-arrow text-muted-foreground/70 relative flex justify-center",
           className,
         )}
         {...props}
@@ -242,7 +242,7 @@ function FlowArrow({
         {label && (
           <span
             data-slot="flow-arrow-label"
-            className="aui-flow-arrow-label absolute top-1/2 left-1/2 ml-2.5 -translate-y-1/2 text-xs whitespace-nowrap"
+            className="leopard-flow-arrow-label absolute top-1/2 left-1/2 ml-2.5 -translate-y-1/2 text-xs whitespace-nowrap"
           >
             {label}
           </span>
@@ -256,7 +256,7 @@ function FlowArrow({
       data-slot="flow-arrow"
       data-direction={direction}
       className={cn(
-        "aui-flow-arrow text-muted-foreground/70 flex flex-col items-center gap-1",
+        "leopard-flow-arrow text-muted-foreground/70 flex flex-col items-center gap-1",
         className,
       )}
       {...props}
@@ -264,7 +264,7 @@ function FlowArrow({
       {label && (
         <span
           data-slot="flow-arrow-label"
-          className="aui-flow-arrow-label text-xs whitespace-nowrap"
+          className="leopard-flow-arrow-label text-xs whitespace-nowrap"
         >
           {label}
         </span>
@@ -303,7 +303,7 @@ function FlowArrow({
           </svg>
           <span
             data-slot="flow-arrow-reverse-label"
-            className="aui-flow-arrow-label text-xs whitespace-nowrap"
+            className="leopard-flow-arrow-label text-xs whitespace-nowrap"
           >
             {reverseLabel}
           </span>

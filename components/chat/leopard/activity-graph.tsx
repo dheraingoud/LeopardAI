@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import * as HeatGraph from "@/aui/heat-graph";
+import * as HeatGraph from "@/leopard-ui/heat-graph";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "./surfaces";
 

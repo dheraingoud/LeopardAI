@@ -1,0 +1,103 @@
+import { useCallback, useEffect, useInsertionEffect, useRef } from "react";
+import { useLeopard, useLeopardState } from "@/leopard-ui/store";
+import { actionBarCopyDisabled } from "../../store/primitive-predicates";
+
+export type UseActionBarCopyOptions = {
+  copiedDuration?: number | undefined;
+  copyToClipboard?: ((text: string) => void | Promise<void>) | undefined;
+};
+
+export const useActionBarCopy = ({
+  copiedDuration = 3000,
+  copyToClipboard,
+}: UseActionBarCopyOptions = {}) => {
+  const leopard = useLeopard();
+  const disabled = useLeopardState(actionBarCopyDisabled);
+  const messageId = useLeopardState((s) => s.message.id);
+  const isCopied = useLeopardState((s) => s.message.isCopied);
+  const isEditing = useLeopardState((s) => s.composer.isEditing);
+  const composerValue = useLeopardState((s) => s.composer.text);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const copiedFeedbackTargetRef = useRef<
+    ((value: boolean) => void) | undefined
+  >(undefined);
+  const scopeGenerationRef = useRef(0);
+  const committedMessageIdRef = useRef(messageId);
+
+  useInsertionEffect(() => {
+    committedMessageIdRef.current = messageId;
+  }, [messageId]);
+
+  useEffect(
+    () => () => {
+      scopeGenerationRef.current += 1;
+      if (copiedTimerRef.current === undefined) return;
+
+      clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = undefined;
+      copiedFeedbackTargetRef.current?.(false);
+      copiedFeedbackTargetRef.current = undefined;
+    },
+    [leopard.message, messageId],
+  );
+
+  const copy = useCallback(() => {
+    if (!copyToClipboard) return;
+
+    const valueToCopy = isEditing ? composerValue : leopard.message.getCopyText();
+    if (!valueToCopy) return;
+    const scopeGeneration = scopeGenerationRef.current;
+    const copiedMessageId = messageId;
+    const setCopyFeedback = leopard.message.setIsCopied;
+
+    // The writer runs synchronously inside the press so the user-gesture gating
+    // of navigator.clipboard survives (WebKit scopes it to the stack); the try
+    // contains a synchronously throwing caller-supplied writer, and the rejection
+    // handler swallows clipboard failures (permission denied, API unavailable) so
+    // they don't surface as unhandled rejections.
+    let write: void | Promise<void>;
+    try {
+      write = copyToClipboard(valueToCopy);
+    } catch {
+      return;
+    }
+
+    Promise.resolve(write).then(
+      () => {
+        if (
+          scopeGeneration !== scopeGenerationRef.current ||
+          copiedMessageId !== committedMessageIdRef.current
+        )
+          return;
+
+        if (copiedTimerRef.current !== undefined) {
+          clearTimeout(copiedTimerRef.current);
+        }
+        copiedFeedbackTargetRef.current = setCopyFeedback;
+        setCopyFeedback(true);
+        copiedTimerRef.current = setTimeout(() => {
+          copiedTimerRef.current = undefined;
+          if (copiedMessageId !== committedMessageIdRef.current) {
+            setCopyFeedback(false);
+            copiedFeedbackTargetRef.current = undefined;
+            return;
+          }
+          setCopyFeedback(false);
+          copiedFeedbackTargetRef.current = undefined;
+        }, copiedDuration);
+      },
+      () => {},
+    );
+  }, [
+    leopard,
+    messageId,
+    isEditing,
+    composerValue,
+    copiedDuration,
+    copyToClipboard,
+  ]);
+
+  return { copy, disabled: disabled || !copyToClipboard, isCopied };
+};

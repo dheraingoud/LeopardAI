@@ -3,8 +3,8 @@
  * UI tree from, and the tool schema describing it.
  */
 
-import { buildPresentParameters } from "@/aui/generative-ui/buildPresentParameters";
-import { vocabularyDefinitions } from "@/aui/generative-ui/vocabulary/definitions";
+import { buildPresentParameters } from "@/leopard-ui/generative-ui/buildPresentParameters";
+import { vocabularyDefinitions } from "@/leopard-ui/generative-ui/vocabulary/definitions";
 import type { JSONSchema7 } from "json-schema";
 
 export const LEOPARD_UI_COMPONENTS = [

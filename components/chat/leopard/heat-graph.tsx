@@ -1,7 +1,7 @@
 "use client";
 
-import * as HeatGraphPrimitive from "@/aui/heat-graph";
-import { useHeatGraphContext } from "@/aui/heat-graph/context";
+import * as HeatGraphPrimitive from "@/leopard-ui/heat-graph";
+import { useHeatGraphContext } from "@/leopard-ui/heat-graph/context";
 import { cn } from "@/lib/utils";
 
 const LEVEL_TINT = [

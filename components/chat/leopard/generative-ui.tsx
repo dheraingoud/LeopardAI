@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 import { field, mono, paper } from "./surfaces";
 import { Diagram } from "./diagram";
 
-// NOTE: aui's generative-ui is a styled GenerativeUILibrary descriptor from
-// @assistant-ui/generative-ui, which Leopard does not depend on. This is a
+// NOTE: leopard's generative-ui is a styled GenerativeUILibrary descriptor from
+// @/leopard-ui/generative-ui, which Leopard does not depend on. This is a
 // self-contained local shape with the same contract (a map of widget name →
 // { description, render }) so the coverage can merge into widget-renderer later.
 // Diagram degrades to Leopard's Diagram chrome + code block (no beautiful-mermaid);
@@ -53,7 +53,7 @@ const pinsOf = (places: unknown): GeoMapPlace[] =>
 function MapFallback({ places }: { places: readonly GeoMapPlace[] }) {
   return (
     <div
-      data-aui="map"
+      data-leopard="map"
       className={cn(paper, "flex w-full max-w-sm flex-col gap-1 rounded-2xl p-3")}
     >
       {places.map((place) => (
@@ -84,7 +84,7 @@ export const styledGenerativeUILibrary: GenerativeUILibrary = {
   Markdown: {
     description: "A markdown string, rendered with GitHub-flavored markdown.",
     render: ({ value, children }) => (
-      <div data-aui="markdown">
+      <div data-leopard="markdown">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {typeof value === "string" ? value : ""}
         </ReactMarkdown>
@@ -95,7 +95,7 @@ export const styledGenerativeUILibrary: GenerativeUILibrary = {
   Diagram: {
     description: "A mermaid diagram, rendered as an SVG.",
     render: ({ code, title }) => (
-      <figure data-aui="diagram">
+      <figure data-leopard="diagram">
         <Diagram
           title={typeof title === "string" ? title : "Diagram"}
           zoom={1}
@@ -105,7 +105,7 @@ export const styledGenerativeUILibrary: GenerativeUILibrary = {
           </pre>
         </Diagram>
         {typeof title === "string" || typeof title === "number" ? (
-          <figcaption data-aui="diagram-title" className={cn(mono, "text-muted-foreground mt-1")}>
+          <figcaption data-leopard="diagram-title" className={cn(mono, "text-muted-foreground mt-1")}>
             {title}
           </figcaption>
         ) : null}

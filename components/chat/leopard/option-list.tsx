@@ -5,13 +5,13 @@ import { CheckIcon, Loader2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { inkButton, mono, paper } from "./surfaces";
 
-// inlined from aui utils/range
+// inlined from leopard utils/range
 function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
   return Math.min(max, Math.max(min, value));
 }
 
-// inlined from aui receipt-focus
+// inlined from leopard receipt-focus
 type FocusHandlers = Pick<
   ComponentProps<"div">,
   "onFocusCapture" | "onBlurCapture"

@@ -20,7 +20,7 @@ const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
 
 const flowControlButtonClass =
-  "aui-flow-control size-7 cursor-pointer bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground sm:size-8";
+  "leopard-flow-control size-7 cursor-pointer bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground sm:size-8";
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -130,7 +130,7 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
   return (
     <div
       data-slot="flow-expand"
-      className={cn("aui-flow-expand group/flow relative", className)}
+      className={cn("leopard-flow-expand group/flow relative", className)}
       {...props}
     >
       {children}
@@ -149,7 +149,7 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
         className={cn(
           buttonVariants({ variant: "ghost", size: "icon-sm" }),
           flowControlButtonClass,
-          "aui-flow-expand-trigger absolute end-2 top-2 opacity-0 group-hover/flow:opacity-100 focus-visible:opacity-100",
+          "leopard-flow-expand-trigger absolute end-2 top-2 opacity-0 group-hover/flow:opacity-100 focus-visible:opacity-100",
         )}
       >
         <Maximize2 className="size-3.5" />
@@ -161,13 +161,13 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
           aria-modal="true"
           aria-label="Diagram"
           data-slot="flow-expand-dialog"
-          className="aui-flow-dialog-content bg-background fixed inset-0 start-0 top-0 z-50"
+          className="leopard-flow-dialog-content bg-background fixed inset-0 start-0 top-0 z-50"
         >
-          <span className="aui-sr-only sr-only">Expanded diagram viewer</span>
+          <span className="leopard-sr-only sr-only">Expanded diagram viewer</span>
           <div
             ref={viewportRef}
             data-slot="flow-expand-viewport"
-            className="aui-flow-expand-viewport h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
+            className="leopard-flow-expand-viewport h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
             onWheel={onWheel}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -176,7 +176,7 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
           >
             <div
               data-slot="flow-expand-content"
-              className="aui-flow-expand-content flex h-full w-full items-center justify-center"
+              className="leopard-flow-expand-content flex h-full w-full items-center justify-center"
               style={{
                 transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
                 transformOrigin: "0 0",
@@ -187,7 +187,7 @@ export function FlowExpand({ className, children, ...props }: FlowExpandProps) {
           </div>
           <div
             data-slot="flow-expand-controls"
-            className="aui-flow-expand-controls absolute end-4 top-4 flex items-center gap-1"
+            className="leopard-flow-expand-controls absolute end-4 top-4 flex items-center gap-1"
           >
             <Button
               type="button"

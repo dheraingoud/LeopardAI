@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 import { OptionList, type OptionListOption } from "./option-list";
 import { ghostButton, mono, paper } from "./surfaces";
 
-// inlined from aui utils/useIsomorphicLayoutEffect
+// inlined from leopard utils/useIsomorphicLayoutEffect
 const hasWindow = typeof window !== "undefined";
 const useIsomorphicLayoutEffect = hasWindow ? useLayoutEffect : useEffect;
 
-// inlined from aui receipt-focus
+// inlined from leopard receipt-focus
 type FocusHandlers = Pick<
   ComponentProps<"div">,
   "onFocusCapture" | "onBlurCapture"

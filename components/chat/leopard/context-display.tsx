@@ -16,7 +16,7 @@ import {
   type ReactNode,
 } from "react";
 
-// inlined from aui utils/context-usage
+// inlined from leopard utils/context-usage
 export type TokenUsage = {
   totalTokens?: number | undefined;
   inputTokens?: number | undefined;
@@ -79,7 +79,7 @@ const getContextSegments = (
   ].filter((segment) => segment.tokens > 0);
 };
 
-// inlined from aui utils/tokens
+// inlined from leopard utils/tokens
 const UNITS = [
   { size: 1_000, suffix: "k" },
   { size: 1_000_000, suffix: "M" },

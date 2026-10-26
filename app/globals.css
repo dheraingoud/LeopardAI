@@ -2,8 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "katex/dist/katex.min.css";
-@import "../aui/tw-shimmer/src/index.css";
-@import "../aui/diagrammatic/src/styles.css";
+@import "../leopard-ui/tw-shimmer/src/index.css";
+@import "../leopard-ui/diagrammatic/src/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));

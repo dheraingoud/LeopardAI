@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 
-// aui adoption: lock scroll position during collapsible/height animations.
+// leopard adoption: lock scroll position during collapsible/height animations.
 // Prevents page jumps when content height changes during animations — locks the
 // nearest scrollable ancestor's scrollTop and hides the scrollbar, compensating
 // for the collapsed gutter with padding (RTL-aware). Cleans up after the

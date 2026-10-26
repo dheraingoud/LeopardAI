@@ -1,0 +1,71 @@
+"use client";
+
+import { useCallback } from "react";
+import { useLeopard, useLeopardState } from "@/leopard-ui/store";
+
+type StateUpdater<TState> = TState | ((prev: TState) => TState);
+
+const useInteractableState = <TState>(
+  id: string,
+): [
+  TState | undefined,
+  {
+    setState: (updater: StateUpdater<TState>) => void;
+    isPending: boolean;
+    error: unknown;
+    flush: () => Promise<void>;
+  },
+] => {
+  const leopard = useLeopard();
+
+  const state = useLeopardState(
+    (s) => s.unstable_interactables.definitions[id]?.state,
+  ) as TState | undefined;
+
+  const persistenceStatus = useLeopardState(
+    (s) => s.unstable_interactables.persistence[id],
+  );
+
+  const setState = useCallback(
+    (updater: StateUpdater<TState>) => {
+      leopard.unstable_interactables.setState(id, (prev) => {
+        if (typeof updater === "function") {
+          return (updater as (prev: TState) => TState)(prev as TState);
+        }
+        return updater;
+      });
+    },
+    [leopard, id],
+  );
+
+  const flush = useCallback(() => leopard.unstable_interactables.flush(), [leopard]);
+
+  return [
+    state,
+    {
+      setState,
+      isPending: persistenceStatus?.isPending ?? false,
+      error: persistenceStatus?.error,
+      flush,
+    },
+  ];
+};
+
+/**
+ * Reads and writes the state of an interactable registered elsewhere, by id.
+ *
+ * Use this from secondary readers (children, siblings); the owning component
+ * registers with `unstable_useInteractable`, which returns state directly. Returns
+ * `undefined` until the owning interactable is registered.
+ *
+ * @deprecated Experimental since 2026-06-23. Not scheduled for removal; the API may change in any release.
+ */
+export const unstable_useInteractableState: <TState>(id: string) => [
+  TState | undefined,
+  {
+    setState: (updater: StateUpdater<TState>) => void;
+    isPending: boolean;
+    error: unknown;
+    flush: () => Promise<void>;
+  },
+] = useInteractableState;

@@ -156,7 +156,7 @@ export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
   const budget = maxMcpTools(process.env.LEOPARD_MCP_MAX_TOOLS);
   let mounted = 0;
 
-  // aui adoption (McpServerResource.withConnectionTimeout): one shared
+  // leopard adoption (McpServerResource.withConnectionTimeout): one shared
   // deadline across connect + listTools. A hung MCP server must not hang the
   // entire chat request — 8s budget, phase-labelled errors.
   const MCP_TIMEOUT_MS = Number(process.env.LEOPARD_MCP_TIMEOUT_MS) || 8000;
@@ -237,7 +237,7 @@ export async function loadMcpTools(extraServers?: unknown): Promise<McpHandle> {
     serverNames: clients.map((c) => c.name),
     instructions,
     close: async () => {
-      // aui adoption (throwAggregated): log each close rejection instead of
+      // leopard adoption (throwAggregated): log each close rejection instead of
       // silently dropping — a stdio child that fails to exit is invisible
       // without this.
       const results = await Promise.allSettled(clients.map((c) => c.client.close()));

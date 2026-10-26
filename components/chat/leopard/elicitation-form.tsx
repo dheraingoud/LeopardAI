@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { field, inkButton, mono, paper } from "./surfaces";
 import { Label } from "@/components/ui/label";
 
-// inlined from aui receipt-focus
+// inlined from leopard receipt-focus
 const hasWindow = typeof window !== "undefined";
 const useIsoLayoutEffect = hasWindow ? useEffect : useEffect;
 

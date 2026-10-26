@@ -22,11 +22,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Forked from assistant-ui elements/image.tsx. The aui ImageMessagePart /
+// Forked from assistant-ui elements/image.tsx. The leopard ImageMessagePart /
 // ImageMessagePartComponent types are replaced by a plain props interface, and
-// the aui ../utils/href safeHref/hostOf helpers are inlined below.
+// the leopard ../utils/href safeHref/hostOf helpers are inlined below.
 
-// --- inlined from aui utils/href (no Leopard equivalent) ---
+// --- inlined from leopard utils/href (no Leopard equivalent) ---
 const RELATIVE = /^(?:[/?#]|\.{1,2}\/)/;
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 const parseUrl = (url: string) => {
@@ -53,7 +53,7 @@ function hostOf(url: string | undefined): string | undefined {
 }
 // --- end inlined href helpers ---
 
-// Plain props replacing aui's ImageMessagePart.
+// Plain props replacing leopard's ImageMessagePart.
 export interface ImagePartProps {
   image: string;
   filename?: string | undefined;
@@ -193,7 +193,7 @@ const copyImagePart = async (
 };
 
 const imageVariants = cva(
-  "aui-image-root relative overflow-hidden rounded-lg",
+  "leopard-image-root relative overflow-hidden rounded-lg",
   {
     variants: {
       variant: {
@@ -500,7 +500,7 @@ function ImageZoom({ src, alt = "Image preview", children }: ImageZoomProps) {
         }}
         role="button"
         tabIndex={0}
-        className="aui-image-zoom-trigger cursor-zoom-in"
+        className="leopard-image-zoom-trigger cursor-zoom-in"
         aria-label="Click to zoom image"
       >
         {children}
@@ -512,7 +512,7 @@ function ImageZoom({ src, alt = "Image preview", children }: ImageZoomProps) {
             data-slot="image-zoom-overlay"
             role="dialog"
             aria-modal="true"
-            className="aui-image-zoom-overlay fade-in animate-in fixed inset-0 z-50 flex items-center justify-center bg-black/80 duration-200"
+            className="leopard-image-zoom-overlay fade-in animate-in fixed inset-0 z-50 flex items-center justify-center bg-black/80 duration-200"
             onClick={handleClose}
             aria-label="Zoomed image"
           >
@@ -520,7 +520,7 @@ function ImageZoom({ src, alt = "Image preview", children }: ImageZoomProps) {
               data-slot="image-zoom-content"
               src={src}
               alt={alt}
-              className="aui-image-zoom-content fade-in zoom-in-95 animate-in max-h-[90%] max-w-[90%] cursor-zoom-out object-contain duration-200"
+              className="leopard-image-zoom-content fade-in zoom-in-95 animate-in max-h-[90%] max-w-[90%] cursor-zoom-out object-contain duration-200"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClose();

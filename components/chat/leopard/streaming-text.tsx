@@ -71,7 +71,7 @@ export const StreamingText = memo(function StreamingText({
 }) {
   // Model output often uses \(...\) / \[...\] / [/math] or currency $ that
   // remark-math won't parse — normalize to $$...$$, escape currency. Ported
-  // from aui react-markdown preprocess (battle-tested char-level scanner,
+  // from leopard react-markdown preprocess (battle-tested char-level scanner,
   // fence/blockquote aware). Run BEFORE the fence-aware block split.
   const mathReady = escapeCurrencyDollars(normalizeMathDelimiters(content));
   const sanitized = sanitizeText(mathReady).replace(/\s+height=["']auto["']/g, "");

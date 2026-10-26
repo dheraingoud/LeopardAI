@@ -21,13 +21,13 @@ import {
 
 export const ANIMATION_DURATION = 200;
 
-// Inline useIsomorphicLayoutEffect (aui util — no Leopard equivalent).
+// Inline useIsomorphicLayoutEffect (leopard util — no Leopard equivalent).
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const ReasoningPreviewContext = createContext(false);
 
-const reasoningVariants = cva("aui-reasoning-root mb-4 w-full", {
+const reasoningVariants = cva("leopard-reasoning-root mb-4 w-full", {
   variants: {
     variant: {
       outline: "rounded-lg border px-3 py-2",
@@ -43,7 +43,7 @@ const reasoningVariants = cva("aui-reasoning-root mb-4 w-full", {
 // Forked from assistant-ui elements/reasoning.tsx against Leopard's Radix
 // collapsible. base-ui's data-open/data-closed/data-panel-open attrs translate
 // to Radix's data-state="open|closed" — the group-data selectors below carry
-// that mapping. The aui CollapsibleRoot open/onOpenChange API maps 1:1.
+// that mapping. The leopard CollapsibleRoot open/onOpenChange API maps 1:1.
 export type ReasoningRootProps = Omit<
   React.ComponentProps<typeof Collapsible>,
   "open" | "onOpenChange"
@@ -149,7 +149,7 @@ function ReasoningFade({
       <div
         data-slot="reasoning-fade"
         className={cn(
-          "aui-reasoning-fade pointer-events-none absolute inset-x-0 top-0 z-10 h-8",
+          "leopard-reasoning-fade pointer-events-none absolute inset-x-0 top-0 z-10 h-8",
           "bg-[linear-gradient(to_bottom,var(--color-background),transparent)]",
           "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--color-muted)_50%,var(--color-background)),transparent)]",
           "fade-in-0 animate-in",
@@ -165,7 +165,7 @@ function ReasoningFade({
     <div
       data-slot="reasoning-fade"
       className={cn(
-        "aui-reasoning-fade pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8",
+        "leopard-reasoning-fade pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8",
         "bg-[linear-gradient(to_top,var(--color-background),transparent)]",
         "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,color-mix(in_oklab,var(--color-muted)_50%,var(--color-background)),transparent)]",
         "fade-in-0 animate-in",
@@ -192,19 +192,19 @@ function ReasoningTrigger({
     <CollapsibleTrigger
       data-slot="reasoning-trigger"
       className={cn(
-        "aui-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground flex max-w-[75%] origin-left items-center gap-2 py-1.5 text-sm transition-[color,scale] active:scale-[0.98]",
+        "leopard-reasoning-trigger group/trigger text-muted-foreground hover:text-foreground flex max-w-[75%] origin-left items-center gap-2 py-1.5 text-sm transition-[color,scale] active:scale-[0.98]",
         className,
       )}
       {...props}
     >
       <BrainIcon
         data-slot="reasoning-trigger-icon"
-        className="aui-reasoning-trigger-icon size-4 shrink-0"
+        className="leopard-reasoning-trigger-icon size-4 shrink-0"
       />
       <span
         data-slot="reasoning-trigger-label"
         className={cn(
-          "aui-reasoning-trigger-label-wrapper inline-block leading-none tabular-nums",
+          "leopard-reasoning-trigger-label-wrapper inline-block leading-none tabular-nums",
           active && "shimmer motion-reduce:animate-none",
         )}
       >
@@ -213,7 +213,7 @@ function ReasoningTrigger({
       <ChevronDownIcon
         data-slot="reasoning-trigger-chevron"
         className={cn(
-          "aui-reasoning-trigger-chevron mt-0.5 size-4 shrink-0",
+          "leopard-reasoning-trigger-chevron mt-0.5 size-4 shrink-0",
           "transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           "-rotate-90",
           // base-ui data-open/data-panel-open → radix data-state=open.
@@ -235,7 +235,7 @@ function ReasoningContent({
     <CollapsibleContent
       data-slot="reasoning-content"
       className={cn(
-        "aui-reasoning-content text-muted-foreground relative overflow-hidden text-sm outline-none",
+        "leopard-reasoning-content text-muted-foreground relative overflow-hidden text-sm outline-none",
         "group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none",
         // base-ui data-open/data-closed → radix data-state.
         "data-[state=closed]:animate-collapsible-up",
@@ -312,7 +312,7 @@ function ReasoningText({
       ref={scrollRef}
       data-slot="reasoning-text"
       className={cn(
-        "aui-reasoning-text relative z-0 max-h-64 overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty",
+        "leopard-reasoning-text relative z-0 max-h-64 overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty",
         "transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]",
         "motion-reduce:animate-none",
         // base-ui group-data-open/closed → radix group-data-[state=...].
@@ -330,7 +330,7 @@ function ReasoningText({
       )}
       {...props}
     >
-      <div ref={contentRef} className="aui-reasoning-text-content space-y-4">
+      <div ref={contentRef} className="leopard-reasoning-text-content space-y-4">
         {children}
       </div>
     </div>
