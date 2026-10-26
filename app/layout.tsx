@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
+import { auth } from "@clerk/nextjs/server";
+import { ConvexHttpClient } from "convex/browser";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ExternalLinksNewTab } from "@/components/external-links";
 import { ConvexClientProvider } from "./ConvexClientProvider";
@@ -7,6 +8,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToaster } from "@/components/theme-toaster";
 import { DynamicClerkProvider } from "@/components/dynamic-clerk-provider";
 import { MotionConfigProvider } from "@/components/motion-config-provider";
+import { api } from "@/convex/_generated/api";
+import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import {
   Bricolage_Grotesque,
   Geist,
@@ -71,16 +74,33 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+async function resolveServerTheme(
+  clerkId: string | null,
+): Promise<"dark" | "light"> {
+  try {
+    if (!clerkId) return "dark";
+    const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const prefs = await client.query(api.userPrefs.get, { clerkId });
+    return prefs?.theme === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { userId } = await auth();
+  const clerkId = userId ?? (BYPASS_CLERK ? DEV_USER_ID : null);
+  const theme = await resolveServerTheme(clerkId);
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      className={`h-full antialiased ${fontGeist.variable} ${fontGeistMono.variable} ${fontSans.variable} ${fontHeading.variable}`}
+      className={`h-full antialiased ${theme} ${fontGeist.variable} ${fontGeistMono.variable} ${fontSans.variable} ${fontHeading.variable}`}
+      style={{ colorScheme: theme }}
       data-scroll-behavior="smooth"
     >
       <head>
@@ -108,19 +128,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap"
           rel="stylesheet"
         />
-        {/* No-flash theme init. Runs before hydration (beforeInteractive is
-            hoisted into the document header by Next) so the correct
-            dark/light class is on <html> on first paint. Replaces the raw
-            <script> next-themes rendered client-side (which tripped the
-            React 19 "script tag while rendering" dev warning). next/script is
-            Next's sanctioned loader → no warning. Key mirrors the custom
-            ThemeProvider's STORAGE_KEY ("leopard-theme"). */}
-        <Script id="leopard-theme-init" strategy="beforeInteractive">
-          {`(function(){var d=document.documentElement;d.classList.remove("dark","light");var apply="dark";try{var t=localStorage.getItem("leopard-theme");if(t==="dark"||t==="light"){apply=t;}}catch(e){}d.classList.add(apply);d.style.colorScheme=apply;})();`}
-        </Script>
+        {/* The theme class is rendered on <html> by the server (resolveServerTheme
+            reads the user's Convex preference), so the first paint already has
+            the right theme — no client init script, no flash. */}
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground noise-overlay">
-        <ThemeProvider>
+        <ThemeProvider clerkId={clerkId}>
           <DynamicClerkProvider>
             <ConvexClientProvider>
               <MotionConfigProvider>

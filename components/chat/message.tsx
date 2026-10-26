@@ -92,7 +92,7 @@ import { getActiveModels } from "@/lib/ai/models";
 //   USER     : Copy · Edit (turns this message into the composer text + truncates
 //              everything after so the next send replaces it)
 //   ASSISTANT: Copy · Regenerate (re-triggers the AI for this turn) · Like ·
-//              Dislike (persists a vote per message id in localStorage). Last
+//              Dislike (persists a vote per message id in Convex). Last
 //              vote highlighted amber.
 // Order of buttons is the visual hierarchy Apple / Linear prefer:
 //   - Copy (neutral, primary edit affordance) sits leftmost
@@ -100,23 +100,6 @@ import { getActiveModels } from "@/lib/ai/models";
 //     sits next
 //   - Like/Dislike (pure signal, non-action) sit furthest right
 // ─────────────────────────────────────────────────────────────────────────────
-function feedbackStore(messageId: string): "up" | "down" | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const v = window.localStorage.getItem(`lf:fb:${messageId}`);
-    if (v === "up" || v === "down") return v;
-  } catch {
-    /* private mode */
-  }
-  return null;
-}
-function setFeedback(messageId: string, value: "up" | "down") {
-  try {
-    window.localStorage.setItem(`lf:fb:${messageId}`, value);
-  } catch {
-    /* swallow */
-  }
-}
 
 /**
  * Phase 5 + Φ6 message renderer — text + reasoning + tool-createDocument parts
@@ -687,9 +670,7 @@ export const PreviewMessage = memo(function PreviewMessage({
   const [feedbackNote, setFeedbackNote] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
   const quoteRootRef = useRef<HTMLDivElement>(null);
-  const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(() =>
-    feedbackStore(message?.id ?? ""),
-  );
+  const [feedbackVote, setFeedbackVote] = useState<"up" | "down" | null>(null);
   // Regen history (session-scoped, from use-active-chat) + stream duration.
   const siblings = isUser ? [] : chat.getSiblings(message.id);
   const [branchIdx, setBranchIdx] = useState<number | null>(null); // null = latest
@@ -719,10 +700,9 @@ export const PreviewMessage = memo(function PreviewMessage({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [feedbackOpen]);
   useEffect(() => {
-    // Re-read vote if message.id changes (e.g. after streaming completes and
-    // the optimistic id gets swapped for the persisted one).
-    setFeedbackVote(feedbackStore(message?.id ?? ""));
-  }, [message?.id]);
+    const vote = message?.id ? chat.votesByMessage.get(message.id) : undefined;
+    setFeedbackVote(vote?.value === "up" || vote?.value === "down" ? vote.value : null);
+  }, [message?.id, chat.votesByMessage]);
   // Reasoning elapsed tracker: start the clock when reasoning first appears,
   // freeze once the answer text begins (or the stream ends) → "Thought for Ns".
   // The frozen value is stashed in a module-level map keyed by reasoning-text
@@ -1811,13 +1791,11 @@ export const PreviewMessage = memo(function PreviewMessage({
                   onReactionChange={(r) => {
                     if (r === feedbackVote) return;
                     if (r === null) {
-                      try {
-                        window.localStorage.removeItem(`lf:fb:${message.id}`);
-                      } catch {}
+                      chat.setMessageFeedback(message.id, null);
                       setFeedbackVote(null);
                       setFeedbackOpen(false);
                     } else if (r === "up") {
-                      setFeedback(message.id, "up");
+                      chat.setMessageFeedback(message.id, "up");
                       setFeedbackVote("up");
                       setFeedbackOpen(false);
                       toast.success("Marked as helpful");
@@ -1908,7 +1886,12 @@ export const PreviewMessage = memo(function PreviewMessage({
                   onNoteChange={setFeedbackNote}
                   onCancel={() => setFeedbackOpen(false)}
                   onSubmit={() => {
-                    setFeedback(message.id, "down");
+                    chat.setMessageFeedback(
+                      message.id,
+                      "down",
+                      feedbackReasons,
+                      feedbackNote,
+                    );
                     setFeedbackVote("down");
                     setFeedbackSent(true);
                     toast.success("Marked — we'll improve the next reply");

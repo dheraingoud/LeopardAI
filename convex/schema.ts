@@ -30,6 +30,20 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_clerk_id", ["clerkId"]),
 
+  userPrefs: defineTable({
+    clerkId: v.string(),
+    lastModel: v.optional(v.string()),
+    theme: v.optional(v.string()),
+    sendWithEnter: v.optional(v.boolean()),
+    webFetchEnabled: v.optional(v.boolean()),
+    reasoning: v.optional(v.record(v.string(), v.string())),
+    mcpServers: v.optional(v.any()),
+    skills: v.optional(v.any()),
+    permanentToggles: v.optional(v.record(v.string(), v.boolean())),
+    skillOverrides: v.optional(v.record(v.string(), v.string())),
+    updatedAt: v.number(),
+  }).index("by_clerk_id", ["clerkId"]),
+
   chats: defineTable({
     userId: v.string(),
     title: v.string(),
@@ -55,6 +69,8 @@ export default defineSchema({
     archived: v.optional(v.boolean()),
     // True while a detached generation for this chat is live (sidebar blink).
     generating: v.optional(v.boolean()),
+    draft: v.optional(v.string()),
+    readAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_share_id", ["shareId"])
@@ -101,11 +117,14 @@ export default defineSchema({
     .index("by_chat_public_id", ["chatId", "id"])
     .index("by_public_id", ["id"]),
 
-  // Φ3 NEW — message votes (thumbs up/down). One vote per message.
+  // Φ3 NEW — message votes (thumbs up/down). One vote per message; value is "up" | "down".
   votes: defineTable({
     chatId: v.id("chats"),
     messageId: v.string(), // matches messages.id (client UUID)
-    isUpvoted: v.boolean(),
+    isUpvoted: v.optional(v.boolean()),
+    value: v.optional(v.string()),
+    reasons: v.optional(v.array(v.string())),
+    note: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_message", ["messageId"])
@@ -185,7 +204,7 @@ export default defineSchema({
   // Φ-skill-library · permanent curated skills. GLOBAL table — no userId — so
   // the same skills persist on ALL accounts (seeded idempotently by slug by the
   // detached task + a one-shot seed script). The client merges these with the
-  // user's localStorage skills; library skills are permanent + non-removable but
+  // user's own skills; library skills are permanent + non-removable but
   // toggleable. When enabled, their bodies ride the /api/chat POST payload and
   // get appended to the system prompt as `## Instructions` blocks.
   skillLibrary: defineTable({

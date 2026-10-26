@@ -1,35 +1,27 @@
 "use client";
 
 /**
- * McpConfig — local persistence for the user's MCP server list (the "+ → mcp
- * servers" overlay). A browser-local mirror of Claude Code's
- * `.claude/mcp.json` concept: each server is a name + an endpoint.
+ * McpConfig — persistence for the user's MCP server list (the "+ → mcp
+ * servers" overlay). A mirror of Claude Code's `.claude/mcp.json` concept:
+ * each server is a name + an endpoint.
  *
  * Two transports:
  *   - stdio  — `command` (e.g. `npx`/`node script.mjs`), spawned server-side.
  *   - http   — `url` (+ optional `headers`), an SSE/JSON-RPC endpoint.
  *
- * Persisted to localStorage under one key. Read-only until real server-side
- * tool loading is wired — the modal is the config surface; the transport
- * handshake ships when the SDK integration lands.
+ * Persisted in Convex (`userPrefs.mcpServers`) through the prefs cache, so
+ * the list follows the account instead of one browser.
  */
 
-export type McpTransport = "stdio" | "http";
+import { getPrefsSnapshot, writePrefs } from "./prefs-cache.ts";
+import {
+  asServerList,
+  toWireServers,
+  type McpServerConfig,
+  type McpTransport,
+} from "@/lib/mcp-wire";
 
-export type McpServerConfig = {
-  id: string;
-  name: string;
-  type: McpTransport;
-  /** stdio: executable + args */
-  command?: string;
-  /** http: base URL (SSE or streamable-http) */
-  url?: string;
-  /** http: optional static headers (e.g. bearer token) */
-  headers?: Record<string, string>;
-  enabled: boolean;
-};
-
-const KEY = "leopard.mcp.servers.v1";
+export type { McpServerConfig, McpTransport };
 
 const SAMPLES: McpServerConfig[] = [
   {
@@ -50,45 +42,17 @@ const SAMPLES: McpServerConfig[] = [
 
 export function loadMcpConfig(): McpServerConfig[] {
   if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    const parsed = raw ? (JSON.parse(raw) as McpServerConfig[]) : null;
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-  } catch {
-    /* corrupted — fall through to samples */
-  }
-  return SAMPLES;
-}
-
-/** Split a stdio command line into executable + args (the AI SDK stdio
- *  transport spawns `command` as a single path — "node script.mjs" would
- *  ENOENT). Handles simple quoted segments. */
-function splitCommand(cmd: string): { command: string; args: string[] } {
-  const parts = cmd.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
-  const unq = parts.map((p) => p.replace(/^"|"$/g, ""));
-  return { command: unq[0] ?? cmd, args: unq.slice(1) };
+  return asServerList(getPrefsSnapshot().mcpServers) ?? SAMPLES;
 }
 
 /** Enabled servers in the route's wire shape (lib/ai/mcp.ts McpServerConfig). */
 export function getEnabledMcpServers(): Array<Record<string, unknown>> {
-  return loadMcpConfig()
-    .filter((s) => s.enabled)
-    .map((s) => ({
-      name: s.name,
-      type: s.type,
-      ...(s.type === "stdio" && s.command ? splitCommand(s.command) : {}),
-      ...(s.type === "http" && s.url ? { url: s.url } : {}),
-      ...(s.headers ? { headers: s.headers } : {}),
-    }));
+  return toWireServers(loadMcpConfig());
 }
 
 export function saveMcpConfig(servers: McpServerConfig[]): void {
   if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(servers));
-  } catch {
-    /* quota / private mode — non-fatal */
-  }
+  writePrefs({ mcpServers: servers });
 }
 
 let _seq = 0;

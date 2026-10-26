@@ -10,6 +10,7 @@ import {
   rankMemoriesByQuery,
 } from "@/lib/ai/embeddings";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
+import { asServerList, toWireServers } from "@/lib/mcp-wire";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Φ10 / #3 — Server-owned background generation.
@@ -458,6 +459,23 @@ export type UserMemory = {
   embedding?: number[];
   embedModel?: string;
 };
+
+export async function listUserMcpServers(
+  userId: string,
+): Promise<Array<Record<string, unknown>>> {
+  const c = convexClient();
+  if (!c) return [];
+  try {
+    const prefs = (await c.query(api.userPrefs.get as never, {
+      clerkId: userId,
+    } as never)) as { mcpServers?: unknown } | null;
+    const servers = asServerList(prefs?.mcpServers);
+    return servers ? toWireServers(servers) : [];
+  } catch (err) {
+    logWarn("mcp config recall failed", err);
+    return [];
+  }
+}
 
 /** Ordered recall list for the route to inject into the system prompt AND for
  * the model's listMemories tool. Returns [] when unconfigured (no admin

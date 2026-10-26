@@ -14,11 +14,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getActiveModels } from "@/lib/ai/models";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasoningEffort } from "@/components/chat/leopard/reasoning-effort";
+import { useUserPrefs } from "@/hooks/use-user-prefs";
+import { getPrefsSnapshot, subscribePrefs } from "@/lib/prefs-cache";
 import { ComparisonCard } from "@/components/chat/leopard/comparison-card";
 import { RecommendationCard } from "@/components/chat/leopard/recommendation-card";
 import { CheckpointHistory } from "@/components/chat/leopard/checkpoint-history";
@@ -514,22 +516,19 @@ export default function SettingsPage() {
 
 function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveModels> }) {
   const reasoningModels = models.filter((m) => m.reasoningConfig?.enabled && m.reasoningConfig.toggleable);
+  const { update } = useUserPrefs();
   const [mid, setMid] = useState(reasoningModels[0]?.id ?? "");
-  const [level, setLevel] = useState<string>(() =>
-    typeof window === "undefined" ? "" : window.localStorage.getItem(`leopard:reasoning:${mid}`) ?? "",
-  );
+  const snapshot = useSyncExternalStore(subscribePrefs, getPrefsSnapshot, getPrefsSnapshot);
+  const saved = snapshot.reasoning ?? {};
+  const level = saved[mid] ?? "";
   if (reasoningModels.length === 0) return null;
   return (
-    <Section title="Default reasoning effort" hint="per model — stored locally">
+    <Section title="Default reasoning effort" hint="per model — stored in your account">
       <div className="py-4">
         <div className="mb-2 flex items-center gap-2">
           <select
             value={mid}
-            onChange={(e) => {
-              const next = e.target.value;
-              setMid(next);
-              setLevel(window.localStorage.getItem(`leopard:reasoning:${next}`) ?? "");
-            }}
+            onChange={(e) => setMid(e.target.value)}
             aria-label="Model for reasoning default"
             className={cn(fieldInteractive, hairline, "h-8 rounded-md border bg-transparent px-2 text-xs dark:text-[#d4d4d4] light:text-[#404040] outline-none")}
           >
@@ -543,8 +542,7 @@ function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveMode
           className="px-0 pb-0 pt-0"
           value={(level || undefined) as never}
           onChange={(l) => {
-            setLevel(l);
-            try { window.localStorage.setItem(`leopard:reasoning:${mid}`, l); } catch { /* private mode */ }
+            update({ reasoning: { ...saved, [mid]: l } });
           }}
         />
       </div>

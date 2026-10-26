@@ -1,32 +1,20 @@
 "use client";
 
 /**
- * ThemeProvider — leopard's no-flash theme provider. Replaces `next-themes`
- * (Phase 7 mechanism) to clear the React 19 / Next 16 dev warning
- * "Encountered a script tag while rendering React component".
+ * ThemeProvider — leopard's no-flash theme provider. Owns the theme state and
+ * writes it to Convex (`userPrefs.theme`), so the preference follows the
+ * account instead of living in one browser.
  *
- * Why not next-themes: 0.4.6 (latest) renders its no-flash `ThemeScript` as a
- * raw `<script dangerouslySetInnerHTML>` inside the client tree. Next 16 /
- * React 19.2 logs the warning above for raw client-rendered inline scripts,
- * and there is no prop to opt out — upstream bug (#385/#387, fix PR #386 still
- * open). The PR's approach is "don't render ThemeScript on client": we go one
- * step further and own the whole mechanism so zero raw `<script>` is rendered
- * in the React tree.
- *
- * Mechanism (functionally identical to what next-themes gave us):
- *  - No-flash SSR: the no-flash script runs via `next/script` with
- *    `strategy="beforeInteractive"` placed in the SERVER root layout
- *    (`app/layout.tsx` — see "leopard-theme-init"). Next hoists it into the
- *    document header, so it sets the `dark`/`light` class on `<html>` BEFORE
- *    React hydrates → no theme flash on first paint. `next/script` is Next's
- *    sanctioned path, so it does NOT trip the React 19 script warning.
+ * Mechanism:
+ *  - No-flash SSR: the SERVER root layout (`app/layout.tsx`) reads the user's
+ *    Convex preference and renders the `dark`/`light` class on `<html>`
+ *    directly — the correct theme is on the element before the first paint,
+ *    with no client init script at all.
  *  - Client state: `useTheme()` returns `{theme, setTheme, resolvedTheme,
  *    themes}`. `theme` defaults to "dark" until the mount effect reads the
- *    class the beforeInteractive script already set on `<html>` — mirrors
- *    next-themes' own "undefined until mount" behavior, so Clerk/Toaster
- *    (which coerce undefined→dark) behave identically.
- *  - Persistence: `localStorage["leopard-theme"]` (same key as before, so
- *    existing users keep their preference across the swap). No OS-pref sniff
+ *    class the server already set on `<html>` — so Clerk/Toaster (which coerce
+ *    undefined→dark) behave identically.
+ *  - Persistence: `userPrefs.theme` in Convex. No OS-pref sniff
  *    (`enableSystem=false` equivalent) — dark is the default.
  *
  * `useLeopardTheme()` (below) exposes `toggleTheme`, which adds the
@@ -42,10 +30,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "@/convex/_generated/api";
 
 export type LeopardTheme = "dark" | "light";
 
-const STORAGE_KEY = "leopard-theme";
 const DEFAULT_THEME: LeopardTheme = "dark";
 const VALID_THEMES: LeopardTheme[] = ["dark", "light"];
 
@@ -67,29 +56,40 @@ function readActiveClass(): LeopardTheme {
     : "dark";
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export function ThemeProvider({
+  children,
+  clerkId,
+}: {
+  children: React.ReactNode;
+  clerkId?: string | null;
+}) {
   // SSR + first client render: dark (leopard default). The mount effect below
-  // syncs to whatever the beforeInteractive script already set on <html>.
+  // syncs to whatever class the server already put on <html>.
   const [theme, setThemeState] = useState<LeopardTheme>(DEFAULT_THEME);
 
   useEffect(() => {
     setThemeState(readActiveClass());
   }, []);
 
-  const setTheme = useCallback((next: LeopardTheme) => {
-    if (!VALID_THEMES.includes(next)) return;
-    setThemeState(next);
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(next);
-    root.style.colorScheme = next;
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // private mode / storage disabled — DOM class still applied above.
-    }
-  }, []);
+  const setTheme = useCallback(
+    (next: LeopardTheme) => {
+      if (!VALID_THEMES.includes(next)) return;
+      setThemeState(next);
+      if (typeof document === "undefined") return;
+      const root = document.documentElement;
+      root.classList.remove("light", "dark");
+      root.classList.add(next);
+      root.style.colorScheme = next;
+      if (!clerkId) return;
+      const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+      void client
+        .mutation(api.userPrefs.set, { clerkId, theme: next })
+        .catch((err) => {
+          console.warn("[theme] persist failed:", err);
+        });
+    },
+    [clerkId],
+  );
 
   const value = useMemo<ThemeContextValue>(
     () => ({

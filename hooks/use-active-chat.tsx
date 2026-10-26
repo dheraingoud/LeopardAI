@@ -37,9 +37,10 @@ import {
   SerialRunQueueDropError,
 } from "@/lib/serial-run-queue";
 import { getInvokedSkillBodies } from "@/lib/skill-store";
-import { getEnabledMcpServers } from "@/lib/mcp-config";
 import { useSettingsStore } from "@/hooks/use-settings-store";
 import { useSkillLibrary } from "@/hooks/use-skill-library";
+import { useUserPrefs } from "@/hooks/use-user-prefs";
+import { getPrefsSnapshot } from "@/lib/prefs-cache";
 import {
   stashPendingMessage,
   takePendingMessage,
@@ -107,8 +108,15 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
   setCurrentModel: (id: string) => void;
   /** Selected reasoning level for THIS chat (per-model, persisted client-side). */
   currentReasoning: ReasoningLevel | undefined;
-  /** Change reasoning level (local state + localStorage persistence). */
+  /** Change reasoning level (local state + Convex persistence). */
   setReasoning: (level: ReasoningLevel) => void;
+  votesByMessage: Map<string, { value: string; reasons?: string[]; note?: string }>;
+  setMessageFeedback: (
+    messageId: string,
+    value: "up" | "down" | null,
+    reasons?: string[],
+    note?: string,
+  ) => void;
   /** Active artifact side-panel state (null = none). Φ6. */
   artifact: UIArtifact | null;
   /** Close/clear the artifact panel. Φ6. */
@@ -252,6 +260,27 @@ export function ActiveChatProvider({
     api.messages.list,
     isDraft || badId ? "skip" : { chatId: convexChatId },
   );
+  const convexVotes = useQuery(
+    api.votes.getByChat,
+    isDraft || badId ? "skip" : { chatId: convexChatId },
+  );
+  const votesByMessage = useMemo(() => {
+    const map = new Map<string, { value: string; reasons?: string[]; note?: string }>();
+    for (const vote of convexVotes ?? []) {
+      const raw = vote.value;
+      const value =
+        raw === "up" || raw === "down"
+          ? raw
+          : vote.isUpvoted === true
+            ? "up"
+            : vote.isUpvoted === false
+              ? "down"
+              : null;
+      if (!value) continue;
+      map.set(vote.messageId, { value, reasons: vote.reasons, note: vote.note });
+    }
+    return map;
+  }, [convexVotes]);
   // Latest-rows ref for event handlers (stopGeneration) that mustn't re-bind
   // on every mirror patch.
   const convexMessagesRef = useRef(convexMessages);
@@ -261,6 +290,8 @@ export function ActiveChatProvider({
   // Φ-skill-library — seed + load curated skills into the shared store so the
   // +→add-skill modal can render them and the transport injects their bodies.
   useSkillLibrary();
+
+  const userPrefs = useUserPrefs();
 
   // ── Convex: mutations (stable refs from useMutation) ──────────────────────
   const messagesSend = useMutation(api.messages.send);
@@ -273,22 +304,16 @@ export function ActiveChatProvider({
   // Φ6: persist assembled artifact doc on stream finish (client-persist —
   // route has no ConvexHttpClient by design; mirrors messages.send pattern).
   const documentsSave = useMutation(api.documents.save);
+  const setFeedbackMutation = useMutation(api.votes.setFeedback);
 
   // ── Selected model ─────────────────────────────────────────────────────────
-  // QA m2: draft/new chats default to the LAST picked model (localStorage),
-  // not always the registry default — a reload used to silently reset the
-  // user's pick. Real chats still sync from chatMeta (row wins).
-  const [currentModelId, setCurrentModelIdState] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const last = window.localStorage.getItem("leopard:last-model");
-        if (last && getModelById(last)) return last;
-      } catch {
-        /* ignore quota / private mode */
-      }
-    }
-    return getDefaultChatModel().id;
-  });
+  // QA m2: draft/new chats default to the LAST picked model (persisted in
+  // Convex `userPrefs.lastModel`, so the pick follows the account across
+  // browsers), not always the registry default — a reload used to silently
+  // reset the user's pick. Real chats still sync from chatMeta (row wins).
+  const [currentModelId, setCurrentModelIdState] = useState<string>(
+    () => getDefaultChatModel().id,
+  );
   // Sync ONCE from the loaded chat (race-guard: don't clobber a user pick made
   // before chatMeta arrived). Provider is keyed by chatId, so the ref resets on
   // every chat switch — first sync is the saved chat model.
@@ -303,6 +328,14 @@ export function ActiveChatProvider({
       );
     }
   }, [chatMeta?.model]);
+  useEffect(() => {
+    if (!isDraft || hasSyncedModelRef.current) return;
+    const last = getPrefsSnapshot().lastModel ?? userPrefs.prefs.lastModel;
+    if (last && getModelById(last)) {
+      hasSyncedModelRef.current = true;
+      setCurrentModelIdState(last);
+    }
+  }, [isDraft, userPrefs.prefs.lastModel]);
   // Ref so the transport (created once) reads the latest model without
   // re-constructing itself on every model change.
   const currentModelIdRef = useRef(currentModelId);
@@ -310,65 +343,58 @@ export function ActiveChatProvider({
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
 
-  // ── Selected reasoning level (per-chat, persisted client-side) ────────────
+  // ── Selected reasoning level (per-chat, persisted in Convex) ─────────────
   // Per-chat scoping (user bug 2026-08-26: setting LOW in chat B flipped the
   // badge in chat A that was set HIGH — the per-model key leaked across
-  // chats). Real chats read/write `leopard:reasoning:<chatId>:<modelId>`;
-  // the DRAFT (/chat pre-first-send) reads/writes the per-model default key,
-  // which is also the fallback the first time a real chat is seen. undefined
-  // for models with no reasoning knob (route then omits the param).
+  // chats). Real chats read/write `<chatId>:<modelId>`; the DRAFT (/chat
+  // pre-first-send) reads/writes the per-model default key, which is also the
+  // fallback the first time a real chat is seen. undefined for models with no
+  // reasoning knob (route then omits the param).
   // useCallback (perf 2026-10-10): setReasoning's deps include this.
   const reasoningKey = useCallback(
     (mid: string, cid?: string) =>
-      cid && cid !== "draft"
-        ? `leopard:reasoning:${cid}:${mid}`
-        : `leopard:reasoning:${mid}`,
+      cid && cid !== "draft" ? `${cid}:${mid}` : mid,
     [],
   );
-  const resolveReasoningFor = (mid: string, cid?: string): ReasoningLevel | undefined => {
-    const cfg = getModelById(mid)?.reasoningConfig;
-    if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
-    // Valid levels for this card (audit 2026-10-08): a stale localStorage value
-    // from an older effort set (e.g. "medium" on a low/high/max-only model, or
-    // "off" on an off-unsupported card) used to ride the request and NIM either
-    // 400'd the turn or silently thought anyway.
-    const valid = new Set<string>([
-      ...(cfg.offSupported === false ? [] : ["off"]),
-      "on",
-      ...(cfg.effortLevels ?? []),
-    ]);
-    const read = (key: string): ReasoningLevel | undefined => {
-      const v = window.localStorage.getItem(key);
-      return v && valid.has(v) ? (v as ReasoningLevel) : undefined;
-    };
-    try {
+  const resolveReasoningFor = useCallback(
+    (mid: string, cid?: string, saved?: Record<string, string>): ReasoningLevel | undefined => {
+      const cfg = getModelById(mid)?.reasoningConfig;
+      if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
+      // Valid levels for this card (audit 2026-10-08): a stale stored value
+      // from an older effort set (e.g. "medium" on a low/high/max-only model,
+      // or "off" on an off-unsupported card) used to ride the request and NIM
+      // either 400'd the turn or silently thought anyway.
+      const valid = new Set<string>([
+        ...(cfg.offSupported === false ? [] : ["off"]),
+        "on",
+        ...(cfg.effortLevels ?? []),
+      ]);
       if (cid && cid !== "draft") {
-        const chatSaved = read(reasoningKey(mid, cid));
-        if (chatSaved) return chatSaved;
+        const chatSaved = saved?.[reasoningKey(mid, cid)];
+        if (chatSaved && valid.has(chatSaved)) return chatSaved as ReasoningLevel;
       }
-      const saved = read(reasoningKey(mid));
-      if (saved) return saved;
-    } catch {
-      /* ignore quota / private mode */
-    }
-    return cfg.defaultEffort;
-  };
+      const perModel = saved?.[reasoningKey(mid)];
+      if (perModel && valid.has(perModel)) return perModel as ReasoningLevel;
+      return cfg.defaultEffort;
+    },
+    [reasoningKey],
+  );
   const [currentReasoning, setCurrentReasoning] = useState<
     ReasoningLevel | undefined
-  >(() => (typeof window === "undefined" ? undefined : resolveReasoningFor(currentModelId, chatId)));
+  >(undefined);
   const currentReasoningRef = useRef(currentReasoning);
   useEffect(() => {
     currentReasoningRef.current = currentReasoning;
   }, [currentReasoning]);
-  // Re-resolve reasoning when the model switches (recall this CHAT's saved
-  // pick first, then the model-level default for unseen chats).
-  /* eslint-disable react-hooks/exhaustive-deps -- intentionally runs only on
-     model switch; resolveReasoningFor is a pure localStorage reader and must
-     not trigger a re-run on every render. */
   useEffect(() => {
-    setCurrentReasoning(resolveReasoningFor(currentModelId, chatId));
-  }, [currentModelId]);
-  /* eslint-enable react-hooks/exhaustive-deps */
+    setCurrentReasoning(
+      resolveReasoningFor(
+        currentModelId,
+        chatId,
+        getPrefsSnapshot().reasoning,
+      ),
+    );
+  }, [currentModelId, chatId, userPrefs.prefs.reasoning, resolveReasoningFor]);
 
   // `uid` ref: useChat binds onData/onError at Chat construction; read the
   // latest uid via ref so a SessionLoaded → signed-in transition still
@@ -547,11 +573,6 @@ export function ActiveChatProvider({
             // invocation → no skill bodies → no per-request token cost (NIM has
             // no prompt caching, so always-on injection was a pure tax).
             skills: getInvokedSkillBodies(lastUserText(messages)),
-            // MCP panel → route bridge (2026-09-04): the panel's localStorage
-            // config used to die client-side (route only read env). Enabled
-            // servers ride the request body; the route validates + merges them
-            // with LEOPARD_MCP_SERVERS (env wins on name collision).
-            mcpServers: getEnabledMcpServers(),
             // Web fetch master toggle (composer + menu). Default ON — the
             // route hardcodes the tool; false retracts it for this send.
             // getState() read at send time (event handler), so the memoized
@@ -1242,15 +1263,11 @@ export function ActiveChatProvider({
     // lands in the same tick as the send would otherwise record the OLD model
     // on the new chat row.
     currentModelIdRef.current = id;
-    try {
-      window.localStorage.setItem("leopard:last-model", id);
-    } catch {
-      /* ignore quota / private mode */
-    }
+    userPrefs.update({ lastModel: id });
     if (isDraft) return; // no row yet — the draft send persists the picked model
     const u = uidRef.current;
     if (u) void updateModel({ chatId: convexChatId, userId: u, model: id });
-  }, [isDraft, convexChatId, updateModel]);
+  }, [isDraft, convexChatId, updateModel, userPrefs.update]);
 
   // ── Stop: cancel a server-owned generation, then stop the local stream ─────
   // Φ10/#3 review M1 — a bare chat.stop() only aborts the browser's fetch; the
@@ -1502,20 +1519,40 @@ export function ActiveChatProvider({
     return () => clearInterval(t);
   }, [chat.status, stopGeneration, approvalPendingOnStreamingRow]);
 
-  // ── Reasoning change (local state + localStorage) ──────────────────────────
+  // ── Reasoning change (local state + Convex) ───────────────────────────────
   // useCallback (perf 2026-10-10): see setCurrentModel.
   const setReasoning = useCallback(
     (level: ReasoningLevel) => {
       setCurrentReasoning(level);
-      try {
-        // Per-chat key for real chats; the model-level key only moves from the
-        // draft screen (it's the default for not-yet-seen chats).
-        window.localStorage.setItem(reasoningKey(currentModelId, chatId), level);
-      } catch {
-        /* ignore quota / private mode */
-      }
+      userPrefs.update({
+        reasoning: {
+          ...getPrefsSnapshot().reasoning,
+          [reasoningKey(currentModelId, chatId)]: level,
+        },
+      });
     },
-    [currentModelId, chatId, reasoningKey],
+    [currentModelId, chatId, reasoningKey, userPrefs.update],
+  );
+
+  const setMessageFeedback = useCallback(
+    (
+      messageId: string,
+      value: "up" | "down" | null,
+      reasons?: string[],
+      note?: string,
+    ) => {
+      const u = uidRef.current;
+      if (!u || isDraft || badId) return;
+      void setFeedbackMutation({
+        chatId: convexChatId,
+        messageId,
+        userId: u,
+        value,
+        reasons,
+        note,
+      });
+    },
+    [isDraft, badId, convexChatId, setFeedbackMutation],
   );
 
   // ── Deferred-create: draft send mints the row, then routes ─────────────────
@@ -2170,6 +2207,8 @@ export function ActiveChatProvider({
       setCurrentModel,
       currentReasoning,
       setReasoning,
+      votesByMessage,
+      setMessageFeedback,
       artifact,
       setArtifact,
       stopGeneration,
@@ -2194,6 +2233,8 @@ export function ActiveChatProvider({
       setCurrentModel,
       currentReasoning,
       setReasoning,
+      votesByMessage,
+      setMessageFeedback,
       artifact,
       setArtifact,
       stopGeneration,

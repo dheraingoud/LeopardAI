@@ -25,7 +25,7 @@ type Props = {
  * SkillConfigModal — the "+ → add skill" overlay. Same solid shell as
  * the MCP modal: list owned skills, add one by typing a body or picking a
  * .md/.json/.txt/.yaml/.yml file (content slurped into the body), toggle /
- * remove. Persisted to localStorage; the injection path lands with the SDK
+ * remove. Persisted in Convex; the injection path lands with the SDK
  * integration. Esc / backdrop / X close.
  */
 export function SkillConfigModal({ open, onClose }: Props) {

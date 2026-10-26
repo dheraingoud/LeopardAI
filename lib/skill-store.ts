@@ -4,7 +4,7 @@
  * Shared reactive store for skills. Backs both the client transport
  * (`getEnabledSkillBodies()` → /api/chat `skills`) and the "+ → add skill"
  * modal (merged Convex permanent skills + local skills). Mirrors the Convex
- * `skillLibrary` table into the client; local edits persist to localStorage.
+ * `skillLibrary` table into the client; local edits persist to Convex.
  *
  * Why a store (not just the hook/CSR): multiple independent surfaces — useChat
  * transport, SkillConfigModal, window-focus refresh — must read the same list
@@ -33,8 +33,8 @@ let library: LibrarySkill[] = [];
 let merged: SkillConfig[] = seedMerged();
 
 function seedMerged(): SkillConfig[] {
-  // localStorage has no server-side library, so merged panel starts with local
-  // skills only; library rows arrive on the first Convex hydration.
+  // The merged panel starts with the account's local skills only; library rows
+  // arrive on the first Convex hydration.
   return mergeSkills([], loadSkills());
 }
 
@@ -75,7 +75,7 @@ export function subscribeSkills(listener: () => void): () => void {
 /**
  * Replace the local (non-permanent) skill list. Accepts the *merged* array from
  * the modal; permanent rows are dropped here so they never leak into
- * localStorage.
+ * the account's local skill list.
  */
 export function setLocalSkills(next: SkillConfig[]): void {
   const local = (Array.isArray(next) ? next : []).filter((s) => !s.permanent);

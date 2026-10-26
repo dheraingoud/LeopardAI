@@ -17,7 +17,7 @@ import { CURATED } from "./skillLibrary.generated";
 
 /**
  * Read all skills in the library. Used by the client to merge permanent skills
- * with localStorage ones (permanent: non-removable, toggleable).
+ * with the user's own skills (permanent: non-removable, toggleable).
  */
 export const listAll = internalQuery({
   args: {},

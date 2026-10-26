@@ -45,6 +45,7 @@ import {
   createGenerationController,
   isOverDailyTokenCap,
   listUserMemories,
+  listUserMcpServers,
   persistChatTitle,
   semanticRankMemories,
   recordAudit,
@@ -1062,11 +1063,7 @@ export async function POST(request: Request) {
       // MCP connects ONCE per request (before the retry factory) so a retry
       // never re-spawns child processes/sessions; released after the turn.
       const mcpHandle = await loadMcpTools(
-        // Panel → route bridge (2026-09-04): the MCP panel's localStorage
-        // servers ride the request body. DEV-ONLY: a client-supplied stdio
-        // command is arbitrary code execution on the server, so production
-        // (real Clerk auth) ignores body servers entirely.
-        BYPASS_CLERK ? (body.mcpServers as never) : undefined,
+        await listUserMcpServers(userId ?? DEV_USER_ID),
       );
       try {
         // webFetch + webSearch are CORE tools — hardcoded ON (operator

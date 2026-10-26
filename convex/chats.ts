@@ -282,3 +282,21 @@ export const purgeEmpty = mutation({
     return { removed };
   },
 });
+
+export const saveDraft = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), draft: v.string() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    await ctx.db.patch(args.chatId, { draft: args.draft });
+  },
+  returns: v.null(),
+});
+
+export const markRead = mutation({
+  args: { chatId: v.id("chats"), userId: v.string(), readAt: v.number() },
+  handler: async (ctx, args) => {
+    await requireChatOwner(ctx, args.chatId, args.userId);
+    await ctx.db.patch(args.chatId, { readAt: args.readAt });
+  },
+  returns: v.null(),
+});

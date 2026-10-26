@@ -66,14 +66,15 @@ interface SidebarProps {
   overlayDesktop?: boolean;
 }
 
-function isUnread(chatId: string, updatedAt: number, pathname: string): boolean {
+function isUnread(
+  chatId: string,
+  updatedAt: number,
+  readAt: number | undefined,
+  pathname: string,
+): boolean {
   if (pathname === `/chat/${chatId}`) return false;
-  try {
-    const stamp = window.localStorage.getItem(`leopard:read:${chatId}`);
-    return stamp === null ? false : updatedAt > Number(stamp);
-  } catch {
-    return false;
-  }
+  if (readAt === undefined) return false;
+  return updatedAt > readAt;
 }
 
 /**
@@ -161,16 +162,22 @@ export default function Sidebar({
   const sidebarOpen = !collapsed;
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Unread tracking (2026-09-04): opening a chat stamps leopard:read:<id>;
-  // any chat whose updatedAt is newer than its stamp (and isn't open) shows
-  // the unread dot. localStorage — per-browser, no schema churn.
+  // Unread tracking: opening a chat stamps `readAt` on the Convex row; any
+  // chat whose updatedAt is newer than its stamp (and isn't open) shows the
+  // unread dot. The stamp is refreshed when the open chat itself changes, so
+  // a reply that lands while the user is reading it does not resurface as
+  // unread on the next navigation.
   const activeChatId = pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : null;
+  const activeUpdatedAt = chats?.find((c) => c._id === activeChatId)?.updatedAt;
+  const markRead = useMutation(api.chats.markRead);
   useEffect(() => {
-    if (!activeChatId) return;
-    try {
-      window.localStorage.setItem(`leopard:read:${activeChatId}`, String(Date.now()));
-    } catch { /* private mode */ }
-  }, [activeChatId]);
+    if (!activeChatId || !userId) return;
+    void markRead({
+      chatId: activeChatId as Id<"chats">,
+      userId,
+      readAt: Date.now(),
+    });
+  }, [activeChatId, activeUpdatedAt, userId, markRead]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -185,7 +192,7 @@ export default function Sidebar({
     return visible.filter((c) => c.title.toLowerCase().includes(q));
   }, [chats, searchQuery, showArchived]);
 
-  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean; archived?: boolean }[]), [filtered]);
+  const grouped = useMemo(() => groupChats(filtered as { _id: string; title: string; updatedAt: number; generating?: boolean; pinned?: boolean; archived?: boolean; readAt?: number }[]), [filtered]);
 
 
   // Deferred-create: just open the draft surface; the row is minted on the
@@ -444,7 +451,12 @@ export default function Sidebar({
                     generating: c.generating === true,
                     pinned: c.pinned === true,
                     archived: c.archived === true,
-                    unread: isUnread(c._id, c.updatedAt, pathname),
+                    unread: isUnread(
+                      c._id,
+                      c.updatedAt,
+                      c.readAt,
+                      pathname,
+                    ),
                   }))}
                   activeId={pathname.startsWith("/chat/") ? pathname.split("/chat/")[1] : undefined}
                   onSelect={(id) => handleChatClick(id)}
