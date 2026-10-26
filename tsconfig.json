@@ -54,6 +54,11 @@
       "@/aui/generative-frame/spec/*": ["./aui/generative-frame/src/spec/*"],
       "@/aui/diagrammatic": ["./aui/diagrammatic/src/index.ts"],
       "@/aui/diagrammatic/*": ["./aui/diagrammatic/src/*"],
+      "@/aui/diagrammatic/spec": ["./aui/diagrammatic/src/spec/index.ts"],
+      "@/aui/diagrammatic/interactive": [
+        "./aui/diagrammatic/src/interactive/index.ts"
+      ],
+      "@/aui/diagrammatic/world": ["./aui/diagrammatic/src/world/index.ts"],
       "@/aui/heat-graph": ["./aui/heat-graph/src/index.ts"],
       "@/aui/heat-graph/*": ["./aui/heat-graph/src/*"],
       "@/aui/react-mcp": ["./aui/react-mcp/src/index.ts"],

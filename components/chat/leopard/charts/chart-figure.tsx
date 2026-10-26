@@ -1,110 +1,57 @@
 "use client";
 
-import {
-  Area,
-  Bar,
-  Column,
-  GroupedBar,
-  Heatmap,
-  Histogram,
-  Line,
-  Pie,
-  Scatter,
-  Sparkline,
-  StackedArea,
-  StackedBar,
-} from "@/aui/diagrammatic";
+import { Component, type ReactNode } from "react";
+import { Chart } from "@/aui/diagrammatic/spec";
 import { cn } from "@/lib/utils";
 import { mono, paper } from "../surfaces";
-import { chartProps, numeric, type ChartSpec } from "./registry";
+import { type ChartSpec } from "./registry";
+import { toUpstreamSpec } from "./upstream-spec";
 
-// Leopard chart surface — the forked diagrammatic forms, re-exported under
-// Leopard names and themed with the --dg-* palette globals.css already maps
-// onto --chart-*.
+// Leopard chart surface — every forked diagrammatic form, themed with the
+// --dg-* palette globals.css already maps onto --chart-*.
+
+type BoundaryProps = { children: ReactNode };
+type BoundaryState = { failed: boolean };
+
+class ChartBoundary extends Component<BoundaryProps, BoundaryState> {
+  state: BoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): BoundaryState {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("[leopard-chart]", error?.message);
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <p className={cn(mono, "text-foreground/40 text-[11px]")}>
+          Chart unavailable
+        </p>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ChartFigure({ spec }: { spec: ChartSpec }) {
-  const p = chartProps(spec);
-  switch (spec.form) {
-    case "bar":
-      return <Bar items={p.items ?? []} title={p.title} xTicks={p.xTicks} />;
-    case "column":
-      return <Column items={p.items ?? []} title={p.title} yTicks={p.yTicks} />;
-    case "line":
-      return (
-        <Line
-          data={p.data}
-          labels={p.labels}
-          title={p.title}
-          yTicks={p.yTicks}
-        />
-      );
-    case "area":
-      return (
-        <Area
-          data={p.data}
-          labels={p.labels}
-          title={p.title}
-          yTicks={p.yTicks}
-        />
-      );
-    case "pie":
-      return <Pie items={p.items ?? []} title={p.title} />;
-    case "donut":
-      return (
-        <Pie items={p.items ?? []} title={p.title} inner={p.inner ?? 0.55} />
-      );
-    case "grouped-bar":
-      return (
-        <GroupedBar
-          groups={p.groups ?? []}
-          series={p.series ?? []}
-          title={p.title}
-          yTicks={p.yTicks}
-        />
-      );
-    case "stacked-bar":
-      return (
-        <StackedBar
-          groups={p.groups ?? []}
-          series={p.series ?? []}
-          title={p.title}
-          yTicks={p.yTicks}
-        />
-      );
-    case "stacked-area":
-      return (
-        <StackedArea series={p.series ?? []} title={p.title} yTicks={p.yTicks} />
-      );
-    case "heatmap":
-      return p.matrix ? (
-        <Heatmap
-          matrix={{
-            rows: p.matrix.rows,
-            cols: p.matrix.cols,
-            values: p.matrix.values.map((row) => row.map(numeric)),
-          }}
-          title={p.title}
-        />
-      ) : null;
-    case "scatter":
-      return (
-        <Scatter
-          points={(p.points ?? []).map((point) => ({
-            x: numeric(point.x),
-            y: numeric(point.y),
-            label: point.label,
-            series: point.series,
-          }))}
-          title={p.title}
-        />
-      );
-    case "sparkline":
-      return <Sparkline data={p.data ?? []} title={p.title} block={p.block} />;
-    case "histogram":
-      return <Histogram bins={p.bins ?? []} title={p.title} yTicks={p.yTicks} />;
-    default:
-      return null;
+  let upstream;
+  try {
+    upstream = toUpstreamSpec(spec);
+  } catch {
+    return (
+      <p className={cn(mono, "text-foreground/40 text-[11px]")}>
+        Chart unavailable
+      </p>
+    );
   }
+  return (
+    <ChartBoundary>
+      <Chart spec={upstream} />
+    </ChartBoundary>
+  );
 }
 
 export function LeopardChart({ spec }: { spec: ChartSpec }) {

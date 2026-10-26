@@ -7,8 +7,11 @@
  */
 export const CHAR_RATIO = 0.6;
 
-export function textWidth(text: string, fontSize: number): number {
-  return Math.max(0, text.length) * fontSize * CHAR_RATIO;
+export function textWidth(
+  text: string | number | null | undefined,
+  fontSize: number,
+): number {
+  return Math.max(0, String(text ?? "").length) * fontSize * CHAR_RATIO;
 }
 
 /** How many characters of `text` fit in `width` at `fontSize`. */
@@ -24,12 +27,13 @@ export function charsThatFit(width: number, fontSize: number): number {
  * clipped text is the failure this exists to prevent.
  */
 export function truncate(
-  text: string,
+  text: string | number | null | undefined,
   fontSize: number,
   width: number,
 ): string {
+  const label = String(text ?? "");
   const fits = charsThatFit(width, fontSize);
-  if (fits >= text.length) return text;
+  if (fits >= label.length) return label;
   if (fits < 2) return "";
-  return `${text.slice(0, fits - 1)}…`;
+  return `${label.slice(0, fits - 1)}…`;
 }
