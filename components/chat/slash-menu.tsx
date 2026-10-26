@@ -15,7 +15,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { field, floating, mono } from "./leopard/surfaces";
+import { Kbd } from "@/components/ui/kbd";
+import { field, floating } from "./leopard/surfaces";
 import type { SlashMatch } from "@/lib/slash-matches";
 
 // Per-command icon by slug keyword — a generic slash for everything else.
@@ -135,14 +136,7 @@ export function SlashMenu({
               </span>
             )}
             {active && (
-              <kbd
-                className={cn(
-                  mono,
-                  "shrink-0 rounded bg-foreground/[0.06] px-1 text-[10px] text-foreground/45",
-                )}
-              >
-                ↵
-              </kbd>
+              <Kbd className="shrink-0 text-foreground/45">↵</Kbd>
             )}
           </button>
         );

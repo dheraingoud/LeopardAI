@@ -21,6 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { getActiveModels } from "@/lib/ai/models";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import {
@@ -132,9 +133,13 @@ function ModelSelectorTrigger() {
             send-into-void incident). */}
         <HealthDot status={selectedModel?.health} />
         {selectedModel?.badge && (
-          <span className="hidden shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 sm:inline dark:text-red-400">
+          <Badge
+            variant="soft"
+            size="sm"
+            className="hidden sm:inline dark:text-red-400"
+          >
             {selectedModel.badge}
-          </span>
+          </Badge>
         )}
         {effortName && (
           <span className="text-foreground/40 hidden min-w-7.5 truncate text-center sm:inline">
@@ -320,9 +325,9 @@ function ModelSelectorItem({ model }: { model: ModelOption }) {
           {model.name}
           <HealthDot status={model.health} />
           {model.badge && (
-            <span className="shrink-0 rounded bg-red-500/15 px-1 py-px font-mono text-[9px] uppercase tracking-wide text-red-500 dark:text-red-400">
+            <Badge variant="soft" size="sm" className="dark:text-red-400">
               {model.badge}
-            </span>
+            </Badge>
           )}
         </span>
         {model.description && (

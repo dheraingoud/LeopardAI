@@ -26,6 +26,7 @@ import { useLeopardTheme } from "@/components/theme-provider";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -372,9 +373,9 @@ export default function Sidebar({
           {chats === undefined ? (
             <div className="space-y-3 px-2 py-4">
               {[...Array(4)].map((_, i) => (
-                <div
+                <Skeleton
                   key={i}
-                  className="h-10 rounded-xl dark:bg-white/[0.05] light:bg-black/[0.04] animate-pulse"
+                  className="h-10 rounded-xl dark:bg-white/[0.05] light:bg-black/[0.04]"
                 />
               ))}
             </div>

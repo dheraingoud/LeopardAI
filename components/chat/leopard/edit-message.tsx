@@ -2,6 +2,7 @@
 
 import { AlertTriangleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Kbd } from "@/components/ui/kbd";
 import { field, inkButton, mono, paper } from "./surfaces";
 
 // Inline editor that REPLACES a user bubble while editing (message.tsx mounts
@@ -77,8 +78,8 @@ export function EditMessage({
           changes" fires only after the draft actually diverges. */}
       <div className="flex items-center justify-between gap-2 px-1 -mt-1">
         <span className={cn(mono, "text-foreground/35 flex items-center gap-1.5 text-[10px]")}>
-          <kbd className="rounded bg-foreground/[0.06] px-1">⌘/Ctrl↵</kbd> save
-          <kbd className="rounded bg-foreground/[0.06] px-1">Esc</kbd> cancel
+          <Kbd>⌘/Ctrl↵</Kbd> save
+          <Kbd>Esc</Kbd> cancel
         </span>
         {originalValue !== undefined && value !== originalValue && (
           <span className={cn(mono, "dark:text-[#ffb400]/80 light:text-[#d49600]/90 text-[10px]")}>

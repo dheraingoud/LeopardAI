@@ -4,6 +4,7 @@ import { useId, useRef, useEffect, type ComponentProps } from "react";
 import { CheckIcon, PlugIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { field, inkButton, mono, paper } from "./surfaces";
+import { Label } from "@/components/ui/label";
 
 // inlined from aui receipt-focus
 const hasWindow = typeof window !== "undefined";
@@ -165,16 +166,16 @@ export function ElicitationForm({
           return (
             <div key={item.name} className="flex flex-col gap-1">
               {item.kind === "text" && interactive ? (
-                <label
+                <Label
                   id={labelId}
                   htmlFor={inputId}
-                  className={cn(mono, "text-muted-foreground")}
+                  className="text-muted-foreground"
                 >
                   {item.label}
                   {item.required && (
                     <span className="text-muted-foreground"> *</span>
                   )}
-                </label>
+                </Label>
               ) : (
                 <span
                   id={labelId}

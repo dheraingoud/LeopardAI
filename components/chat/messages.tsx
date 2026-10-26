@@ -13,6 +13,7 @@ import { ScrollAnchorPill } from "./leopard/scroll-anchor";
 import { DaySeparator } from "./leopard/day-separator";
 import { MessagePair } from "./leopard/message-pair";
 import { StoppedRun } from "./leopard/stopped-run";
+import { Kbd } from "@/components/ui/kbd";
 import type { ChatMessage } from "@/lib/types";
 
 /**
@@ -659,9 +660,9 @@ function Greeting() {
           {/* Keyboard hint (audit 2026-10-10): ⌘K + / exist but had no
               in-app discoverability — the greeting is the natural spot. */}
           <p className="mt-6 text-center font-mono text-[10px] dark:text-[#3a3a3a] light:text-[#737373]">
-            <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">⌘/Ctrl K</kbd>{" "}
-            palette · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">/</kbd>{" "}
-            skills · <kbd className="rounded bg-foreground/[0.05] px-1.5 py-0.5">@</kbd>{" "}
+            <Kbd>⌘/Ctrl K</Kbd>{" "}
+            palette · <Kbd>/</Kbd>{" "}
+            skills · <Kbd>@</Kbd>{" "}
             recent chats
           </p>
         </EmptyState>

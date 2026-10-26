@@ -7,7 +7,9 @@ import { useMemo, useState } from "react";
 import { CheckIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { cn } from "@/lib/utils";
-import { field, inkButton, mono, paper } from "./surfaces";
+import { field, inkButton, paper } from "./surfaces";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   normalizeFormFields,
   type FormField,
@@ -80,12 +82,7 @@ export function FormWidget({
           };
           return (
             <div key={item.name} className="flex flex-col gap-1">
-              <label
-                htmlFor={inputId}
-                className={cn(mono, "text-foreground/60")}
-              >
-                {item.label}
-              </label>
+              <Label htmlFor={inputId}>{item.label}</Label>
               {item.type === "select" ? (
                 <select {...common}>
                   <option value="">
@@ -98,7 +95,7 @@ export function FormWidget({
                   ))}
                 </select>
               ) : item.type === "textarea" ? (
-                <textarea {...common} rows={3} />
+                <Textarea {...common} rows={3} />
               ) : (
                 <input
                   {...common}
