@@ -1,7 +1,7 @@
 import { classifyTemporal } from "../temporal";
 import type { TeamsTemporalField } from "./types";
 
-export const TEMPORAL_INPUT_PREFIX = "aui:datetime:";
+export const TEMPORAL_INPUT_PREFIX = "leopard:datetime:";
 const encodeFieldId = (value: string): string =>
   Array.from(value, (char) =>
     /^[\uD800-\uDFFF]$/.test(char)
@@ -38,7 +38,7 @@ export const decodeTemporalInputId = (
     const previousValue = role === "time" ? decodeURIComponent(parts[2]!) : "";
     if (
       !fieldId ||
-      fieldId === "aui" ||
+      fieldId === "leopard" ||
       fieldId.startsWith(TEMPORAL_INPUT_PREFIX) ||
       (previousValue !== "" &&
         classifyTemporal(previousValue).kind !== "instant")

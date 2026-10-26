@@ -119,13 +119,13 @@ const warn = (
 };
 
 /**
- * The `aui` key is reserved for the submit envelope (see
+ * The `leopard` key is reserved for the submit envelope (see
  * {@link buildSubmitData} and `decodeSubmitData`): Adaptive Cards merge
  * every input's current value into the same submit object keyed by its
- * `id`, so an input id of `aui` would clobber the envelope. Renamed to an
+ * `id`, so an input id of `leopard` would clobber the envelope. Renamed to an
  * unused id derived from `leopard_` instead of being emitted as-is.
  */
-const RESERVED_INPUT_ID = "aui";
+const RESERVED_INPUT_ID = "leopard";
 
 function reservedSafeId(
   id: string,
@@ -133,7 +133,7 @@ function reservedSafeId(
   context: ConversionContext,
 ): string {
   const reserved = id === RESERVED_INPUT_ID;
-  const temporalReserved = /^_*aui:datetime:/.test(id);
+  const temporalReserved = /^_*leopard:datetime:/.test(id);
   const base = reserved
     ? `${RESERVED_INPUT_ID}_`
     : temporalReserved

@@ -62,7 +62,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * Nests an IR action under an `aui` key so `decodeSubmitData` can invert it
+ * Nests an IR action under a `leopard` key so `decodeSubmitData` can invert it
  * back out of the merged `activity.value` object a Teams bot receives,
  * alongside whatever other named inputs shared the card.
  */
@@ -78,7 +78,7 @@ export function buildSubmitData(action: unknown): TeamsSubmitData {
   };
 }
 
-/** Builds an Action.Submit carrying `action` in the `aui` envelope. */
+/** Builds an Action.Submit carrying `action` in the `leopard` envelope. */
 export function buildSubmitAction(
   title: string,
   action: unknown,

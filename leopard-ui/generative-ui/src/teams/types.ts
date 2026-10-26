@@ -48,7 +48,7 @@ export interface TeamsFactSet {
   readonly spacing?: "large";
 }
 
-/** The `aui` envelope nested inside every {@link TeamsSubmitAction}'s `data`. */
+/** The `leopard` envelope nested inside every {@link TeamsSubmitAction}'s `data`. */
 export interface TeamsSubmitData {
   readonly leopard: {
     readonly type: string;
@@ -62,7 +62,7 @@ export type TeamsTemporalField = { readonly fieldId: string } & (
 );
 
 /**
- * A submit action. `data` carries the resume payload under an `aui` key so
+ * A submit action. `data` carries the resume payload under a `leopard` key so
  * {@link decodeSubmitData} can invert it out of the merged `activity.value`
  * a Teams bot receives, alongside whatever other named inputs shared the card.
  */
