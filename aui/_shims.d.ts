@@ -8,15 +8,16 @@ declare module "ioredis" {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   export class Redis {
     constructor(...args: any[]);
-    xrangeBuffer(...args: any[]): Promise<[any, any][]>;
+    xrangeBuffer(...args: any[]): Promise<[Buffer, Buffer[]][]>;
     [key: string]: any;
   }
   export class Cluster {
     constructor(...args: any[]);
+    xrangeBuffer(...args: any[]): Promise<[Buffer, Buffer[]][]>;
     [key: string]: any;
   }
-  export type IoRedis = any;
-  export type IoRedisCluster = any;
+  export type IoRedis = Redis;
+  export type IoRedisCluster = Cluster;
   export type ChainableCommander = any;
   export default Redis;
 }

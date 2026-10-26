@@ -1,4 +1,4 @@
 export {
   aiSDKV6FormatAdapter,
   type AISDKStorageFormat,
-} from "@/aui/cloud/ai-sdk";
+} from "assistant-cloud/ai-sdk";

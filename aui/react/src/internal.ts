@@ -20,7 +20,7 @@ export type {
 } from "@/aui/core/internal";
 
 // React-specific (stay in react)
-export { splitLocalRuntimeOptions } from "./legacy-runtime/runtime-cores/local/LocalRuntimeOptions";
+export { splitLocalRuntimeOptions } from "@/aui/core/react";
 export type { ToolExecutionStatus } from "@/aui/core";
 
 export { useSmooth } from "./utils/smooth/useSmooth";

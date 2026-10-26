@@ -3,7 +3,7 @@ import {
   toJSONSchema,
   type Tool,
   type ToolModelContentPart,
-} from "@/aui/assistant-stream";
+} from "assistant-stream";
 import { generateId } from "@/aui/core/internal";
 import type {
   WebMcpCallToolResult,

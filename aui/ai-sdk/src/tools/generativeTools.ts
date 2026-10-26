@@ -7,19 +7,19 @@ import {
   type Tool,
   type McpServerConfig,
   type ToolModelOutputFunction,
-} from "@/aui/assistant-stream";
+} from "assistant-stream";
 import type {
   McpToolkitToolConfig,
   Toolkit,
   ToolkitDefinition,
 } from "@/aui/core/react";
-import { frontendTools, type FrontendTools } from "@/aui/assistant-stream/ai-sdk";
+import { frontendTools, type FrontendTools } from "assistant-stream/ai-sdk";
 import {
   toAISDKContent,
   toAISDKDefaultOutput,
   unwrapModelContentEnvelope,
   type ModelContentEnvelope,
-} from "@/aui/assistant-stream/internal";
+} from "assistant-stream/internal";
 
 const EMPTY_SCHEMA = { type: "object" as const, properties: {} };
 

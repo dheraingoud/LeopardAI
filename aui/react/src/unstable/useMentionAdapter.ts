@@ -9,7 +9,7 @@ import type {
   Unstable_TriggerItem,
 } from "@/aui/core";
 import { unstable_defaultDirectiveFormatter } from "@/aui/core";
-import type { ReadonlyJSONObject } from "@/aui/assistant-stream/utils";
+import type { ReadonlyJSONObject } from "assistant-stream/utils";
 import { matchesTriggerItemQuery } from "../primitives/composer/trigger/matchesTriggerItemQuery";
 import {
   shallowEqualRecords,

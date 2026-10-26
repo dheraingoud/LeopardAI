@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { resource } from "@/aui/tap";
-import type { Tool } from "@/aui/assistant-stream";
+import type { Tool } from "assistant-stream";
 import { toWebMcpTool } from "./convertTools";
 import type { WebMcpHost } from "./webmcp-host";
 

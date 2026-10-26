@@ -1,4 +1,4 @@
-import type { SdkIdentity } from "@/aui/cloud";
+import type { SdkIdentity } from "assistant-cloud";
 
 export const AI_SDK_SDK: SdkIdentity = {
   name: "@/aui/ai-sdk",

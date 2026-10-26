@@ -17,6 +17,7 @@ import type {
 } from "@ai-sdk/react";
 import { isToolUIPart, generateId, getToolName } from "ai";
 import {
+  useExternalMessageConverter,
   useExternalStoreRuntime,
   useRuntimeAdapters,
   type JoinStrategy,
@@ -51,7 +52,7 @@ import {
   consumeSuggestionResult,
   MessageRepository,
 } from "@/aui/core/internal";
-import type { ReadonlyJSONObject } from "@/aui/assistant-stream/utils";
+import type { ReadonlyJSONObject } from "assistant-stream/utils";
 import type { AssistantError } from "@/aui/core";
 import { sliceMessagesUntil } from "../utils/sliceMessagesUntil";
 import { toCreateMessage } from "../converters/toCreateMessage";
@@ -59,9 +60,11 @@ import { vercelAttachmentAdapter } from "../adapters/vercelAttachmentAdapter";
 import { getVercelAIMessages } from "../utils/getVercelAIMessages";
 import {
   AISDKMessageConverter,
+  convertAISDKMessage,
+  createAISDKMetadataKey,
   type AISDKMessageConverterMetadata,
 } from "../converters/convertMessage";
-import { wrapModelContentEnvelope } from "@/aui/assistant-stream/internal";
+import { wrapModelContentEnvelope } from "assistant-stream/internal";
 import {
   type AISDKStorageFormat,
   aiSDKV6FormatAdapter,
@@ -71,6 +74,7 @@ import {
   toExportedMessageRepository,
 } from "./useExternalHistory";
 import { useStreamingTiming } from "./useStreamingTiming";
+import { useMessageQueue } from "./useMessageQueue";
 import { aiSDKExtras } from "../aiSDKExtras";
 
 export type CustomToCreateMessageFunction = <
@@ -136,6 +140,12 @@ export type AISDKRuntimeAdapter<UI_MESSAGE extends UIMessage = UIMessage> =
      */
     cancelPendingToolCallsOnSend?: boolean | undefined;
     /**
+     * Holds messages sent during a run in `composer.queue` until the run
+     * settles. Steered messages dispatch before queued follow-ups.
+     * @deprecated Experimental since 2026-10-15. Not scheduled for removal; the API may change in any release.
+     */
+    unstable_enableMessageQueue?: boolean | undefined;
+    /**
      * Called when `runtime.thread.resumeRun(config)` is invoked.
      *
      * When omitted, `resumeRun` throws `"Runtime does not support resuming runs."`.
@@ -143,6 +153,7 @@ export type AISDKRuntimeAdapter<UI_MESSAGE extends UIMessage = UIMessage> =
      * (for example, an SSE reconnect endpoint keyed by turn id).
      */
     onResume?: ExternalStoreAdapter["onResume"];
+    canResume?: ExternalStoreAdapter["canResume"];
     /**
      * Called when `runtime.thread.resumeToolCall(options)` is invoked for a tool call the in-process tracker does not own.
      *
@@ -505,7 +516,10 @@ const findRawToolMessageIndex = <UI_MESSAGE extends UIMessage>(
 };
 
 const toChatError = (error: Error): AssistantError => {
-  const code = (error as { code?: unknown }).code;
+  const { code, statusCode } = error as {
+    code?: unknown;
+    statusCode?: unknown;
+  };
   return {
     code:
       typeof code === "string"
@@ -514,6 +528,7 @@ const toChatError = (error: Error): AssistantError => {
           ? error.name
           : "unknown",
     message: error.message,
+    ...(typeof statusCode === "number" && { statusCode }),
   };
 };
 
@@ -526,14 +541,20 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     toCreateMessage: customToCreateMessage,
     cancelPendingToolCallsOnSend = true,
     onResume,
+    canResume,
     onResumeToolCall,
     onRespondToToolApproval: customOnRespondToToolApproval,
     joinStrategy,
     messageRepository,
     unstable_onBranchChange,
+    unstable_enableMessageQueue,
   } = adapter;
   const suggestionAdapter = adapters?.suggestion;
   const contextAdapters = useRuntimeAdapters();
+  const [queueError, setQueueError] = useState<Error>();
+  const runtimeError = unstable_enableMessageQueue
+    ? (queueError ?? chatHelpers.error)
+    : chatHelpers.error;
   const [toolStatuses, setToolStatuses] = useState<
     Record<string, ToolExecutionStatus>
   >({});
@@ -567,8 +588,12 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
   const [toolApprovalResponses, setToolApprovalResponses] = useState<
     ReadonlyMap<string, RespondToToolApprovalOptions>
   >(() => toApprovalResponses(ownedApprovals));
-  const [toolArtifactEpoch, setToolArtifactEpoch] = useState(0);
-  const [toolInteractionEpoch, setToolInteractionEpoch] = useState(0);
+  const [toolArtifacts, setToolArtifacts] = useState<
+    ReadonlyMap<string, unknown>
+  >(() => new Map());
+  const [toolInteractions, setToolInteractions] = useState<
+    ReadonlyMap<string, Unstable_ToolInteractionLog>
+  >(() => new Map());
   const toolApprovalResponsesRef = useRef(
     new Map(toApprovalResponses(ownedApprovals)),
   );
@@ -620,6 +645,14 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
   const toolArgsKeyOrderCacheRef = useRef<Map<string, Map<string, string[]>>>(
     new Map(),
   );
+  const [createdAtCaches] = useState(
+    () => new Map<string, Map<string, Date>>(),
+  );
+  let createdAtCache = createdAtCaches.get(chatHelpers.id);
+  if (!createdAtCache) {
+    createdAtCache = new Map();
+    createdAtCaches.set(chatHelpers.id, createdAtCache);
+  }
   const toolLastInputCacheRef = useRef<Map<string, ReadonlyJSONObject>>(
     new Map(),
   );
@@ -632,12 +665,22 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     new Map(),
   );
   const lastRunConfigRef = useRef<RunConfig | undefined>(undefined);
-  const markToolArtifactsChanged = useCallback(() => {
-    setToolArtifactEpoch((epoch) => epoch + 1);
+  const restoreToolArtifacts = useCallback((next: Map<string, unknown>) => {
+    toolArtifactsRef.current = next;
+    setToolArtifacts(next);
   }, []);
-  const markToolInteractionsChanged = useCallback(() => {
-    setToolInteractionEpoch((epoch) => epoch + 1);
-  }, []);
+  const restoreToolInteractions = useCallback(
+    (next: Map<string, Unstable_ToolInteractionLog>) => {
+      toolInteractionsRef.current = next;
+      setToolInteractions(next);
+    },
+    [],
+  );
+  const getToolArtifacts = useCallback(() => toolArtifactsRef.current, []);
+  const getToolInteractions = useCallback(
+    () => toolInteractionsRef.current,
+    [],
+  );
 
   const hasExecutingTools = Object.values(toolStatuses).some(
     (s) => s?.type === "executing",
@@ -696,6 +739,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
   const toThreadMessages = useCallback(
     (sourceMessages: UI_MESSAGE[]) => {
       const metadata: AISDKMessageConverterMetadata = {
+        createdAtCache,
         supportsRichToolApprovalResponses,
         toolArtifacts: toolArtifactsRef.current,
         toolInteractions: toolInteractionsRef.current,
@@ -707,7 +751,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
         metadata,
       );
     },
-    [supportsRichToolApprovalResponses],
+    [createdAtCache, supportsRichToolApprovalResponses],
   );
 
   const retractCancellation = useCallback(
@@ -749,20 +793,23 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     retractCancellation,
   ]);
 
-  const messages = AISDKMessageConverter.useThreadMessages({
+  const [getConverterMetadataKey] = useState(createAISDKMetadataKey);
+  const messages = useExternalMessageConverter({
+    callback: convertAISDKMessage,
     isRunning,
     messages: chatHelpers.messages,
     joinStrategy,
     metadata: useMemo<AISDKMessageConverterMetadata>(
       () => ({
+        createdAtCache,
         toolStatuses,
         messageTiming,
         toolArgsKeyOrderCache: toolArgsKeyOrderCacheRef.current,
         toolArgsTextCache: toolArgsTextCacheRef.current,
         toolLastInputCache: toolLastInputCacheRef.current,
         mcpAppMetadataCache: mcpAppMetadataCacheRef.current,
-        toolArtifacts: toolArtifactsRef.current,
-        toolInteractions: toolInteractionsRef.current,
+        toolArtifacts,
+        toolInteractions,
         supportsRichToolApprovalResponses,
         cancelledToolApprovalIds: supersededApprovalProjection.approvalIds,
         cancelledStatusMessageIds:
@@ -775,6 +822,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
         ...(toolApprovalResponses.size > 0 && { toolApprovalResponses }),
       }),
       [
+        createdAtCache,
         toolStatuses,
         messageTiming,
         optimisticMessageId,
@@ -783,10 +831,11 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
         toolApprovalResponses,
         supportsRichToolApprovalResponses,
         supersededApprovalProjection,
-        toolArtifactEpoch,
-        toolInteractionEpoch,
+        toolArtifacts,
+        toolInteractions,
       ],
     ),
+    getMetadataKey: getConverterMetadataKey,
   });
 
   const exportedMessageRepository = useMemo(() => {
@@ -813,6 +862,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
   const {
     isLoading,
     deleteMessage: deleteHistoryMessage,
+    markRunCancelled,
     persistToolInteractions,
     persistToolApprovalResponses,
   } = useExternalHistory(
@@ -826,10 +876,10 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     (messages) => {
       chatHelpers.setMessages(messages);
     },
-    toolArtifactsRef.current,
-    markToolArtifactsChanged,
-    toolInteractionsRef.current,
-    markToolInteractionsChanged,
+    getToolArtifacts,
+    restoreToolArtifacts,
+    getToolInteractions,
+    restoreToolInteractions,
     toolApprovalResponsesRef.current,
     () => {
       for (const [id, entry] of ownedApprovals ?? []) {
@@ -846,16 +896,15 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     id: chatId,
     messages: chatMessages,
     status: chatStatus,
-    error,
   } = chatHelpers;
   const extras = useMemo(
     () =>
       aiSDKExtras.provide({
         chat: chatHelpers as unknown as UseChatHelpers<UIMessage>,
-        error,
+        error: runtimeError,
       }),
     // oxlint-disable-next-line react/exhaustive-deps -- keyed on the chat's identity and reactive snapshots; useChat re-mints the helpers object every render while its remaining fields are instance-bound methods, and a render-stable extras identity is what lets the external-store core dedupe adapter updates
-    [chatId, chatMessages, chatStatus, error],
+    [chatId, chatMessages, chatStatus, runtimeError],
   );
 
   const completePendingToolCalls = async () => {
@@ -1015,6 +1064,81 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     );
   };
 
+  const cancelRun = async () => {
+    markRunCancelled();
+    for (const toolCallId of Object.keys(toolStatuses)) {
+      cancelledToolCallIds.add(toolCallId);
+    }
+
+    const message = chatHelpers.messages.at(-1);
+    const cancelledId =
+      isRunning && message?.role === "assistant" ? message.id : undefined;
+    if (cancelledId) {
+      const liveIds = new Set(chatHelpers.messages.map((m) => m.id));
+      if (chatRuntimeState !== undefined && approvalOwner !== undefined) {
+        chatRuntimeState.cancelledMessageIds = new Set([
+          ...[...chatRuntimeState.cancelledMessageIds].filter((id) =>
+            liveIds.has(id),
+          ),
+          cancelledId,
+        ]);
+        notifyChatRuntimeState(approvalOwner);
+      } else {
+        setCancelledMessages((prev) => {
+          const kept =
+            prev?.chatId === chatHelpers.id
+              ? [...prev.ids].filter((id) => liveIds.has(id))
+              : [];
+          return {
+            chatId: chatHelpers.id,
+            ids: new Set([...kept, cancelledId]),
+          };
+        });
+      }
+    }
+    try {
+      await chatHelpers.stop();
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) {
+        if (cancelledId) retractCancellation(chatHelpers.id, cancelledId);
+        throw error;
+      }
+    }
+  };
+
+  const sendNew = async (message: AppendMessage) => {
+    setQueueError(undefined);
+    const createMessage = (
+      customToCreateMessage ?? toCreateMessage
+    )<UI_MESSAGE>(message);
+
+    if (!(message.startRun ?? message.role === "user")) {
+      chatHelpers.setMessages((current) => [
+        ...current,
+        toUIMessage<UI_MESSAGE>(createMessage, message.role),
+      ]);
+      return;
+    }
+
+    lastRunConfigRef.current = message.runConfig;
+    await completePendingToolCalls();
+    await chatHelpers.sendMessage(createMessage, {
+      metadata: message.runConfig,
+    });
+  };
+
+  const messageQueue = useMessageQueue({
+    onError: (error) => {
+      if (error?.name === "AbortError") setQueueError(undefined);
+      else setQueueError(error);
+    },
+    enabled: unstable_enableMessageQueue === true,
+    isRunning,
+    isSendDisabled: adapter.isSendDisabled === true,
+    send: sendNew,
+    cancel: cancelRun,
+  });
+
   const hasSeededRepositoryRef = useRef(false);
   const shouldFeedRepository =
     exportedMessageRepository != null &&
@@ -1093,66 +1217,11 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
       // Import into the thread's MessageRepository
       runtimeRef.current.thread.import(exportedRepo);
     },
-    onCancel: async () => {
-      for (const toolCallId of Object.keys(toolStatuses)) {
-        cancelledToolCallIds.add(toolCallId);
-      }
-
-      const message = chatHelpers.messages.at(-1);
-      const cancelledId =
-        isRunning && message?.role === "assistant" ? message.id : undefined;
-      if (cancelledId) {
-        const liveIds = new Set(chatHelpers.messages.map((m) => m.id));
-        if (chatRuntimeState !== undefined && approvalOwner !== undefined) {
-          chatRuntimeState.cancelledMessageIds = new Set([
-            ...[...chatRuntimeState.cancelledMessageIds].filter((id) =>
-              liveIds.has(id),
-            ),
-            cancelledId,
-          ]);
-          notifyChatRuntimeState(approvalOwner);
-        } else {
-          setCancelledMessages((prev) => {
-            const kept =
-              prev?.chatId === chatHelpers.id
-                ? [...prev.ids].filter((id) => liveIds.has(id))
-                : [];
-            return {
-              chatId: chatHelpers.id,
-              ids: new Set([...kept, cancelledId]),
-            };
-          });
-        }
-      }
-      try {
-        await chatHelpers.stop();
-      } catch (error) {
-        if (!(error instanceof Error && error.name === "AbortError")) {
-          if (cancelledId) retractCancellation(chatHelpers.id, cancelledId);
-          throw error;
-        }
-      }
-    },
-    onNew: async (message) => {
-      const createMessage = (
-        customToCreateMessage ?? toCreateMessage
-      )<UI_MESSAGE>(message);
-
-      if (!(message.startRun ?? message.role === "user")) {
-        chatHelpers.setMessages((current) => [
-          ...current,
-          toUIMessage<UI_MESSAGE>(createMessage, message.role),
-        ]);
-        return;
-      }
-
-      lastRunConfigRef.current = message.runConfig;
-      await completePendingToolCalls();
-      await chatHelpers.sendMessage(createMessage, {
-        metadata: message.runConfig,
-      });
-    },
+    onCancel: messageQueue.cancel,
+    onNew: sendNew,
+    ...(messageQueue.adapter && { queue: messageQueue.adapter }),
     onEdit: async (message) => {
+      messageQueue.clear();
       const createMessage = (
         customToCreateMessage ?? toCreateMessage
       )<UI_MESSAGE>(message);
@@ -1187,13 +1256,14 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
       let removedToolInteractions = false;
       let removedToolApprovalResponse = false;
       let removedHostApprovalId = false;
+      const nextToolArtifacts = new Map(toolArtifactsRef.current);
+      const nextToolInteractions = new Map(toolInteractionsRef.current);
       for (const part of threadMessages[messageIndex]!.content) {
         if (part.type === "tool-call") {
           removedToolArtifact =
-            toolArtifactsRef.current.delete(part.toolCallId) ||
-            removedToolArtifact;
+            nextToolArtifacts.delete(part.toolCallId) || removedToolArtifact;
           removedToolInteractions =
-            toolInteractionsRef.current.delete(part.toolCallId) ||
+            nextToolInteractions.delete(part.toolCallId) ||
             removedToolInteractions;
           if (part.approval) {
             ownedApprovals?.delete(part.approval.id);
@@ -1206,8 +1276,14 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
           }
         }
       }
-      if (removedToolArtifact) markToolArtifactsChanged();
-      if (removedToolInteractions) markToolInteractionsChanged();
+      if (removedToolArtifact) {
+        toolArtifactsRef.current = nextToolArtifacts;
+        setToolArtifacts(nextToolArtifacts);
+      }
+      if (removedToolInteractions) {
+        toolInteractionsRef.current = nextToolInteractions;
+        setToolInteractions(nextToolInteractions);
+      }
       if (removedToolApprovalResponse || removedHostApprovalId) {
         if (approvalOwner) notifyChatRuntimeState(approvalOwner);
         setToolApprovalResponses(new Map(toolApprovalResponsesRef.current));
@@ -1223,6 +1299,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
       );
     },
     onReload: async (parentId: string | null, config) => {
+      messageQueue.clear();
       lastRunConfigRef.current = config.runConfig;
       const newMessages = sliceMessagesUntil(
         chatHelpers.messages,
@@ -1247,8 +1324,10 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     }) => {
       const wasCancelled = cancelledToolCallIds.delete(toolCallId);
       if (artifact !== undefined) {
-        toolArtifactsRef.current.set(toolCallId, artifact);
-        markToolArtifactsChanged();
+        const next = new Map(toolArtifactsRef.current);
+        next.set(toolCallId, artifact);
+        toolArtifactsRef.current = next;
+        setToolArtifacts(next);
       }
 
       const targetIndex = findRawToolMessageIndex(
@@ -1356,14 +1435,13 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
       toolCallId,
       interaction,
     }) => {
-      toolInteractionsRef.current.set(
+      const next = new Map(toolInteractionsRef.current);
+      next.set(
         toolCallId,
-        appendToolInteraction(
-          toolInteractionsRef.current.get(toolCallId),
-          interaction,
-        ),
+        appendToolInteraction(next.get(toolCallId), interaction),
       );
-      markToolInteractionsChanged();
+      toolInteractionsRef.current = next;
+      setToolInteractions(next);
       return persistToolInteractions(messageId);
     },
     ...pickExternalStoreSharedOptions(adapter),
@@ -1373,6 +1451,7 @@ export const useAISDKRuntime = <UI_MESSAGE extends UIMessage = UIMessage>(
     }),
     ...(suggestionAdapter ? { suggestions: generatedSuggestions } : {}),
     ...(onResume && { onResume }),
+    ...(canResume !== undefined && { canResume }),
     ...(onResumeToolCall && { onResumeToolCall }),
     ...(unstable_onBranchChange && { unstable_onBranchChange }),
     adapters: {

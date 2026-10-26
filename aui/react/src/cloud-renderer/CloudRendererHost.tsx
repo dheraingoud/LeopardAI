@@ -17,10 +17,12 @@ import {
   type AssistantClient,
 } from "@/aui/store";
 import { resource } from "@/aui/tap";
-import { ReadonlyThreadProvider } from "@/aui/core/react";
+import {
+  ReadonlyThreadProvider,
+  useExternalStoreRuntime,
+} from "@/aui/core/react";
 import type { ThreadMessage } from "@/aui/core";
 import { AssistantRuntimeProvider } from "../legacy-runtime/AssistantRuntimeProvider";
-import { useExternalStoreRuntime } from "../legacy-runtime/runtime-cores/external-store/useExternalStoreRuntime";
 
 const CHANNEL = "assistant-ui/cloud-renderer";
 

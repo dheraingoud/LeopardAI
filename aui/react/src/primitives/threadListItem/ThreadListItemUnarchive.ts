@@ -8,8 +8,8 @@ import {
 import { useThreadListItemUnarchive as useThreadListItemUnarchiveBehavior } from "@/aui/core/react";
 
 const useThreadListItemUnarchive = () => {
-  const { unarchive } = useThreadListItemUnarchiveBehavior();
-  return unarchive;
+  const { unarchive, disabled } = useThreadListItemUnarchiveBehavior();
+  return disabled ? null : unarchive;
 };
 
 export namespace ThreadListItemPrimitiveUnarchive {

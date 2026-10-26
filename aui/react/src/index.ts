@@ -1,3 +1,4 @@
+/// <reference path="../../core/src/react/index.ts" preserve="true" />
 
 // Re-export from @/aui/store
 export {
@@ -50,7 +51,7 @@ export type {
 export { toolApprovalAcceptsText } from "@/aui/core";
 
 export { useCloudThreadListRuntime } from "@/aui/core/react";
-export { AssistantCloud, readAnonymousRefreshToken } from "@/aui/cloud";
+export { AssistantCloud, readAnonymousRefreshToken } from "assistant-cloud";
 
 // --- adapters/attachment ---
 export type { AttachmentAdapter } from "@/aui/core";
@@ -59,11 +60,15 @@ export {
   SimpleTextAttachmentAdapter,
   CompositeAttachmentAdapter,
 } from "@/aui/core";
-export { CloudFileAttachmentAdapter } from "./legacy-runtime/runtime-cores/adapters/attachment/CloudFileAttachmentAdapter";
+export { CloudFileAttachmentAdapter } from "@/aui/core/react";
 
 // --- adapters/voice ---
 export type { RealtimeVoiceAdapter } from "@/aui/core";
 export { createVoiceSession } from "@/aui/core";
+export {
+  OpenAIRealtimeVoiceAdapter,
+  type OpenAIRealtimeVoiceAdapterOptions,
+} from "./adapters/OpenAIRealtimeVoiceAdapter";
 export type {
   VoiceSessionControls,
   VoiceSessionHelpers,
@@ -159,7 +164,7 @@ export {
   type ExternalThreadQueueAdapter,
   type ExternalThreadBranchAdapter,
 } from "@/aui/core";
-export { useExternalStoreRuntime } from "./legacy-runtime/runtime-cores/external-store/useExternalStoreRuntime";
+export { useExternalStoreRuntime } from "@/aui/core/react";
 export { useExternalStoreSharedOptions } from "@/aui/core/react";
 export {
   useExternalMessageConverter,
@@ -169,11 +174,11 @@ export {
   createExternalMessageConversionCache as unstable_createExternalMessageConversionCache,
   /** @deprecated Experimental since 2026-09-15. Not scheduled for removal; the API may change in any release. */
   type ExternalMessageConversionCache as Unstable_ExternalMessageConversionCache,
-} from "./legacy-runtime/runtime-cores/external-store/external-message-converter";
+} from "@/aui/core/react";
 export {
   /** @deprecated Experimental since 2025-02-02. Not scheduled for removal; the API may change in any release. */
   createMessageConverter as unstable_createMessageConverter,
-} from "./legacy-runtime/runtime-cores/external-store/createMessageConverter";
+} from "@/aui/core/react";
 
 // --- local ---
 export type {
@@ -183,12 +188,12 @@ export type {
   ChatModelRunUpdate,
   LocalRuntimeOptionsBase,
 } from "@/aui/core";
-export { useLocalRuntime } from "./legacy-runtime/runtime-cores/local/useLocalRuntime";
-export type { LocalRuntimeOptions } from "./legacy-runtime/runtime-cores/local/LocalRuntimeOptions";
+export { useLocalRuntime } from "@/aui/core/react";
+export type { LocalRuntimeOptions } from "@/aui/core/react";
 
 // --- remote-thread-list ---
-export { useRemoteThreadListRuntime } from "./legacy-runtime/runtime-cores/remote-thread-list/useRemoteThreadListRuntime";
-export { useCloudThreadListAdapter } from "./legacy-runtime/runtime-cores/remote-thread-list/adapter/cloud";
+export { useRemoteThreadListRuntime } from "@/aui/core/react";
+export { useCloudThreadListAdapter } from "@/aui/core/react";
 export type {
   RemoteThreadListAdapter,
   RemoteThreadListProviderComponent,
@@ -269,7 +274,9 @@ export {
 
 export type {
   ModelContext,
+  ModelContextOptions,
   ModelContextProvider,
+  SystemPart,
   LanguageModelConfig,
   LanguageModelV1CallSettings,
 } from "@/aui/core";
@@ -284,7 +291,7 @@ export {
   type Unstable_InteractableVersion,
 } from "@/aui/core";
 
-export type { Tool } from "@/aui/assistant-stream";
+export type { Tool } from "assistant-stream";
 
 export { tool } from "@/aui/core";
 
@@ -296,6 +303,7 @@ export type {
   QueueItemMethods,
 } from "@/aui/core/store";
 export type { ComposerSendOptions } from "@/aui/core/store";
+export type { ComposerTextOrigin } from "@/aui/core";
 
 export { makeAssistantVisible } from "./model-context/makeAssistantVisible";
 

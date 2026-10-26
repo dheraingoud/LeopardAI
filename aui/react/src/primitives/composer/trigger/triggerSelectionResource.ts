@@ -7,8 +7,15 @@ import type {
 import type { AssistantClient } from "@/aui/store";
 import type { DetectedTrigger } from "./triggerDetectionResource";
 
-/** External override for selection (used by Lexical's DirectivePlugin). */
-export type SelectItemOverride = (item: Unstable_TriggerItem) => boolean;
+/**
+ * External override for selection (used by Lexical's DirectivePlugin).
+ * Returns whether it handled the item, and calls `onInserted` once the
+ * insertion has reached the composer.
+ */
+export type SelectItemOverride = (
+  item: Unstable_TriggerItem,
+  onInserted: () => void,
+) => boolean;
 
 export type TriggerBehavior =
   | {
@@ -66,7 +73,11 @@ const useTriggerSelectionResource = ({
   const selectItem = useEffectEvent((item: Unstable_TriggerItem) => {
     if (!trigger || !behavior) return;
 
-    if (selectItemOverrideRef.current?.(item)) {
+    const reportInserted = () => {
+      if (behavior.kind === "directive") behavior.onInserted?.(item);
+    };
+
+    if (selectItemOverrideRef.current?.(item, reportInserted)) {
       onSelected();
       return;
     }
@@ -79,6 +90,7 @@ const useTriggerSelectionResource = ({
       const directive = behavior.formatter.serialize(item);
       aui.composer.setText(
         before + directive + (after.startsWith(" ") ? after : ` ${after}`),
+        { origin: "user" },
       );
       setCursorPosition(before.length + directive.length + 1);
     };
@@ -90,6 +102,7 @@ const useTriggerSelectionResource = ({
       if (behavior.removeOnExecute) {
         aui.composer.setText(
           before + (after.startsWith(" ") ? after.slice(1) : after),
+          { origin: "user" },
         );
         setCursorPosition(before.length);
       } else {

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useResources, useTapRoot, withKey } from "@/aui/tap";
 import { useAui } from "@/aui/store";
-import type { Tool } from "@/aui/assistant-stream";
+import type { Tool } from "assistant-stream";
 import { getDefaultWebMcpHost, type WebMcpHost } from "./webmcp-host";
 import { defaultWebMcpFilter, toWebMcpInputSchema } from "./convertTools";
 import { WebMcpRegistrationResource } from "./WebMcpRegistrationResource";

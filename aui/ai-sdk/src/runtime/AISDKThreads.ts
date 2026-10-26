@@ -4,7 +4,7 @@ import { resource, useResource, withKey } from "@/aui/tap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Chat, UIMessage } from "@ai-sdk/react";
 import type { ChatTransport } from "ai";
-import type { AssistantCloud } from "@/aui/cloud";
+import type { AssistantCloud } from "assistant-cloud";
 import {
   InMemoryThreadList,
   RemoteThreadList,

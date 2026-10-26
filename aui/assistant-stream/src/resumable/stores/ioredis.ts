@@ -52,7 +52,7 @@ function adapt(client: IoRedisLike): RedisLikeClient {
     },
     async xRange(key, start, end) {
       const entries = await client.xrangeBuffer(key, start, end);
-      return entries.map(([idBuf, fieldArray]: [any, any]) => ({
+      return entries.map(([idBuf, fieldArray]) => ({
         id: idBuf.toString("utf8"),
         fields: bufferFieldsToRecord(fieldArray),
       }));

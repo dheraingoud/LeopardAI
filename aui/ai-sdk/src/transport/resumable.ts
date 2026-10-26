@@ -1,6 +1,6 @@
 "use client";
 
-import { RESUMABLE_STREAM_ID_HEADER as RESUMABLE_STREAM_ID_HEADER_VALUE } from "@/aui/assistant-stream/resumable";
+import { RESUMABLE_STREAM_ID_HEADER as RESUMABLE_STREAM_ID_HEADER_VALUE } from "assistant-stream/resumable";
 
 /** Response header used by the [Resumable Streams](/docs/guides/resumable-streams) server and client wiring. */
 export const RESUMABLE_STREAM_ID_HEADER = RESUMABLE_STREAM_ID_HEADER_VALUE;
@@ -154,8 +154,9 @@ export type AssistantChatResumableOptions = {
   storage: ResumableClientStorage;
   resumeApi: string | ((streamId: string) => string);
   /**
-   * Defaults to scanning for the AI SDK UIMessageStream `finish` marker.
-   * Cancellation never invokes this callback, only natural completion does.
+   * Called for each chunk with the accumulated decoded text. Return true when
+   * the stream has finished. The default detects complete SSE events whose
+   * top-level JSON type is `finish`. Cancellation does not invoke this callback.
    */
   isFinishEvent?: (chunk: Uint8Array, accumulator: string) => boolean;
 };

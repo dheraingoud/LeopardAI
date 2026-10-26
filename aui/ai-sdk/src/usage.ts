@@ -1,3 +1,4 @@
+/// <reference path="../../core/src/react/index.ts" preserve="true" />
 import { useMemo } from "react";
 import { useAuiState } from "@/aui/store";
 
