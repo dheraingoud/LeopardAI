@@ -1,4 +1,4 @@
-import { toJSONSchema } from "@/aui/assistant-stream";
+import { toJSONSchema } from "assistant-stream";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { isReservedKey, MODEL_KEYS } from "./constants";
 import type { GenerativeUILibrary } from "./types";

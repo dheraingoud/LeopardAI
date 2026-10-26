@@ -109,7 +109,7 @@ function ChartFigure({ spec }: { spec: ChartSpec }) {
 
 export function LeopardChart({ spec }: { spec: ChartSpec }) {
   return (
-    <div className={cn(paper, "rounded-xl p-4 my-2")}>
+    <div data-dg-motion="" className={cn(paper, "rounded-xl p-4 my-2")}>
       {spec.title ? (
         <p
           className={cn(

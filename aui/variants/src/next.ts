@@ -63,11 +63,13 @@ const handle = async (
  * folder routable at `/__variants`):
  *
  * ```ts
- * export { GET, POST, DELETE } from "@/aui/variants/next";
+ * export { GET, POST, DELETE } from "@assistant-ui/variants/next";
  * ```
  *
  * They answer 404 unless `NODE_ENV` is `development`, and 403 unless the
  * `Host` is loopback. For another dev host, use `createVariantsRoutes`.
+ * `next dev` listens on all network interfaces by default. On an untrusted
+ * network, start it with `next dev -H 127.0.0.1`.
  */
 export const createVariantsRoutes = (options: VariantsRouteOptions = {}) => {
   const route = (request: Request) => handle(request, options);

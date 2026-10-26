@@ -1,4 +1,4 @@
-import type { ReadonlyJSONObject } from "@/aui/assistant-stream/utils";
+import type { ReadonlyJSONObject } from "assistant-stream/utils";
 import { convertSurfaceToUISpec } from "./convert";
 import { surfaceToOperations } from "./snapshot";
 import type { A2uiSurfaceSnapshotOperation, A2uiSurfaceState } from "./types";

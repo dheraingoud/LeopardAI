@@ -1,6 +1,6 @@
 "use client";
 
-import type { AssistantCloud } from "@/aui/cloud";
+import type { AssistantCloud } from "assistant-cloud";
 import type { AssistantRuntime } from "@/aui/core";
 import {
   splitLocalRuntimeOptions,

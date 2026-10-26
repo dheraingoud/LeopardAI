@@ -9,8 +9,9 @@ import {
 import { useAssistantScopeEffect } from "@/aui/store/client";
 import { ModelContext } from "@/aui/core/store";
 import { createMcpId } from "../utils/createMcpId";
+import { getMcpToolName } from "../utils/toolName";
 import { clearOAuthProviderAuthState } from "../auth/createOAuthProvider";
-import type { Tool } from "@/aui/assistant-stream";
+import type { Tool } from "assistant-stream";
 import { McpServerResource } from "./McpServerResource";
 import {
   McpCustomServersResource,
@@ -99,6 +100,9 @@ const useMcpManagerResource = (
           ...(c.elicitation !== undefined
             ? { elicitation: c.elicitation }
             : {}),
+          ...(c.requireApproval !== undefined
+            ? { requireApproval: c.requireApproval }
+            : {}),
           onRemove: async () => {
             // connectors cannot be removed
           },
@@ -123,6 +127,9 @@ const useMcpManagerResource = (
               ...(s.cache !== undefined ? { cache: s.cache } : {}),
               ...(s.elicitation !== undefined
                 ? { elicitation: s.elicitation }
+                : {}),
+              ...(s.requireApproval !== undefined
+                ? { requireApproval: s.requireApproval }
                 : {}),
               onRemove: async () => {
                 removeCustomServer(s.id);
@@ -159,26 +166,48 @@ const useMcpManagerResource = (
     };
   }, [lookup.state, isHydrated]);
 
-  // ─── Auto-register MCP tools as frontend tools in modelContext ─────
-  // Build the toolkit from connected servers; re-register when the visible
-  // tool surface changes. Tool names are prefixed with the server id to
-  // avoid collisions across connected servers — connector ids must not
-  // contain `__` (enforced by `defineConnector`); `addCustomServer`
-  // generates UUIDs that satisfy the constraint by construction.
   const toolkit = useMemo<Record<string, Tool<any, any>>>(() => {
     const out: Record<string, Tool<any, any>> = {};
     for (const server of state.servers) {
       if (server.connectionState !== "connected") continue;
       for (const tool of server.tools) {
-        const fullName = `${server.id}__${tool.name}`;
+        const fullName = getMcpToolName(server.id, tool.name);
         out[fullName] = {
           type: "frontend",
           ...(tool.description !== undefined
             ? { description: tool.description }
             : {}),
           parameters: tool.inputSchema as never,
-          execute: (args) =>
-            lookup.get({ key: server.id }).callTool(tool.name, args as unknown),
+          execute: async (args, context) => {
+            if (server.requireApproval !== false) {
+              const decision = await context.human({
+                type: "mcp-tool-approval",
+                serverId: server.id,
+                serverName: server.name,
+                toolName: tool.name,
+                arguments: args,
+              });
+              if (
+                decision !== true &&
+                !(
+                  typeof decision === "object" &&
+                  decision !== null &&
+                  "approved" in decision &&
+                  decision.approved === true
+                )
+              ) {
+                return {
+                  content: [
+                    { type: "text", text: "The user declined this tool call." },
+                  ],
+                  isError: true,
+                };
+              }
+            }
+            return lookup
+              .get({ key: server.id })
+              .callTool(tool.name, args as unknown);
+          },
         };
       }
     }
@@ -225,6 +254,7 @@ const useMcpManagerResource = (
       connectionTimeout,
       cache,
       elicitation,
+      requireApproval,
     }) => {
       const record: MCPCustomServerRecord = {
         id: createMcpId(),
@@ -234,6 +264,7 @@ const useMcpManagerResource = (
         connectionTimeout,
         ...(cache !== undefined ? { cache } : {}),
         ...(elicitation !== undefined ? { elicitation } : {}),
+        ...(requireApproval !== undefined ? { requireApproval } : {}),
         createdAt: Date.now(),
       };
       updateCustomServers((prev) => [...prev, record]);

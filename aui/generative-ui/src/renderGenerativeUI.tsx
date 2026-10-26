@@ -1,5 +1,5 @@
 import { RadioGroupScope } from "./RadioGroupScope";
-import { getPartialJsonObjectMeta } from "@/aui/assistant-stream/utils";
+import { getPartialJsonObjectMeta } from "assistant-stream/utils";
 import { Fragment, type ReactNode } from "react";
 import { z } from "zod";
 import { hasFieldReference, resolveFieldReferences } from "./fieldReferences";

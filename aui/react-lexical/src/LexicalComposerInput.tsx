@@ -279,6 +279,15 @@ export const LexicalComposerInput = forwardRef<
     const resolvedFormatter =
       formatterProp ?? unstable_defaultDirectiveFormatter;
 
+    const placeholderProps = placeholder
+      ? {
+          placeholder: (
+            <div className="aui-lexical-placeholder">{placeholder}</div>
+          ),
+          "aria-placeholder": placeholder,
+        }
+      : {};
+
     // Decorator portals render from the composer's own React extension, above its children, so the chip context has to wrap the composer.
     return (
       <DirectiveChipProvider value={directiveChip ?? null}>
@@ -296,25 +305,15 @@ export const LexicalComposerInput = forwardRef<
             {...rest}
             style={{ overflowY: "auto", ...rest.style }}
           >
-            {placeholder ? (
-              <ContentEditable
-                className="aui-lexical-input"
-                aria-label={ariaLabel ?? (ariaLabelledBy ? undefined : placeholder)}
-                aria-labelledby={ariaLabelledBy}
-                aria-describedby={ariaDescribedBy}
-                placeholder={
-                  <div className="aui-lexical-placeholder">{placeholder}</div>
-                }
-                aria-placeholder={placeholder}
-              />
-            ) : (
-              <ContentEditable
-                className="aui-lexical-input"
-                aria-label={ariaLabel}
-                aria-labelledby={ariaLabelledBy}
-                aria-describedby={ariaDescribedBy}
-              />
-            )}
+            <ContentEditable
+              className="aui-lexical-input"
+              aria-label={
+                ariaLabel ?? (ariaLabelledBy ? undefined : placeholder)
+              }
+              aria-labelledby={ariaLabelledBy}
+              aria-describedby={ariaDescribedBy}
+              {...placeholderProps}
+            />
             <SyncPlugin formatter={resolvedFormatter} />
             <DirectivePlugin {...directivePluginProps} />
             <KeyboardPlugin
