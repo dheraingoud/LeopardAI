@@ -2,6 +2,7 @@
 // renders it as interactive React components. Each widget has a `_type` that
 // selects the component and props inline.
 import { z } from "zod";
+import { CHART_FORMS } from "@/components/chat/leopard/charts/registry";
 
 const widgetBase = z.object({
   _type: z.string().describe("Widget type: chart, table, stat, progress, form, gallery, code, diagram, map"),
@@ -46,23 +47,9 @@ const chartScatterPoint = z.object({
 const chartWidget = widgetBase.extend({
   _type: z.literal("chart"),
   chartType: z
-    .enum([
-      "bar",
-      "column",
-      "line",
-      "area",
-      "pie",
-      "donut",
-      "grouped-bar",
-      "stacked-bar",
-      "stacked-area",
-      "heatmap",
-      "scatter",
-      "sparkline",
-      "histogram",
-    ])
+    .enum(CHART_FORMS)
     .describe(
-      "Chart type. bar/column/line/area/pie/donut/sparkline use `data`; grouped-bar/stacked-bar/stacked-area use `series` + `groups`; heatmap uses `matrix`; scatter uses `scatter`; histogram uses `bins`.",
+      "Chart type. Simple forms read `data` (labelled values) — bar, column, line, area, pie, donut, lollipop, dot-plot, leaderboard, radial-bar, polar-area, waffle, funnel, diverging-bar, split-bar, sparkline, sparkbar, win-loss, horizon, beeswarm. `series` (+ `groups`) for grouped-bar, stacked-bar, stacked-area, streamgraph, bump. `groups` also carries ridgeline and strip-plot rows. `matrix` for heatmap. `scatter` for scatter, connected-scatter, hexbin, contour, quadrant. `bins` for histogram. `value` for gauge and progress-ring. Forms needing other shapes (sankey, network, treemap, tree, gantt, waterfall, radar, venn, bullet, choropleth, …) must carry a `spec` payload.",
     ),
   title: z.string().describe("Chart title"),
   data: jsonStringArray(chartPoint)
@@ -81,6 +68,15 @@ const chartWidget = widgetBase.extend({
   bins: jsonStringArray(z.number())
     .optional()
     .describe("Bin counts for histogram"),
+  value: z.number().optional().describe("Single value for gauge and progress-ring"),
+  xLabel: z.string().optional().describe("x-axis label for the point-driven forms"),
+  yLabel: z.string().optional().describe("y-axis label for the point-driven forms"),
+  spec: z
+    .looseObject({ type: z.string().optional() })
+    .optional()
+    .describe(
+      "Raw diagrammatic chart spec for forms the simple fields cannot express: { type, v: \"dg/1\", ...form-specific props }. When present it replaces the simple fields.",
+    ),
 });
 
 const tableWidget = widgetBase.extend({
@@ -174,6 +170,53 @@ export type GalleryWidget = z.infer<typeof galleryWidget>;
 export type CodeWidget = z.infer<typeof codeWidget>;
 export type DiagramWidget = z.infer<typeof diagramWidget>;
 export type MapWidget = z.infer<typeof mapWidget>;
+
+export type FormField = z.infer<typeof formWidget>["fields"][number];
+
+const FORM_FIELD_TYPES = new Set([
+  "text",
+  "number",
+  "email",
+  "select",
+  "textarea",
+]);
+
+// The client renders the raw tool args, so a form's `fields` can arrive as a
+// JSON string (models stringify nested arrays) or with malformed entries.
+export function normalizeFormFields(input: unknown): FormField[] {
+  let list: unknown = input;
+  if (typeof list === "string") {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((entry): FormField[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const field = entry as Record<string, unknown>;
+    const name = typeof field.name === "string" ? field.name : "";
+    const label = typeof field.label === "string" ? field.label : name;
+    const type = FORM_FIELD_TYPES.has(String(field.type))
+      ? (field.type as FormField["type"])
+      : "text";
+    if (!name) return [];
+    const options = Array.isArray(field.options)
+      ? field.options.filter((option): option is string => typeof option === "string")
+      : undefined;
+    return [
+      {
+        name,
+        label,
+        type,
+        placeholder:
+          typeof field.placeholder === "string" ? field.placeholder : undefined,
+        options,
+      },
+    ];
+  });
+}
 
 // The tool definition the model sees.
 export const renderWidgetTool = {

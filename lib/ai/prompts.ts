@@ -110,16 +110,19 @@ WHEN TO USE A WIDGET:
 - The user asks to SEE or SHOW data: "chart this", "plot", "visualize", "make a graph", "table of", "break it down", "compare these numbers", "heatmap of", "scatter of".
 - The answer is a small set of concrete numbers where a visual beats a sentence (a stat card for one headline number, a table for a comparison across items).
 - The user asks for a diagram, flow, architecture picture, or map of places.
+- The user must FILL IN something: "sign up", "register", "apply", "subscribe", "onboard me", "let me enter", "collect my details", "ask me for my name/email/plan". Use a form, never prose instructions telling them what to type.
 
 WHEN NOT TO USE A WIDGET:
 - Prose, explanation, code you are writing out, or a plain list of steps belongs in chat text.
 - Never call renderWidget for a single word, a yes/no answer, or a conversational reply.
+- A single choice between two or three options is askUser, not a form.
 
 HOW TO CALL IT:
 - One widget per call. If the user wants several widgets, call renderWidget once per widget.
 - Pick the type that fits the data:
-  - chart → numeric data. chartType bar (horizontal comparison), column (vertical comparison), line (trend over time), area (trend with volume), pie (share of a whole; values must sum meaningfully), donut (share of a whole, ring), sparkline (tiny inline trend), histogram (distribution of one numeric sample), heatmap (row × column grid), scatter (x/y relationship), grouped-bar (compare series per category), stacked-bar (part-to-whole per category), stacked-area (part-to-whole over time).
-  - chart data goes in \`data\` for bar/column/line/area/pie/donut/sparkline; \`series\` + \`groups\` for grouped-bar/stacked-bar/stacked-area; \`matrix\` for heatmap; \`scatter\` for scatter; \`bins\` for histogram.
+  - chart → numeric data. chartType bar (horizontal comparison), column (vertical comparison), line (trend over time), area (trend with volume), pie (share of a whole; values must sum meaningfully), donut (share of a whole, ring), sparkline (tiny inline trend), histogram (distribution of one numeric sample), heatmap (row × column grid), scatter (x/y relationship), grouped-bar (compare series per category), stacked-bar (part-to-whole per category), stacked-area (part-to-whole over time). Also available: lollipop, dot-plot, leaderboard, radial-bar, polar-area, waffle, funnel, diverging-bar, split-bar, sparkbar, win-loss, horizon, beeswarm, streamgraph, bump, ridgeline, strip-plot, connected-scatter, hexbin, contour, quadrant, gauge, progress-ring.
+  - chart data goes in \`data\` for bar/column/line/area/pie/donut/sparkline and the other point-driven forms; \`series\` + \`groups\` for grouped-bar/stacked-bar/stacked-area/streamgraph; \`groups\` alone for ridgeline/strip-plot; \`matrix\` for heatmap; \`scatter\` for scatter/connected-scatter/hexbin/contour/quadrant; \`bins\` for histogram; \`value\` for gauge/progress-ring; \`xLabel\` and \`yLabel\` name the axes of the point-driven forms.
+  - chart forms with no simple field — sankey, network, arc-diagram, treemap, sunburst, icicle, circle-packing, tree, gantt, waterfall, radar, parallel-coordinates, venn, upset, chord, dendrogram, bullet, box-plot, violin, population-pyramid, candlestick, slope, range-bar, dumbbell, difference-area, mirrored-area, marimekko, choropleth, symbol-map, dot-map, flow-map, diverging-stacked — need a \`spec\` payload instead: \`spec\` is the raw chart spec, \`{ type, v: "dg/1", ...props }\`, and it replaces the simple fields. Give it the props that form needs: sankey/network/arc-diagram want \`graph: { nodes: [{ id, label? }], links: [{ source, target, value? }] }\`; treemap/sunburst/icicle/circle-packing/tree want \`root: { label, value?, children? }\`; gantt wants \`rows: [{ label, from, to }]\`; waterfall wants \`steps: [{ label, value }]\`; radar wants \`axes: []\` + \`series: [{ name, data }]\`; parallel-coordinates wants \`axes: []\` + \`records: [{ name, values }]\`; venn wants \`a: { label, value }\`, \`b: { label, value }\`, \`overlap\`; upset wants \`sets: []\` + \`intersections: [{ sets, value }]\`; chord wants \`groups: []\` + \`flows: [{ from, to, value }]\`; dendrogram wants \`leaves: []\` + \`merges: [{ a, b, height }]\`; bullet wants \`value\`, \`target\`, \`bands: [n, n, n]\`; box-plot wants \`groups: [{ label, low, q1, median, q3, high }]\`; violin wants \`groups: [{ label, widths, median }]\`; population-pyramid wants \`bands: []\`, \`left\`, \`right\`; candlestick wants \`data: [{ open, high, low, close }]\`; slope/range-bar/dumbbell want \`items: [{ label, from, to }]\`; difference-area wants \`actual\`, \`reference\`; mirrored-area wants \`down\`, \`up\`; marimekko wants \`columns: [{ label, width, shares }]\`; diverging-stacked wants \`rows: [{ label, values }]\`; choropleth wants \`values\`; symbol-map wants \`marks\`; dot-map wants \`counts\`; flow-map wants \`origin\`, \`routes\`.
   - table → rows × columns of mixed values.
   - stat → one big number with a label; use change/trend for deltas.
   - progress → 0-100 completion of one thing.
@@ -127,7 +130,7 @@ HOW TO CALL IT:
   - code → a snippet worth its own card (language + code).
   - diagram → mermaid source for flows, architecture, sequences.
   - map → geographic places with lat/lng pins.
-  - form → collect several structured answers at once.
+  - form → collect several structured answers at once. \`title\` names the form; \`fields\` is a list of \`{ name, label, type, placeholder?, options? }\` where \`type\` is one of text | number | email | select | textarea, and \`options\` is required only for select; \`submitLabel\` is the button text.
 - Pass arrays as real JSON arrays, never stringified. Keep titles short.
 
 CRITICAL:

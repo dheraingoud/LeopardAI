@@ -8,9 +8,10 @@ import { paper, mono } from "./surfaces";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { NumberTicker } from "./number-ticker";
 import { ImageGallery } from "./image-gallery";
+import { FormWidget } from "./form-widget";
 import { LeopardChart } from "./charts/chart-figure";
 import { chartHasData } from "./charts/registry";
-import type { WidgetSpec } from "@/lib/ai/widget-schema";
+import { normalizeFormFields, type WidgetSpec } from "@/lib/ai/widget-schema";
 
 const GeoMapLazy = dynamic(
   () => import("./geo-map.js").then((m) => m.GeoMap),
@@ -42,6 +43,10 @@ function ChartWidget({
   matrix,
   scatter,
   bins,
+  value,
+  xLabel,
+  yLabel,
+  spec: rawSpec,
   chartType,
 }: Extract<WidgetSpec, { _type: "chart" }>) {
   const points = (data ?? []).filter((d) => Number.isFinite(d.value));
@@ -54,6 +59,10 @@ function ChartWidget({
     matrix,
     scatter,
     bins,
+    value,
+    xLabel,
+    yLabel,
+    spec: rawSpec,
   };
   if (!chartHasData(spec)) {
     return (
@@ -271,6 +280,8 @@ const specReady = (spec: WidgetSpec): boolean => {
   switch (spec._type) {
     case "chart":
       return (
+        Boolean(spec.spec) ||
+        typeof spec.value === "number" ||
         (Array.isArray(spec.data) && spec.data.length > 0) ||
         (Array.isArray(spec.series) && spec.series.length > 0) ||
         (Array.isArray(spec.groups) && spec.groups.length > 0) ||
@@ -281,6 +292,7 @@ const specReady = (spec: WidgetSpec): boolean => {
     case "table": return Array.isArray(spec.columns) && Array.isArray(spec.rows);
     case "stat": return spec.value !== undefined;
     case "progress": return typeof spec.value === "number";
+    case "form": return normalizeFormFields(spec.fields).length > 0;
     case "gallery": return Array.isArray(spec.images) && spec.images.length > 0;
     case "code": return typeof spec.code === "string" && spec.code.length > 0;
     case "diagram": return typeof spec.code === "string" && spec.code.length > 0;
@@ -297,6 +309,7 @@ export const WidgetRenderer = memo(function WidgetRenderer({ spec }: { spec: Wid
     case "table": return <TableWidget {...spec} />;
     case "stat": return <StatWidget {...spec} />;
     case "progress": return <ProgressWidget {...spec} />;
+    case "form": return <FormWidget {...spec} />;
     case "gallery": return <GalleryWidget {...spec} />;
     case "code": return <CodeWidget {...spec} />;
     case "diagram": return <DiagramWidget {...spec} />;
