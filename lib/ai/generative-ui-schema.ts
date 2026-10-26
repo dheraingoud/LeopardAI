@@ -51,13 +51,16 @@ export const leopardUiLibrary = Object.fromEntries(
   }),
 );
 
-function stripDescriptions(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripDescriptions);
+function stripDescriptions(value: unknown, inProperties = false): unknown {
+  if (Array.isArray(value)) return value.map((entry) => stripDescriptions(entry));
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => key !== "description")
-        .map(([key, entry]) => [key, stripDescriptions(entry)]),
+        .filter(([key]) => inProperties || key !== "description")
+        .map(([key, entry]) => [
+          key,
+          stripDescriptions(entry, key === "properties"),
+        ]),
     );
   }
   return value;
@@ -87,7 +90,10 @@ export function leopardUiTreeSchema(): JSONSchema7 {
     anyOf: [
       { type: "string" },
       nested,
-      { type: "array", items: nested },
+      {
+        type: "array",
+        items: { anyOf: [{ type: "string" }, nested] },
+      },
     ],
   } as JSONSchema7;
 

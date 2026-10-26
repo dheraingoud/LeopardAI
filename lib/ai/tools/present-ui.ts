@@ -15,6 +15,6 @@ export function presentUI() {
       "tabbed breakdown, a step list, an alert with supporting detail. For a " +
       "single chart, table, or diagram use renderWidget instead.",
     inputSchema: jsonSchema(leopardUiTreeSchema()),
-    execute: async (args) => args,
+    execute: async () => ({}),
   });
 }
