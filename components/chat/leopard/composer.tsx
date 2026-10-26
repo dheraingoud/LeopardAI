@@ -828,62 +828,66 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                 onPickMedia={(f) => addFiles(f, "media")}
                 onPickFile={(f) => addFiles(f, "file")}
               />
-              <ComposerActions>
-                <ModelSelector />
-                <ContextBreakdown
-                  contextWindow={ctxWin}
-                  text={input}
-                  attachmentCount={attachments.length}
-                  attachments={attachments}
-                />
-                <MemoryChips />
-                <ResearchPanel />
-                {/* Dictation: speech input streams into the composer. Hidden
-                    where the SpeechRecognition API is unsupported. Disabled
-                    (not unmounted) mid-stream — hiding it shifted the action
-                    row every run (2026-10-12 audit). */}
-                {dictation.supported && (
-                  <button
-                    type="button"
-                    disabled={isStreaming}
-                    title={dictation.listening ? "Stop dictation" : isStreaming ? "Dictation unavailable while generating" : "Dictate"}
-                    aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
-                    aria-pressed={dictation.listening}
-                    onClick={toggleDictation}
-                    className={cn(
-                      ghostButton,
-                      "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11 disabled:opacity-35 disabled:pointer-events-none",
-                      dictation.listening &&
-                        "dark:text-[#ffb400] light:text-[#d49600] dark:bg-[#ffb400]/[0.12] light:bg-[#d49600]/[0.14]",
-                    )}
-                  >
-                    <MicIcon
+              <div className="flex min-w-0 shrink items-center gap-1.5">
+                <ComposerActions>
+                  <ModelSelector />
+                  <ContextBreakdown
+                    contextWindow={ctxWin}
+                    text={input}
+                    attachmentCount={attachments.length}
+                    attachments={attachments}
+                  />
+                  <MemoryChips />
+                  <ResearchPanel />
+                </ComposerActions>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Dictation: speech input streams into the composer. Hidden
+                      where the SpeechRecognition API is unsupported. Disabled
+                      (not unmounted) mid-stream — hiding it shifted the action
+                      row every run (2026-10-12 audit). */}
+                  {dictation.supported && (
+                    <button
+                      type="button"
+                      disabled={isStreaming}
+                      title={dictation.listening ? "Stop dictation" : isStreaming ? "Dictation unavailable while generating" : "Dictate"}
+                      aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
+                      aria-pressed={dictation.listening}
+                      onClick={toggleDictation}
                       className={cn(
-                        "size-4",
-                        dictation.listening && "animate-pulse motion-reduce:animate-none",
+                        ghostButton,
+                        "grid size-9 shrink-0 place-items-center rounded-full max-sm:size-11 disabled:opacity-35 disabled:pointer-events-none",
+                        dictation.listening &&
+                          "dark:text-[#ffb400] light:text-[#d49600] dark:bg-[#ffb400]/[0.12] light:bg-[#d49600]/[0.14]",
                       )}
+                    >
+                      <MicIcon
+                        className={cn(
+                          "size-4",
+                          dictation.listening && "animate-pulse motion-reduce:animate-none",
+                        )}
+                      />
+                    </button>
+                  )}
+                  {isStreaming ? (
+                    <ComposerSend
+                      streaming
+                      idle={false}
+                      onClick={stopGeneration}
+                      title="Stop"
                     />
-                  </button>
-                )}
-              </ComposerActions>
-              {isStreaming ? (
-                <ComposerSend
-                  streaming
-                  idle={false}
-                  onClick={stopGeneration}
-                  title="Stop"
-                />
-              ) : (
-                <ComposerSend
-                  streaming={false}
-                  idle={!canSend}
-                  title={
-                    modelDown
-                      ? "Model is currently down — this will be sent to the default model"
-                      : "Send"
-                  }
-                />
-              )}
+                  ) : (
+                    <ComposerSend
+                      streaming={false}
+                      idle={!canSend}
+                      title={
+                        modelDown
+                          ? "Model is currently down — this will be sent to the default model"
+                          : "Send"
+                      }
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </ComposerBar>
         </form>
