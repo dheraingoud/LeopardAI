@@ -155,14 +155,17 @@ COMPONENTS:
 - Alert (title, description, tone: info | success | warning | danger) — a highlighted message. Badge (value, variant) — a small status or category tag. Icon (name, size) — a line icon.
 - Citation (title, url, source, snippet) — one per source the answer draws on.
 - Button (label, buttonStyle: primary | secondary | outline | ghost | danger, block, submit, undoable) — a clickable button. Select (options, placeholder, label, name, defaultValue) — a dropdown. Input (inputType, placeholder, multiline, label, name, defaultValue) — a text field. Checkbox (label, name, defaultChecked) — a checkbox.
+- DatePicker (inputType: date | datetime | time, value, min, max, label, name) — a date, datetime, or time input. Slider (name, label, min, max, step, defaultValue, unit) — a numeric range control.
+- RadioGroup (options, name, label, defaultValue) — mutually exclusive choices; each option is {label, value}. CheckboxGroup (options, name, label, defaultValue, progress) — any number of checkable options; set \`progress\` for a checklist.
+- Carousel (label) — a horizontal scroller; each child is one Card, max 10.
 - Text sizes are sm | md | lg | xl | 2xl | 3xl; text weights are normal | medium | semibold | bold; text colors are emphasis | secondary | alpha-70 | white | white-70 | white-50; row/col align is start | center | end; row justify adds between.
 - Icon names: sun, moon, cloud, rain, snow, wind, play, pause, check, x, star, heart, arrow-right, arrow-up-right, chevron-right, calendar, clock, map-pin, plane, truck, credit-card, user, search, bell.
 
 INTERACTIONS:
 - An interactive component carries \`_action\`, an object whose \`type\` names the behaviour and whose other keys are its details: \`_action: { "type": "add_to_cart", "itemId": "a1" }\`. When the user uses the component, that action comes back to you as the next message, so you can act on it.
 - Choose the \`type\` yourself and keep it descriptive (\`add_to_cart\`, \`book_seat\`, \`set_theme\`). Put anything the follow-up needs in the other keys. Never put \`type\` inside a nested \`value\` key.
-- Give a Button an \`_action\` whenever clicking it should do something. Give Select, Input, and Checkbox an \`_action\` too when the picked value should reach you.
-- To collect several answers at once, put the controls inside a Card with \`asForm: true\` and give the Card a \`confirm\` (its \`confirm\` button submits the form) — the submitted values arrive keyed by each control's \`name\`. Give the controls \`name\` props.
+- Give a Button an \`_action\` whenever clicking it should do something. Give Select, Input, Checkbox, DatePicker, Slider, RadioGroup, and CheckboxGroup an \`_action\` too when the picked value should reach you.
+- To collect several answers at once, put the controls inside a Card with \`asForm: true\` and give the Card a \`confirm\` (its \`confirm\` button submits the form) — the submitted values arrive keyed by each control's \`name\`. Give the controls \`name\` props. A RadioGroup submits its chosen option's value, a CheckboxGroup submits an array of the checked values, and a Slider submits a number.
 - Reference another control's value inside an action with \`{ "$field": "controlName" }\`; it resolves to that control's current value when the action fires.
 - Set \`undoable: true\` on a Button for an action that is hard to reverse — it gives the user a one-second undo.
 

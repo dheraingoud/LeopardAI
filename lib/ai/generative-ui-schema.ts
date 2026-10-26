@@ -32,6 +32,11 @@ export const LEOPARD_UI_COMPONENTS = [
   "Select",
   "Input",
   "Checkbox",
+  "DatePicker",
+  "Slider",
+  "RadioGroup",
+  "CheckboxGroup",
+  "Carousel",
 ] as const;
 
 export type LeopardUIComponent = (typeof LEOPARD_UI_COMPONENTS)[number];
