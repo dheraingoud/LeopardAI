@@ -1,4 +1,4 @@
-import type { ReadonlyJSONObject } from "@/aui/assistant-stream/utils";
+import type { ReadonlyJSONObject } from "assistant-stream/utils";
 
 export class CloudResponseError extends Error {
   constructor(message: string) {

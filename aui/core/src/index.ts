@@ -1,4 +1,4 @@
-// @/aui/core - Framework-agnostic core runtime (public API)
+// @assistant-ui/core - Framework-agnostic core runtime (public API)
 
 /// <reference path="./store/scope-registration.ts" preserve="true" />
 
@@ -111,6 +111,8 @@ export type {
   // Model context
   ModelContext,
   ModelContextProvider,
+  ModelContextOptions,
+  SystemPart,
   // Tool & instruction config
   AssistantToolProps,
   AssistantInstructionsConfig,
@@ -218,7 +220,9 @@ export type {
   ComposerRuntimeEventCallback,
   ComposerRuntimeEventPayload,
   ComposerRuntimeEventType,
+  ComposerSetTextOptions,
   ComposerSubmission,
+  ComposerTextOrigin,
   DictationState,
   EditComposerRuntimeCore,
   SendOptions,

@@ -1,4 +1,4 @@
-import type { ReadonlyJSONObject } from "@/aui/assistant-stream/utils";
+import type { ReadonlyJSONObject } from "assistant-stream/utils";
 import type { AssistantCloudAPI } from "./AssistantCloudAPI";
 import {
   readCloudArray,
@@ -146,6 +146,13 @@ export class AssistantCloudThreadMessages {
     return this.cloud.makeRequest(
       `/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`,
       { method: "PUT", body },
+    );
+  }
+
+  public async delete(threadId: string, messageIds: string[]): Promise<void> {
+    return this.cloud.makeRequest(
+      `/threads/${encodeURIComponent(threadId)}/messages`,
+      { method: "DELETE", body: { message_ids: messageIds } },
     );
   }
 

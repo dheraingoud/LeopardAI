@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * declare module "@/aui/core" {
+ * declare module "@assistant-ui/core" {
  *   namespace Assistant {
  *     interface Commands {
  *       myCustomCommand: {

@@ -410,7 +410,7 @@ const useAssistantTransportThreadRuntime = <T>(
     runManager.isRunning,
     toolStatuses,
   );
-  const messages = useMemo((): typeof converted.messages => {
+  const messages = useMemo(() => {
     const pendingIds = new Set(
       pendingCommands.flatMap((command) =>
         command.type === "add-message" && command.message.role === "user"
@@ -421,13 +421,13 @@ const useAssistantTransportThreadRuntime = <T>(
     if (!converted.messages.some((message) => pendingIds.has(message.id)))
       return converted.messages;
     return converted.messages.map((message) =>
-      pendingIds.has(message.id)
-        ? ({
+      pendingIds.has(message.id) && message.role === "user"
+        ? {
             ...message,
             metadata: { ...message.metadata, isOptimistic: true },
-          } as typeof message)
+          }
         : message,
-    ) as typeof converted.messages;
+    );
   }, [converted.messages, pendingCommands]);
 
   // Create runtime
@@ -435,6 +435,8 @@ const useAssistantTransportThreadRuntime = <T>(
     messages,
     state: converted.state,
     isRunning: converted.isRunning,
+    canResume:
+      !!options.canResume && !!options.resumeApi && !runManager.isRunning,
     isLoading: isReplaying,
     adapters: options.adapters,
     unstable_enableToolInvocations: true,

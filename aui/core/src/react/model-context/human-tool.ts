@@ -7,7 +7,7 @@
  * ```
  *
  * Unlike {@link defineToolkit}, it has **no runtime implementation**: a
- * `"use generative"` compiler (e.g. `@/aui/next` or `@/aui/vite`)
+ * `"use generative"` compiler (e.g. `@assistant-ui/next` or `@assistant-ui/vite`)
  * detects `execute: humanTool()`, drops it, and stamps the tool `type: "human"`.
  * Reaching it at runtime means the module wasn't compiled (used outside a
  * `"use generative"` file), so it throws.

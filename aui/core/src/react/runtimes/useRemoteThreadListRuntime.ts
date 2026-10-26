@@ -1,3 +1,5 @@
+"use client";
+
 import {
   useState,
   useEffect,
@@ -16,10 +18,24 @@ import { RemoteThreadListThreadListRuntimeCore } from "./RemoteThreadListThreadL
 import { WritableSubscribable } from "../../subscribable/subscribable";
 import { useSubscribable } from "../../store/runtime-clients/useSubscribable";
 import { useAui } from "@/aui/store";
+import { resource, useResource } from "@/aui/tap";
+import {
+  AuiConfig,
+  createAssistantClient,
+  type AssistantClientHandle,
+} from "@/aui/store/client";
+import {
+  useRuntimeAdapters,
+  useRuntimeAdaptersProvider,
+  useStableRuntimeAdapters,
+} from "./useRuntimeAdapters";
+import { ClientThreadListRuntimeCore } from "./remote-thread-list-client/ClientThreadListRuntimeCore";
+import { RemoteThreadListRuntimeThreads } from "./remote-thread-list-client/RemoteThreadListRuntimeThreads";
 import {
   useIsomorphicLayoutEffect,
   useIsServerRender,
 } from "@/aui/store/internal";
+import { isDevelopment } from "../../store/internal";
 
 class RemoteThreadListRuntimeCore
   extends BaseAssistantRuntimeCore
@@ -44,20 +60,70 @@ class RemoteThreadListRuntimeCore
   }
 }
 
-const useRemoteThreadListRuntimeImpl = (
+class ClientRemoteThreadListRuntimeCore extends BaseAssistantRuntimeCore {
+  public readonly threads;
+  public readonly optionsStore: WritableSubscribable<RemoteThreadListOptions>;
+
+  constructor(
+    options: RemoteThreadListOptions,
+    seed: string,
+    handle: AssistantClientHandle,
+  ) {
+    super();
+    this.optionsStore = new WritableSubscribable(options);
+    const optionsStore = this.optionsStore;
+    const modelContext = this._contextProvider;
+    this.threads = new ClientThreadListRuntimeCore(
+      seed,
+      handle,
+      function useHostedRuntime() {
+        const options = useSubscribable(optionsStore);
+        const inherited = useRuntimeAdapters();
+        const useAdapters = options.adapter.unstable_useAdapters;
+        const Adapters = useMemo(
+          () =>
+            resource(function useAdapterHook(
+              adapter: RemoteThreadListOptions["adapter"],
+            ) {
+              return useAdapters?.call(adapter);
+            }),
+          [useAdapters],
+        );
+        const supplied = useStableRuntimeAdapters(
+          useResource(Adapters(options.adapter)),
+        );
+        const adapters = useMemo(
+          () => ({ modelContext, ...inherited, ...supplied }),
+          [inherited, supplied],
+        );
+        return useRuntimeAdaptersProvider(adapters, options.runtimeHook);
+      },
+      options.threadId !== undefined || options.initialThreadId === undefined,
+    );
+  }
+
+  public get RenderComponent() {
+    return this.threads.__internal_RenderComponent;
+  }
+}
+
+const useLegacyRemoteThreadListRuntime = (
   options: RemoteThreadListOptions,
+  initialThreadIdSeed: string | undefined,
 ): AssistantRuntime => {
-  // A server render must not read Math.random, and its runtime never reaches an adapter, so it names the first thread from useId; the client keeps a random id because adapters store it.
-  const serverThreadIdSeed = useId();
-  const isServerRender = useIsServerRender();
   const [runtime] = useState(
-    () =>
-      new RemoteThreadListRuntimeCore(
-        options,
-        isServerRender ? serverThreadIdSeed : undefined,
-      ),
+    () => new RemoteThreadListRuntimeCore(options, initialThreadIdSeed),
   );
   const [lifetime] = useState(() => ({ generation: 0 }));
+
+  const warnedDeprecatedProvider = useRef(false);
+  useEffect(() => {
+    if (!isDevelopment || warnedDeprecatedProvider.current) return;
+    warnedDeprecatedProvider.current = true;
+    console.warn(
+      "[assistant-ui] RemoteThreadListAdapter.unstable_Provider is deprecated and will be removed in a future minor release. Return the same adapters from unstable_useAdapters and drop unstable_Provider so useRemoteThreadListRuntime runs on the RemoteThreadList client.",
+    );
+  }, []);
 
   // Insertion-effect cleanup runs when React deletes the fiber, so a hidden <Activity> or a re-suspended boundary keeps the threads alive. Fast Refresh re-runs the effect of an edited host, cleanup then setup in the same commit, so a setup cancels the disposal its preceding cleanup queued. The disposal is deferred to a microtask because it notifies subscribers and React forbids scheduling updates from an insertion effect.
   useInsertionEffect(() => {
@@ -71,8 +137,12 @@ const useRemoteThreadListRuntimeImpl = (
 
   useEffect(() => {
     runtime.threads.__internal_setOptions(options);
-    runtime.threads.__internal_load();
   }, [runtime, options]);
+
+  const adapter = options.adapter;
+  useEffect(() => {
+    runtime.threads.__internal_load();
+  }, [runtime, adapter]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") {
@@ -99,6 +169,69 @@ const useRemoteThreadListRuntimeImpl = (
 
   const [assistantRuntime] = useState(() => new AssistantRuntimeImpl(runtime));
   return assistantRuntime;
+};
+
+const useClientRemoteThreadListRuntime = (
+  options: RemoteThreadListOptions,
+  seed: string,
+): AssistantRuntime => {
+  const [binding] = useState(() => {
+    const handle = createAssistantClient({
+      getConfig: () =>
+        AuiConfig({
+          threads: RemoteThreadListRuntimeThreads({
+            optionsStore: core.optionsStore,
+            assistantRuntime: () => assistantRuntime,
+            initialThreadIdSeed: seed,
+            clientCore: core.threads,
+          }),
+        }),
+      subscribe: () => () => {},
+    });
+    const core = new ClientRemoteThreadListRuntimeCore(options, seed, handle);
+    const assistantRuntime = new AssistantRuntimeImpl(core);
+    return { assistantRuntime, core, handle, generation: 0 };
+  });
+  useIsomorphicLayoutEffect(
+    () => binding.handle.subscribe(() => {}),
+    [binding],
+  );
+  useInsertionEffect(() => {
+    const generation = ++binding.generation;
+    return () =>
+      queueMicrotask(() => {
+        if (binding.generation !== generation) return;
+        binding.handle.destroy();
+        binding.core.threads.__internal_dispose();
+      });
+  }, [binding]);
+  useIsomorphicLayoutEffect(() => {
+    binding.core.optionsStore.setState(options);
+  }, [binding, options]);
+  return binding.assistantRuntime;
+};
+
+const useRemoteThreadListRuntimeImpl = (
+  options: RemoteThreadListOptions,
+): AssistantRuntime => {
+  const serverThreadIdSeed = useId();
+  const isServerRender = useIsServerRender();
+  const [mode] = useState(() =>
+    options.adapter.unstable_Provider === undefined ? "client" : "legacy",
+  );
+  const [seed] = useState(() =>
+    isServerRender
+      ? serverThreadIdSeed
+      : mode === "client"
+        ? Math.random().toString(36).slice(2)
+        : "",
+  );
+  return mode === "legacy"
+    ? useLegacyRemoteThreadListRuntime(
+        options,
+        isServerRender ? seed : undefined,
+      )
+    : useClientRemoteThreadListRuntime(options, seed);
 };
 
 export const useRemoteThreadListRuntime = (

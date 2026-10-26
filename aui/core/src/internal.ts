@@ -1,4 +1,4 @@
-// @/aui/core/internal - Internal implementation details
+// @assistant-ui/core/internal - Internal implementation details
 // Not part of the public API. Used by @/aui/react and other framework bindings.
 
 export {
@@ -92,6 +92,7 @@ export {
 } from "./utils/abortable-iterable";
 export { raceWithAbortSignal } from "./utils/abortable-promise";
 export { RunLeases, type RunLease } from "./utils/run-lease";
+export { createHistoryWriteChain } from "./runtime/utils/history-write-chain";
 export { detectImageMediaType } from "./utils/image-media-type";
 export {
   resolveFileMediaType,

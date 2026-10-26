@@ -22,6 +22,8 @@ import type {
   ComposerRuntimeEventCallback,
   ComposerRuntimeEventPayload,
   ComposerRuntimeEventType,
+  ComposerSetTextOptions,
+  ComposerTextOrigin,
   DictationState,
   SendOptions,
 } from "../interfaces/composer-runtime-core";
@@ -35,6 +37,7 @@ import {
   drainAttachmentAdd,
 } from "../utils/attachment-add-operations";
 import { AttachmentSendOperations } from "../utils/attachment-send-operations";
+import { matchInTransit, retainInTransit } from "../utils/composer-submission";
 import { DictationSessionController } from "./dictation-session";
 
 type InTransit = {
@@ -96,9 +99,7 @@ export abstract class BaseComposerRuntimeCore
     {
       getAdapter: () => this.getDictationAdapter(),
       getText: () => this._text,
-      setText: (value) => {
-        this._text = value;
-      },
+      setText: (value) => this._writeText(value, "user"),
       notify: () => this._notifySubscribers(),
     },
   );
@@ -132,12 +133,45 @@ export abstract class BaseComposerRuntimeCore
     this._notifySubscribers();
   }
 
-  public setText(value: string) {
+  public setText(value: string, options?: ComposerSetTextOptions) {
+    if (this._text === value) return;
+
+    this._writeText(value, options?.origin ?? "external");
+    this._rebaseDictation(value);
+    this._notifySubscribers();
+  }
+
+  private _pendingTextChanges: ComposerRuntimeEventPayload["textChange"][] = [];
+  private _isFlushingTextChanges = false;
+  private _notifyDepth = 0;
+
+  private _writeText(value: string, origin: ComposerTextOrigin) {
     if (this._text === value) return;
 
     this._text = value;
-    this._rebaseDictation(value);
-    this._notifySubscribers();
+    this._pendingTextChanges.push({ text: value, origin });
+  }
+
+  protected override _notifySubscribers() {
+    this._notifyDepth++;
+    try {
+      super._notifySubscribers();
+    } finally {
+      if (--this._notifyDepth === 0) this._flushTextChanges();
+    }
+  }
+
+  private _flushTextChanges() {
+    if (this._isFlushingTextChanges) return;
+
+    this._isFlushingTextChanges = true;
+    for (
+      let change = this._pendingTextChanges.shift();
+      change;
+      change = this._pendingTextChanges.shift()
+    )
+      this._notifyEventSubscribers("textChange", change);
+    this._isFlushingTextChanges = false;
   }
 
   private _rebaseDictation(value: string) {
@@ -210,22 +244,11 @@ export abstract class BaseComposerRuntimeCore
    */
   protected settleInTransit() {
     if (this._inTransit.length === 0) return;
-    const claimed = new Set<string>();
-    const pending = this._inTransit.filter(({ submission, known }) => {
-      const shown = this.threadMessageIds(submission.role)?.find(
-        (id) => !known.has(id) && !claimed.has(id),
-      );
-      if (shown === undefined) return true;
-      claimed.add(shown);
-      return false;
-    });
-    if (pending.length === this._inTransit.length) return;
-    this._setInTransit(
-      pending.map((entry) => ({
-        ...entry,
-        known: new Set([...entry.known, ...claimed]),
-      })),
+    const match = matchInTransit(this._inTransit, (entry) =>
+      this.threadMessageIds(entry.submission.role),
     );
+    if (match.landed.size === 0) return;
+    this._setInTransit(retainInTransit(this._inTransit, match));
     this._notifySubscribers();
   }
 
@@ -253,7 +276,7 @@ export abstract class BaseComposerRuntimeCore
 
   private _emptyTextAndAttachments() {
     this._attachments = [];
-    this._text = "";
+    this._writeText("", "reset");
     this._rebaseDictation("");
     this._notifySubscribers();
   }
@@ -361,7 +384,7 @@ export abstract class BaseComposerRuntimeCore
     if (this.detachesDraftOnSend) {
       const detached = new Set(attachments);
       this._attachments = this._attachments.filter((a) => !detached.has(a));
-      this._text = "";
+      this._writeText("", "send");
       this._rebaseDictation("");
       this._quote = undefined;
     }
@@ -454,6 +477,17 @@ export abstract class BaseComposerRuntimeCore
     };
 
     const sent: ComposerSubmission = { ...draft, attachments };
+    const completed = new Map(
+      draft.attachments
+        .filter((attachment) => !this._attachmentSends.isRemoved(attachment))
+        .map((attachment, index) => [attachment, attachments[index]] as const),
+    );
+    const returned: ComposerSubmission = {
+      ...draft,
+      attachments: draft.attachments.map(
+        (attachment) => completed.get(attachment) ?? attachment,
+      ),
+    };
     const queued = this.queue.length;
     if (isSubmission) {
       // The runtime owns the message from here, so neither a reset nor the
@@ -465,7 +499,10 @@ export abstract class BaseComposerRuntimeCore
       // not remove their uploads.
       if (!this.detachesDraftOnSend) {
         const delivered = new Map(
-          attachments.map((attachment) => [attachment.id, attachment]),
+          draft.attachments.map((attachment, index) => [
+            attachment.id,
+            returned.attachments[index]!,
+          ]),
         );
         this._attachments = this._attachments.map(
           (attachment) => delivered.get(attachment.id) ?? attachment,
@@ -487,7 +524,7 @@ export abstract class BaseComposerRuntimeCore
     } catch (error) {
       console.error("[assistant-ui] Failed to send the message", error);
       this._leaveTransit(sent);
-      if (generation === this._sendGeneration) this._returnToDraft(sent);
+      if (generation === this._sendGeneration) this._returnToDraft(returned);
       else this._notifySubscribers();
       return;
     }
@@ -495,7 +532,7 @@ export abstract class BaseComposerRuntimeCore
       void sendTask.catch((error) => {
         const wasInTransit = this._leaveTransit(sent);
         if (generation === this._sendGeneration && isMessageNotSentError(error))
-          this._returnToDraft(sent);
+          this._returnToDraft(returned);
         else if (wasInTransit) this._notifySubscribers();
       });
 
@@ -532,28 +569,11 @@ export abstract class BaseComposerRuntimeCore
     const submission = this._submission;
     if (!submission) return;
 
-    const failures = new Map<string, unknown>();
-    settled.forEach((result, index) => {
-      if (result.status === "rejected")
-        failures.set(sent[index]!.id, result.reason);
-    });
-    const attachments = submission.attachments.map((attachment) => {
-      if (
-        !failures.has(attachment.id) ||
-        isAttachmentComplete(attachment) ||
-        this._attachmentSends.isRemoved(attachment)
-      )
-        return attachment;
-      const failure = failures.get(attachment.id);
-      return this._attachmentSends.transfer(attachment, {
-        ...attachment,
-        status: {
-          type: "incomplete",
-          reason: "error",
-          message: failure instanceof Error ? failure.message : String(failure),
-        },
-      });
-    });
+    const attachments = this._attachmentSends.reconcileFailures(
+      submission.attachments,
+      sent,
+      settled,
+    );
     this._endSubmission();
     this._returnToDraft({ ...submission, attachments });
     console.error("[assistant-ui] Failed to send attachments", reason);
@@ -595,27 +615,26 @@ export abstract class BaseComposerRuntimeCore
    */
   private _returnToDraft(submission: ComposerSubmission) {
     if (this.detachesDraftOnSend) {
-      const returned = submission.attachments.map((attachment) =>
-        this._attachmentSends.restore(attachment),
-      );
+      const returned = submission.attachments.flatMap((attachment) => {
+        const restored = this._attachmentSends.restoreUnsent(attachment);
+        return restored ? [restored] : [];
+      });
       this._attachments = [...returned, ...this._attachments];
       const text = [submission.text, this._text].filter(Boolean).join("\n");
-      this._text = text;
+      this._writeText(text, "return");
       this._rebaseDictation(text);
       this._quote = this._quote ?? submission.quote;
     } else {
       const returned = new Map(
-        submission.attachments
-          .filter((attachment) => !this._attachmentSends.isRemoved(attachment))
-          .map((attachment) => [attachment.id, attachment]),
+        submission.attachments.flatMap((attachment) => {
+          const restored = this._attachmentSends.restoreUnsent(attachment);
+          return restored ? [[attachment.id, restored] as const] : [];
+        }),
       );
-      this._attachments = this._attachments.map((attachment) =>
-        this._attachmentSends.isRemoved(attachment)
-          ? this._attachmentSends.restore(attachment)
-          : this._attachmentSends.restore(
-              returned.get(attachment.id) ?? attachment,
-            ),
-      );
+      this._attachments = this._attachments.flatMap((attachment) => {
+        const restored = this._attachmentSends.restoreUnsent(attachment);
+        return restored ? [returned.get(attachment.id) ?? restored] : [];
+      });
     }
     this._notifySubscribers();
   }
@@ -666,7 +685,7 @@ export abstract class BaseComposerRuntimeCore
     )
       return false;
 
-    this._text = draft.text;
+    this._writeText(draft.text, "return");
     this._rebaseDictation(draft.text);
     this._quote = draft.quote;
     this._attachments = draft.attachments ?? [];
@@ -695,7 +714,7 @@ export abstract class BaseComposerRuntimeCore
     )
       return;
 
-    this._text = "";
+    this._writeText("", "send");
     this._rebaseDictation("");
     this._quote = undefined;
     this._attachments = [];

@@ -201,7 +201,8 @@ export type AssistantState = ScopeStates & {
  * for backwards compatibility.
  *
  * An unavailable scope's accessor has `source: null` and throws when any
- * other property is read or the accessor is called. The accessor itself is
+ * client method is read or the accessor is invoked, including via `call`,
+ * `apply`, or `bind`. The accessor itself is
  * always truthy — check availability via `aui.optional.thread`.
  */
 export type AssistantClientAccessor<K extends ClientNames> =

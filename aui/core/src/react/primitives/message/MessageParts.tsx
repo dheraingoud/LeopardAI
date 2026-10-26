@@ -303,7 +303,7 @@ export namespace MessagePrimitiveParts {
     /**
      * @deprecated Use `<MessagePrimitive.GroupedParts>` with a `groupBy`
      * that returns `["group-thought", ...]` for reasoning and tool-call
-     * parts. See `@/aui/ui` for a worked example.
+     * parts. See `@assistant-ui/ui` for a worked example.
      */
     ChainOfThought: ComponentType;
 

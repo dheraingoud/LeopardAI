@@ -33,7 +33,7 @@ export type GroupByContext = {
  * reconstructs the function each render.
  */
 export const GROUPBY_MEMO_KEY: unique symbol = Symbol.for(
-  "@/aui/groupBy.memoKey",
+  "@assistant-ui/groupBy.memoKey",
 );
 
 /**
