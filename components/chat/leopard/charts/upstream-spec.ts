@@ -23,6 +23,15 @@ export type { ChartForm };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const parseRawSpec = (value: unknown): unknown => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
 const simple = (
   type: string,
   props: Record<string, unknown>,
@@ -144,14 +153,91 @@ const BUILT: Record<string, (spec: ChartSpec) => Record<string, unknown>> = {
     simple("pie", { items: itemsOf(spec), inner: spec.inner ?? 0.55 }),
 };
 
+const GRAPH_FORMS = new Set(["sankey", "network", "arc-diagram"]);
+
+const linkValue = (value: unknown): number => {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return typeof parsed === "number" && Number.isFinite(parsed) ? parsed : 0;
+};
+
+const graphNodes = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value.filter(isRecord)
+    : [];
+
+const graphLinks = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value.filter(isRecord)
+    : [];
+
+const nodeLabel = (node: Record<string, unknown>): string | undefined =>
+  typeof node["label"] === "string" && node["label"].length > 0
+    ? node["label"]
+    : undefined;
+
+const nodeKey = (node: Record<string, unknown>, index: number): string => {
+  const id = node["id"];
+  if (typeof id === "string" && id.length > 0) return id;
+  if (typeof id === "number" && Number.isFinite(id)) return String(id);
+  const label = nodeLabel(node);
+  if (label !== undefined) return label;
+  return `node-${index}`;
+};
+
+const normalizeGraph = (graph: Record<string, unknown>): Record<string, unknown> => {
+  const nodes = graphNodes(graph["nodes"]);
+  const keys = nodes.map(nodeKey);
+  const byKey = new Map<string, string>();
+  const byIndex = new Map<number, string>();
+  nodes.forEach((node, index) => {
+    const key = keys[index];
+    const label = nodeLabel(node);
+    if (label !== undefined && !byKey.has(label)) byKey.set(label, key);
+    if (!byKey.has(key)) byKey.set(key, key);
+    byIndex.set(index, key);
+  });
+  const resolve = (value: unknown): string | undefined => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return byIndex.get(value);
+    }
+    if (typeof value !== "string") return undefined;
+    const direct = byKey.get(value);
+    if (direct !== undefined) return direct;
+    const index = Number(value);
+    if (Number.isInteger(index) && index >= 0) return byIndex.get(index);
+    return undefined;
+  };
+  const links = graphLinks(graph["links"]).flatMap((link) => {
+    const source = resolve(link["source"]);
+    const target = resolve(link["target"]);
+    if (source === undefined || target === undefined) return [];
+    const value = linkValue(link["value"]);
+    return [{ ...link, source, target, ...(value > 0 ? { value } : {}) }];
+  });
+  const fixed = nodes.map((node, index) => {
+    const label = nodeLabel(node);
+    return {
+      ...node,
+      id: keys[index],
+      ...(label !== undefined ? { label } : {}),
+    };
+  });
+  return { ...graph, nodes: fixed, links };
+};
+
 export function toUpstreamSpec(spec: ChartSpec): UpstreamChartSpec {
-  if (isRecord(spec.spec)) {
+  const raw = parseRawSpec(spec.spec);
+  if (isRecord(raw)) {
     const passthrough: Record<string, unknown> = {
       v: "dg/1",
-      ...spec.spec,
+      ...raw,
     };
     if (passthrough["type"] === undefined) passthrough["type"] = spec.form;
     if (spec.title !== undefined) passthrough["title"] = spec.title;
+    if (GRAPH_FORMS.has(String(passthrough["type"]))) {
+      const graph = passthrough["graph"];
+      if (isRecord(graph)) passthrough["graph"] = normalizeGraph(graph);
+    }
     return validateSpec(passthrough) as UpstreamChartSpec;
   }
   const build = BUILT[spec.form];

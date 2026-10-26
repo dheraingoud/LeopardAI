@@ -16,6 +16,18 @@ const jsonStringArray = <T extends z.ZodTypeAny>(item: T) =>
     z.array(item),
   );
 
+const jsonStringObject = z.preprocess(
+  (v) => {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  },
+  z.looseObject({ type: z.string().optional() }),
+);
+
 const chartPoint = z.object({
   label: z.string().optional(),
   value: z.number(),
@@ -71,8 +83,7 @@ const chartWidget = widgetBase.extend({
   value: z.number().optional().describe("Single value for gauge and progress-ring"),
   xLabel: z.string().optional().describe("x-axis label for the point-driven forms"),
   yLabel: z.string().optional().describe("y-axis label for the point-driven forms"),
-  spec: z
-    .looseObject({ type: z.string().optional() })
+  spec: jsonStringObject
     .optional()
     .describe(
       "Raw diagrammatic chart spec for forms the simple fields cannot express: { type, v: \"dg/1\", ...form-specific props }. When present it replaces the simple fields.",
