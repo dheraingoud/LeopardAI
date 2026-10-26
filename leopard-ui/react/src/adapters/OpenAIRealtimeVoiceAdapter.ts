@@ -226,7 +226,7 @@ export class OpenAIRealtimeVoiceAdapter implements RealtimeVoiceAdapter {
           case "response.created":
             generating = true;
             settle(
-              asRecord(asRecord(event.response)?.metadata)?.aui_request_id,
+              asRecord(asRecord(event.response)?.metadata)?.leopard_request_id,
             );
             break;
           case "response.done": {
@@ -379,7 +379,7 @@ export class OpenAIRealtimeVoiceAdapter implements RealtimeVoiceAdapter {
           const responseId = crypto.randomUUID().replaceAll("-", "");
           await request(responseId, {
             type: "response.create",
-            response: { metadata: { aui_request_id: responseId } },
+            response: { metadata: { leopard_request_id: responseId } },
           });
         },
       };

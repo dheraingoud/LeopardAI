@@ -12,7 +12,7 @@ import type {
 } from "../types";
 
 const DEFAULT_POLL_INTERVAL_MS = 100;
-const DEFAULT_KEY_PREFIX = "aui:resumable";
+const DEFAULT_KEY_PREFIX = "leopard:resumable";
 
 const FIELD_CHUNK = "c";
 const FIELD_FIN = "fin";

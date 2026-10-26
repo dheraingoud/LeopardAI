@@ -68,14 +68,14 @@ export interface WithLeopardOptions {
  */
 export function withLeopard<T extends MetroConfigLike>(config: T): T {
   const self = require.resolve("@leopard-ui/metro/transformer");
-  // Metro validates config keys it does not recognize, so `aui` must not
+  // Metro validates config keys it does not recognize, so `leopard` must not
   // survive into the returned config.
   const { leopard, ...baseConfig } = config;
   const upstream = config.transformer?.babelTransformerPath;
 
   // A double-wrap is a re-entry: the first call already captured the real
   // upstream, and replacing it with our transformer would cause recursion.
-  // An explicit `aui` on a rewrap still replaces the backendless setting.
+  // An explicit `leopard` on a rewrap still replaces the backendless setting.
   const isRewrap = upstream === self;
 
   if (leopard !== undefined || !isRewrap) {

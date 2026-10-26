@@ -3,7 +3,7 @@ import { fixJson } from "./fix-json";
 import type { ReadonlyJSONObject } from "./json-value";
 
 const PARTIAL_JSON_OBJECT_META_SYMBOL = Symbol(
-  "aui.parse-partial-json-object.meta",
+  "leopard.parse-partial-json-object.meta",
 );
 
 type FieldState = "complete" | "partial";

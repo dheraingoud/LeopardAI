@@ -333,7 +333,7 @@ export function createWidgetToolkit(
     if (options.widgetId) {
       return options.widgetId({ toolCallId: originToolCallId, threadId });
     }
-    return `${threadId ?? "aui"}:${originToolCallId}`;
+    return `${threadId ?? "leopard"}:${originToolCallId}`;
   }
 
   function ToolWidget({

@@ -8,7 +8,7 @@ import { createOptionalClientView } from "./optional-client-view";
 const NO_OP_SUBSCRIBE = () => () => {};
 
 const MISSING_PROVIDER_MESSAGE =
-  "You are using a component or hook that requires an LeopardProvider. Wrap your component in an <LeopardProvider> component.";
+  "You are using a component or hook that requires a LeopardProvider. Wrap your component in a <LeopardProvider> component.";
 
 class EmptyAssistantClientProxyHandler
   extends BaseProxyHandler
