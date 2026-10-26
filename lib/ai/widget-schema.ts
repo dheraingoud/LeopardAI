@@ -8,50 +8,70 @@ const widgetBase = z.object({
   _type: z.string().describe("Widget type: chart, table, stat, progress, form, gallery, code, diagram, map"),
 });
 
-// Models sometimes JSON-stringify nested arrays/objects inside the tool-call
-// args — accept a string and parse it.
+// Models mangle nested arrays in tool-call args three ways: as a JSON string,
+// as a single-key map wrapping the items ({"item": [...]}), or with the
+// numbers written as strings. Accept all of them.
+const parseJsonish = (v: unknown): unknown => {
+  if (typeof v !== "string") return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return v;
+  }
+};
+
+const unwrapArray = (v: unknown): unknown => {
+  const parsed = parseJsonish(v);
+  if (Array.isArray(parsed)) return parsed;
+  if (typeof parsed !== "object" || parsed === null) return parsed;
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.length !== 1) return parsed;
+  const [key, inner] = entries[0];
+  if (Array.isArray(inner)) return inner;
+  if (key === "item" && typeof inner === "object" && inner !== null) return [inner];
+  return parsed;
+};
+
+const jsonNumber = z.preprocess(
+  (v) =>
+    typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))
+      ? Number(v)
+      : v,
+  z.number(),
+);
+
 const jsonStringArray = <T extends z.ZodTypeAny>(item: T) =>
-  z.preprocess(
-    (v) => (typeof v === "string" ? JSON.parse(v) : v),
-    z.array(item),
-  );
+  z.preprocess(unwrapArray, z.array(item));
 
 const jsonStringObject = z.preprocess(
-  (v) => {
-    if (typeof v !== "string") return v;
-    try {
-      return JSON.parse(v);
-    } catch {
-      return v;
-    }
-  },
+  parseJsonish,
   z.looseObject({ type: z.string().optional() }),
 );
 
 const chartPoint = z.object({
   label: z.string().optional(),
-  value: z.number(),
+  value: jsonNumber,
 });
 
 const chartSeries = z.object({
   name: z.string(),
-  data: jsonStringArray(z.number()),
+  data: jsonStringArray(jsonNumber),
 });
 
 const chartGroup = z.object({
   name: z.string(),
-  values: jsonStringArray(z.number()),
+  values: jsonStringArray(jsonNumber),
 });
 
 const chartMatrix = z.object({
   rows: jsonStringArray(z.string()),
   cols: jsonStringArray(z.string()),
-  values: jsonStringArray(jsonStringArray(z.number())),
+  values: jsonStringArray(jsonStringArray(jsonNumber)),
 });
 
 const chartScatterPoint = z.object({
-  x: z.number(),
-  y: z.number(),
+  x: jsonNumber,
+  y: jsonNumber,
   label: z.string().optional(),
   series: z.string().optional(),
 });
@@ -77,10 +97,10 @@ const chartWidget = widgetBase.extend({
   scatter: jsonStringArray(chartScatterPoint)
     .optional()
     .describe("x/y points for scatter"),
-  bins: jsonStringArray(z.number())
+  bins: jsonStringArray(jsonNumber)
     .optional()
     .describe("Bin counts for histogram"),
-  value: z.number().optional().describe("Single value for gauge and progress-ring"),
+  value: jsonNumber.optional().describe("Single value for gauge and progress-ring"),
   xLabel: z.string().optional().describe("x-axis label for the point-driven forms"),
   yLabel: z.string().optional().describe("y-axis label for the point-driven forms"),
   spec: jsonStringObject
@@ -108,7 +128,7 @@ const statWidget = widgetBase.extend({
 const progressWidget = widgetBase.extend({
   _type: z.literal("progress"),
   label: z.string().describe("Progress label"),
-  value: z.number().min(0).max(100).describe("Progress percentage 0-100"),
+  value: jsonNumber.pipe(z.number().min(0).max(100)).describe("Progress percentage 0-100"),
   status: z.enum(["active", "complete", "error"]).optional(),
 });
 
@@ -153,8 +173,8 @@ const mapWidget = widgetBase.extend({
   places: jsonStringArray(z.object({
     id: z.string().optional().describe("Stable pin id; auto-generated when omitted"),
     label: z.string(),
-    lat: z.number(),
-    lng: z.number(),
+    lat: jsonNumber,
+    lng: jsonNumber,
     description: z.string().optional(),
   })).describe("Pins to show on the map"),
 });

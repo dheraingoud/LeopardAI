@@ -46,9 +46,14 @@ export function ReasoningEffort({
 
   const active = value !== undefined && value !== "off";
   const stops = cfg.effortLevels as ReasoningLevel[] | undefined;
+  const offAllowed = cfg.offSupported !== false;
 
   if (stops && stops.length > 0) {
-    const idx = active && stops.includes(value) ? stops.indexOf(value) : -1;
+    const idx = active && stops.includes(value)
+      ? stops.indexOf(value)
+      : offAllowed
+        ? -1
+        : 0;
     return (
       <div data-slot="reasoning-effort" className={cn("px-4 pb-3 pt-3", className)}>
         <div className="mb-2.5 flex items-center justify-between">
@@ -61,15 +66,19 @@ export function ReasoningEffort({
         </div>
         <Slider
           ariaLabel="Reasoning effort"
-          min={-1}
+          min={offAllowed ? -1 : 0}
           max={stops.length - 1}
           step={1}
           value={idx}
           accent="#ffb400"
-          onValueChange={(v) => onChange(v < 0 ? "off" : stops[v])}
+          onValueChange={(v) =>
+            onChange(offAllowed && v < 0 ? "off" : stops[Math.max(0, v)])
+          }
         />
         <div className="mt-2.5 flex justify-between text-[9px] font-mono dark:text-[#4a4a4a] light:text-[#9a9a9a]">
-          <span className={cn(idx < 0 && "text-[#ffb400]")}>Off</span>
+          {offAllowed && (
+            <span className={cn(idx < 0 && "text-[#ffb400]")}>Off</span>
+          )}
           {stops.map((s, i) => (
             <span key={s} className={cn(i === idx && "text-[#ffb400]")}>
               {levelLabel(s)}

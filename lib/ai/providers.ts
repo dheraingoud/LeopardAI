@@ -21,21 +21,14 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { NIM_BASE } from "@/lib/nim";
 import { getDefaultChatModel, getModelById, getUtilityModel } from "@/lib/ai/models";
 
-// openai-compatible@3.0.5 emits `specificationVersion: "v4"`, but ai@6's
-// `resolveLanguageModel` only accepts "v2" or "v3" — v4 is rejected with
-// AI_UnsupportedModelVersionError before any streaming starts. The runtime
-// methods are structurally compatible (v4 is a superset of v3), so we
-// Proxy-wrap the NIM model to report "v3" and let ai@6's `asLanguageModelV3`
-// pass it through unchanged. (The gateway provider already emits "v3" — no
-// wrap needed.) Mirrors the SDK's own asLanguageModelV3 Proxy pattern.
-function asV3(model: LanguageModel): LanguageModel {
-  return new Proxy(model as object, {
-    get(target, prop, receiver) {
-      if (prop === "specificationVersion") return "v3";
-      return Reflect.get(target, prop, receiver);
-    },
-  }) as unknown as LanguageModel;
-}
+// openai-compatible emits `specificationVersion: "v4"`. ai@7's
+// `resolveLanguageModel` accepts "v4" natively and normalizes every model to
+// v4 through `asLanguageModelV4`, which downgrades a v3 prompt with
+// `convertV4PromptToV3`. Reporting "v3" for a v4 provider therefore rewrites
+// file parts to the v3 shape (data becomes a bare URL string); the provider's
+// own converter then reads `part.data.type` as undefined and emits a null
+// content part, which NIM rejects with a 400 on every image turn. The v3 lie
+// was only needed under ai@6, which rejected "v4" outright.
 
 // NIM direct (OpenAI-compatible). The apiKey comes from the rotator pool
 // (lib/ai/nim-keys) — NOT read once at module load. A custom fetch injects the
@@ -71,7 +64,7 @@ export const nimProvider = createOpenAICompatible({
 export function getLanguageModel(modelId: string): LanguageModel {
   const model = getModelById(modelId);
   if (model?.provider === "nim") {
-    return asV3(nimProvider.chatModel(modelId) as unknown as LanguageModel);
+    return nimProvider.chatModel(modelId) as unknown as LanguageModel;
   }
   if (model?.provider === "gateway") {
     return gateway.languageModel(modelId) as unknown as LanguageModel;
@@ -90,7 +83,7 @@ export function getLanguageModel(modelId: string): LanguageModel {
 export function getTitleModel(): LanguageModel {
   const util = getUtilityModel();
   if (util.provider === "nim") {
-    return asV3(nimProvider.chatModel(util.id) as unknown as LanguageModel);
+    return nimProvider.chatModel(util.id) as unknown as LanguageModel;
   }
   return gateway.languageModel(util.id) as unknown as LanguageModel;
 }

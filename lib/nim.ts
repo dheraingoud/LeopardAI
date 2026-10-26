@@ -3,7 +3,8 @@
  *
  * Goal-driven curation (2026-08-24): the chat registry exposes ONLY the live,
  * curated set mapped from the NIM /v1/models endpoint —
- *   stepfun-ai/step-5-preview (DEFAULT), nvidia/nemotron-3.5-lightning-30b-a3b,
+ *   minimaxai/minimax-m3.1-flash (DEFAULT), stepfun-ai/step-5-preview,
+ *   nvidia/nemotron-3.5-lightning-30b-a3b, nvidia/nemotron-3.5-super-vl-120b-a12b,
  *   google/diffusiongemma-26b-a4b-it, meta/muse-glimmer-30b,
  *   poolside-laguna-xs-2.1, google/gemma-4-31b-it,
  *   deepseek-ai/deepseek-v4.1-flash, z-ai/glm-5.3-flash.
@@ -11,7 +12,8 @@
  * glm-5.2 removed 2026-08-24 (deprecated — no longer in /v1/models).
  * kimi-k3 + glm-5.3 removed 2026-10-15 (operator: retire from picker).
  * minimax-m3 removed 2026-08-31 (operator: minimax deprecating; was also
- *   returning 0-token "stop" responses with 50-85s latency).
+ *   returning 0-token "stop" responses with 50-85s latency) — minimax-m3.1-flash
+ *   re-added 2026-10-26 after a live probe (tools + vision + 262,144 ctx).
  * All ids verified present in /v1/models (2026-08-24 probe: 102 models).
  * deepseek-v4-pro is NOT
  * in the catalogue and was dropped. diffusiongemma is a TEXT-OUT VLM (takes
@@ -155,7 +157,11 @@ export const UTILITY_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"; // title-g
 // 2026-09-02: kimi briefly re-defaulted (plain replies fast) but HANGS on
 // tool-use turns (300s, spawn_agents never fires) → default back to
 // nemotron-3.5-lightning; orchestration green again (live-notes PASS).
-export const DEFAULT_MODEL = "stepfun-ai/step-5-preview";
+// 2026-10-26 (operator): default → minimaxai/minimax-m3.1-flash. Probed live:
+// tools YES (finish_reason tool_calls, well-formed args), vision YES (reads a
+// 128x128 PNG and answers "Red"), 262,144-token context, reasoning_effort
+// modulates reasoning length but reasoning_content is never empty.
+export const DEFAULT_MODEL = "minimaxai/minimax-m3.1-flash";
 
 // ─── MODEL_REGISTRY (curated: text LLMs/VLMs mapped from /v1/models) ──────────
 // contextWindow + vision modality + reasoning config hard-coded from the
@@ -174,6 +180,55 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   // GLM 5.2 removed 2026-08-24 — deprecated + pulled from the NIM /v1/models
   // catalogue (probe returns zero glm ids). Do not re-add.
   // moonshotai/kimi-k3 REMOVED 2026-10-15 (operator: retire from picker).
+  // minimax-m3.1-flash added 2026-10-26 (operator). Live probe: present in
+  // /v1/models, tools YES (finish_reason tool_calls, well-formed args),
+  // vision YES (reads a 128x128 PNG and answers "Red"), context window
+  // 262,144 (bisected against the upstream "Invalid request" ceiling).
+  // reasoning_effort modulates reasoning length (low≈570 / high≈800 /
+  // max≈820 chars on a 3-field sheep problem) but reasoning_content is never
+  // empty — there is no off, so offSupported:false floors the slider at "low".
+  "minimaxai/minimax-m3.1-flash": {
+    id: "minimaxai/minimax-m3.1-flash",
+    displayName: "Minimax M3.1 Flash",
+    speedTier: 1,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image"],
+    supportsTools: true,
+    contextWindow: 262_144,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
+      offSupported: false,
+    },
+  },
+  // nvidia/nemotron-3.5-super-vl-120b-a12b added 2026-10-26 (operator). Live
+  // probe: present in /v1/models, tools YES, vision YES (reads a 128x128 PNG
+  // and answers "Red"), context window 1,000,000 (upstream error states the
+  // ceiling). reasoning_effort modulates reasoning length (low≈1680 /
+  // high≈1970 / max≈1420 chars) but reasoning_content is never empty — no off,
+  // so offSupported:false floors the slider at "low".
+  "nvidia/nemotron-3.5-super-vl-120b-a12b": {
+    id: "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    displayName: "Nemotron 3.5 Super VL 120B",
+    speedTier: 1,
+    type: "vlm",
+    supportsVision: true,
+    visionModalities: ["image"],
+    supportsTools: true,
+    contextWindow: 1_000_000,
+    reasoning: {
+      enabled: true,
+      toggleable: true,
+      param: "effort",
+      effortLevels: ["low", "high", "max"],
+      defaultEffort: "low",
+      offSupported: false,
+    },
+  },
   "google/gemma-4-31b-it": {
     id: "google/gemma-4-31b-it",
     displayName: "Gemma 4 31B",
