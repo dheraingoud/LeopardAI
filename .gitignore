@@ -79,3 +79,10 @@ orchestrator-errors.jsonl
 /tests/
 /scripts/
 .env.example
+
+# Not published: local docs and verification screenshots
+/docs/
+/dbg-*.png
+/probe-*.png
+/verify-*.png
+/shots/
