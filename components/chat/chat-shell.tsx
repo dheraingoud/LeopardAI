@@ -16,6 +16,7 @@ import { getMessageText } from "./message";
 import { Messages } from "./messages";
 import { Composer } from "./leopard/composer";
 import { ApprovalDock } from "./approval-dock";
+import { approvalGatesFromParts } from "@/lib/ai/approval-gates";
 import { ArtifactPanel } from "./artifact-panel";
 import { GenerationLoader } from "./leopard/loading-state";
 import { ConversationSearch, type SearchHit } from "./leopard/conversation-search";
@@ -34,7 +35,7 @@ import { HeaderQuotaBanner } from "./leopard/quota-banner";
  * createDocument tool call streams in — see use-active-chat.onData).
  */
 export function ChatShell() {
-  const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming, pendingServerApproval } = useActiveChat();
+  const { chatMeta, isLoading, isDraft, messages, currentModelId, status, serverStreaming, pendingServerApprovals } = useActiveChat();
   const { user } = useUser();
   const router = useRouter();
   // Clerk id, or DEV_USER_ID under BYPASS_CLERK (matches chat route + sidebar).
@@ -113,45 +114,31 @@ export function ChatShell() {
 
   // Pending tool-approval → the composer zone swaps the input for the
   // ApprovalDock (user directive: the permission card replaces the input
-  // box). Scans the trailing assistant message for a tool part in state
-  // "approval-requested" (live SDK parts are `tool-<name>` typed).
-  const pendingApproval = useMemo(() => {
+  // box). Scans the trailing assistant message for tool parts in state
+  // "approval-requested" (live SDK parts are `tool-<name>` typed). A turn can
+  // gate SEVERAL calls at once — every gate gets its own card, otherwise the
+  // unlisted ones could never be answered and the turn never finished
+  // (2026-10-28 live repro).
+  const pendingApprovals = useMemo(() => {
     const generating = status === "submitted" || status === "streaming" || serverStreaming;
-    for (let i = messages.length - 1; i >= 0 && generating; i--) {
-      const m = messages[i];
-      if (m.role !== "assistant") break;
-      // A settled turn can't have a live prompt (audit 2026-10-09: a completed
-      // row with a leftover approval-requested part — pre-burial data, or a
-      // stop mid-prompt — resurrected the dock on every reload). The dock
-      // only renders while the chat is actively generating (incl. a reopened
-      // serverStreaming turn).
-      for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
-        const t = typeof p.type === "string" ? p.type : "";
-        const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
-        if (isTool && p.state === "approval-requested") {
-          const approval = p.approval as { id?: string } | undefined;
-          if (approval?.id) {
-            // Wire parts may lack toolName — derive from the type suffix
-            // ("tool-spawn_agents" → "spawn_agents"), same as the route's
-            // resume resolver. Without this the dock showed "tool".
-            const toolName =
-              (p.toolName as string) ??
-              (t.startsWith("tool-") && t !== "tool" ? t.slice(5) : undefined) ??
-              "tool";
-            return {
-              approvalId: approval.id,
-              toolName,
-              input: p.input,
-            };
-          }
-        }
+    if (generating) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role !== "assistant") break;
+        // A settled turn can't have a live prompt (audit 2026-10-09: a completed
+        // row with a leftover approval-requested part — pre-burial data, or a
+        // stop mid-prompt — resurrected the dock on every reload). The dock
+        // only renders while the chat is actively generating (incl. a reopened
+        // serverStreaming turn).
+        const gates = approvalGatesFromParts(m.parts);
+        if (gates.length > 0) return gates;
       }
     }
     // Fallback: the SDK ends its stream on an unresolved gate (status flips
     // ready while the server holds the turn) — the trailing bubble may settle
-    // before the mirror lands, so read the pending approval off the server row.
-    return pendingServerApproval;
-  }, [messages, status, serverStreaming, pendingServerApproval]);
+    // before the mirror lands, so read the pending approvals off the server row.
+    return pendingServerApprovals;
+  }, [messages, status, serverStreaming, pendingServerApprovals]);
 
   // QA loop-10: exporting right as a turn settles could capture the Convex
   // placeholder (empty assistant row) — the detached route finalizes the row a
@@ -267,12 +254,10 @@ export function ChatShell() {
           {/* No header bar — floating status, top-right (operator 2026-09-04). */}
           <ConnectionDot className="absolute top-3 right-4 z-30" />
           <Messages />
-          {pendingApproval ? (
+          {pendingApprovals.length > 0 ? (
             <ApprovalDock
-              key={pendingApproval.approvalId}
-              approvalId={pendingApproval.approvalId}
-              toolName={pendingApproval.toolName}
-              input={pendingApproval.input}
+              key={pendingApprovals.map((g) => g.approvalId).join("|")}
+              gates={pendingApprovals}
             />
           ) : messages.length > 0 ? (
             <Composer />
@@ -364,12 +349,10 @@ export function ChatShell() {
         )}
 
         <Messages />
-        {pendingApproval ? (
+        {pendingApprovals.length > 0 ? (
           <ApprovalDock
-            key={pendingApproval.approvalId}
-            approvalId={pendingApproval.approvalId}
-            toolName={pendingApproval.toolName}
-            input={pendingApproval.input}
+            key={pendingApprovals.map((g) => g.approvalId).join("|")}
+            gates={pendingApprovals}
           />
         ) : messages.length > 0 ? (
           <Composer />

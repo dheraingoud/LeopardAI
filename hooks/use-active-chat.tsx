@@ -33,6 +33,10 @@ import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
 import { RunLeases } from "@/lib/run-leases";
 import { isPendingApprovalPart } from "@/lib/approval-target";
 import {
+  approvalGatesFromParts,
+  type PendingApprovalGate,
+} from "@/lib/ai/approval-gates";
+import {
   createSerialRunQueue,
   SerialRunQueueDropError,
 } from "@/lib/serial-run-queue";
@@ -144,11 +148,13 @@ type ActiveChatContextValue = UseChatHelpers<ChatMessage> & {
    * detached server task and no local stream owns it — i.e. the user reopened
    * the chat mid-generation and is watching the live mirror fill in. */
   serverStreaming: boolean;
-  /** A pending approval read from the SERVER row (streaming + approval-requested
-   * part) — the fallback when the SDK bubble already settled (the SDK ends its
-   * stream on an unresolved gate, so its status flips ready while the server
-   * still holds the turn). */
-  pendingServerApproval: { approvalId: string; toolName: string; input?: unknown } | null;
+  /** Every pending approval read from the SERVER row (streaming +
+   * approval-requested part) — the fallback when the SDK bubble already settled
+   * (the SDK ends its stream on an unresolved gate, so its status flips ready
+   * while the server still holds the turn). A turn can gate several calls at
+   * once, so this is a LIST — returning only the first left the rest
+   * unanswerable (2026-10-28). */
+  pendingServerApprovals: PendingApprovalGate[];
   /** Prior response texts for the turn this assistant message answers
    * (session-scoped regen history; the server rows are deleted on regen). */
   getSiblings: (messageId: string) => string[];
@@ -296,7 +302,7 @@ export function ActiveChatProvider({
   // ── Convex: mutations (stable refs from useMutation) ──────────────────────
   const messagesSend = useMutation(api.messages.send);
   const deleteAfterTimestamp = useMutation(api.messages.deleteAfterTimestamp);
-  const updateTitle = useMutation(api.chats.updateTitle);
+  const setTitleIfUntitled = useMutation(api.chats.setTitleIfUntitled);
   const updateModel = useMutation(api.chats.updateModel);
   const touchChat = useMutation(api.chats.touch);
   const settleStreaming = useMutation(api.messages.settleStreaming);
@@ -461,6 +467,7 @@ export function ActiveChatProvider({
         // seen earlier in THIS response.
         fetch: (async (url: RequestInfo | URL, options?: RequestInit) => {
           const known = new Set<string>();
+          const clientHeldToolCallIds = new Set<string>();
           // The outgoing chat id (body.id) — scopes the pending-stream marker
           // written from the response header below. The resume GET has no
           // body, so it never lands here with a chatId (can't clobber).
@@ -474,7 +481,10 @@ export function ActiveChatProvider({
               wireChatId = body.id;
             for (const m of body.messages ?? [])
               for (const p of m.parts ?? [])
-                if (typeof p?.toolCallId === "string") known.add(p.toolCallId);
+                if (typeof p?.toolCallId === "string") {
+                  known.add(p.toolCallId);
+                  clientHeldToolCallIds.add(p.toolCallId);
+                }
           } catch {
             /* body parse is best-effort */
           }
@@ -526,6 +536,13 @@ export function ActiveChatProvider({
                         !known.has(chunk.toolCallId)
                       ) {
                         continue; // drop the dangling chunk
+                      }
+                      if (
+                        chunk.type === "tool-input-available" &&
+                        typeof chunk.toolCallId === "string" &&
+                        clientHeldToolCallIds.has(chunk.toolCallId)
+                      ) {
+                        continue; // drop the re-seed of a part the client holds
                       }
                     } catch {
                       /* unparseable line passes through */
@@ -703,12 +720,16 @@ export function ActiveChatProvider({
       if (part.type === "data-chat-title") {
         const u = uidRef.current;
         if (!u) return;
-        // Log rather than swallow blind: an ownership mismatch here is the
-        // difference between "title is stale" and "title is silently broken".
-        // The server-side setTitleIfUntitled is the durable path either way.
-        void updateTitle({ chatId: convexChatId, userId: u, title: part.data }).catch(
-          (err) =>
-            console.warn("[title] client persist failed:", String(err).slice(0, 200)),
+        if (!part.data?.trim()) return;
+        // setTitleIfUntitled, NOT updateTitle: a generated title must never
+        // clobber a name the user typed. An unconditional write also let a
+        // late chunk from an abandoned turn overwrite a good title with "".
+        void setTitleIfUntitled({
+          chatId: convexChatId,
+          userId: u,
+          title: part.data,
+        }).catch((err) =>
+          console.warn("[title] client persist failed:", String(err).slice(0, 200)),
         );
         return;
       }
@@ -1404,29 +1425,20 @@ export function ActiveChatProvider({
       (m.parts ?? []).some((p) => isPendingApprovalPart(p)),
   );
 
-  // The pending approval straight from the server row — covers the case where
+  // The pending approvals straight from the server row — covers the case where
   // the SDK stream already ended on the gate (status ready, bubble settled)
-  // while the server still holds the turn for the decision.
-  const pendingServerApproval = (() => {
+  // while the server still holds the turn for the decision. EVERY gate is
+  // returned: a turn can gate several calls at once and each needs its own
+  // Allow/Deny (2026-10-28 live repro — one gate was unreachable).
+  const pendingServerApprovals = (() => {
     for (let i = (convexMessages ?? []).length - 1; i >= 0; i--) {
       const m = convexMessages![i];
       if (m.role !== "assistant") break;
       if (m.status !== "streaming") break;
-      for (const p of (m.parts ?? []) as Array<Record<string, unknown>>) {
-        const t = typeof p.type === "string" ? p.type : "";
-        const isTool = t === "tool" || (t.startsWith("tool-") && t !== "tool-approval-request" && t !== "tool-approval-response");
-        if (isTool && p.state === "approval-requested") {
-          const approval = p.approval as { id?: string } | undefined;
-          if (!approval?.id) continue;
-          const toolName =
-            (p.toolName as string) ??
-            (t.startsWith("tool-") && t !== "tool" ? t.slice(5) : undefined) ??
-            "tool";
-          return { approvalId: approval.id, toolName, input: p.input };
-        }
-      }
+      const gates = approvalGatesFromParts(m.parts);
+      if (gates.length > 0) return gates;
     }
-    return null;
+    return [] as PendingApprovalGate[];
   })();
 
   // ── Resumable-stream re-attach on remount (reload mid-generation) ──────────
@@ -2195,7 +2207,7 @@ export function ActiveChatProvider({
       ...chat,
       sendMessage,
       serverStreaming,
-      pendingServerApproval,
+      pendingServerApprovals,
       retrying,
       lastErrorReason,
       stallSignal,
@@ -2245,7 +2257,7 @@ export function ActiveChatProvider({
       approveAndResume,
       getSiblings,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      pendingServerApproval?.approvalId,
+      pendingServerApprovals.map((g) => g.approvalId).join(","),
     ],
   );
 
