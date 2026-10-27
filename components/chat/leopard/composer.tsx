@@ -8,6 +8,7 @@ import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ModelSelector } from "./model-selector";
 import { ModelFallbackNotice } from "./model-fallback-notice";
 import { ContextBreakdown } from "./context-breakdown";
+import { ChatContextPanel } from "./chat-context-panel";
 import { MemoryChips } from "./memory-chips";
 import { ResearchPanel } from "../research-panel";
 import { McpServerPanel } from "./mcp-server-panel";
@@ -838,6 +839,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
                     attachments={attachments}
                   />
                   <MemoryChips />
+                  <ChatContextPanel />
                   <ResearchPanel />
                 </ComposerActions>
                 <div className="flex shrink-0 items-center gap-1.5">

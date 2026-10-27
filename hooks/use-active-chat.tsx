@@ -906,9 +906,24 @@ export function ActiveChatProvider({
     // changed — the store notify alone refires this effect (chat.messages
     // identity churn) → infinite loop (2026-09-06).
     {
-      const prev = chat.messages;
       let changed = false;
-      const next = prev.slice();
+      let next: typeof chat.messages = [];
+      chat.setMessages((prev) => {
+        next = prev.slice();
+        changed = false;
+        const serverIds = convexMessages.map((c) => toChatMessage(c).id);
+        const slotFor = (id: string): number => {
+          const serverIdx = serverIds.indexOf(id);
+          for (let i = 0; i < next.length; i++) {
+            const idx = serverIds.indexOf(next[i].id);
+            if (idx >= 0 && idx > serverIdx) return i;
+          }
+          for (let i = next.length - 1; i >= 0; i--) {
+            const idx = serverIds.indexOf(next[i].id);
+            if (idx >= 0 && idx < serverIdx) return i + 1;
+          }
+          return next.length;
+        };
 
       // ── Φ10/#3 review M3: adopt the server id BY POSITION once the stream
       // settles. onData runs before the optimistic bubble exists, so the id is
@@ -992,29 +1007,13 @@ export function ActiveChatProvider({
           });
           if (!alreadyHas) {
             if (isSettling) continue;
-            next.push(ui);
+            next.splice(slotFor(ui.id), 0, ui);
             changed = true;
           }
         } else {
           // Non-assistant (user) row missing locally → reinsert at its
           // chronological slot among server rows.
-          const serverIds = convexMessages.map((c) => toChatMessage(c).id);
-          const serverIdx = serverIds.indexOf(ui.id);
-          let insertAt = next.length;
-          for (let k = serverIdx + 1; k < serverIds.length; k++) {
-            const pos = next.findIndex((x) => x.id === serverIds[k]);
-            if (pos >= 0) { insertAt = pos; break; }
-          }
-          // The scan misses when the next server row exists locally under its
-          // CLIENT id (SDK bubble not yet adopted) — the row then appended
-          // after the reply it prompted and the transcript inverted (user
-          // bubble below the answer, 2026-10-12 live). Fall back to the first
-          // assistant bubble.
-          if (insertAt === next.length) {
-            const firstAssistant = next.findIndex((x) => x.role === "assistant");
-            if (firstAssistant >= 0) insertAt = firstAssistant;
-          }
-          next.splice(insertAt, 0, ui);
+          next.splice(slotFor(ui.id), 0, ui);
           changed = true;
         }
       }
@@ -1031,7 +1030,8 @@ export function ActiveChatProvider({
         seen.add(m.id);
         return true;
       });
-      if (changed || hadDup) chat.setMessages(deduped);
+      return changed || hadDup ? deduped : prev;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [convexMessages, chat.status, chat.setMessages, resumeInFlight, serverAssistantIdRef.current]);

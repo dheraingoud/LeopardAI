@@ -182,6 +182,7 @@ export function systemPrompt({
   memories,
   skills,
   styleDirective,
+  chatContext,
 }: {
   requestHints?: RequestHints;
   supportsTools: boolean;
@@ -199,6 +200,7 @@ export function systemPrompt({
    * string (the default) leaves the prompt unchanged. Appended last so a style
    * can't clobber the baseline rules or byline. */
   styleDirective?: string;
+  chatContext?: string;
 }) {
   const base = `You are Leopard, a high-performance AI assistant.
 
@@ -293,6 +295,10 @@ ${locationLine(requestHints ?? {})}`.trim();
 
   if (availableTools?.includes("presentUI")) {
     prompt = `${prompt}\n\n${presentUIPrompt}`;
+  }
+
+  if (chatContext && chatContext.trim()) {
+    prompt = `${prompt}\n\n${chatContext.trim()}`;
   }
 
   // Trusted per-user recall (Φ-docs memory loop). Only injected whole when the

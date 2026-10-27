@@ -161,6 +161,14 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_chat", ["chatId"]),
 
+  chatContext: defineTable({
+    chatId: v.id("chats"),
+    notes: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    summarizedThroughId: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_chat", ["chatId"]),
+
   // Φ-docs · enterprise cost observability — one row per assistant generation,
   // written by the detached /api/chat task from streamText's real result.usage.
   // Drives the per-user daily token cap (sumTokensSince) + spend dashboards.

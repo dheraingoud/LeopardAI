@@ -477,6 +477,50 @@ export async function listUserMcpServers(
   }
 }
 
+export type ChatContextRow = {
+  notes?: string;
+  summary?: string;
+  summarizedThroughId?: string;
+  updatedAt: number;
+};
+
+export async function getChatContext(
+  chatId: string,
+  userId: string,
+): Promise<ChatContextRow | null> {
+  const c = convexClient();
+  if (!c) return null;
+  try {
+    return (await c.query(internal.chatContext.getForChat as never, {
+      chatId,
+      userId,
+    } as never)) as ChatContextRow | null;
+  } catch (err) {
+    logWarn("chat context read failed", err);
+    return null;
+  }
+}
+
+export async function saveChatSummary(input: {
+  chatId: string;
+  userId: string;
+  summary: string;
+  summarizedThroughId?: string;
+}): Promise<void> {
+  const c = convexClient();
+  if (!c) return;
+  try {
+    await c.mutation(internal.chatContext.upsertSummary as never, {
+      chatId: input.chatId,
+      userId: input.userId,
+      summary: input.summary,
+      summarizedThroughId: input.summarizedThroughId,
+    } as never);
+  } catch (err) {
+    logWarn("chat summary write failed", err);
+  }
+}
+
 /** Ordered recall list for the route to inject into the system prompt AND for
  * the model's listMemories tool. Returns [] when unconfigured (no admin
  * client) — memory is additive, never fatal to a turn. */

@@ -47,6 +47,7 @@
  *returns all curated seeds, which is why the selector fetches /api/models).
  */
 
+import type { SharedV4ProviderOptions } from "@ai-sdk/provider";
 import {
   MODEL_REGISTRY,
   NIM_BASE,
@@ -359,7 +360,7 @@ export function resolveImageDimensions(
 export function nimReasoningProviderOptions(
   model: ChatModel | undefined,
   level: ReasoningLevel | undefined,
-): Record<string, unknown> {
+): SharedV4ProviderOptions {
   if (!model || model.provider !== "nim") return {};
   const cfg = model.reasoningConfig;
   if (!cfg?.param) return {};

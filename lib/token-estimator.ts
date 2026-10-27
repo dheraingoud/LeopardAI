@@ -1,5 +1,6 @@
 const CHARS_PER_TOKEN = 4;
 const CHARS_PER_TOKEN_CJK = 2.5;
+const CHARS_PER_TOKEN_JSON = 3;
 const SYSTEM_PROMPT_RESERVE = 1000;
 const RESPONSE_RESERVE = 3000;
 const SAFETY_MARGIN = 0.05;
@@ -36,6 +37,11 @@ export function estimateTokens(text: string): number {
   return Math.ceil(tokens);
 }
 
+export function estimateJsonTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / CHARS_PER_TOKEN_JSON);
+}
+
 export function estimateMessageTokens(msg: TokenMessage): number {
   const textTokens = estimateTokens(msg.content);
   const imageTokens = msg.imageUrls
@@ -51,6 +57,16 @@ export function estimateConversationTokens(messages: TokenMessage[]): number {
 export function getContextBudget(contextWindow: number): number {
   const budget = contextWindow - SYSTEM_PROMPT_RESERVE - RESPONSE_RESERVE;
   return Math.floor(budget * (1 - SAFETY_MARGIN));
+}
+
+export function getHistoryBudget(
+  contextWindow: number,
+  fixedOverheadTokens: number,
+  responseReserveTokens: number = RESPONSE_RESERVE,
+): number {
+  const budget =
+    contextWindow - fixedOverheadTokens - responseReserveTokens;
+  return Math.max(0, Math.floor(budget * (1 - SAFETY_MARGIN)));
 }
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {

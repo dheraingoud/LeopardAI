@@ -2,10 +2,12 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useMutation, useQuery } from "convex/react";
 import { Bot, Brain, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContextIndicator } from "../context-indicator";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { api } from "@/convex/_generated/api";
 import { estimateTokens, getContextBudget } from "@/lib/token-estimator";
 import { formatTokenCount } from "@/lib/format-tokens";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,6 +22,7 @@ import { mono } from "./surfaces";
 // hairline-strong — the brand's full accent scale, not ad-hoc tailwind picks.
 const TINT = {
   system: "bg-[#888888]",
+  context: "bg-[#ffb400]",
   history: "bg-[#7928ca]",
   attach: "bg-[#ff0080]",
   composer: "bg-[#50e3c2]",
@@ -56,6 +59,20 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
 
   const [expanded, setExpanded] = useState(false);
   const known = typeof contextWindow === "number" && contextWindow > 0;
+
+  const chatId = chat.chatMeta?._id;
+  const ownerId = chat.chatMeta?.userId;
+  const chatContext = useQuery(
+    api.chatContext.get,
+    chatId && ownerId ? { chatId, userId: ownerId } : "skip",
+  );
+  const notesTokens = chatContext?.notes?.trim()
+    ? estimateTokens(chatContext.notes.trim())
+    : 0;
+  const summaryTokens = chatContext?.summary?.trim()
+    ? estimateTokens(chatContext.summary.trim())
+    : 0;
+  const contextTokens = notesTokens + summaryTokens;
 
   const { rows, historyTokens } = useMemo(() => {
     const rows: Row[] = [];
@@ -94,17 +111,20 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
   );
   const composerTokens = estimateTokens(text) + (text.trim() ? 4 : 0);
 
-  const dynamicUsed = historyTokens + attachTokens + composerTokens;
+  const dynamicUsed = historyTokens + attachTokens + composerTokens + contextTokens;
   const fill = SYSTEM_RESERVE + dynamicUsed + RESPONSE_RESERVE;
   const limit = known ? contextWindow : 0;
   const pressure = known ? Math.min(1, dynamicUsed / limit) : 0;
 
   const budget = known ? getContextBudget(contextWindow) : null;
-  const nearLimit = budget !== null && historyTokens > budget * 0.9;
+  const nearLimit = budget !== null && dynamicUsed > budget * 0.9;
   const overshoot = known && fill > contextWindow;
 
   const segments = [
     { key: "system", label: "system & guardrails", tokens: SYSTEM_RESERVE, tint: TINT.system },
+    ...(contextTokens > 0
+      ? [{ key: "context", label: "chat context", tokens: contextTokens, tint: TINT.context }]
+      : []),
     { key: "history", label: `conversation · ${rows.length}`, tokens: historyTokens, tint: TINT.history },
     { key: "attach", label: `attachments · ${attachments.length}`, tokens: attachTokens, tint: TINT.attach },
     { key: "composer", label: "composer (typing)", tokens: composerTokens, tint: TINT.composer },
@@ -163,6 +183,13 @@ export function ContextBreakdown({ contextWindow, text, attachmentCount, attachm
 
           <div className="flex flex-col gap-1.5">
             <LegendRow tint={TINT.system} label="system & guardrails" value={`~${fmt(SYSTEM_RESERVE)}`} />
+            {contextTokens > 0 && (
+              <LegendRow
+                tint={TINT.context}
+                label={notesTokens > 0 && summaryTokens > 0 ? "chat context · notes + summary" : notesTokens > 0 ? "chat context · notes" : "chat context · summary"}
+                value={fmt(contextTokens)}
+              />
+            )}
             <button type="button" onClick={() => setExpanded((e) => !e)} className="w-full text-left">
               <LegendRow
                 tint={TINT.history}

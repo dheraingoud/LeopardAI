@@ -80,10 +80,14 @@ export function getLanguageModel(modelId: string): LanguageModel {
   return getLanguageModel(getDefaultChatModel().id);
 }
 
-export function getTitleModel(): LanguageModel {
+export function getUtilityLanguageModel(): LanguageModel {
   const util = getUtilityModel();
   if (util.provider === "nim") {
     return nimProvider.chatModel(util.id) as unknown as LanguageModel;
   }
   return gateway.languageModel(util.id) as unknown as LanguageModel;
+}
+
+export function getTitleModel(): LanguageModel {
+  return getUtilityLanguageModel();
 }

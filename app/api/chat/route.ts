@@ -9,12 +9,14 @@ import {
   type UIMessage,
 } from "ai";
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import {
   nimReasoningProviderOptions,
   getCapabilities,
   getDefaultChatModel,
   getModelById,
+  getUtilityModel,
   isImageModel,
   isVideoModel,
   resolveImageDimensions,
@@ -23,7 +25,7 @@ import {
 } from "@/lib/ai/models";
 import { isModelRequestAllowed } from "@/lib/ai/model-allowlist";
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
-import { getLanguageModel, getTitleModel } from "@/lib/ai/providers";
+import { getLanguageModel, getTitleModel, getUtilityLanguageModel } from "@/lib/ai/providers";
 import { hasNimKey } from "@/lib/ai/nim-keys";
 import { allowedModelIds } from "@/lib/ai/models";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
@@ -34,19 +36,35 @@ import { renderWidget } from "@/lib/ai/tools/render-widget";
 import { presentUI } from "@/lib/ai/tools/present-ui";
 import { askUser } from "@/lib/ai/tools/ask-user";
 import { loadMcpTools } from "@/lib/ai/mcp";
-import { compactMessages, clampCompactThreshold, type Summarizer } from "@/lib/context-manager";
+import {
+  buildSummarySource,
+  clampSummary,
+  CONTEXT_KEEP_TOOL_OUTPUTS,
+  CONTEXT_RESERVE_TAIL,
+  clearToolOutputs,
+  estimateContextTokens,
+  extractiveSummary,
+  notesBlock,
+  planFold,
+  resolveLiveWindow,
+  SUMMARY_MAX_CHARS,
+  summaryBlock,
+  type ContextMessage,
+} from "@/lib/ai/chat-context";
 import { resolveOutputStyleDirective } from "@/lib/ai/output-styles";
-import { estimateConversationTokens, getContextBudget, type TokenMessage } from "@/lib/token-estimator";
+import { estimateConversationTokens, estimateJsonTokens, estimateTokens, getHistoryBudget, type TokenMessage } from "@/lib/token-estimator";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 import {
   abortAndSettle,
   backgroundServe,
   createGenerationController,
+  getChatContext,
   isOverDailyTokenCap,
   listUserMemories,
   listUserMcpServers,
   persistChatTitle,
+  saveChatSummary,
   semanticRankMemories,
   recordAudit,
   resolvePendingApprovalRowId,
@@ -156,6 +174,15 @@ const MAX_LOOKUPS_PER_TURN = (() => {
  */
 const LOOKUP_TOOLS = ["webFetch", "webSearch", "research_deep"];
 
+const RESPONSE_TOKEN_RESERVE: Record<string, number> = {
+  off: 4096,
+  on: 8192,
+  low: 6144,
+  medium: 8192,
+  high: 12288,
+  max: 16384,
+};
+
 /**
  * Injected as a user turn on the budget-spent step: the lookups are over and
  * this step must be the answer. Covers what the prompt alone did not — never
@@ -168,6 +195,24 @@ const SYNTHESIS_NUDGE =
   "function_calls blocks, no JSON tool arguments) as text — you cannot call " +
   "tools this step. If something remains unverified, say so plainly and " +
   "still give the best answer you can.";
+
+const CONTEXT_SUMMARY_PROMPT = `You maintain a rolling summary of a long chat so the conversation keeps its memory after older turns are dropped from the model's window.
+
+You receive the previous summary (under "SUMMARY SO FAR:") followed by newly folded turns (separated by ---). Rewrite them into ONE updated summary that keeps everything still true.
+
+Write the summary in this shape:
+
+GOAL — what the user is trying to accomplish. Quote the user's original request verbatim on its first line, and keep any later instruction that changes it.
+
+STATE — the current situation: files, paths, names, identifiers, decisions and their reasons, conventions in play, and the concrete facts established so far (numbers, error messages, exact names).
+
+DONE — what has actually been completed. Only list work that is finished; never list something still in progress as done.
+
+OPEN — what is NOT done: pending tasks, unresolved errors, open questions, and decisions the user still has to make. This section is what stops the next turn from assuming the work is finished.
+
+Drop: pleasantries, repetition, and raw tool output — keep only the conclusion a tool produced.
+
+Write 150-350 words. No preamble. Output only the summary.`;
 
 function isFirstExchange(messages: UIMessage[]): boolean {
   const hasAssistant = messages.some((m) => m.role === "assistant");
@@ -253,10 +298,9 @@ function modelMessagesToTokenInput(
  * Φ-latency · T1: bound NIM input PREFILL — the model-speed-INDEPENDENT latency
  * driver. A long chat re-sends the full transcript every turn, so prefill time
  * grows with history no matter how "flash" the model is. When history exceeds
- * the model's budget, drop the OLDEST non-tool messages from the front (never
- * the newest user question, never a tool/tool-result — that would orphan the
- * tool-call pairing). No-op when under budget or anything is ambiguous (fail-
- * simple: keep the full history).
+ * the model's budget, drop the OLDEST turns from the front. A dropped tool
+ * call takes its tool results with it — leaving a result without its call
+ * makes the provider reject the whole request.
  */
 function trimModelMessagesToBudget<
   T extends { role?: string; content?: unknown },
@@ -269,8 +313,9 @@ function trimModelMessagesToBudget<
     trimmed.length > 1 &&
     guard++ < 500
   ) {
-    const first = trimmed[0] as { content?: unknown };
+    const first = trimmed[0] as { role?: string; content?: unknown };
     const isTool =
+      first.role === "tool" ||
       (Array.isArray(first.content) &&
         first.content.some(
           (p: unknown) =>
@@ -279,8 +324,22 @@ function trimModelMessagesToBudget<
         )) ||
       (typeof first.content === "string" &&
         /tool|structured-content|json-schema/.test(first.content));
-    if (isTool) break; // preserve tool-call ↔ tool-result pairing
     trimmed = trimmed.slice(1);
+    if (!isTool) continue;
+    const callIds = new Set<string>();
+    if (Array.isArray(first.content)) {
+      for (const p of first.content as Array<{ type?: string; toolCallId?: string }>) {
+        if (p?.type === "tool-call" && p.toolCallId) callIds.add(p.toolCallId);
+      }
+    }
+    if (callIds.size === 0) continue;
+    while (trimmed.length > 1) {
+      const next = trimmed[0] as { role?: string; content?: unknown };
+      if (next.role !== "tool" || !Array.isArray(next.content)) break;
+      const results = next.content as Array<{ type?: string; toolCallId?: string }>;
+      if (!results.some((p) => p?.type === "tool-result" && callIds.has(p.toolCallId ?? ""))) break;
+      trimmed = trimmed.slice(1);
+    }
   }
   return trimmed.length === msgs.length ? msgs : trimmed;
 }
@@ -309,6 +368,63 @@ async function generateTitleFromUserMessage(message: UIMessage): Promise<string>
     return input.split(/[.!?\n]/)[0].slice(0, 60) || "New Chat";
   }
   return cleaned;
+}
+
+async function summarizeForContext(source: string): Promise<string | undefined> {
+  if (!source.trim()) return undefined;
+  const utility = getUtilityModel();
+  const trimmed = source.slice(0, 60000);
+  for (const attempt of [
+    { instructions: CONTEXT_SUMMARY_PROMPT, prompt: trimmed },
+    {
+      instructions:
+        "Summarize the conversation excerpt. Reply with the summary text only — no preamble, no questions, no code.",
+      prompt: `Summarize the following conversation excerpt as a compact handover note (150-350 words):\n\n${trimmed}`,
+    },
+  ]) {
+    try {
+      const { text } = await withUpstreamSlot(() =>
+        generateText({
+          model: getUtilityLanguageModel(),
+          instructions: attempt.instructions,
+          prompt: attempt.prompt,
+          maxOutputTokens: 1600,
+          providerOptions: {
+            ...nimReasoningProviderOptions(utility, "off"),
+          },
+        }),
+      );
+      const summary = text.trim();
+      if (summary.length > 0) return summary;
+    } catch (err) {
+      console.warn("[chat] context summary attempt failed:", String(err).slice(0, 200));
+    }
+  }
+  return undefined;
+}
+
+function fixedOverheadTokens(
+  instructions: string,
+  tools: Record<string, unknown>,
+): number {
+  let total = estimateTokens(instructions) + Math.ceil(SUMMARY_MAX_CHARS / 4);
+  for (const [name, value] of Object.entries(tools)) {
+    const candidate = value as { description?: string; inputSchema?: unknown };
+    let schema = "";
+    try {
+      schema = candidate.inputSchema
+        ? JSON.stringify(z.toJSONSchema(candidate.inputSchema as never))
+        : "";
+    } catch {
+      schema = "";
+    }
+    total +=
+      estimateTokens(name) +
+      estimateTokens(candidate.description ?? "") +
+      estimateJsonTokens(schema) +
+      16;
+  }
+  return total;
 }
 
 /**
@@ -427,6 +543,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }
 
+  const responseTokenReserve = RESPONSE_TOKEN_RESERVE[body.reasoning ?? "off"] ?? 8192;
+
   // 2. Clerk auth gate. leopard stores chats keyed by Clerk userId; reject
   //    unauthed requests. (Phase 9 hardens; Phase 4 just gates.)
   //    TEMP: Phase 5 browser E2E bypass — see lib/dev-user.ts. Revert before
@@ -495,6 +613,8 @@ export async function POST(request: Request) {
   // to a definite string so the backgroundServe call below type-checks (the
   // schema keeps id optional, so TS can't narrow the parsed property here).
   const realChatId: string = body.id;
+
+  const chatContext = await getChatContext(realChatId, userId ?? DEV_USER_ID);
 
   // 4. Φ8: generation-only models route OUT of the streamText path.
   //
@@ -695,13 +815,12 @@ export async function POST(request: Request) {
       }
     }
   };
-  // Model-history construction is DEFERRED for resume requests: it must run
-  // AFTER executeApprovedTools (the synthesis needs the tool outputs in
-  // context). Non-resume requests build eagerly right here, as before.
   let modelMessages: Awaited<ReturnType<typeof convertToModelMessages>> | undefined;
   let compactedSummary: string | undefined;
-  const buildModelMessages = async () => {
-  const messagesForConvert = messages.map((m) => {
+  let didFold = false;
+  let messagesForConvert: typeof messages = messages;
+  const buildModelMessages = async (historyBudgetTokens: number) => {
+  messagesForConvert = messages.map((m) => {
     if (m.role !== "assistant" || !Array.isArray(m.parts)) return m;
     const parts = (m.parts as Array<Record<string, any>>)
       // approval scaffolding is not model content — never convert it
@@ -732,6 +851,45 @@ export async function POST(request: Request) {
       });
     return { ...m, parts };
   }) as typeof messages;
+  const applyContextWindow = async (historyBudgetTokens: number) => {
+    const summary = chatContext?.summary?.trim();
+    const watermark = chatContext?.summarizedThroughId;
+    const window = resolveLiveWindow(
+      messagesForConvert as unknown as ContextMessage[],
+      watermark,
+    );
+    const previousSummary = window.watermarkValid ? summary : undefined;
+    const cleared = clearToolOutputs(window.live, CONTEXT_KEEP_TOOL_OUTPUTS);
+    const plan = planFold(
+      cleared,
+      historyBudgetTokens,
+      estimateContextTokens,
+      CONTEXT_RESERVE_TAIL,
+    );
+    let liveMessages = cleared as unknown as typeof messages;
+    if (plan.viable && plan.folded.length > 0) {
+      const source = buildSummarySource(previousSummary, plan.summaryParts);
+      const foldedSummary =
+        (await summarizeForContext(source)) ??
+        extractiveSummary(previousSummary, plan.summaryParts);
+      if (foldedSummary) {
+        compactedSummary = clampSummary(foldedSummary);
+        liveMessages = plan.keep as unknown as typeof messages;
+        const through = plan.folded[plan.folded.length - 1]?.id;
+        await saveChatSummary({
+          chatId: realChatId,
+          userId: userId ?? DEV_USER_ID,
+          summary: compactedSummary,
+          summarizedThroughId: through,
+        });
+        didFold = true;
+      }
+    } else {
+      compactedSummary = previousSummary;
+    }
+    messagesForConvert = liveMessages;
+  };
+  await applyContextWindow(historyBudgetTokens);
   // A crashed/abandoned turn can leave approval-requested tool parts in the
   // wire history (no decision, no result). Without ignoreIncompleteToolCalls
   // the SDK throws MissingToolResultsError mid-convert and EVERY later prompt
@@ -803,66 +961,19 @@ export async function POST(request: Request) {
       }
     }
   }
-  if (process.env.LEOPARD_CONTEXT_COMPACT === "1") {
-    const contextWindow = modelConfig?.contextWindow ?? 128_000;
-    try {
-      const tokenMsgs: TokenMessage[] = messages.map((m) => {
-        const parts = (m.parts ?? []) as Array<{ type?: string; text?: string }>;
-        const text = parts
-          .filter((p) => p.type === "text" || p.type === "reasoning")
-          .map((p) => p.text ?? "")
-          .join("\n");
-        return { role: m.role ?? "user", content: text };
-      });
-      const usedTokens = estimateConversationTokens(tokenMsgs);
-      const budget = getContextBudget(contextWindow);
-      // Addon B: configurable threshold (defaults to the original 85%) so an
-      // operator can compact earlier/later per model. Clamped to a sane band.
-      const compactAt = clampCompactThreshold(Number(process.env.LEOPARD_CONTEXT_COMPACT_AT) || 0.85);
-      if (budget > 0 && usedTokens > budget * compactAt) {
-        // Addon B: server-side summarizer — the default browser fetch cannot
-        // reach /api/summarize from Node, so we inject one that targets this
-        // origin. Also threads the (optional) user focus through.
-        const origin = new URL(request.url).origin;
-        const summarize: Summarizer = async (msgs, focus) => {
-          const res = await fetch(`${origin}/api/summarize`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: msgs, focus }),
-          });
-          if (!res.ok) return undefined;
-          const data = (await res.json()) as { summary?: string };
-          return data.summary;
-        };
-        const focus = typeof body.focus === "string" ? body.focus.slice(0, 400) : undefined;
-        const result = await compactMessages(tokenMsgs, contextWindow, "summarize", { summarize, focus });
-        if (result.compactedTokenCount < result.originalTokenCount) {
-          modelMessages = result.messages.map((m) => ({
-            role: m.role,
-            content: [{ type: "text", text: m.content }],
-          })) as typeof modelMessages;
-          compactedSummary = result.summary;
-        }
-      }
-    } catch {
-      /* compaction is best-effort — keep the full history */
-    }
-  }
-
-  // Φ-latency · T4 + T1 (see helpers above). Applied AFTER compaction so they
-  // hold on every path: (T4) drop reasoning-only/empty assistant rows — a
-  // force-settled max-effort think that never reached a text answer leaves one
-  // in history and the recurring NIM 400 "Empty content is not allowed for
-  // assistant messages" blocks every later turn — and (T1) bound input prefill
-  // to a token budget, the model-speed-independent latency driver on long chats.
+  // Φ-latency · T4 + T1 (see helpers above). Applied AFTER the context window
+  // pass so they hold on every path: (T4) drop reasoning-only/empty assistant
+  // rows — a force-settled max-effort think that never reached a text answer
+  // leaves one in history and the recurring NIM 400 "Empty content is not
+  // allowed for assistant messages" blocks every later turn — and (T1) bound
+  // input prefill to a token budget, the model-speed-independent latency
+  // driver on long chats.
   modelMessages = modelMessages.filter(hasModelWorthyAssistantContent);
   modelMessages = trimModelMessagesToBudget(
     modelMessages,
-    getContextBudget(modelConfig?.contextWindow ?? 128_000),
+    historyBudgetTokens,
   );
   };
-  // Non-resume requests build eagerly (no deferred execution to wait for).
-  if (pendingExecParts.length === 0) await buildModelMessages();
 
   // 8. Title gen: only on the first exchange (no assistant turn yet).
   const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
@@ -1268,13 +1379,34 @@ export async function POST(request: Request) {
         };
 
         buildStream = async () => {
-          // Resume requests deferred the history build until the approved
-          // tools executed (prelude) — their outputs must be in context.
-          if (pendingExecParts.length > 0 && !modelMessages) await buildModelMessages();
           const attemptModel = fallbackModels[Math.min(attemptIndex, fallbackModels.length - 1)];
           attemptIndex += 1;
           actualModel = attemptModel;
           const attemptCfg = getModelById(attemptModel);
+          const instructions = systemPrompt({
+            requestHints: {},
+            supportsTools,
+            availableTools: Object.keys(tools),
+            context: promptContext,
+            memories,
+            // Client-selected skill bodies (permanent library + local "+" skills).
+            // Bounded server-side; rendered as ## Instructions blocks.
+            skills: body.skills
+              ?.filter((s) => typeof s === "string" && s.trim().length > 0)
+              .slice(0, 20),
+            // Φ-docs · output style (addon A): per-turn override wins, else the
+            // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
+            styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),
+            chatContext: [notesBlock(chatContext?.notes), summaryBlock(compactedSummary)]
+              .filter(Boolean)
+              .join("\n\n"),
+          });
+          const historyBudgetTokens = getHistoryBudget(
+            attemptCfg?.contextWindow ?? modelConfig?.contextWindow ?? 128_000,
+            fixedOverheadTokens(instructions, tools),
+            responseTokenReserve,
+          );
+          if (!modelMessages) await buildModelMessages(historyBudgetTokens);
           // Vision gating applies per ATTEMPT (fallback may escalate to a VLM
           // that legitimately accepts the images). Text-only models must never
           // receive image/video file parts from earlier turns — NIM/vLLM throws
@@ -1294,21 +1426,7 @@ export async function POST(request: Request) {
         // With only webFetch active (no createDocument client), we pass the
         // canonical web-fetch prompt semantics — prompt.ts owns the wording.
         // AI SDK v7: `system` → `instructions`.
-        instructions: systemPrompt({
-          requestHints: {},
-          supportsTools,
-          availableTools: Object.keys(tools),
-          context: promptContext,
-          memories,
-          // Client-selected skill bodies (permanent library + local "+" skills).
-          // Bounded server-side; rendered as ## Instructions blocks.
-          skills: body.skills
-            ?.filter((s) => typeof s === "string" && s.trim().length > 0)
-            .slice(0, 20),
-          // Φ-docs · output style (addon A): per-turn override wins, else the
-          // LEOPARD_OUTPUT_STYLE env default; sanitized in output-styles.ts.
-          styleDirective: resolveOutputStyleDirective({ style: body.styleRequested }),
-        }),
+        instructions,
         messages: attemptMessages,
         // Cap output tokens — NIM rejects chat completions with no explicit
         // `max_tokens` (returns "Internal server error" / HTTP 500) since
@@ -1316,28 +1434,7 @@ export async function POST(request: Request) {
         // efforts get smaller caps so cheap turns can't balloon; high/max
         // keep headroom for long think+answer runs. AI SDK v6 streams use
         // `maxOutputTokens` (NOT `maxTokens`).
-        // Tiered by reasoning level (operator 2026-10-09): NIM has no separate
-        // thinking-token budget — reasoning burns from the SAME completion
-        // budget, so the cap IS the thinking budget plus answer room.
-        //   off/unset → 4096  (instant: no thinking)
-        //   low       → 6144  (~1–2k think + answer room)
-        //   medium    → 8192  (~4k think + answer room; product default)
-        //   high      → 12288 (~8k think + answer room)
-        //   max       → 16384 (12–16k think; picker labels it slow — at 24k a
-        //                runaway turn makes the user wait minutes for nothing)
-        //   "on" (binary on/off models) → 8192 (~6k thinking budget)
-        maxOutputTokens:
-          body.reasoning === "max"
-            ? 16384
-            : body.reasoning === "high"
-              ? 12288
-              : body.reasoning === "medium"
-                ? 8192
-                : body.reasoning === "low"
-                  ? 6144
-                  : body.reasoning === "on"
-                    ? 8192 // binary on/off models — ~6k thinking budget
-                    : 4096, // off / unset — plain chat never needs more
+        maxOutputTokens: responseTokenReserve,
         // Φ-docs · per-turn cost/latency/tool observability (P2.4 feeder).
         // recordInputs/outputs:false still emits the usage/latency/tool-call
         // events (it only drops payloads) — cost estimate + latency + tool list
@@ -1557,7 +1654,7 @@ export async function POST(request: Request) {
 
 
       // Broadcast a compaction notice when the route folded older history.
-      if (compactedSummary) {
+      if (didFold && compactedSummary) {
         try {
           dataStream.write({ type: "data-compaction", data: compactedSummary, transient: true });
         } catch {
