@@ -10,6 +10,8 @@ import {
   rankMemoriesByQuery,
 } from "@/lib/ai/embeddings";
 import { normalizeUIMessageParts } from "@/lib/ai/message-parts";
+import { closeHungApprovalParts } from "@/lib/ai/tool-part-state";
+import { isToolScopedError } from "@/lib/ai/tool-error-class";
 import { asServerList, toWireServers } from "@/lib/mcp-wire";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -311,6 +313,32 @@ export async function persistChatTitle(input: {
     console.log("[title] persisted:", input.title);
   } catch (e) {
     console.warn("[title] persist failed:", String(e).slice(0, 300));
+  }
+}
+
+/**
+ * Read the persisted chat title. The route uses it to decide whether a title
+ * still needs generating: a title that came back EMPTY (reasoning model,
+ * tight token budget) or that never ran (the first exchange was interrupted)
+ * leaves the sidebar row blank forever, because the old gate keyed off the
+ * message shape ("is this the first exchange?") and every later turn skipped.
+ * Reading the row lets a later turn retry the title.
+ */
+export async function readChatTitle(input: {
+  chatId: string;
+  userId: string;
+}): Promise<string | null> {
+  const c = convexClient();
+  if (!c) return null;
+  try {
+    const chat = (await c.query(api.chats.get as never, {
+      chatId: input.chatId,
+      userId: input.userId,
+    } as never)) as { title?: string } | null;
+    return chat?.title ?? null;
+  } catch (e) {
+    console.warn("[title] read failed:", String(e).slice(0, 300));
+    return null;
   }
 }
 
@@ -816,6 +844,34 @@ class PartAccumulator {
         }
         break;
       }
+      case "tool-input-error": {
+        // The tool call's ARGUMENTS failed validation. This chunk is the only
+        // one that carries the failing input — the follow-up tool-output-error
+        // chunk does NOT. Dropping it lost the arguments from the persisted
+        // row (the card showed no target and no diagnostic), and it is what
+        // the model needs to see to fix the call.
+        let t = this.findTool(chunk.toolCallId);
+        if (!t) {
+          this.closeReasoningWindow();
+          this.segments.push({
+            type: `tool-${String(chunk.toolName ?? "")}`,
+            toolCallId: chunk.toolCallId,
+            toolName: chunk.toolName,
+            state: "pending",
+          });
+          t = this.findTool(chunk.toolCallId);
+        }
+        if (t) {
+          t.state = "output-error";
+          t.input = (chunk as { input?: unknown }).input;
+          const errorText = String(
+            (chunk as { errorText?: unknown }).errorText ?? "tool error",
+          );
+          t.errorText = errorText;
+          t.output = { error: errorText };
+        }
+        break;
+      }
       case "tool-output-denied": {
         // Server-side denial (the same-turn retry guard answers "denied"
         // without a client round-trip). Without this the part stayed
@@ -933,7 +989,17 @@ function isGenerationContent(chunk: UIMessageStreamChunk): boolean {
     chunk?.type === "text-delta" ||
     chunk?.type === "reasoning-delta" ||
     chunk?.type === "tool-call-end" ||
-    chunk?.type === "tool-call-start"
+    chunk?.type === "tool-call-start" ||
+    // AI SDK v7 renamed the tool chunks: toUIMessageStream emits
+    // tool-input-start / tool-input-available / tool-input-error, never
+    // tool-call-start / tool-call-end. The old names never matched, so a
+    // turn that ONLY called a tool never committed — the retry gate then
+    // re-ran the turn and executed the tool a second time (side effects
+    // twice), and a failed tool call escalated to a fallback model that
+    // repeated the same broken call.
+    chunk?.type === "tool-input-start" ||
+    chunk?.type === "tool-input-available" ||
+    chunk?.type === "tool-input-error"
   );
 }
 
@@ -1269,17 +1335,25 @@ export function backgroundServe(args: {
         sendReasoning,
         onError: (err: unknown) => {
           attemptError = errMsg(err);
-          // QA M1: once content has committed, the partial is persisted as the
-          // final row — a protocol error chunk would flip the client to
-          // status:"error" and trigger the destructive auto-regenerate, which
-          // deletes the good row and replaces it with a second generation.
-          // Log it; don't emit it.
-          if (!committed) emit({ type: "error", errorText: errTextForUser(err) });
-          else logWarn("post-commit upstream error suppressed", err);
-          // MUST return a string: undefined here serializes as a bare
+          // Silent failsafe. The SDK routes THREE situations through this one
+          // callback: a genuine stream failure, a tool that threw while
+          // executing, and a tool call whose arguments failed validation.
+          // Only the first is a failed TURN. The SDK already emits its own
+          // stream-level {"type":"error"} chunk for a genuine failure (the
+          // "error" part → toUIMessageChunk), so this callback must NOT emit
+          // one — emitting here turned every failed TOOL call into a failed
+          // turn: the client flipped to status "error" → the red "That didn't
+          // go through" card, even though the SDK was still synthesizing the
+          // answer (2026-10-27 live repro).
+          // MUST return a string: undefined serializes as a bare
           // {"type":"error"} chunk, which the client's uiMessageChunkSchema
           // rejects with AI_TypeValidationError and the whole stream dies
           // (2026-09-04 approval-resume crash).
+          if (isToolScopedError(err)) {
+            logWarn("tool-scoped error — failing the tool silently", err);
+            return errTextForUser(err);
+          }
+          logWarn("stream error — surfaced by the SDK error chunk", err);
           return errTextForUser(err);
         },
       })) as AsyncIterable<UIMessageStreamChunk>;
@@ -1668,11 +1742,13 @@ export function backgroundServe(args: {
         // finalize is firing from an abort while the user is mid-decision —
         // burying would flip the live card to INTERRUPTED before they click.
         // Leave approval-requested intact for the resume/orphan-scan path.
-        const buriedParts = finalParts.map((p) =>
-          (p as { state?: string }).state === "approval-requested" &&
-          pendingApprovals === 0
-            ? { ...(p as object), state: "interrupted" }
-            : p,
+        const buriedParts = closeHungApprovalParts(
+          finalParts.map((p) =>
+            (p as { state?: string }).state === "approval-requested" &&
+            pendingApprovals === 0
+              ? { ...(p as object), state: "interrupted" }
+              : p,
+          ),
         );
         await enqueueWrite(() =>
           persistAssistantRow({

@@ -8,14 +8,35 @@
  * payload always contains name:/task: pairs, so regex them out and rebuild a
  * valid {tasks:[…]} input. Anything unsalvageable returns null → the original
  * error path runs unchanged.
+ *
+ * Schema-shaped repairs (webSearch/askUser/createDocument/renderWidget) live
+ * in lib/ai/tool-input-repair.ts: they coerce the arguments a model actually
+ * emits into inputs the tool's own schema accepts, so a malformed call
+ * succeeds instead of painting an error card.
  */
 import type { ToolCallRepairFunction } from "ai";
+import {
+  repairAskUserInput,
+  repairCreateDocumentInput,
+  repairRenderWidgetInput,
+  repairWebSearchInput,
+} from "@/lib/ai/tool-input-repair";
 
 const NAME_RE = /"?(?:name)"?\s*:\s*"([^"]+)"/;
 const TASK_RE = /"?(?:task)"?\s*:\s*"([^"]+)"/;
 const KIND_RE = /"?(?:kind)"?\s*:\s*"([^"]+)"/;
 
 const KINDS = new Set(["research", "write", "verify", "general"]);
+
+const SCHEMA_REPAIRS: Record<
+  string,
+  (input: unknown) => Record<string, unknown> | null
+> = {
+  webSearch: repairWebSearchInput,
+  askUser: repairAskUserInput,
+  createDocument: repairCreateDocumentInput,
+  renderWidget: repairRenderWidgetInput,
+};
 
 export const repairToolCall: ToolCallRepairFunction<any> = async ({
   toolCall,
@@ -42,6 +63,26 @@ export const repairToolCall: ToolCallRepairFunction<any> = async ({
       return null;
     }
     return null;
+  }
+  // Schema-shaped repairs: the model emitted a valid tool name but invalid
+  // arguments. The SDK re-validates a repaired call, so these turn a failed
+  // tool call into a successful one instead of an error card.
+  const schemaRepair = SCHEMA_REPAIRS[toolCall.toolName];
+  if (schemaRepair) {
+    const parsed =
+      typeof toolCall.input === "string"
+        ? (() => {
+            try {
+              return JSON.parse(toolCall.input);
+            } catch {
+              return null;
+            }
+          })()
+        : (toolCall.input ?? {});
+    if (parsed === null) return null;
+    const repaired = schemaRepair(parsed);
+    if (!repaired) return null;
+    return { ...toolCall, input: JSON.stringify(repaired) };
   }
   if (toolCall.toolName !== "spawn_agents") return null;
   const raw =

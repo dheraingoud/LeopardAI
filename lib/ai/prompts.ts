@@ -135,7 +135,8 @@ HOW TO CALL IT:
 
 CRITICAL:
 - If you call renderWidget, the widget IS the answer. Do not also describe it in prose, do not repeat its numbers, and do not repeat the title. A one-line lead-in before the call is fine.
-- Never write tool-call syntax as text and never say you rendered something you did not call.`;
+- Never write tool-call syntax as text and never say you rendered something you did not call.
+- Never write a placeholder for the widget either (no "<Gallery widget rendered above>", no "[chart shown]", no "the chart is below"). The card is already on screen; your text only needs to add what the card cannot show.`;
 
 export const presentUIPrompt = `
 COMPOSED UI (presentUI): calling \`presentUI\` paints one laid-out surface built from components you nest. Use it when the answer is an INTERFACE — a summary card, a set of headline figures side by side, a tabbed breakdown, a numbered guide, a timeline, an alert with supporting detail. For ONE chart, table, code card, diagram, or map use renderWidget instead; the two are not the same tool.

@@ -3,6 +3,19 @@
 
 import { jsonSchema, tool } from "ai";
 import { leopardUiTreeSchema } from "@/lib/ai/generative-ui-schema";
+import { generativeUiNode } from "@/lib/ai/generative-ui-tree";
+
+const presentUiResult = (args: unknown): string => {
+  const node = generativeUiNode(args);
+  const root =
+    node && typeof node === "object"
+      ? String((node as Record<string, unknown>)._type ?? "component")
+      : "component";
+  return (
+    `Rendered the ${root} surface. It is now visible in the chat. Do not call ` +
+    `presentUI again for this surface — reply to the user in text instead.`
+  );
+};
 
 export function presentUI() {
   return tool({
@@ -15,6 +28,6 @@ export function presentUI() {
       "tabbed breakdown, a step list, an alert with supporting detail. For a " +
       "single chart, table, or diagram use renderWidget instead.",
     inputSchema: jsonSchema(leopardUiTreeSchema()),
-    execute: async () => ({}),
+    execute: async (args) => presentUiResult(args),
   });
 }

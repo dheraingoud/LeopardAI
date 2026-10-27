@@ -5,6 +5,47 @@
 import { tool } from "ai";
 import { widgetSchema } from "@/lib/ai/widget-schema";
 
+const itemCount = (args: Record<string, unknown>): number | null => {
+  const list = (value: unknown): number =>
+    Array.isArray(value) ? value.length : 0;
+  switch (args._type) {
+    case "chart":
+      if (Array.isArray(args.data)) return list(args.data);
+      if (Array.isArray(args.series)) return list(args.series);
+      if (Array.isArray(args.scatter)) return list(args.scatter);
+      if (Array.isArray(args.bins)) return list(args.bins);
+      if (Array.isArray(args.groups)) return list(args.groups);
+      return null;
+    case "table":
+      return list(args.rows);
+    case "gallery":
+      return list(args.images);
+    case "form":
+      return list(args.fields);
+    case "map":
+      return list(args.places);
+    default:
+      return null;
+  }
+};
+
+const widgetResult = (args: Record<string, unknown>): string => {
+  const type = String(args?._type ?? "widget");
+  const title = typeof args?.title === "string" ? args.title.trim() : "";
+  const label = typeof args?.label === "string" ? args.label.trim() : "";
+  const name = title || label;
+  const count = itemCount(args);
+  const noun =
+    type === "table" ? "row" : type === "gallery" ? "image" : type === "form" ? "field" : type === "map" ? "place" : "point";
+  const detail = count === null ? "" : ` with ${count} ${noun}${count === 1 ? "" : "s"}`;
+  const named = name ? ` "${name}"` : "";
+  return (
+    `Rendered ${type} widget${named}${detail}. The widget is now visible in the ` +
+    `chat. Do not call renderWidget again for this widget — reply to the user ` +
+    `in text instead.`
+  );
+};
+
 export function renderWidget() {
   return tool({
     description:
@@ -22,9 +63,11 @@ export function renderWidget() {
       "- form: collect several structured answers at once\n" +
       "Rules: always pass arrays as real JSON arrays (never stringified); ids are optional (auto-filled); prefer one well-chosen widget over several; keep titles short.",
     inputSchema: widgetSchema,
-    // Identity execute — the widget spec IS the output. The client renders
-    // the tool-call args as an interactive component. Without execute the SDK
-    // would throw MissingToolResultsError on every later prompt.
-    execute: async (args) => args,
+    // Execute returns a short confirmation, not the spec. The client renders
+    // the tool-call ARGS as the interactive component; the result is what the
+    // model reads next. Echoing the spec back made the model re-call the
+    // tool with the same args (six identical renders in one turn) because
+    // nothing told it the widget was already on screen.
+    execute: async (args) => widgetResult(args as Record<string, unknown>),
   });
 }
