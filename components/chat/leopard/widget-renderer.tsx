@@ -276,7 +276,7 @@ function WidgetSkeleton({ label }: { label: string }) {
   );
 }
 
-const specReady = (spec: WidgetSpec): boolean => {
+export const specReady = (spec: WidgetSpec): boolean => {
   switch (spec._type) {
     case "chart":
       return (

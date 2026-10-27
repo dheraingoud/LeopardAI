@@ -81,10 +81,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ghostButton } from "./leopard/surfaces";
 import { ImageLightbox } from "./leopard/image-lightbox";
-import { WidgetRenderer } from "./leopard/widget-renderer";
+import { WidgetRenderer, specReady } from "./leopard/widget-renderer";
 import { LeopardGenerativeUI } from "./leopard/generative-ui/renderer";
 import { generativeUiNode } from "@/lib/ai/generative-ui-tree";
 import { getActiveModels } from "@/lib/ai/models";
+import { rendersAskUserChip, selectRenderableToolParts } from "@/lib/chat/tool-parts";
+import { HUNG_APPROVAL_ERROR } from "@/lib/ai/tool-part-state";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Φ7 (action buttons). All "real" — wiring goes to the chat SDK + persistence,
@@ -635,17 +637,18 @@ export const PreviewMessage = memo(function PreviewMessage({
   const isStreaming = !isUser && isLast && status === "streaming";
   // Φ6: tool-createDocument parts → inline artifact-opener cards (see
   // DocumentCard). Empty for user msgs; assistant msgs get one per tool call.
+  // A FAILED tool renders ONLY the error card — its own surface must not
+  // mount (a failed renderWidget still painted the "TABLE" skeleton next to
+  // the red "Tool call failed" card).
   const docParts = !isUser
-    ? (message.parts.filter(
-        (p) => p.type === "tool-createDocument",
-      ) as unknown as DocToolPart[])
+    ? (selectRenderableToolParts(message.parts, "tool-createDocument") as unknown as DocToolPart[])
     : [];
   // Generative UI: tool-renderWidget parts → inline interactive widgets.
   const widgetParts = !isUser
-    ? message.parts.filter((p) => p.type === "tool-renderWidget")
+    ? selectRenderableToolParts(message.parts, "tool-renderWidget")
     : [];
   const presentUIParts = !isUser
-    ? message.parts.filter((p) => p.type === "tool-presentUI")
+    ? selectRenderableToolParts(message.parts, "tool-presentUI")
     : [];
   // Effort badge source: the per-model client-persisted reason level. The UIMessage
   // parts carry only reasoning text (no effort field), so the badge reflects the
@@ -797,6 +800,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           output?: unknown;
           approvalId?: string;
           toolCallId?: string;
+          gated?: boolean;
           orch?: AgentRunState;
         }
     >;
@@ -816,6 +820,10 @@ export const PreviewMessage = memo(function PreviewMessage({
           // AskCard state — set while a tool waits on user approval.
           approvalId?: string;
           toolCallId?: string;
+          // Approval-gated: the call was decided (or is deciding) and never
+          // produced a result. Such a call NEVER RAN — it is not a failure,
+          // so it renders nothing instead of an alarm pill or a red card.
+          gated?: boolean;
           // Φ-multi-agent: reduced data-orchestration state for spawn_agents.
           orch?: AgentRunState;
         }
@@ -901,6 +909,13 @@ export const PreviewMessage = memo(function PreviewMessage({
         const approvalId = isApproval
           ? (p as unknown as { approval?: { id?: string } }).approval?.id
           : undefined;
+        // Approval-gated: the part carries an approval gate (live parts keep
+        // `approval` after the decision; persisted parts keep the id). A gated
+        // call that never produced a result NEVER RAN — it must not render as
+        // a failure (operator 2026-10-10).
+        const gated =
+          isApproval ||
+          (p as unknown as { approval?: { id?: string } }).approval != null;
         // Map raw v7 tool-part states onto the card's vocabulary — live parts
         // carry e.g. "input-available" which is NOT a resting state. UNKNOWN
         // states fall to "unknown" → the stale-pending gate renders a neutral
@@ -930,6 +945,40 @@ export const PreviewMessage = memo(function PreviewMessage({
                           ? s
                           : "unknown");
         const last = out[out.length - 1] as Seg | undefined;
+        const sameCall = out.find(
+          (s): s is Extract<Seg, { kind: "tool" }> =>
+            s.kind === "tool" &&
+            p.toolCallId !== undefined &&
+            s.toolCallId === p.toolCallId,
+        );
+        if (sameCall) {
+          const incomingState =
+            p.state === "approval-responded" && p.output !== undefined
+              ? "complete"
+              : mapToolState(p.state);
+          const incomingHasResult =
+            p.output !== undefined ||
+            incomingState === "error" ||
+            incomingState === "denied";
+          if (incomingHasResult) {
+            if (sameCall.state === "ask") {
+              sameCall.state = incomingState;
+              sameCall.output = p.output ?? sameCall.output;
+              sameCall.approvalId = undefined;
+            } else if (sameCall.output == null) {
+              sameCall.state = incomingState;
+              sameCall.output = p.output ?? sameCall.output;
+            }
+          }
+          if (gated) sameCall.gated = true;
+          if (sameCall.toolName === "spawn_agents") {
+            const snap =
+              (sameCall.toolCallId ? orchByCall.get(sameCall.toolCallId) : undefined) ??
+              (p.toolCallId ? orchByCall.get(p.toolCallId) : undefined);
+            sameCall.orch = toAgentRunState(snap, sameCall.input, sameCall.state, sameCall.output);
+          }
+          continue;
+        }
         if (
           last &&
           last.kind === "tool" &&
@@ -941,6 +990,7 @@ export const PreviewMessage = memo(function PreviewMessage({
               ? "complete"
               : mapToolState(p.state);
           last.output = p.output ?? last.output;
+          if (gated) last.gated = true;
           if (last.toolName === "spawn_agents") {
             const snap = (last.toolCallId ? orchByCall.get(last.toolCallId) : undefined) ??
               (p.toolCallId ? orchByCall.get(p.toolCallId) : undefined);
@@ -963,6 +1013,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           output: p.output ?? undefined,
           toolCallId: p.toolCallId,
           approvalId,
+          gated,
         };
         // Φ-multi-agent: attach the reduced orchestration snapshot (undefined
         // until the first data-orchestration part lands; the card falls back
@@ -1003,6 +1054,18 @@ export const PreviewMessage = memo(function PreviewMessage({
           approvalId,
           toolCallId,
         };
+        const existing = out.find(
+          (s): s is Extract<Seg, { kind: "tool" }> =>
+            s.kind === "tool" &&
+            toolCallId !== undefined &&
+            s.toolCallId === toolCallId,
+        );
+        if (existing) {
+          existing.state = "ask";
+          existing.approvalId = approvalId ?? existing.approvalId;
+          if (existing.input === undefined) existing.input = preview;
+          continue;
+        }
         out.push(cur);
       } else if (p.type === "tool-call" || p.type === "tool-result") {
         const toolName = p.toolName ?? (p.type?.startsWith("tool-") ? p.type.slice(5) : undefined) ?? "tool";
@@ -1581,7 +1644,9 @@ export const PreviewMessage = memo(function PreviewMessage({
               // askUser (structured clarifying question): the settled part
               // renders as a compact question → answer chip, not a generic tool
               // card. The question is the input, the user's pick the output.
-              if (seg.toolName === "askUser") {
+              // A FAILED askUser is not a question awaiting an answer — it
+              // falls through to the error card below.
+              if (seg.toolName === "askUser" && rendersAskUserChip(seg.state)) {
                 const q = (seg.input as { question?: string } | undefined)?.question;
                 const answer = (seg.output as { answer?: string } | undefined)?.answer;
                 return (
@@ -1636,6 +1701,11 @@ export const PreviewMessage = memo(function PreviewMessage({
                 );
               }
               if (seg.state === "error") {
+                // A call that was approved but never ran (the turn died before
+                // the tool executed) is closed with the hung-approval marker.
+                // It is NOT a tool failure — it never ran. Render nothing: the
+                // operator rejected alarm cards for calls that never executed.
+                if (seg.output === HUNG_APPROVAL_ERROR) return null;
                 const errMsg =
                   typeof seg.output === "object" && seg.output !== null
                     ? ((seg.output as { error?: string }).error ?? "Tool call failed")
@@ -1676,6 +1746,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                   seg.state === "streaming" ||
                   seg.state === "unknown");
               if (stalePending && seg.output == null) {
+                // Approval-gated call that never produced a result: it never
+                // ran, so the "interrupted" alarm pill is noise (operator
+                // 2026-10-10). Render nothing.
+                if (seg.gated) return null;
                 return (
                   <div
                     key={`int-${i}`}
@@ -1753,6 +1827,10 @@ export const PreviewMessage = memo(function PreviewMessage({
                   }
                 }
                 if (!spec || typeof spec !== "object") return null;
+                // A settled widget whose spec never became renderable must NOT
+                // leave a pulsing skeleton behind — the skeleton is a
+                // streaming placeholder, not a finished card.
+                if (!isStreaming && !specReady(spec as never)) return null;
                 return <WidgetRenderer key={`widget-${i}`} spec={spec as never} />;
               })}
             </div>
