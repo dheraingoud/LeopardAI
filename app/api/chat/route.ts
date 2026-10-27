@@ -25,6 +25,7 @@ import {
 } from "@/lib/ai/models";
 import { isModelRequestAllowed } from "@/lib/ai/model-allowlist";
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
+import { cleanGeneratedTitle, needsTitle } from "@/lib/ai/chat-title";
 import { getLanguageModel, getTitleModel, getUtilityLanguageModel } from "@/lib/ai/providers";
 import { hasNimKey } from "@/lib/ai/nim-keys";
 import { allowedModelIds } from "@/lib/ai/models";
@@ -64,6 +65,7 @@ import {
   listUserMemories,
   listUserMcpServers,
   persistChatTitle,
+  readChatTitle,
   saveChatSummary,
   semanticRankMemories,
   recordAudit,
@@ -78,6 +80,12 @@ import { buildFallbackModelChain, isFallbackableErrorText } from "@/lib/ai/fallb
 import { chatUsageTelemetry } from "@/lib/ai/telemetry";
 import { redact, scrubAuditField } from "@/lib/redact";
 import { parseApprovalRules, resolveApproval } from "@/lib/ai/tool-policy";
+import {
+  repeatedToolCallDirective,
+  toolRetryDirective,
+} from "@/lib/ai/tool-retry-guard";
+import { settleResumeToolPart } from "@/lib/ai/tool-part-state";
+import { dedupeToolParts } from "@/lib/ai/message-parts";
 import { internalHeaders } from "@/lib/api/guard";
 
 // ─── Runtime config (preserved from legacy route) ──────────────────────────────
@@ -143,6 +151,13 @@ function getTextFromUIMessage(message: UIMessage): string {
 function lastUserMessage(messages: UIMessage[]): UIMessage | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") return messages[i];
+  }
+  return null;
+}
+
+function firstUserMessage(messages: UIMessage[]): UIMessage | null {
+  for (const m of messages) {
+    if (m.role === "user") return m;
   }
   return null;
 }
@@ -353,21 +368,50 @@ async function generateTitleFromUserMessage(message: UIMessage): Promise<string>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 400);
+  // The title model is a REASONING model (nemotron-lightning). With thinking
+  // left on it burns its whole token budget on reasoning_content and answers
+  // content:null — the title came back EMPTY and the sidebar row stayed blank
+  // forever (live probe 2026-10-27: content null at 64/512/1024 tokens).
+  // Reasoning off makes it answer directly.
   const { text } = await withUpstreamSlot(() => generateText({
     model: getTitleModel(),
     // AI SDK v7: `system` → `instructions`.
     instructions: titlePrompt,
     prompt: input,
+    providerOptions: nimReasoningProviderOptions(getUtilityModel(), "off"),
   }));
-  const cleaned = text
-    .replace(/^[#*"\s]+/, "")
-    .replace(/["]+$/, "")
-    .trim();
-  // Model parroted the prompt or ran long → fall back to the first line.
-  if (cleaned.length > 80 || cleaned.includes("```")) {
-    return input.split(/[.!?\n]/)[0].slice(0, 60) || "New Chat";
+  // Never return an empty title — an empty string is persisted as-is and the
+  // chat stays unnamed. Fall back to the user's own words.
+  return cleanGeneratedTitle(text, input);
+}
+
+/**
+ * Decide whether this turn should (re)generate a chat title, and generate it.
+ *
+ * The old gate asked "is this the first exchange?" — a MESSAGE-SHAPE question.
+ * It failed whenever the title never landed: the model returned empty, the
+ * title call errored, or the first exchange was interrupted. The chat then
+ * stayed "New Chat" for good, because every later turn skipped the title.
+ *
+ * The gate is now the PERSISTED title: any turn can heal a missing name.
+ * The read is detached, so it never delays the answer.
+ */
+async function titleForTurn(input: {
+  chatId: string;
+  userId: string;
+  messages: UIMessage[];
+}): Promise<string | null> {
+  const firstUser = firstUserMessage(input.messages);
+  if (!firstUser) return null;
+  if (!isFirstExchange(input.messages)) {
+    const persisted = await readChatTitle({
+      chatId: input.chatId,
+      userId: input.userId,
+    });
+    if (persisted === null) return null;
+    if (!needsTitle(persisted)) return null;
   }
-  return cleaned;
+  return generateTitleFromUserMessage(firstUser);
 }
 
 async function summarizeForContext(source: string): Promise<string | undefined> {
@@ -822,33 +866,12 @@ export async function POST(request: Request) {
   const buildModelMessages = async (historyBudgetTokens: number) => {
   messagesForConvert = messages.map((m) => {
     if (m.role !== "assistant" || !Array.isArray(m.parts)) return m;
-    const parts = (m.parts as Array<Record<string, any>>)
-      // approval scaffolding is not model content — never convert it
-      .filter((p) => p?.type !== "tool-approval-request" && p?.type !== "tool-approval-response")
-      .map((p) => {
-        if (p.toolCallId && resumeOutputs.has(p.toolCallId))
-          return { ...p, state: "output-available", output: resumeOutputs.get(p.toolCallId) };
-        // Crash-recovery: a denied call whose resume detection failed (the row
-        // settled before the decision POST) converts with no result and the
-        // SDK's MissingToolResultsError 400s the whole chat. Feed the model the
-        // refusal as an error output so history stays valid.
-        if (p.toolCallId && p.state === "output-denied")
-          return { ...p, state: "output-error", output: "The user declined this action. Do not retry it." };
-        // Stale-state repair: approval-responded + output means the tool DID
-        // run (the persist raced the state flip) — convert must see
-        // output-available or it emits a tool-call with no tool-result and
-        // MissingToolResultsError bricks every later prompt (2026-10-12 live).
-        if (p.toolCallId && p.state === "approval-responded" && p.output !== undefined)
-          return { ...p, state: "output-available" };
-        // Abandoned decision: approval-responded with no output means the turn
-        // crashed between the user's answer and the tool run. It survives
-        // ignoreIncompleteToolCalls (that filter keeps approval-responded) and
-        // then throws MissingToolResultsError — bricking every later prompt in
-        // the chat (2026-10-11 live). Close it as an error instead.
-        if (p.toolCallId && p.state === "approval-responded" && p.output === undefined)
-          return { ...p, state: "output-error", output: "This action did not complete (the turn was interrupted)." };
-        return p;
-      });
+    const parts = dedupeToolParts(
+      (m.parts as Array<Record<string, any>>)
+        // approval scaffolding is not model content — never convert it
+        .filter((p) => p?.type !== "tool-approval-request" && p?.type !== "tool-approval-response")
+        .map((p) => settleResumeToolPart(p, resumeOutputs)),
+    );
     return { ...m, parts };
   }) as typeof messages;
   const applyContextWindow = async (historyBudgetTokens: number) => {
@@ -975,9 +998,13 @@ export async function POST(request: Request) {
   );
   };
 
-  // 8. Title gen: only on the first exchange (no assistant turn yet).
-  const firstUser = isFirstExchange(messages) ? lastUserMessage(messages) : null;
-  const titlePromise = firstUser ? generateTitleFromUserMessage(firstUser) : null;
+  // 8. Title gen: driven by the PERSISTED title, not the message shape — a
+  //    missed or empty title is retried on any later turn (see titleForTurn).
+  const titlePromise = titleForTurn({
+    chatId: realChatId,
+    userId: userId ?? DEV_USER_ID,
+    messages,
+  });
 
   // 8b. Latest question text → drives auto-skill injection (diagram-clarity when
   //     the user asks for a diagram, math-typeset when asking for math).
@@ -999,6 +1026,15 @@ export async function POST(request: Request) {
   //     (same row id either way).
   const isApprovalResumeEarly = approvalMsgEarly != null;
   const resumableStreamId = generateId();
+
+  // The id the "start" chunk carries decides which bubble the client keeps
+  // writing into: the SDK overwrites its streaming message id with the chunk's
+  // id, and a mismatch makes it PUSH a second bubble. An approval resume
+  // continues the assistant message the client already holds, so the stream
+  // must announce THAT id. The wire's trailing assistant message IS the
+  // client's bubble (same array the SDK posted), so its id is the one to
+  // reuse. Every other turn gets a fresh id, as before.
+  const resumeMessageId = approvalMsgEarly?.id;
 
   // 9. Build the UIMessage stream.
   const stream = createUIMessageStream({
@@ -1071,21 +1107,31 @@ export async function POST(request: Request) {
       console.log(
         `[approval-resume] detected: ${isApprovalResume} rowId: ${pendingRow?.id ?? "null"} seedParts: ${pendingRow?.parts?.length ?? 0}`,
       );
-      // Anchor-miss on a resume must NOT mint a fresh assistant id — that's the
-      // fork that rendered the same answer 3× on a multi-approval turn
-      // (2026-10-09 live repro: 3× gated webFetch → 6 assistant rows). Inside
-      // execute() we can't return an HTTP error — emit an error chunk and end
-      // the stream cleanly instead; the client shows the error card and can
-      // retry. Never persist a detached row for a resume.
-      if (isApprovalResume && !pendingRow) {
-        dataStream.write({
-          type: "error",
-          errorText:
-            "Couldn't find the pending approval to resume — reload the chat and approve again.",
-        } as never);
-        return;
+      // Anchor-miss on a resume must NOT kill the turn. The client already
+      // carries the decision (approval-responded) and the prelude executes the
+      // approved tool from the WIRE parts, so the anchor row is only needed to
+      // (a) pick the assistant row id and (b) seed the persisted parts. When it
+      // is gone (the turn settled before the decision landed) the old code
+      // emitted a stream-level error chunk → the client painted the red "That
+      // didn't go through" card and the chat looked broken even though the
+      // previous response had succeeded (2026-10-27 live repro). Continue the
+      // turn instead: seed from the client's own decision message and let the
+      // history repair close the orphaned approval as a tool error.
+      const anchorMissed = isApprovalResume && !pendingRow;
+      if (anchorMissed) {
+        console.warn(
+          `[approval-resume] anchor missing — continuing on the wire message id`,
+        );
       }
-      const assistantId = pendingRow?.id ?? resumableStreamId;
+      // The client CONTINUES the same assistant message on a resume: the SDK
+      // reuses that message's id for every resumed chunk (chat.ts
+      // createStreamingUIMessageState keeps `lastMessage` when it is an
+      // assistant row). The client adopted the server's row id via the
+      // `data-assistant-id` chunk, so the wire id IS the persisted row id.
+      // Falling back to it on an anchor miss keeps the resumed answer in the
+      // SAME row — minting a fresh id forked the turn into two bubbles
+      // (2026-10-09 repro: 3× gated webFetch → 6 assistant rows).
+      const assistantId = pendingRow?.id ?? approvalMsg?.id ?? resumableStreamId;
       // Carry the persisted tool parts into the resumed generation: the row is
       // re-persisted from a fresh accumulator, so without the seed the tool card
       // vanishes on reload. Mark them approval-responded so the gate card does
@@ -1095,7 +1141,11 @@ export async function POST(request: Request) {
       // re-persisted row opened with the tool card and the first "Thought"
       // block vanished (2026-09-05 RCA). Tool entries still get state-patched
       // below; reasoning/text pass through untouched.
-      const seedToolParts = (pendingRow?.parts ?? [])
+      // Anchor-miss: the persisted row is gone, so seed from the CLIENT's
+      // decision message — it carries the same reasoning/text/tool parts the
+      // row held, so the tool card survives the resume either way.
+      const seedSource = pendingRow?.parts ?? approvalMsg?.parts ?? [];
+      const seedToolParts = seedSource
         .filter(
           (p) =>
             typeof p?.type === "string" &&
@@ -1455,22 +1505,15 @@ export async function POST(request: Request) {
           ...nimReasoningProviderOptions(attemptCfg, body.reasoning),
         },
         ...(supportsTools && {
-          // On a resume, the prelude already executed the approved tools —
-          // the SDK must NOT re-execute them. Filter the tool set so a tool
-          // whose output already landed in resumeOutputs is invisible to the
-          // step loop (its call in history reads as already-answered).
-          tools: isApprovalResume
-            ? Object.fromEntries(
-                Object.entries(tools).filter(([name]) => {
-                  // Keep tools that DON'T have a pending exec part — those
-                  // are either new calls or tools the user denied (denied
-                  // tools are handled by autoDeniedToolNames, not by removal).
-                  return !pendingExecParts.some(
-                    (p) => (p.toolName ?? String(p.type).slice(5)) === name,
-                  );
-                }),
-              )
-            : tools,
+          // Every tool stays registered on a resume. The prelude already ran
+          // the approved call and buildModelMessages folds its result in as a
+          // tool-result, which is what stops the SDK from executing it twice —
+          // removing the tool from the map instead made a SECOND call to the
+          // same tool (new toolCallId) unparseable, and the SDK answered
+          // "Model tried to call unavailable tool 'webFetch'" (2026-10-27 live).
+          // A same-name NEW call now falls through to the normal approval
+          // rules and shows its own AskCard (GAP A).
+          tools,
           // Salvage Hermes-DSL / mangled spawn_agents inputs from weaker
           // master models instead of erroring the whole turn (2026-09-01).
           repairToolCall,
@@ -1493,7 +1536,19 @@ export async function POST(request: Request) {
               }
             }
             lookupsUsed = n;
-            if (n < MAX_LOOKUPS_PER_TURN) return {};
+            // An invalid tool call (arguments failed the schema) is fed back
+            // to the model as an error and the model gets another step. A
+            // model that cannot fix the arguments re-issues the IDENTICAL
+            // broken call until the step cap — eight failure cards, no
+            // answer. Name the broken fields so it can adapt; if it repeats
+            // the same call, tell it to answer in text instead.
+            const retryDirective = toolRetryDirective(steps);
+            const repeatDirective = repeatedToolCallDirective(steps);
+            const synthesisDirective =
+              n < MAX_LOOKUPS_PER_TURN ? null : SYNTHESIS_NUDGE;
+            if (!retryDirective && !repeatDirective && !synthesisDirective) {
+              return {};
+            }
             // Budget spent: no tool calls at all this step. Withholding only
             // the lookup tools just moves the model to the next one
             // (2026-10-20: webFetch/webSearch withdrawn → research_deep, then
@@ -1507,7 +1562,16 @@ export async function POST(request: Request) {
             // (2026-10-20: "<invoke name=webFetch>…" as the entire reply,
             // fake-tool-syntax true, twice). Leaving them registered but
             // telling the model to write gives it a legal way to finish.
-            return { instructions: `${instructions}\n\n${SYNTHESIS_NUDGE}` };
+            return {
+              instructions: [
+                instructions,
+                retryDirective,
+                repeatDirective,
+                synthesisDirective,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            };
           },
           stopWhen: stepCountIs(8),
         }),
@@ -1619,28 +1683,28 @@ export async function POST(request: Request) {
       // stalled (2026-09-02, 4.8-min title → client never saw `ready` until it
       // resolved). Persist is durable + server-side; the dataStream write is a
       // cosmetic fast-path that no-ops if the stream already closed.
-      if (titlePromise) {
-        void titlePromise
-          .then((title) => {
-            console.log("[title] generated:", title, "for chat", realChatId);
-            return persistChatTitle({
-              chatId: realChatId,
-              userId: userId ?? DEV_USER_ID,
-              title,
-            }).then(() => {
-              try {
-                dataStream.write({ type: "data-chat-title", data: title });
-              } catch {
-                /* mirror already released — the durable write above is enough */
-              }
-            });
-          })
-          .catch((e) => {
-            console.warn("[title] generation failed:", String(e).slice(0, 300));
+      void titlePromise
+        .then((title) => {
+          if (!title) {
+            console.log("[title] skipped — chat already titled");
+            return;
+          }
+          console.log("[title] generated:", title, "for chat", realChatId);
+          return persistChatTitle({
+            chatId: realChatId,
+            userId: userId ?? DEV_USER_ID,
+            title,
+          }).then(() => {
+            try {
+              dataStream.write({ type: "data-chat-title", data: title });
+            } catch {
+              /* mirror already released — the durable write above is enough */
+            }
           });
-      } else {
-        console.log("[title] skipped — not first exchange");
-      }
+        })
+        .catch((e) => {
+          console.warn("[title] generation failed:", String(e).slice(0, 300));
+        });
 
       const unsubGen = gen.subscribe((chunk) => {
         try {
@@ -1678,7 +1742,7 @@ export async function POST(request: Request) {
         await mcpHandle.close();
       } catch {}
     },
-    generateId,
+    generateId: resumeMessageId ? () => resumeMessageId : generateId,
     onError: (error: unknown) => {
       try {
         require("node:fs").appendFileSync(
