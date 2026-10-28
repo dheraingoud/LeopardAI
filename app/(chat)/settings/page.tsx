@@ -11,14 +11,15 @@ import {
   Download, Trash2, LogOut, Sun, Moon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getActiveModels } from "@/lib/ai/models";
+import { getActiveModels, getModelById } from "@/lib/ai/models";
+import { effortTiers } from "@/lib/ai/effort-tiers";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PreferencesPanel } from "@/components/chat/leopard/settings-panel";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ReasoningEffort } from "@/components/chat/leopard/reasoning-effort";
 import { useUserPrefs } from "@/hooks/use-user-prefs";
 import { getPrefsSnapshot, subscribePrefs } from "@/lib/prefs-cache";
 import { ComparisonCard } from "@/components/chat/leopard/comparison-card";
@@ -518,17 +519,25 @@ function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveMode
   const reasoningModels = models.filter((m) => m.reasoningConfig?.enabled && m.reasoningConfig.toggleable);
   const { update } = useUserPrefs();
   const [mid, setMid] = useState(reasoningModels[0]?.id ?? "");
+  const [preview, setPreview] = useState<number | null>(null);
   const snapshot = useSyncExternalStore(subscribePrefs, getPrefsSnapshot, getPrefsSnapshot);
   const saved = snapshot.reasoning ?? {};
-  const level = saved[mid] ?? "";
   if (reasoningModels.length === 0) return null;
+  const tiers = effortTiers(getModelById(mid)?.reasoningConfig);
+  const stops = tiers.levels;
+  const savedIdx = Math.max(0, stops.findIndex((t) => t.id === saved[mid]));
+  const idx = preview ?? savedIdx;
+  const active = stops[idx] ?? stops[0];
   return (
     <Section title="Default reasoning effort" hint="per model — stored in your account">
       <div className="py-4">
         <div className="mb-2 flex items-center gap-2">
           <select
             value={mid}
-            onChange={(e) => setMid(e.target.value)}
+            onChange={(e) => {
+              setMid(e.target.value);
+              setPreview(null);
+            }}
             aria-label="Model for reasoning default"
             className={cn(fieldInteractive, hairline, "h-8 rounded-md border bg-transparent px-2 text-xs dark:text-[#d4d4d4] light:text-[#404040] outline-none")}
           >
@@ -537,14 +546,36 @@ function ReasoningDefaults({ models }: { models: ReturnType<typeof getActiveMode
             ))}
           </select>
         </div>
-        <ReasoningEffort
-          modelId={mid}
-          className="px-0 pb-0 pt-0"
-          value={(level || undefined) as never}
-          onChange={(l) => {
-            update({ reasoning: { ...saved, [mid]: l } });
-          }}
-        />
+        {stops.length > 0 ? (
+          <>
+            <div className="mb-2.5 flex items-center justify-between">
+              <span className={cn(mono, "dark:text-[#a3a3a3] light:text-[#525252]")}>
+                Reasoning effort
+              </span>
+              <span className={cn(mono, "text-[#ffb400]")}>
+                {active?.label ?? "Off"}
+              </span>
+            </div>
+            <Slider
+              ariaLabel="Reasoning effort"
+              ariaValueText={active?.label}
+              value={idx}
+              max={stops.length - 1}
+              onValueChange={setPreview}
+              onCommit={(next) => {
+                const tier = stops[next];
+                if (tier) update({ reasoning: { ...saved, [mid]: tier.id } });
+              }}
+            />
+            <div className="mt-2.5 flex justify-between text-[9px] font-mono dark:text-[#4a4a4a] light:text-[#9a9a9a]">
+              {stops.map((s, i) => (
+                <span key={s.id} className={cn(i === idx && "text-[#ffb400]")}>
+                  {s.label}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
     </Section>
   );

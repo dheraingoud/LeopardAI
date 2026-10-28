@@ -8,19 +8,32 @@ import type { ReactNode } from "react";
 const Popover = MenuPrimitive.Root;
 const PopoverTrigger = MenuPrimitive.Trigger;
 
+const POPUP_BASE =
+  "max-h-(--available-height) max-w-(--available-width) overflow-y-auto outline-none";
+
 const POPUP_MOTION =
-  "origin-[var(--transform-origin)] max-h-(--available-height) max-w-(--available-width) overflow-y-auto outline-none transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(0.32,1.28,0.5,1)] data-[ending-style]:scale-[0.96] data-[ending-style]:opacity-0 data-[ending-style]:translate-y-1 data-[ending-style]:duration-150 data-[ending-style]:ease-out data-[starting-style]:scale-[0.95] data-[starting-style]:opacity-0 data-[starting-style]:translate-y-2";
+  "origin-[var(--transform-origin)] transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(0.32,1.28,0.5,1)] data-[ending-style]:scale-[0.96] data-[ending-style]:opacity-0 data-[ending-style]:translate-y-1 data-[ending-style]:duration-150 data-[ending-style]:ease-out data-[starting-style]:scale-[0.95] data-[starting-style]:opacity-0 data-[starting-style]:translate-y-2";
+
+const POPUP_FADE =
+  "transition-opacity duration-[160ms] ease-out data-[ending-style]:opacity-0 data-[starting-style]:opacity-0";
 
 /** The opaque panel every popover renders inside — menu or plain popover. */
 function PanelShell({
   bodyClassName,
+  shellClassName,
   children,
 }: {
   bodyClassName?: string;
+  shellClassName?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[26px] border dark:border-white/10 light:border-black/10 dark:bg-[#141414] light:bg-white shadow-[0_16px_50px_rgba(0,0,0,0.5)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.6)] light:shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
+    <div
+      className={
+        shellClassName ??
+        "rounded-[26px] border dark:border-white/10 light:border-black/10 dark:bg-[#141414] light:bg-white shadow-[0_16px_50px_rgba(0,0,0,0.5)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.6)] light:shadow-[0_12px_40px_rgba(0,0,0,0.12)]"
+      }
+    >
       <div className={cn("min-w-[230px] max-w-full py-2.5", bodyClassName)}>
         {children}
       </div>
@@ -59,6 +72,7 @@ function PopoverContent({
             // Liquid glass open/close: gentle translate+scale (transform-only for
             // GPU), a soft spring that just kisses past 1.0 — no 0.6 jarring pop
             // / squeeze. Transform+opacity transition to avoid repaint stutter.
+            POPUP_BASE,
             POPUP_MOTION,
             className
           )}
@@ -140,6 +154,7 @@ interface PopoverPanelContentProps extends PopoverPrimitive.Popup.Props {
   side?: PopoverPrimitive.Positioner.Props["side"];
   sideOffset?: number;
   bodyClassName?: string;
+  shellClassName?: string;
 }
 
 function PopoverPanelContent({
@@ -147,6 +162,7 @@ function PopoverPanelContent({
   side = "bottom",
   sideOffset = 10,
   bodyClassName,
+  shellClassName,
   className,
   children,
   ...props
@@ -160,10 +176,12 @@ function PopoverPanelContent({
         sideOffset={sideOffset}
       >
         <PopoverPrimitive.Popup
-          className={cn(POPUP_MOTION, className)}
+          className={cn(POPUP_BASE, POPUP_FADE, className)}
           {...props}
         >
-          <PanelShell bodyClassName={bodyClassName}>{children}</PanelShell>
+          <PanelShell bodyClassName={bodyClassName} shellClassName={shellClassName}>
+            {children}
+          </PanelShell>
         </PopoverPrimitive.Popup>
       </PopoverPrimitive.Positioner>
     </PopoverPrimitive.Portal>

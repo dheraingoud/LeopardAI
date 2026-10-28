@@ -4,6 +4,7 @@
 @import "katex/dist/katex.min.css";
 @import "../leopard-ui/tw-shimmer/src/index.css";
 @import "../leopard-ui/diagrammatic/src/styles.css";
+@import "./leopard-picker.css";
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));
@@ -54,6 +55,7 @@
   --color-leopard-text: var(--leopard-text);
   --color-leopard-text-muted: var(--leopard-text-muted);
   --color-leopard-text-dim: var(--leopard-text-dim);
+  --color-leopard-secondary: var(--leopard-secondary);
 
   /* Shadow system */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -160,6 +162,7 @@
   --leopard-overlay-light: rgba(0, 0, 0, 0.03);
   --leopard-overlay-medium: rgba(0, 0, 0, 0.05);
   --leopard-border-faint: rgba(0, 0, 0, 0.04);
+  --leopard-secondary: #ece2c9;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
@@ -231,6 +234,7 @@
   --leopard-overlay-light: rgba(255, 255, 255, 0.05);
   --leopard-overlay-medium: rgba(255, 255, 255, 0.08);
   --leopard-border-faint: rgba(255, 255, 255, 0.04);
+  --leopard-secondary: #1a1a1a;
 
   /* Scrollbar & Glass (dark values) */
   --scrollbar-thumb: rgba(255, 255, 255, 0.1);

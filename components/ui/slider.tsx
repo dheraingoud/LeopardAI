@@ -1,142 +1,219 @@
 "use client";
 
+// Discrete slider — the amber current rail. Fill and thumb ride framer-motion
+// motion values, so a drag paints from the pointer without re-rendering.
+
+import { animate, motion, useMotionValue, useReducedMotion } from "framer-motion";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { useCallback, useRef, useState } from "react";
 
-/**
- * Slider → SOLID SLIDER (2026-08-26, glass retirement per DESIGN.md).
- * Same props contract as before (controlled/uncontrolled, step, accent) but
- * renders the DESIGN.md chrome: flat track, ink/amber fill, solid circular
- * thumb with hairline ring. Pointer drag + hidden native range for
- * keyboard/a11y. No refraction, no spring deform — a clean tool control.
- */
-
-const TRACK_W = 240;
-const TRACK_H = 6;
-const THUMB = 18;
+const THUMB_INSET = 14;
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 interface SliderProps {
-  accent?: string;
   ariaLabel?: string;
+  ariaValueText?: string;
   className?: string;
-  defaultValue?: number;
-  disabled?: boolean;
-  max?: number;
-  min?: number;
-  onValueChange?: (value: number) => void;
-  step?: number;
-  value?: number;
+  max: number;
+  onCommit?: (value: number) => void;
+  onValueChange: (value: number) => void;
+  trackRef?: React.RefObject<HTMLDivElement | null>;
+  value: number;
 }
 
 function Slider({
   value,
-  defaultValue = 50,
-  min = 0,
-  max = 100,
-  step = 1,
+  max,
   onValueChange,
-  disabled = false,
+  onCommit,
   ariaLabel = "Value",
+  ariaValueText,
   className,
-  accent,
+  trackRef: externalTrackRef,
 }: SliderProps) {
-  const fill = accent ?? "#ffb400";
-  const [internal, setInternal] = useState(defaultValue);
-  const current = value ?? internal;
-  const currentRef = useRef(current);
-  currentRef.current = current;
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const thumbX = useMotionValue(0);
+  const fillWidth = useMotionValue(0);
+  const [trackWidth, setTrackWidth] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [justMax, setJustMax] = useState(false);
+  const [settleTick, setSettleTick] = useState(0);
+  const draggingRef = useRef(false);
+  const indexRef = useRef(value);
+  const didInit = useRef(false);
+  const justMaxTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reduced = useReducedMotion();
 
-  const span = Math.max(max - min, 1e-6);
-  const ratio = Math.min(1, Math.max(0, (current - min) / span));
+  const usable = Math.max(1, trackWidth - THUMB_INSET * 2);
+  const ratio = max <= 0 ? 1 : Math.min(1, Math.max(0, value / max));
+  const target = THUMB_INSET + usable * ratio;
+  const isMax = max > 1 && value === max;
 
-  const commit = useCallback(
+  const ticks = useMemo(() => {
+    if (trackWidth <= 0) return [];
+    const span = Math.max(1, trackWidth - THUMB_INSET * 2);
+    const count = max + 1;
+    return Array.from({ length: count }, (_, i) =>
+      Math.round(THUMB_INSET + span * (max <= 0 ? 1 : i / max)),
+    );
+  }, [max, trackWidth]);
+
+  useEffect(() => {
+    indexRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (justMaxTimer.current) clearTimeout(justMaxTimer.current);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const measure = () => setTrackWidth(el.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (trackWidth <= 0 || draggingRef.current) return;
+    if (!didInit.current) {
+      didInit.current = true;
+      thumbX.set(target);
+      fillWidth.set(target);
+      return;
+    }
+    const options = { duration: reduced ? 0 : 0.28, ease: EASE };
+    const thumb = animate(thumbX, target, options);
+    const fill = animate(fillWidth, target, options);
+    return () => {
+      thumb.stop();
+      fill.stop();
+    };
+  }, [dragging, fillWidth, reduced, settleTick, target, thumbX, trackWidth]);
+
+  const applyIndex = useCallback(
     (next: number) => {
-      const clamped = Math.min(max, Math.max(min, next));
-      const snapped = step > 0 ? Math.round((clamped - min) / step) * step + min : clamped;
-      if (snapped !== currentRef.current) {
-        if (value === undefined) setInternal(snapped);
-        onValueChange?.(snapped);
+      const clamped = Math.min(max, Math.max(0, next));
+      const previous = indexRef.current;
+      indexRef.current = clamped;
+      if (clamped !== previous) onValueChange(clamped);
+      if (max > 1 && clamped === max && previous !== max) {
+        setJustMax(true);
+        if (justMaxTimer.current) clearTimeout(justMaxTimer.current);
+        justMaxTimer.current = setTimeout(() => setJustMax(false), 700);
       }
     },
-    [max, min, step, value, onValueChange],
+    [max, onValueChange],
   );
 
-  const valueFromEvent = useCallback(
-    (clientX: number) => {
-      const track = trackRef.current;
-      if (!track) return currentRef.current;
-      const rect = track.getBoundingClientRect();
-      return min + ((clientX - rect.left) / rect.width) * span;
-    },
-    [min, span],
-  );
+  const paint = useCallback((clientX: number) => {
+    const track = trackRef.current;
+    if (!track) return indexRef.current;
+    const rect = track.getBoundingClientRect();
+    const span = Math.max(1, rect.width - THUMB_INSET * 2);
+    const raw = Math.min(1, Math.max(0, (clientX - rect.left - THUMB_INSET) / span));
+    const x = THUMB_INSET + span * raw;
+    thumbX.set(x);
+    fillWidth.set(x);
+    return Math.round(raw * max);
+  }, [fillWidth, max, thumbX]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (disabled) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      draggingRef.current = true;
       setDragging(true);
-      e.currentTarget.setPointerCapture(e.pointerId);
-      commit(valueFromEvent(e.clientX));
+      const index = paint(e.clientX);
+      if (index !== indexRef.current) applyIndex(index);
     },
-    [disabled, commit, valueFromEvent],
+    [applyIndex, paint],
   );
+
   const onPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragging) return;
-      commit(valueFromEvent(e.clientX));
+      if (!draggingRef.current) return;
+      const index = paint(e.clientX);
+      if (index !== indexRef.current) applyIndex(index);
     },
-    [commit, valueFromEvent],
+    [applyIndex, paint],
   );
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    setDragging(false);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-  }, []);
+
+  const endDrag = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setDragging(false);
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+      setSettleTick((tick) => tick + 1);
+      onCommit?.(indexRef.current);
+    },
+    [onCommit],
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      let next: number | null = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(max, value + 1);
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, value - 1);
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = max;
+      if (next === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      applyIndex(next);
+      onCommit?.(Math.min(max, Math.max(0, next)));
+    },
+    [applyIndex, max, onCommit, value],
+  );
 
   return (
     <div
-      className={cn("relative inline-flex items-center touch-none select-none", className)}
-      style={{ width: TRACK_W, height: THUMB + 8, flexShrink: 0 }}
+      data-slot="leopard-slider"
+      className={cn(
+        "leopard-slider relative w-full touch-none select-none",
+        dragging && "is-dragging",
+        isMax && "is-max",
+        justMax && "just-max",
+        className,
+      )}
     >
-      <input
-        aria-label={ariaLabel}
-        className="sr-only"
-        max={max}
-        min={min}
-        onChange={(e) => commit(Number(e.target.value))}
-        step={step}
-        type="range"
-        value={current}
-        disabled={disabled}
-      />
       <div
-        aria-hidden="true"
-        className="absolute inset-x-0 cursor-pointer"
-        style={{ top: (THUMB + 8 - TRACK_H) / 2, height: TRACK_H }}
-        onPointerCancel={onPointerUp}
+        ref={(el) => {
+          trackRef.current = el;
+          if (externalTrackRef) externalTrackRef.current = el;
+        }}
+        role="slider"
+        tabIndex={0}
+        aria-label={ariaLabel}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={ariaValueText}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        ref={trackRef}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={onKeyDown}
+        className="leopard-slider-track"
       >
-        <div
-          className="absolute inset-0 rounded-full dark:bg-[#2a2a2a] light:bg-[#e5e5e5]"
-        />
-        <div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ width: `${ratio * 100}%`, background: fill }}
-        />
-        <div
-          className={cn(
-            "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full border",
-            "dark:bg-[#1a1a1a] light:bg-white dark:border-white/20 light:border-black/15",
-            "shadow-[0_1px_3px_rgba(0,0,0,0.35)] transition-transform duration-100",
-            dragging ? "scale-110" : "",
-          )}
-          style={{ left: `${ratio * 100}%`, width: THUMB, height: THUMB }}
-        />
+        <motion.div className="leopard-slider-fill" style={{ width: fillWidth }} />
       </div>
+      <div className="leopard-slider-ticks" aria-hidden="true">
+        {ticks.map((left) => (
+          <i key={left} className="leopard-slider-tick" style={{ left: `${left}px` }} />
+        ))}
+      </div>
+      <motion.div
+        aria-hidden="true"
+        className="leopard-slider-thumb"
+        style={{ x: thumbX }}
+      />
     </div>
   );
 }
