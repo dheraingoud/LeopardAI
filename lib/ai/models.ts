@@ -334,10 +334,10 @@ export function resolveImageDimensions(
  * (snake) at chat-language-model.ts line ~600; extra non-spec keys
  * (`chat_template_kwargs`) pass through literally snake_case.
  *
- *   param:"effort"          → { nim: { reasoningEffort } }. OFF (or a binary
- *                             effort model's "off") omits the key → NIM
- *                             non-think mode. Binary on/off effort models
- *                             (deepseek-flash / step) map ON → "high".
+ *   param:"effort"          → { nim: { reasoningEffort } }. NIM validates the
+ *                             value against none|minimal|low|medium|high|
+ *                             xhigh|max — "off" 400s, so the off switch is
+ *                             "none". Binary effort models map ON → "high".
  *   param:"think"           → { nim: { chat_template_kwargs: { think } } }
  *                             (literal pass-through) — diffusiongemma.
  *   param:"enable_thinking" → { nim: { chat_template_kwargs:
@@ -373,23 +373,21 @@ export function nimReasoningProviderOptions(
     };
   }
   // "effort"
-  // OFF must be EXPLICIT: omitting the param leaves the model at its upstream
-  // default, and nemotron-3.5-lightning defaults to thinking ON (live probe
-  // 2026-09-05: reasoning_content populated with no params). NIM accepts
-  // chat_template_kwargs.enable_thinking:false to disable cleanly — for models
-  // where that works (offSupported, the default).
+  // NIM validates reasoning_effort against a fixed enum —
+  // none|minimal|low|medium|high|xhigh|max. "off" is NOT a member and 400s
+  // ("unknown variant `off`", live probe 2026-10-28), so the off switch for
+  // an effort-param model is the enum's own "none". Mixing in
+  // chat_template_kwargs here is wrong: it is a DIFFERENT parameter than the
+  // one the model's own tiers use, and the effort-param models ignore it.
   if (!level) return {};
-  if (level === "off") {
-    // offSupported:false (muse/glm-5.3 family — NIM ignores enable_thinking
-    // there, probed 2026-10-08): the picker never offers "off", but a stale
-    // per-chat key can still carry it — degrade to the lowest real tier
-    // instead of emitting a param the upstream ignores.
-    if (cfg.offSupported === false && cfg.effortLevels?.length) {
-      return { nim: { reasoningEffort: cfg.effortLevels[0] } };
-    }
-    return { nim: { chat_template_kwargs: { enable_thinking: false } } };
+  const effort = level === "off" ? "none" : level === "on" ? "high" : level;
+  // offSupported:false (muse/glm-5.3 family — they reason regardless, probed
+  // 2026-10-08): the picker never offers an off switch, but a stale per-chat
+  // key can still carry one — degrade to the lowest real tier instead of
+  // emitting a level the upstream ignores.
+  if (effort === "none" && cfg.offSupported === false && cfg.effortLevels?.length) {
+    return { nim: { reasoningEffort: cfg.effortLevels[0] } };
   }
-  const effort = level === "on" ? "high" : level; // binary effort model ON → "high"
   return { nim: { reasoningEffort: effort } };
 }
 

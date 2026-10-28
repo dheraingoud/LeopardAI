@@ -24,11 +24,17 @@ import {
   type ImageAspectRatio,
 } from "@/lib/ai/models";
 import { isModelRequestAllowed } from "@/lib/ai/model-allowlist";
+import {
+  defaultTier,
+  effortTiers,
+  resolveLevelFor,
+} from "@/lib/ai/effort-tiers";
 import { systemPrompt, titlePrompt } from "@/lib/ai/prompts";
 import { cleanGeneratedTitle, needsTitle } from "@/lib/ai/chat-title";
 import { getLanguageModel, getTitleModel, getUtilityLanguageModel } from "@/lib/ai/providers";
 import { hasNimKey } from "@/lib/ai/nim-keys";
 import { allowedModelIds } from "@/lib/ai/models";
+import type { ReasoningLevel } from "@/lib/nim";
 import { webFetch } from "@/lib/ai/tools/web-fetch";
 import { webSearch } from "@/lib/ai/tools/web-search";
 import { repairToolCall } from "@/lib/ai/repair-tool-call";
@@ -641,6 +647,16 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  // A reasoning level is only meaningful for the model that was chosen. The
+  // wire accepts any tier string (a provider may publish a tier this codebase
+  // has never seen), so it is checked against the model's PROBED tier set here
+  // and an unusable level falls back to that model's default.
+  const requestedLevel = body.reasoning as ReasoningLevel | undefined;
+  const reasoningLevel = resolveLevelFor(
+    modelConfig?.reasoningConfig,
+    requestedLevel,
+  );
 
   const messages = body.messages as UIMessage[];
   if (messages.length === 0) {
@@ -1502,7 +1518,10 @@ export async function POST(request: Request) {
           ...(attemptCfg?.gatewayOrder && {
             gateway: { order: attemptCfg.gatewayOrder },
           }),
-          ...nimReasoningProviderOptions(attemptCfg, body.reasoning),
+          ...nimReasoningProviderOptions(
+            attemptCfg,
+            resolveLevelFor(attemptCfg?.reasoningConfig, requestedLevel),
+          ),
         },
         ...(supportsTools && {
           // Every tool stays registered on a resume. The prelude already ran
@@ -1658,7 +1677,7 @@ export async function POST(request: Request) {
         modelProvider: () => actualModel,
         retryPredicate: isFallbackableErrorText,
         sendReasoning: isReasoningModel,
-        reasoningLevel: body.reasoning,
+        reasoningLevel,
         assistantId,
         chatId: realChatId,
         userId: userId ?? DEV_USER_ID,

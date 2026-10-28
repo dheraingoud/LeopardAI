@@ -30,7 +30,7 @@ import { hydrateMessageImages } from "@/lib/image-cache";
 import type { ArtifactKind, ChatMessage } from "@/lib/types";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { StreamingText } from "./leopard/streaming-text";
-import type { ReasoningLevel } from "@/lib/nim";
+import { effortLabel } from "@/lib/ai/effort-tiers";
 import { ReasoningPanel } from "./leopard/reasoning-panel";
 import { ThinkingIndicator } from "./leopard/thinking-indicator";
 import { ToolCall } from "./leopard/tool-call";
@@ -426,15 +426,6 @@ function DocumentCard({ part, live }: { part: DocToolPart; live: boolean }) {
     </>
   );
 }
-
-const EFFORT_LABEL: Record<ReasoningLevel, string> = {
-  off: "Off",
-  on: "On",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  max: "Max",
-};
 
 /**
  * Reasoning card — auto-opens while reasoning streams, auto-collapses once the
@@ -1622,8 +1613,11 @@ export const PreviewMessage = memo(function PreviewMessage({
                     // rows rendered today's currentReasoning — a later model
                     // switch silently relabeled old thoughts. The message's own
                     // level isn't persisted, so "no badge" beats "wrong badge".
-                    live && currentReasoning && currentReasoning !== "off"
-                      ? EFFORT_LABEL[currentReasoning]
+                    live &&
+                    currentReasoning &&
+                    currentReasoning !== "off" &&
+                    currentReasoning !== "none"
+                      ? effortLabel(currentReasoning)
                       : undefined
                   }
                 />

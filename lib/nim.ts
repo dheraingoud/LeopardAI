@@ -50,8 +50,23 @@
  * thinking-effort levels). The body-param mapping (reasoning_effort:"high" vs
  * chat_template_kwargs.think:true) is per-model in app/api/chat/route.ts; the
  * registry just declares which stops the UI renders.
+ *
+ * The union is open: a provider may publish a tier this codebase has never
+ * seen (e.g. "xhigh"), and the registry entry for that model declares it. The
+ * `(string & {})` arm keeps editor completion for the known names while
+ * accepting any provider-defined tier verbatim.
  */
-export type ReasoningLevel = "off" | "on" | "low" | "medium" | "high" | "max";
+export type ReasoningLevel =
+  | "off"
+  | "on"
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max"
+  | (string & {});
 
 export interface ReasoningConfig {
   /** TRUE for reasoning-capable models (all curated chat models are). */
@@ -62,10 +77,12 @@ export interface ReasoningConfig {
    * Which NIM body param honors reasoning — drives route.ts's
    * nimReasoningProviderOptions():
    *
-   *   "effort"          → { nim: { reasoningEffort: level } }. OFF (or a binary
-   *                        effort model's "off") omits the key → NIM non-think
-   *                        mode. Binary on/off effort models (gemma/step)
-   *                        map ON → "high".
+   *   "effort"          → { nim: { reasoningEffort: level } }. NIM validates
+   *                        that value against a fixed enum — none | minimal |
+   *                        low | medium | high | xhigh | max (live probe
+   *                        2026-10-28: "off" 400s with "unknown variant
+   *                        `off`"). The off switch is therefore the enum's own
+   *                        "none"; a binary effort model's ON is "high".
    *   "think"           → { nim: { chat_template_kwargs: { think: bool } } }
    *                        (literal pass-through).
    *   "enable_thinking" → { nim: { chat_template_kwargs:
@@ -86,16 +103,18 @@ export interface ReasoningConfig {
    */
   param?: "effort" | "think" | "enable_thinking";
   /**
-   * Effort tiers selectable when reasoning is ON. Absent ⇒ pure on/off toggle
-   * (gemma / diffusion / step expose only a think toggle). Present ⇒
-   * the bar renders an effort slider the user drags between these stops.
+   * Effort tiers the provider ACCEPTS for this model — probed live, never
+   * inferred from the model's name. Absent ⇒ the control is a binary Off / On
+   * toggle. Present ⇒ the bar renders an effort slider between these stops.
+   * For param:"effort" models the values are NIM's reasoning_effort enum
+   * members (none | minimal | low | medium | high | xhigh | max).
    */
   effortLevels?: ReasoningLevel[];
-  /** What the bar initializes the selector to — "off" or a default effort tier. */
+  /** What the bar initializes the selector to — "off"/"none" or a default tier. */
   defaultEffort: ReasoningLevel;
   /**
-   * FALSE = the model has no working "off" upstream (probed: NIM ignores
-   * enable_thinking:false / think:false / low on these models — they reason
+   * FALSE = the model has no working off switch upstream (probed: these models
+   * still return reasoning_content at reasoning_effort:"none" — they reason
    * regardless). The picker then floors the slider at the lowest real tier
    * instead of offering a lying "Off". Default true.
    */
@@ -184,9 +203,10 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   // /v1/models, tools YES (finish_reason tool_calls, well-formed args),
   // vision YES (reads a 128x128 PNG and answers "Red"), context window
   // 262,144 (bisected against the upstream "Invalid request" ceiling).
-  // reasoning_effort modulates reasoning length (low≈570 / high≈800 /
-  // max≈820 chars on a 3-field sheep problem) but reasoning_content is never
-  // empty — there is no off, so offSupported:false floors the slider at "low".
+  // Effort tiers probed 2026-10-28 against the live API: low / medium /
+  // high / xhigh / max all return 200 and modulate reasoning length.
+  // reasoning_effort:"none" still returns reasoning_content (444 chars) —
+  // there is no off, so offSupported:false floors the slider at "low".
   "minimaxai/minimax-m3.1-flash": {
     id: "minimaxai/minimax-m3.1-flash",
     displayName: "Minimax M3.1 Flash",
@@ -200,7 +220,7 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       enabled: true,
       toggleable: true,
       param: "effort",
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "low",
       offSupported: false,
     },
@@ -208,9 +228,10 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   // nvidia/nemotron-3.5-super-vl-120b-a12b added 2026-10-26 (operator). Live
   // probe: present in /v1/models, tools YES, vision YES (reads a 128x128 PNG
   // and answers "Red"), context window 1,000,000 (upstream error states the
-  // ceiling). reasoning_effort modulates reasoning length (low≈1680 /
-  // high≈1970 / max≈1420 chars) but reasoning_content is never empty — no off,
-  // so offSupported:false floors the slider at "low".
+  // ceiling). Effort tiers probed 2026-10-28: low / medium / high / xhigh /
+  // max all 200. reasoning_effort:"none" empties reasoning_content (0 chars,
+  // vs 265-895 at every other tier) — that IS a working off switch, so the
+  // picker offers one.
   "nvidia/nemotron-3.5-super-vl-120b-a12b": {
     id: "nvidia/nemotron-3.5-super-vl-120b-a12b",
     displayName: "Nemotron 3.5 Super VL 120B",
@@ -224,9 +245,8 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       enabled: true,
       toggleable: true,
       param: "effort",
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "low",
-      offSupported: false,
     },
   },
   "google/gemma-4-31b-it": {
@@ -267,9 +287,10 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
   },
   // stepfun-ai/step-5-preview added 2026-10-15 (operator). Probed live:
   // tools YES (finish_reason tool_calls, well-formed args), vision NO (image
-  // input → 400, text-only), reasoning YES — chat_template_kwargs
-  // enable_thinking:false cleanly empties reasoning_content, and
-  // reasoning_effort accepts low/high/max (low→0 chars, high→358, max→182).
+  // input → 400, text-only), reasoning YES. Effort tiers probed 2026-10-28:
+  // low / medium / high / xhigh / max all 200. reasoning_effort:"none"
+  // empties reasoning_content (0 chars, full 349-char answer) — a working
+  // off switch, so the picker offers one.
   "stepfun-ai/step-5-preview": {
     id: "stepfun-ai/step-5-preview",
     displayName: "Step 5 Preview",
@@ -282,15 +303,15 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       enabled: true,
       toggleable: true,
       param: "effort",
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "low",
     },
   },
   // GLM 5.3 family added 2026-10-05 (operator). Both verified in /v1/models.
-  // GLM 5.3 family (added 2026-10-05). Probe 2026-10-08: enable_thinking:false
-  // is IGNORED upstream (reasoning_content arrives regardless) — but
-  // reasoning_effort works: low→0-900 chars, high→~11, max→~209. So the knob
-  // is real effort tiers with NO off (offSupported:false floors at "low").
+  // Effort tiers probed 2026-10-28: low / medium / high / xhigh / max all
+  // return 200. reasoning_effort:"none" still returns reasoning_content
+  // (200 chars) — no working off, so offSupported:false floors the slider
+  // at "low".
   // z-ai/glm-5.3 REMOVED 2026-10-15 (operator: retire from picker).
   "z-ai/glm-5.3-flash": {
     id: "z-ai/glm-5.3-flash",
@@ -304,7 +325,7 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
       enabled: true,
       toggleable: true,
       param: "effort",
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
       defaultEffort: "low",
       offSupported: false,
     },
@@ -321,15 +342,16 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 262_144,
-    // Reasoning probe 2026-10-08: muse reasons at EVERY level (low≈200,
-    // high≈458, max≈390 chars on a trivial prompt) and ignores off — thinking
-    // is architectural (like cosmos). Effort tiers kept (they modulate length
-    // some) but no off: offSupported:false floors the slider at "low".
+    // Reasoning probe 2026-10-08 + 2026-10-28: muse reasons at EVERY level
+    // (low≈120-209 / medium≈183-192 chars) and reasoning_effort:"none" still
+    // returns reasoning_content (209 chars) — thinking is architectural (like
+    // cosmos). Effort tiers kept (they modulate length) but no off:
+    // offSupported:false floors the slider at "low".
     reasoning: {
       enabled: true,
       toggleable: true,
       param: "effort",
-      effortLevels: ["low", "high", "max"],
+      effortLevels: ["low", "medium", "high", "max"],
       defaultEffort: "low",
       offSupported: false,
     },
@@ -343,11 +365,14 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 262_144,
+    // Binary effort model: no probed tier list, so the control is Off / On.
+    // Off maps to reasoning_effort:"none" and On to "high" — NIM's enum has
+    // no "off"/"on" member, so the effort-tiers model owns that mapping.
     reasoning: {
       enabled: true,
       toggleable: true,
       param: "effort",
-      defaultEffort: "on",
+      defaultEffort: "high",
     },
   },
   "nvidia/nemotron-3.5-lightning-30b-a3b": {
@@ -358,11 +383,17 @@ export const MODEL_REGISTRY: Record<string, ModelCapability> = {
     supportsVision: false,
     supportsTools: true,
     contextWindow: 262_144,
+    // Effort tiers probed 2026-10-28: low / medium / high / xhigh / max all
+    // return 200 and modulate reasoning length (low≈1053 / medium≈1641 /
+    // high≈684 / xhigh≈1155 / max≈737 chars). reasoning_effort:"none" empties
+    // reasoning_content (0 chars) — a working off switch, so the picker
+    // offers one.
     reasoning: {
       enabled: true,
       toggleable: true,
       param: "effort",
-      defaultEffort: "on",
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffort: "high",
     },
   },
   // stepfun-ai/step-3.7-flash REMOVED 2026-08-31 (operator: broken — NIM 404).

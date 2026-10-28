@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { getDefaultChatModel, getModelById, isImageModel } from "@/lib/ai/models";
+import { normalizeLevel, resolveLevelFor } from "@/lib/ai/effort-tiers";
 import type { ReasoningLevel } from "@/lib/nim";
 import { BYPASS_CLERK, DEV_USER_ID } from "@/lib/dev-user";
 import { dropOrphanToolParts } from "@/lib/chat-repair";
@@ -366,32 +367,39 @@ export function ActiveChatProvider({
     (mid: string, cid?: string, saved?: Record<string, string>): ReasoningLevel | undefined => {
       const cfg = getModelById(mid)?.reasoningConfig;
       if (!cfg?.enabled || !cfg.toggleable || !cfg.param) return undefined;
-      // Valid levels for this card (audit 2026-10-08): a stale stored value
-      // from an older effort set (e.g. "medium" on a low/high/max-only model,
-      // or "off" on an off-unsupported card) used to ride the request and NIM
-      // either 400'd the turn or silently thought anyway.
-      const valid = new Set<string>([
-        ...(cfg.offSupported === false ? [] : ["off"]),
-        "on",
-        ...(cfg.effortLevels ?? []),
-      ]);
+      // The saved level is checked against the model's PROBED tier set, so the
+      // picker, the settings slider and the request path agree on one set. A
+      // stale stored value from an older effort set (e.g. "medium" on a
+      // low/high/max-only model, or "off" on an off-unsupported card) must not
+      // ride the request — NIM either 400's the turn or silently thinks anyway.
+      // resolveLevelFor also normalizes the two off spellings: a value stored
+      // as "off" before the effort-param models moved to NIM's "none" enum
+      // still reads as the off switch, not as an unusable level.
       if (cid && cid !== "draft") {
         const chatSaved = saved?.[reasoningKey(mid, cid)];
-        if (chatSaved && valid.has(chatSaved)) return chatSaved as ReasoningLevel;
+        const chatLevel = chatSaved ? normalizeLevel(cfg, chatSaved) : undefined;
+        if (chatLevel) return chatLevel;
       }
       const perModel = saved?.[reasoningKey(mid)];
-      if (perModel && valid.has(perModel)) return perModel as ReasoningLevel;
-      return cfg.defaultEffort;
+      const perModelLevel = perModel ? normalizeLevel(cfg, perModel) : undefined;
+      if (perModelLevel) return perModelLevel;
+      return resolveLevelFor(cfg, undefined);
     },
     [reasoningKey],
   );
+  // The transport is memoized for the provider's life, so it cannot close over
+  // the live chat id or the resolver. Refs carry both.
+  const chatIdRef = useRef(chatId);
+  useEffect(() => {
+    chatIdRef.current = chatId;
+  }, [chatId]);
+  const resolveReasoningRef = useRef(resolveReasoningFor);
+  useEffect(() => {
+    resolveReasoningRef.current = resolveReasoningFor;
+  }, [resolveReasoningFor]);
   const [currentReasoning, setCurrentReasoning] = useState<
     ReasoningLevel | undefined
   >(undefined);
-  const currentReasoningRef = useRef(currentReasoning);
-  useEffect(() => {
-    currentReasoningRef.current = currentReasoning;
-  }, [currentReasoning]);
   useEffect(() => {
     setCurrentReasoning(
       resolveReasoningFor(
@@ -568,34 +576,47 @@ export function ActiveChatProvider({
           });
         }) as typeof fetch,
         prepareSendMessagesRequest: ({ id, messages, body }) => ({
-          body: {
-            id,
-            // FULL history — /api/chat validates + converts via convertToModelMessages.
-            // Normalize parts so even a live in-memory message holding legacy
-            // `tool-*`/`step-start` parts still validates on the wire.
-            messages: messages.map((m) => ({
-              ...m,
-              parts: normalizeUIMessageParts(m.parts),
-            })),
-            model:
+          body: (() => {
+            const model =
               typeof (body as { model?: unknown } | undefined)?.model === "string"
-                ? ((body as { model: string }).model)
-                : currentModelIdRef.current,
-            // Per-model reasoning level (undefined for locked-on/no-knob models
-            // → route omits the key → NIM non-think / no param). Route.ts reads
-            // this + nimReasoningProviderOptions() builds providerOptions.nim.
-            reasoning: currentReasoningRef.current,
-            // Φ-skill-library — slash-gated: only skills the user invoked with
-            // `/<slug>` in THIS message inject (e.g. `/frontend-design …`). No
-            // invocation → no skill bodies → no per-request token cost (NIM has
-            // no prompt caching, so always-on injection was a pure tax).
-            skills: getInvokedSkillBodies(lastUserText(messages)),
-            // Web fetch master toggle (composer + menu). Default ON — the
-            // route hardcodes the tool; false retracts it for this send.
-            // getState() read at send time (event handler), so the memoized
-            // transport never goes stale.
-            webFetch: useSettingsStore.getState().webFetchEnabled,
-          },
+                ? (body as { model: string }).model
+                : currentModelIdRef.current;
+            // The reasoning level is resolved HERE, for the model this request
+            // actually carries, from the live prefs cache — not read from a ref
+            // that a mid-flight model swap can leave pointing at the PREVIOUS
+            // model (the draft pickup swaps the model on the ref, so the stale
+            // ref sent the old model's effort tier with the new model).
+            const reasoning = resolveReasoningRef.current(
+              model,
+              chatIdRef.current,
+              getPrefsSnapshot().reasoning,
+            );
+            return {
+              id,
+              // FULL history — /api/chat validates + converts via convertToModelMessages.
+              // Normalize parts so even a live in-memory message holding legacy
+              // `tool-*`/`step-start` parts still validates on the wire.
+              messages: messages.map((m) => ({
+                ...m,
+                parts: normalizeUIMessageParts(m.parts),
+              })),
+              model,
+              // Per-model reasoning level (undefined for locked-on/no-knob models
+              // → route omits the key → NIM non-think / no param). Route.ts reads
+              // this + nimReasoningProviderOptions() builds providerOptions.nim.
+              reasoning,
+              // Φ-skill-library — slash-gated: only skills the user invoked with
+              // `/<slug>` in THIS message inject (e.g. `/frontend-design …`). No
+              // invocation → no skill bodies → no per-request token cost (NIM has
+              // no prompt caching, so always-on injection was a pure tax).
+              skills: getInvokedSkillBodies(lastUserText(messages)),
+              // Web fetch master toggle (composer + menu). Default ON — the
+              // route hardcodes the tool; false retracts it for this send.
+              // getState() read at send time (event handler), so the memoized
+              // transport never goes stale.
+              webFetch: useSettingsStore.getState().webFetchEnabled,
+            };
+          })(),
         }),
       }),
     [],

@@ -5,7 +5,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ArrowUpIcon, FileIcon, GlobeIcon, ImageIcon, MicIcon, PlugIcon, PlusIcon, SparklesIcon, SquareIcon } from "lucide-react";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useSettingsStore } from "@/hooks/use-settings-store";
-import { ModelSelector } from "./model-selector";
+import { ModelEffortPicker } from "./model-effort-picker";
 import { ModelFallbackNotice } from "./model-fallback-notice";
 import { ContextBreakdown } from "./context-breakdown";
 import { ChatContextPanel } from "./chat-context-panel";
@@ -831,7 +831,7 @@ export function Composer({ placement = "bottom" }: { placement?: "bottom" | "cen
               />
               <div className="flex min-w-0 shrink items-center gap-1.5">
                 <ComposerActions>
-                  <ModelSelector />
+                  <ModelEffortPicker />
                   <ContextBreakdown
                     contextWindow={ctxWin}
                     text={input}

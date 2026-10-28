@@ -1044,7 +1044,9 @@ pre code {
   .animate-pulse,
   .animate-ping,
   .animate-spin,
-  .animate-bounce {
+  .animate-bounce,
+  .animate-pulse-amber,
+  .animate-shimmer {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }

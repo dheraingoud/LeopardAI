@@ -1,10 +1,13 @@
 import { z } from "zod";
 
-// Per-model reasoning levels (mirrors lib/nim.ts ReasoningLevel). The route
-// reads `reasoning` + nimReasoningProviderOptions() maps it to NIM body params
-// (reasoning_effort for effort-param models, chat_template_kwargs.think for
-// think-param models); undefined / "off" / locked-on → no param sent.
-const REASONING_LEVELS = ["off", "on", "low", "medium", "high", "max"] as const;
+// Reasoning levels are validated against the SELECTED MODEL's probed tier set
+// (lib/nim.ts MODEL_REGISTRY), not against a fixed list: a provider may
+// publish a tier this codebase has never seen. The route drops a level the
+// chosen model does not expose rather than rejecting the whole request.
+// The route reads `reasoning` + nimReasoningProviderOptions() maps it to NIM
+// body params (reasoning_effort for effort-param models,
+// chat_template_kwargs.think for think-param models); undefined / locked-on
+// → no param sent.
 
 /**
  * Request body for /api/chat.
@@ -25,8 +28,8 @@ export const postRequestBodySchema = z.object({
   // Selected chat model id. Falls back to the registry default if absent.
   model: z.string().optional(),
   // Per-model reasoning level (set by the input-bar reasoning control).
-  // undefined / "off" → route sends no reasoning param (NIM non-think mode).
-  reasoning: z.enum(REASONING_LEVELS).optional(),
+  // The level is resolved against the model's probed tier set in the route.
+  reasoning: z.string().optional(),
   // Φ-docs · output style (addon A): optional per-turn override of the
   // LEOPARD_OUTPUT_STYLE env default. String, sanitized in output-styles.ts
   // ("default"/unknown → baseline voice; never degrades the prompt).
