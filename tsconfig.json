@@ -81,6 +81,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
+    ".next-dev3001/types/**/*.ts",
+    ".next-dev3001/dev/types/**/*.ts",
     "**/*.mts"
   ],
   "exclude": [
